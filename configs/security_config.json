@@ -1,0 +1,5 @@
+{
+    "jwt_secret_key": "YOUR_SECRET_KEY",
+    "token_expiration": 3600,
+    "allowed_origins": ["http://localhost:3000"]
+}
