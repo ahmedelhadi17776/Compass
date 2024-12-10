@@ -8,7 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from sqlalchemy import select
+from sqlalchemy import select, text
 from datetime import datetime, timedelta, timezone
 import asyncio
 
@@ -37,6 +37,9 @@ from src.services.authentication.auth_service import AuthService
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
     echo=False,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+    execution_options={"sqlite_raw_colnames": True}
 )
 
 # Create async session factory
@@ -49,17 +52,14 @@ async_session_factory = sessionmaker(
 @pytest_asyncio.fixture
 async def async_session():
     """Create a fresh database session for each test."""
-    # Create tables
     async with test_engine.begin() as conn:
+        # Enable foreign key constraints
+        await conn.execute(text("PRAGMA foreign_keys = ON"))
         await conn.run_sync(Base.metadata.create_all)
     
-    # Create session
-    session = async_session_factory()
-    try:
+    async with async_session_factory() as session:
         yield session
-    finally:
-        await session.close()
-        # Drop tables
+        await session.rollback()
         async with test_engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
 

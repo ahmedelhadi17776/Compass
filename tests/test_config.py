@@ -3,16 +3,19 @@ from unittest.mock import Mock
 
 # Mock email service configuration
 class MockEmailService:
-    def __init__(self):
-        pass
-    
-    def send_email(self, *args, **kwargs):
+    async def send_email(self, *args, **kwargs):
         return True
-    
-    def send_verification_email(self, *args, **kwargs):
+
+    async def send_password_reset(self, *args, **kwargs):
         return True
-    
-    def send_password_reset_email(self, *args, **kwargs):
+
+    async def send_verification_email(self, *args, **kwargs):
+        return True
+
+    async def send_task_notification(self, *args, **kwargs):
+        return True
+
+    async def send_workflow_notification(self, *args, **kwargs):
         return True
 
 # Create mock instance
@@ -20,6 +23,7 @@ mock_email_service = MockEmailService()
 
 # Override environment variables for testing
 test_settings = {
+    # Auth settings
     "EMAIL_ENABLED": True,
     "EMAIL_HOST": "localhost",
     "EMAIL_PORT": 1025,
@@ -35,5 +39,25 @@ test_settings = {
     "MAX_FAILED_LOGIN_ATTEMPTS": 5,
     "LOGIN_BLOCK_DURATION": 300,
     "SESSION_CLEANUP_INTERVAL_HOURS": 24,
-    "ENVIRONMENT": "test"
+    
+    # Task settings
+    "MAX_TASK_ATTACHMENTS": 10,
+    "MAX_ATTACHMENT_SIZE_MB": 50,
+    "ALLOWED_ATTACHMENT_TYPES": "pdf,doc,docx,txt,jpg,png",
+    "TASK_DUE_DATE_REMINDER_DAYS": [1, 3, 7],
+    "TASK_OVERDUE_CHECK_INTERVAL_HOURS": 1,
+    
+    # Workflow settings
+    "MAX_WORKFLOW_STEPS": 20,
+    "WORKFLOW_STEP_TIMEOUT_MINUTES": 60,
+    "MAX_STEP_RETRIES": 3,
+    "WORKFLOW_CHECK_INTERVAL_MINUTES": 5,
+    "AUTO_ADVANCE_WORKFLOW": True,
+    
+    # General settings
+    "ENVIRONMENT": "test",
+    "DEBUG": True,
+    "API_V1_PREFIX": "/api/v1",
+    "APP_NAME": "AIWA Test",
+    "APP_VERSION": "1.0.0"
 }

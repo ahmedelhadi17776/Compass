@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(project_root)
 
-from src.data.database.models import User, Role, Permission, TaskStatus, TaskPriority, Base
+from src.data.database.models import User, Role, Permission, TaskStatus, TaskPriority, TaskCategory, Workflow, WorkflowStep, Task, TaskComment, TaskHistory, Base
 from src.data.database.repositories.base_repository import BaseRepository
 from src.data.database.repositories.auth_log_repository import AuthLogRepository
 from src.data.database.repositories.user_repository import UserRepository
@@ -111,6 +111,26 @@ class TestDatabaseIntegration(unittest.TestCase):
             self.session.add(role)
             self.session.commit()
 
+            # Create permissions
+            permission1 = Permission(
+                name="create_task",
+                description="Can create tasks",
+                resource="task",
+                action="create"
+            )
+            permission2 = Permission(
+                name="edit_task",
+                description="Can edit tasks",
+                resource="task",
+                action="edit"
+            )
+            self.session.add_all([permission1, permission2])
+            self.session.commit()
+
+            # Associate permissions with role
+            role.permissions.extend([permission1, permission2])
+            self.session.commit()
+
             # Create a user and associate with the role
             user = User(
                 email="test_rel@example.com",
@@ -118,27 +138,108 @@ class TestDatabaseIntegration(unittest.TestCase):
                 hashed_password="testpass",
                 full_name="Test Relationship User",
                 is_active=True,
-                role_id=role.id,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
+            user.roles.append(role)
             self.session.add(user)
             self.session.commit()
 
-            # Test the relationship
-            queried_user = self.session.query(User).filter_by(email="test_rel@example.com").first()
-            self.assertIsNotNone(queried_user)
-            self.assertEqual(queried_user.role_id, role.id)
-
-            queried_role = self.session.query(Role).filter_by(name="test_role").first()
-            self.assertIsNotNone(queried_role)
-            self.assertEqual(queried_role.name, "test_role")
-
-            # Clean up - delete user first to remove the foreign key reference
-            self.session.delete(user)
+            # Create task-related entities
+            status = TaskStatus(name="In Progress", description="Task is being worked on")
+            priority = TaskPriority(name="High", weight=3)
+            category = TaskCategory(name="Development", description="Development tasks")
+            self.session.add_all([status, priority, category])
             self.session.commit()
 
-            # Then delete the role
+            # Create workflow
+            workflow = Workflow(
+                name="Test Workflow",
+                description="Test workflow",
+                is_active=True,
+                created_by=user.id
+            )
+            self.session.add(workflow)
+            self.session.commit()
+
+            # Create workflow steps
+            step1 = WorkflowStep(
+                workflow_id=workflow.id,
+                name="Step 1",
+                description="First step",
+                step_order=1,
+                is_required=True,
+                is_automated=False
+            )
+            step2 = WorkflowStep(
+                workflow_id=workflow.id,
+                name="Step 2",
+                description="Second step",
+                step_order=2,
+                is_required=True,
+                is_automated=True
+            )
+            self.session.add_all([step1, step2])
+            self.session.commit()
+
+            # Create task with all relationships
+            task = Task(
+                title="Test Task",
+                description="Test Description",
+                user_id=user.id,
+                status_id=status.id,
+                priority_id=priority.id,
+                category_id=category.id,
+                workflow_id=workflow.id,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            self.session.add(task)
+            self.session.commit()
+
+            # Create task comment and history
+            comment = TaskComment(
+                task_id=task.id,
+                user_id=user.id,
+                content="Test comment"
+            )
+            history = TaskHistory(
+                task_id=task.id,
+                user_id=user.id,
+                change_type="comment_added",
+                old_value=None,
+                new_value={"comment": "Test comment"}
+            )
+            self.session.add_all([comment, history])
+            self.session.commit()
+
+            # Test the relationships
+            queried_user = self.session.query(User).filter_by(email="test_rel@example.com").first()
+            self.assertIsNotNone(queried_user)
+            self.assertEqual(len(queried_user.roles), 1)
+            self.assertEqual(queried_user.roles[0].name, "test_role")
+            self.assertEqual(len(queried_user.roles[0].permissions), 2)
+
+            queried_task = self.session.query(Task).filter_by(id=task.id).first()
+            self.assertIsNotNone(queried_task)
+            self.assertEqual(queried_task.status.name, "In Progress")
+            self.assertEqual(queried_task.priority.name, "High")
+            self.assertEqual(queried_task.category.name, "Development")
+            self.assertEqual(queried_task.workflow.name, "Test Workflow")
+            self.assertEqual(len(queried_task.comments), 1)
+            self.assertEqual(len(queried_task.history), 1)
+
+            # Clean up - delete in correct order to handle foreign key constraints
+            self.session.delete(comment)
+            self.session.delete(history)
+            self.session.delete(task)
+            self.session.delete(step1)
+            self.session.delete(step2)
+            self.session.delete(workflow)
+            self.session.delete(status)
+            self.session.delete(priority)
+            self.session.delete(category)
+            self.session.delete(user)
             self.session.delete(role)
             self.session.commit()
 
