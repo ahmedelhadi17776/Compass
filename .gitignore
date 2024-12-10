@@ -26,15 +26,16 @@ ENV/
 .env.*.local
 
 # Logs
-logs/
-*.log
+#logs/
+#*.log
 
 # Database
 *.sqlite3
 *.db
+*.sql
 
 # Backups
-backups/
+#backups/
 
 # Distribution / packaging
 dist/

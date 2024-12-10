@@ -23,7 +23,7 @@ class UserCreate(UserBase):
     password: constr(min_length=8, max_length=100)
 
     class Config:
-        json_schema_extra = {
+        schema_extra = {
             "example": {
                 "username": "johndoe",
                 "email": "john@example.com",
@@ -42,7 +42,7 @@ class UserResponse(UserBase):
     is_admin: bool = False
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class SessionResponse(BaseModel):
     id: int
@@ -53,7 +53,7 @@ class SessionResponse(BaseModel):
     is_active: bool
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class EmailVerificationRequest(BaseModel):
     email: EmailStr
@@ -63,7 +63,7 @@ class PasswordResetRequest(BaseModel):
     email: EmailStr
 
     class Config:
-        json_schema_extra = {
+        schema_extra = {
             "example": {
                 "email": "user@example.com"
             }
@@ -75,7 +75,7 @@ class PasswordResetVerify(BaseModel):
     new_password: constr(min_length=8, max_length=100)
 
     class Config:
-        json_schema_extra = {
+        schema_extra = {
             "example": {
                 "token": "reset_token_here",
                 "new_password": "NewStrongP@ss123"
@@ -88,7 +88,7 @@ class PasswordResetResponse(BaseModel):
     email: EmailStr
 
     class Config:
-        json_schema_extra = {
+        schema_extra = {
             "example": {
                 "message": "Password reset email sent successfully",
                 "email": "user@example.com"

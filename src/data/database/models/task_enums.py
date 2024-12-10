@@ -5,9 +5,11 @@ class TaskStatus(str, Enum):
     """Task status enum."""
     TODO = "todo"
     IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
+    REVIEW = "review"
     BLOCKED = "blocked"
+    COMPLETED = "completed"
     CANCELLED = "cancelled"
+    ARCHIVED = "archived"
 
 class TaskPriority(str, Enum):
     """Task priority enum."""
@@ -15,3 +17,6 @@ class TaskPriority(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     URGENT = "urgent"
+    CRITICAL = "critical"
+
+

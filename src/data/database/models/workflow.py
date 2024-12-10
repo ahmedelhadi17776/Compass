@@ -1,68 +1,131 @@
-"""Workflow-related models."""
+"""Workflow and process management models."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text, JSON, Index, Table
-from sqlalchemy.orm import relationship
-
-from ..base import Base
-from src.utils.datetime_utils import utc_now
-
-# Association tables
-workflow_step_transitions = Table(
-    'workflow_step_transitions',
-    Base.metadata,
-    Column('from_step_id', Integer, ForeignKey('workflow_steps.id', ondelete='CASCADE'), primary_key=True),
-    Column('to_step_id', Integer, ForeignKey('workflow_steps.id', ondelete='CASCADE'), primary_key=True),
-    Index('idx_step_transitions_from', 'from_step_id'),
-    Index('idx_step_transitions_to', 'to_step_id'),
-    extend_existing=True
+from enum import Enum
+from sqlalchemy import (
+    Column, Integer, String, DateTime, ForeignKey, 
+    Text, Boolean, JSON, Index, Enum as SQLAEnum
 )
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from .user import User
+from .base import Base
+
+class WorkflowStatus(str, Enum):
+    """Workflow status enum."""
+    DRAFT = "draft"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    ARCHIVED = "archived"
+    DEPRECATED = "deprecated"
+
+class WorkflowStepType(str, Enum):
+    """Workflow step type enum."""
+    TASK = "task"
+    APPROVAL = "approval"
+    NOTIFICATION = "notification"
+    AUTOMATION = "automation"
+    CONDITION = "condition"
+    INTEGRATION = "integration"
 
 class Workflow(Base):
-    """Workflow model for managing task workflows."""
+    """Workflow model for process management."""
     __tablename__ = "workflows"
     __table_args__ = (
-        Index('idx_workflows_created_by', 'created_by'),
-        Index('idx_workflows_name', 'name'),
+        Index('ix_workflows_creator', 'created_by'),
+        Index('ix_workflows_status', 'status'),
+        Index('ix_workflows_category', 'category'),
         {'extend_existing': True}
     )
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
+    name = Column(String(255), nullable=False)
     description = Column(Text)
-    is_active = Column(Boolean, default=True)
-    created_by = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime(timezone=True), default=utc_now)
-    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    category = Column(String(100))
+    status = Column(SQLAEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.DRAFT)
+    
+    # Configuration
+    version = Column(String(50), nullable=False, default="1.0.0")
+    settings = Column(JSON)  # Workflow-specific settings
+    triggers = Column(JSON)  # Events that start the workflow
+    permissions = Column(JSON)  # Access control settings
+    
+    # Metadata
+    tags = Column(JSON)
+    created_by = Column(Integer, ForeignKey("User.id",name='fk_workflow_created_by_user_id'), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    published_at = Column(DateTime(timezone=True))
+    archived_at = Column(DateTime(timezone=True))
 
     # Relationships
-    steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
     creator = relationship("User", back_populates="created_workflows")
+    steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
+    tasks = relationship("Task", back_populates="workflow")
 
 class WorkflowStep(Base):
     """Workflow step model."""
     __tablename__ = "workflow_steps"
     __table_args__ = (
-        Index('idx_workflow_steps_workflow_id', 'workflow_id'),
+        Index('ix_workflow_steps_workflow', 'workflow_id'),
+        Index('ix_workflow_steps_type', 'step_type'),
         {'extend_existing': True}
     )
 
     id = Column(Integer, primary_key=True)
-    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete='CASCADE'))
-    name = Column(String(100), nullable=False)
+    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete='CASCADE',name='fk_workflow_step_workflow_id'), nullable=False)
+    name = Column(String(255), nullable=False)
     description = Column(Text)
-    order = Column(Integer)
-    requirements = Column(JSON)  # JSON field for step completion requirements
-    auto_advance = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), default=utc_now)
-    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    step_type = Column(SQLAEnum(WorkflowStepType), nullable=False)
+    order = Column(Integer, nullable=False)
+    
+    # Configuration
+    config = Column(JSON, nullable=False)  # Step-specific configuration
+    conditions = Column(JSON)  # Conditions for step execution
+    timeout = Column(Integer)  # Timeout in seconds
+    retry_config = Column(JSON)  # Retry settings
+    
+    # Behavior
+    is_required = Column(Boolean, default=True, nullable=False)
+    auto_advance = Column(Boolean, default=False, nullable=False)
+    can_revert = Column(Boolean, default=True, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     workflow = relationship("Workflow", back_populates="steps")
     tasks = relationship("Task", back_populates="workflow_step")
-    next_steps = relationship(
-        "WorkflowStep",
-        secondary=workflow_step_transitions,
-        primaryjoin=id==workflow_step_transitions.c.from_step_id,
-        secondaryjoin=id==workflow_step_transitions.c.to_step_id,
-        backref="previous_steps"
+    transitions_from = relationship(
+        "WorkflowTransition",
+        foreign_keys="[WorkflowTransition.from_step_id]",
+        back_populates="from_step",
+        cascade="all, delete-orphan"
     )
+    transitions_to = relationship(
+        "WorkflowTransition",
+        foreign_keys="[WorkflowTransition.to_step_id]",
+        back_populates="to_step",
+        cascade="all, delete-orphan"
+    )
+
+class WorkflowTransition(Base):
+    """Workflow transition model."""
+    __tablename__ = "workflow_transitions"
+    __table_args__ = (
+        Index('ix_workflow_transitions_from', 'from_step_id'),
+        Index('ix_workflow_transitions_to', 'to_step_id'),
+        {'extend_existing': True}
+    )
+
+    id = Column(Integer, primary_key=True)
+    from_step_id = Column(Integer, ForeignKey("workflow_steps.id", ondelete='CASCADE',name='fk_workflow_trans_workflow_steps_id'), nullable=False)
+    to_step_id = Column(Integer, ForeignKey("workflow_steps.id", ondelete='CASCADE',name='fk_workflow_trans_to_workflow_id'), nullable=False)
+    conditions = Column(JSON)  # Transition conditions
+    triggers = Column(JSON)  # Events that trigger the transition
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    from_step = relationship("WorkflowStep", foreign_keys=[from_step_id], back_populates="transitions_from")
+    to_step = relationship("WorkflowStep", foreign_keys=[to_step_id], back_populates="transitions_to")
