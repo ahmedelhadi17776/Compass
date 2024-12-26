@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...data.repositories.feedback_repository import FeedbackRepository
-from ...data.repositories.user_repository import UserRepository
-from ...core.exceptions import FeedbackServiceError
+from src.data.repositories.feedback_repository import FeedbackRepository
+from src.data.repositories.user_repository import UserRepository
+from src.core.exceptions import FeedbackServiceError
 
 class FeedbackService:
     """Service for managing user feedback and improvement suggestions."""

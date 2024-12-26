@@ -7,10 +7,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from .user import User
-from .base import Base
-from .cache import CacheEntry  # Import CacheEntry
-from ....utils import datetime_utils
+from src.data.database.models.user import User
+from src.data.database.base import Base
+from src.data.cache import CacheEntry  
+from src.utils import datetime_utils
 
 
 class Summary(Base):

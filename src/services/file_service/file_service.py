@@ -7,8 +7,8 @@ from typing import Optional, Dict, BinaryIO
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile
 
-from ...data.repositories.task_attachments_repository import TaskAttachmentsRepository
-from core.exceptions import FileServiceError
+from src.data.repositories.task_repository import TaskAttachmentsRepository # to do: change to task_repository
+from src.core.exceptions import FileServiceError
 
 class FileService:
     """File service class."""
