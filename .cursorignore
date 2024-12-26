@@ -20,14 +20,15 @@ ENV/
 *.swo
 
 # Environment Variables
-.env
+#.env
 .env.local
 .env.*
 .env.*.local
 
-Logs
-logs/
-*.log
+#logs
+#Logs
+#logs/
+#*.log
 
 # Database
 *.sqlite3
