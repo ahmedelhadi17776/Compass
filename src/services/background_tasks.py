@@ -3,9 +3,9 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI
-from .authentication.auth_service import AuthService
-from ..dependencies import get_auth_service
-from ..core.config import settings
+from src.services.authentication.auth_service import AuthService
+from src.dependencies import get_auth_service
+from src.core.config import settings
 
 class BackgroundTasks:
     """Background tasks manager."""

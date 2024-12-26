@@ -2,10 +2,10 @@
 from typing import List, Optional
 from datetime import datetime
 
-from ...data.repositories.task_repository import TaskRepository
-from ...data.database.models.task import Task
-from ...application.schemas.task import TaskCreate, TaskUpdate
-from core.exceptions import TaskNotFoundError
+from src.data.repositories.task_repository import TaskRepository
+from src.data.database.models.task import Task
+from src.application.schemas.task import TaskCreate, TaskUpdate
+from src.core.exceptions import TaskNotFoundError
 
 class TaskService:
     """Task service class."""

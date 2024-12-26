@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import hashlib
 import json
 
-from ...data.repositories.user_repository import UserRepository
-from ...data.repositories.privacy_settings_repository import PrivacySettingsRepository
-from ...data.repositories.data_request_repository import DataRequestRepository
-from ...core.exceptions import DataPrivacyError
+from src.data.repositories.user_repository import UserRepository
+from src.data.repositories.privacy_settings_repository import PrivacySettingsRepository
+from src.data.repositories.data_request_repository import DataRequestRepository
+from src.core.exceptions import DataPrivacyError
 
 class DataPrivacyService:
     """Service for managing data privacy and compliance."""
@@ -301,4 +301,4 @@ class DataPrivacyService:
                 "generated_at": datetime.utcnow()
             }
         except Exception as e:
-            raise DataPrivacyError(f"Error generating privacy report: {str(e)}")}
+            raise DataPrivacyError(f"Error generating privacy report: {str(e)}")
