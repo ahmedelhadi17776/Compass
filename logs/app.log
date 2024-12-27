@@ -3877,3 +3877,8 @@ pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_se
 2024-12-26 02:00:05,801 - scripts.database.backup - INFO - Database backup completed successfully: c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241226_020003.sql.gz
 2024-12-26 02:00:05,802 - __main__ - INFO - Daily backup created: c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241226_020003.sql.gz
 2024-12-26 02:00:05,803 - __main__ - INFO - Old backup cleanup completed
+2024-12-27 03:06:55,680 - __main__ - INFO - Starting scheduled daily backup
+2024-12-27 03:06:55,718 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241227_030655.sql
+2024-12-27 03:06:58,391 - scripts.database.backup - INFO - Database backup completed successfully: c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241227_030655.sql.gz
+2024-12-27 03:06:58,392 - __main__ - INFO - Daily backup created: c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241227_030655.sql.gz
+2024-12-27 03:06:58,395 - __main__ - INFO - Old backup cleanup completed

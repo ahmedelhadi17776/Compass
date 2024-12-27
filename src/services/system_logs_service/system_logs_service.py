@@ -3,8 +3,8 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...data.repositories.system_logs_repository import SystemLogsRepository
-from ...data.database.models.system_logs import SystemLog
+from src.data.repositories.system_logs_repository import SystemLogsRepository
+from src.data.database.models.system_logs import SystemLog
 
 class SystemLogsService:
     """System logs service class."""
