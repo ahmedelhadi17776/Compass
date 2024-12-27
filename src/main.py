@@ -1,4 +1,5 @@
 """Main application module."""
+from src.api.v1.endpoints import security
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,16 +13,32 @@ import json
 import os
 from pathlib import Path
 from contextlib import asynccontextmanager
+import secrets
+import time
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.core.exceptions import AuthError
+from src.core.security.exceptions import SecurityError, AuthError
 from src.core.security import SecurityHeaders
 from src.middleware.auth_middleware import setup_auth_middleware
 from src.middleware.session_middleware import setup_session_middleware
-from src.middleware.security_middleware import setup_security_middleware
 from src.application.api.routes import api_router
 from src.services.background_tasks import background_tasks
 from src.core.logging import setup_logging
+from src.middleware.rate_limiter import RateLimiter
+from src.middleware.security import SecurityMiddleware
+from src.core.security.auth import TokenManager
+from src.core.security.encryption import EncryptionService
+from src.middleware.security_context import SecurityContextMiddleware
+from src.middleware.security_factory import setup_security_middleware
+from src.core.security.events import SecurityEventService
+from src.core.security.headers import SecurityHeadersService
+from src.core.security.rate_limit import RateLimitConfig
+from src.services.security.background_tasks import SecurityBackgroundTasks
+from src.services.security.monitoring_service import SecurityMonitoringService
+from src.services.security.alerts_service import SecurityAlertsService
+from src.core.security.context import SecurityContext
+from src.services.security.security_service import SecurityService
 
 # Setup logging
 logger = setup_logging()
@@ -34,15 +51,21 @@ logging.config.dictConfig(logging_config)
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
+# Initialize security services
+token_manager = TokenManager()
+encryption_service = EncryptionService()
+security_headers_service = SecurityHeadersService()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
     # Startup
-    background_tasks.app = app
     await background_tasks.start()
     yield
     # Shutdown
     await background_tasks.stop()
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -53,6 +76,9 @@ app = FastAPI(
     openapi_url="/api/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan
 )
+
+# Initialize security background tasks
+security_tasks = SecurityBackgroundTasks(app)
 
 # Set up CORS
 app.add_middleware(
@@ -68,7 +94,15 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Set up security middleware (should be first)
-setup_security_middleware(app)
+setup_security_middleware(
+    app,
+    token_manager=token_manager,
+    encryption_service=encryption_service,
+    rate_limit_config=RateLimitConfig(
+        requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,
+        burst_size=settings.RATE_LIMIT_BURST_SIZE
+    )
+)
 
 # Set up authentication middleware
 setup_auth_middleware(app)
@@ -78,6 +112,60 @@ setup_session_middleware(app)
 
 # Include API router
 app.include_router(api_router, prefix="/api")
+
+# Add security middleware
+app.add_middleware(
+    SecurityMiddleware,
+    security_service=SecurityService(
+        db=AsyncSession(),
+        context=SecurityContext.create(
+            token_manager=token_manager,
+            encryption_service=encryption_service,
+            client_ip="0.0.0.0",  # Will be updated per-request
+            path="/",  # Will be updated per-request
+            method="GET"  # Will be updated per-request
+        )
+    )
+)
+
+# Add security event handling middleware
+
+
+@app.middleware("http")
+async def security_event_handler(request: Request, call_next):
+    """Handle security events."""
+    start_time = time.time()
+
+    try:
+        response = await call_next(request)
+
+        # Log successful requests
+        await request.state.security_service.audit_request(
+            request=request,
+            response_status=response.status_code,
+            duration=time.time() - start_time
+        )
+
+        return response
+
+    except Exception as e:
+        # Log failed requests
+        await request.state.security_service.audit_request(
+            request=request,
+            response_status=500,
+            duration=time.time() - start_time,
+            error=str(e)
+        )
+        raise
+
+# Add security routes
+
+app.include_router(
+    security.router,
+    prefix="/api/v1/security",
+    tags=["security"]
+)
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -91,6 +179,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
     )
 
+
 @app.exception_handler(AuthError)
 async def auth_error_handler(request: Request, exc: AuthError):
     """Handle authentication errors."""
@@ -100,6 +189,7 @@ async def auth_error_handler(request: Request, exc: AuthError):
         content={"detail": exc.detail},
         headers={**exc.headers} if exc.headers else None
     )
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -112,12 +202,14 @@ async def general_exception_handler(request: Request, exc: Exception):
         }
     )
 
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)
     SecurityHeaders.apply_security_headers(response)
     return response
+
 
 @app.get("/api/health", tags=["Health"])
 async def health_check():

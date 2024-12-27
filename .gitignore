@@ -25,17 +25,18 @@ ENV/
 .env.*
 .env.*.local
 
-#Logs
-#logs/
-#*.log
+Logs
+logs
+logs/
+*.log
 
 # Database
 *.sqlite3
 *.db
 *.sql
 
-# Backups
-#backups/
+Backups
+backups/
 
 # Distribution / packaging
 dist/
@@ -65,5 +66,5 @@ Thumbs.db
 
 
 tests/
-#*.md
-#*.docx
+*.md
+*.docx
