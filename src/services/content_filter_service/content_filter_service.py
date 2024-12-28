@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
 
+
 class ContentFilterService:
     """Content filter service class."""
 
@@ -26,17 +27,19 @@ class ContentFilterService:
 
         filtered_content = content
         issues = []
-        
+
         # Apply keyword filtering
         keyword_issues = self._filter_keywords(filtered_content)
         issues.extend(keyword_issues)
 
         # Apply content type specific rules
-        type_issues = self._apply_content_type_rules(filtered_content, content_type)
+        type_issues = self._apply_content_type_rules(
+            filtered_content, content_type)
         issues.extend(type_issues)
 
         # Apply sensitivity level rules
-        sensitivity_issues = self._apply_sensitivity_rules(filtered_content, sensitivity)
+        sensitivity_issues = self._apply_sensitivity_rules(
+            filtered_content, sensitivity)
         issues.extend(sensitivity_issues)
 
         return {
@@ -71,7 +74,8 @@ class ContentFilterService:
     def _extract_domain(self, url: str) -> str:
         """Extract domain from URL."""
         # Simple domain extraction, could be enhanced with urllib.parse
-        match = re.search(r"^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n?]+)", url)
+        match = re.search(
+            r"^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n?]+)", url)
         return match.group(1) if match else ""
 
     def _filter_keywords(self, content: str) -> List[Dict]:
@@ -179,5 +183,6 @@ class ContentFilterService:
         """Set content filter sensitivity level."""
         valid_levels = ["low", "medium", "high"]
         if level not in valid_levels:
-            raise ValueError(f"Invalid sensitivity level. Must be one of: {valid_levels}")
+            raise ValueError(
+                f"Invalid sensitivity level. Must be one of: {valid_levels}")
         self._sensitivity_level = level

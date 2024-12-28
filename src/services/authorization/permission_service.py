@@ -7,6 +7,7 @@ from src.utils.datetime_utils import utc_now
 from src.data.database.models import Permission, Role, role_permissions, User
 from src.application.schemas.permission import PermissionCreate, PermissionUpdate
 
+
 class PermissionService:
     def __init__(self, db: Session):
         self.db = db
@@ -21,7 +22,7 @@ class PermissionService:
             created_at=utc_now(),
             updated_at=utc_now()
         )
-        
+
         try:
             self.db.add(db_permission)
             self.db.commit()
@@ -36,7 +37,8 @@ class PermissionService:
 
     def get_permission(self, permission_id: int) -> Optional[Permission]:
         """Get a permission by ID."""
-        permission = self.db.query(Permission).filter(Permission.id == permission_id).first()
+        permission = self.db.query(Permission).filter(
+            Permission.id == permission_id).first()
         if not permission:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -55,7 +57,7 @@ class PermissionService:
     def update_permission(self, permission_id: int, permission_data: PermissionUpdate) -> Permission:
         """Update a permission."""
         permission = self.get_permission(permission_id)
-        
+
         if permission_data.name is not None:
             permission.name = permission_data.name
         if permission_data.description is not None:
@@ -64,9 +66,9 @@ class PermissionService:
             permission.resource = permission_data.resource
         if permission_data.action is not None:
             permission.action = permission_data.action
-        
+
         permission.updated_at = utc_now()
-        
+
         try:
             self.db.commit()
             self.db.refresh(permission)
@@ -86,7 +88,7 @@ class PermissionService:
             self.db.execute(
                 role_permissions.delete().where(role_permissions.c.permission_id == permission_id)
             )
-            
+
             # Then delete the permission
             self.db.delete(permission)
             self.db.commit()
@@ -105,7 +107,7 @@ class PermissionService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        
+
         # Get all permissions through role_permissions table
         permissions = self.db.query(Permission).join(
             role_permissions,
@@ -116,14 +118,14 @@ class PermissionService:
         ).filter(
             Role.id == user.role_id
         ).all()
-        
+
         return permissions
 
     def check_permission(self, user: User, resource: str, action: str) -> bool:
         """Check if a user has a specific permission through their role."""
         if not user.role:
             return False
-        
+
         # Query to check if the user's role has the required permission
         permission_exists = (
             self.db.query(Permission)
@@ -135,7 +137,9 @@ class PermissionService:
             )
             .first()
         )
-        
+
         return permission_exists is not None
 
-permission_service = PermissionService(None)  # Will be initialized with DB session in router
+
+# Will be initialized with DB session in router
+permission_service = PermissionService(None)

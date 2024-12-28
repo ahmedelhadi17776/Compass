@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.domain.models.task import Task
 from .base_repository import BaseRepository
 
+
 class TaskRepository(BaseRepository[Task]):
     def __init__(self, session: AsyncSession):
         super().__init__(Task, session)

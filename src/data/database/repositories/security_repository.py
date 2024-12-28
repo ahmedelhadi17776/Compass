@@ -1,51 +1,65 @@
 """Security repository module."""
-from typing import Optional, List, Dict
-from datetime import datetime
+from typing import List, Optional
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data.database.models.security_log import SecurityAuditLog, SecurityEvent
-from .base_repository import BaseRepository
+from src.core.security.events import SecurityEvent
+from src.data.database.models.security_log import SecurityAuditLog
 
 
-class SecurityRepository(BaseRepository):
-    """Repository for security-related database operations."""
+class SecurityRepository:
+    """Repository for security-related operations."""
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
-    async def create_audit_log(self, data: Dict) -> SecurityAuditLog:
-        """Create a new audit log entry."""
-        audit_log = SecurityAuditLog(**data)
-        self.session.add(audit_log)
-        await self.session.commit()
-        return audit_log
+    async def create_security_event(self, event: SecurityEvent) -> None:
+        """Create a security event."""
+        log_entry = SecurityAuditLog(
+            event_type=event.event_type,
+            timestamp=event.timestamp,
+            description=event.description,
+            severity=event.severity,
+            user_id=event.user_id,
+            ip_address=event.ip_address,
+            user_agent=event.user_agent,
+            metadata=event.metadata
+        )
+        self.db.add(log_entry)
+        await self.db.commit()
 
-    async def create_security_event(self, data: Dict) -> SecurityEvent:
-        """Create a new security event."""
-        event = SecurityEvent(**data)
-        self.session.add(event)
-        await self.session.commit()
-        return event
+    async def create_audit_log(self, data: dict) -> None:
+        """Create an audit log entry."""
+        log_entry = SecurityAuditLog(**data)
+        self.db.add(log_entry)
+        await self.db.commit()
 
-    async def get_audit_logs(
+    async def get_security_events(
         self,
-        user_id: Optional[int] = None,
-        start_date: Optional[datetime] = None,
+        start_date: datetime,
         end_date: Optional[datetime] = None,
-        event_type: Optional[str] = None
+        event_types: Optional[List[str]] = None
     ) -> List[SecurityAuditLog]:
-        """Get audit logs with optional filters."""
-        query = select(SecurityAuditLog)
+        """Get security events within date range."""
+        query = select(SecurityAuditLog).where(
+            SecurityAuditLog.timestamp >= start_date
+        )
 
-        if user_id:
-            query = query.filter(SecurityAuditLog.user_id == user_id)
-        if start_date:
-            query = query.filter(SecurityAuditLog.timestamp >= start_date)
         if end_date:
-            query = query.filter(SecurityAuditLog.timestamp <= end_date)
-        if event_type:
-            query = query.filter(SecurityAuditLog.event_type == event_type)
+            query = query.where(SecurityAuditLog.timestamp <= end_date)
+        if event_types:
+            query = query.where(SecurityAuditLog.event_type.in_(event_types))
 
-        result = await self.session.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def cleanup_old_events(self, days: int) -> None:
+        """Clean up events older than specified days."""
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        await self.db.execute(
+            select(SecurityAuditLog).where(
+                SecurityAuditLog.timestamp < cutoff_date
+            ).delete()
+        )
+        await self.db.commit()

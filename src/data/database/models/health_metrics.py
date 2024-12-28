@@ -1,7 +1,7 @@
 """Health metrics related models."""
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, DateTime, JSON, ForeignKey, 
+    Column, Integer, String, DateTime, JSON, ForeignKey,
     Index, Float, Text
 )
 from sqlalchemy.orm import relationship
@@ -9,6 +9,7 @@ from sqlalchemy.sql import func
 
 from .user import User
 from .base import Base
+
 
 class EmotionalRecognition(Base):
     """Emotional recognition tracking model."""
@@ -20,7 +21,8 @@ class EmotionalRecognition(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("User.id", ondelete='CASCADE',name='fk_emotional_user_id'), nullable=False)
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='CASCADE', name='fk_emotional_user_id'), nullable=False)
     emotion = Column(String(50), nullable=False)
     confidence_level = Column(Float, nullable=False)
     source_type = Column(String(50), nullable=False)
@@ -30,6 +32,7 @@ class EmotionalRecognition(Base):
 
     # Relationships
     user = relationship("User", back_populates="emotional_records")
+
 
 class HealthMetric(Base):
     """Health metrics tracking model."""
@@ -42,7 +45,8 @@ class HealthMetric(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("User.id", ondelete='CASCADE',name='fk_helath_metric_user_id'), nullable=False)
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='CASCADE', name='fk_helath_metric_user_id'), nullable=False)
     metric_type = Column(String(50), nullable=False)
     value = Column(Float, nullable=False)
     unit = Column(String(20))

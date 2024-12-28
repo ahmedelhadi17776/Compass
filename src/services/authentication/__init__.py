@@ -1,7 +1,9 @@
 """Authentication service package."""
 from .auth_service import AuthService
+from .dependencies import get_current_user, oauth2_scheme
 
-# Export AuthService as AuthenticationService for backward compatibility
-AuthenticationService = AuthService
-
-__all__ = ['AuthService', 'AuthenticationService']
+__all__ = [
+    "AuthService",
+    "get_current_user",
+    "oauth2_scheme"
+]

@@ -1,7 +1,7 @@
 """Authentication schemas."""
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, EmailStr, constr, validator, field_validator, ConfigDict
+from typing import Optional, Annotated
+from pydantic import BaseModel, EmailStr, Field, constr, validator, field_validator, ConfigDict
 from pydantic import ValidationError
 from fastapi import HTTPException
 from fastapi import status
@@ -17,6 +17,7 @@ __all__ = [
     'PasswordResetResponse'
 ]
 
+
 def validate_password(password: str) -> str:
     """Validate password complexity."""
     if len(password) < 8:
@@ -28,20 +29,23 @@ def validate_password(password: str) -> str:
     if not any(c.isdigit() for c in password):
         raise ValueError("Password must contain at least one number")
     if not re.search(r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]', password):
-        raise ValueError("Password must contain at least one special character")
+        raise ValueError(
+            "Password must contain at least one special character")
     return password
+
 
 class UserBase(BaseModel):
     """Base user schema with common attributes."""
     model_config = ConfigDict(from_attributes=True)
-    
-    username: constr(min_length=3, max_length=50)
+
+    username: Annotated[str, Field(min_length=3, max_length=50)]
     email: EmailStr
+
 
 class UserCreate(UserBase):
     """Schema for user registration."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     password: str
     full_name: str
 
@@ -56,39 +60,44 @@ class UserCreate(UserBase):
                 detail=str(e)
             )
 
+
 class UserLogin(BaseModel):
     """Schema for user login."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     username: str
     password: str
+
 
 class UserResponse(BaseModel):
     """Schema for user response data."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     username: str
     email: EmailStr
     full_name: str
 
+
 class Token(BaseModel):
     """Schema for authentication token."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     access_token: str
     token_type: str
+
 
 class TokenData(BaseModel):
     """Schema for token payload data."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     username: str | None = None
+
 
 class PasswordResetRequest(BaseModel):
     """Schema for password reset request"""
     model_config = ConfigDict(from_attributes=True)
-    
+
     email: EmailStr
 
     class Config:
@@ -98,10 +107,11 @@ class PasswordResetRequest(BaseModel):
             }
         }
 
+
 class PasswordResetVerify(BaseModel):
     """Schema for password reset verification"""
     model_config = ConfigDict(from_attributes=True)
-    
+
     token: str
     new_password: str
 
@@ -113,8 +123,9 @@ class PasswordResetVerify(BaseModel):
             }
         }
 
+
 class PasswordResetResponse(BaseModel):
     """Schema for password reset response"""
     model_config = ConfigDict(from_attributes=True)
-    
+
     message: str

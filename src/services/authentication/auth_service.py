@@ -2,11 +2,16 @@
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.core.security import SecurityContext, PasswordManager
 from src.data.database.models.auth import User
 from src.data.database.repositories.user_repository import UserRepository
 from src.services.security.security_service import SecurityService
+from src.application.schemas.auth import UserCreate, UserLogin, Token
+from src.core.security.password import PasswordManager
+from src.core.security.jwt_utils import create_access_token
+from src.core.logging import logger
 
 
 class AuthService:
@@ -114,3 +119,43 @@ class AuthService:
                 metadata={"user_id": user.id}
             )
             raise
+
+    async def register_user(self, user_create: UserCreate) -> Token:
+        """Register a new user."""
+        existing_user = self.db.query(User).filter(
+            User.email == user_create.email).first()
+        if existing_user:
+            logger.warning(f"Attempt to register with existing email: {
+                           user_create.email}")
+            raise ValueError("Email already registered.")
+
+        hashed_pw = PasswordManager.hash_password(user_create.password)
+        new_user = User(
+            email=user_create.email,
+            username=user_create.username,
+            password_hash=hashed_pw,
+            full_name=user_create.full_name
+        )
+        self.db.add(new_user)
+        self.db.commit()
+        self.db.refresh(new_user)
+
+        access_token = create_access_token(data={"sub": new_user.email})
+        return Token(access_token=access_token, token_type="bearer")
+
+    async def authenticate_user(self, user_login: UserLogin) -> Optional[Token]:
+        """Authenticate user and return JWT token."""
+        user = self.db.query(User).filter(
+            User.email == user_login.email).first()
+        if not user:
+            logger.warning(
+                f"Authentication failed for non-existent email: {user_login.email}")
+            return None
+
+        if not PasswordManager.verify_password(user_login.password, user.password_hash):
+            logger.warning(f"Authentication failed for email: {
+                           user_login.email}")
+            return None
+
+        access_token = create_access_token(data={"sub": user.email})
+        return Token(access_token=access_token, token_type="bearer")

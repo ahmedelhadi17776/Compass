@@ -2,7 +2,7 @@
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, 
+    Column, Integer, String, DateTime, ForeignKey,
     Text, Boolean, JSON, Index, Enum as SQLAEnum
 )
 from sqlalchemy.orm import relationship
@@ -10,6 +10,7 @@ from sqlalchemy.sql import func
 
 from .user import User
 from .base import Base
+
 
 class WorkflowStatus(str, Enum):
     """Workflow status enum."""
@@ -19,6 +20,7 @@ class WorkflowStatus(str, Enum):
     ARCHIVED = "archived"
     DEPRECATED = "deprecated"
 
+
 class WorkflowStepType(str, Enum):
     """Workflow step type enum."""
     TASK = "task"
@@ -27,6 +29,7 @@ class WorkflowStepType(str, Enum):
     AUTOMATION = "automation"
     CONDITION = "condition"
     INTEGRATION = "integration"
+
 
 class Workflow(Base):
     """Workflow model for process management."""
@@ -42,17 +45,19 @@ class Workflow(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     category = Column(String(100))
-    status = Column(SQLAEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.DRAFT)
-    
+    status = Column(SQLAEnum(WorkflowStatus), nullable=False,
+                    default=WorkflowStatus.DRAFT)
+
     # Configuration
     version = Column(String(50), nullable=False, default="1.0.0")
     settings = Column(JSON)  # Workflow-specific settings
     triggers = Column(JSON)  # Events that start the workflow
     permissions = Column(JSON)  # Access control settings
-    
+
     # Metadata
     tags = Column(JSON)
-    created_by = Column(Integer, ForeignKey("User.id",name='fk_workflow_created_by_user_id'), nullable=False)
+    created_by = Column(Integer, ForeignKey(
+        "users.id", name='fk_workflow_created_by_user_id'), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     published_at = Column(DateTime(timezone=True))
@@ -60,8 +65,10 @@ class Workflow(Base):
 
     # Relationships
     creator = relationship("User", back_populates="created_workflows")
-    steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
+    steps = relationship(
+        "WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="workflow")
+
 
 class WorkflowStep(Base):
     """Workflow step model."""
@@ -73,23 +80,24 @@ class WorkflowStep(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete='CASCADE',name='fk_workflow_step_workflow_id'), nullable=False)
+    workflow_id = Column(Integer, ForeignKey(
+        "workflows.id", ondelete='CASCADE', name='fk_workflow_step_workflow_id'), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     step_type = Column(SQLAEnum(WorkflowStepType), nullable=False)
     order = Column(Integer, nullable=False)
-    
+
     # Configuration
     config = Column(JSON, nullable=False)  # Step-specific configuration
     conditions = Column(JSON)  # Conditions for step execution
     timeout = Column(Integer)  # Timeout in seconds
     retry_config = Column(JSON)  # Retry settings
-    
+
     # Behavior
     is_required = Column(Boolean, default=True, nullable=False)
     auto_advance = Column(Boolean, default=False, nullable=False)
     can_revert = Column(Boolean, default=True, nullable=False)
-    
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -110,6 +118,7 @@ class WorkflowStep(Base):
         cascade="all, delete-orphan"
     )
 
+
 class WorkflowTransition(Base):
     """Workflow transition model."""
     __tablename__ = "workflow_transitions"
@@ -120,12 +129,16 @@ class WorkflowTransition(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    from_step_id = Column(Integer, ForeignKey("workflow_steps.id", ondelete='CASCADE',name='fk_workflow_trans_workflow_steps_id'), nullable=False)
-    to_step_id = Column(Integer, ForeignKey("workflow_steps.id", ondelete='CASCADE',name='fk_workflow_trans_to_workflow_id'), nullable=False)
+    from_step_id = Column(Integer, ForeignKey("workflow_steps.id", ondelete='CASCADE',
+                          name='fk_workflow_trans_workflow_steps_id'), nullable=False)
+    to_step_id = Column(Integer, ForeignKey("workflow_steps.id", ondelete='CASCADE',
+                        name='fk_workflow_trans_to_workflow_id'), nullable=False)
     conditions = Column(JSON)  # Transition conditions
     triggers = Column(JSON)  # Events that trigger the transition
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    from_step = relationship("WorkflowStep", foreign_keys=[from_step_id], back_populates="transitions_from")
-    to_step = relationship("WorkflowStep", foreign_keys=[to_step_id], back_populates="transitions_to")
+    from_step = relationship("WorkflowStep", foreign_keys=[
+                             from_step_id], back_populates="transitions_from")
+    to_step = relationship("WorkflowStep", foreign_keys=[
+                           to_step_id], back_populates="transitions_to")

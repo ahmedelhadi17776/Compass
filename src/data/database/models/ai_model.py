@@ -23,7 +23,6 @@ class AIModel(Base):
     __table_args__ = (
         Index('ix_ai_models_name_version', 'name', 'version', unique=True),
         Index('ix_ai_models_type', 'type'),
-        Index('ix_ai_models_status', 'status'),
         Index('ix_ai_models_type_status', 'type', 'status'),
         {'extend_existing': True}
     )
@@ -39,8 +38,11 @@ class AIModel(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    metrics = relationship("ModelMetric", back_populates="model", cascade="all, delete-orphan")
-    usage_logs = relationship("ModelUsageLog", back_populates="model", cascade="all, delete-orphan")
+    metrics = relationship(
+        "ModelMetric", back_populates="model", cascade="all, delete-orphan")
+    usage_logs = relationship(
+        "ModelUsageLog", back_populates="model", cascade="all, delete-orphan")
+
 
 class ModelMetric(Base):
     """Store model performance metrics."""
@@ -54,17 +56,21 @@ class ModelMetric(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    model_id = Column(Integer, ForeignKey('ai_models.id', ondelete='CASCADE', name='fk_model_metrics_ai_model'), nullable=False)
+    model_id = Column(Integer, ForeignKey(
+        'ai_models.id', ondelete='CASCADE', name='fk_model_metrics_ai_model'), nullable=False)
     metric_name = Column(String(100), nullable=False)
     metric_value = Column(Float, nullable=False)
-    metric_type = Column(String(50), nullable=False)  # e.g., 'accuracy', 'loss', 'f1'
+    # e.g., 'accuracy', 'loss', 'f1'
+    metric_type = Column(String(50), nullable=False)
     dataset_name = Column(String(100))  # Dataset used for metrics
     split_name = Column(String(50))  # e.g., 'train', 'validation', 'test'
     metric_data = Column(JSON)  # Changed from metadata to metric_data
-    timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    timestamp = Column(DateTime(timezone=True),
+                       default=utc_now, nullable=False)
 
     # Relationships
     model = relationship("AIModel", back_populates="metrics")
+
 
 class ModelUsageLog(Base):
     """Track AI model usage."""
@@ -79,10 +85,12 @@ class ModelUsageLog(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("User.id", ondelete='CASCADE', name='fk_model_usage_logs_user_id'), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE',
+                     name='fk_model_usage_logs_user_id'), nullable=False)
     model_name = Column(String(100), nullable=False)
     model_version = Column(String(50), nullable=False)
-    operation_type = Column(String(50), nullable=False)  # e.g., 'inference', 'training'
+    # e.g., 'inference', 'training'
+    operation_type = Column(String(50), nullable=False)
     input_data = Column(JSON)  # Input parameters/data
     output_data = Column(JSON)  # Model output/results
     execution_time_ms = Column(Integer)
@@ -92,7 +100,8 @@ class ModelUsageLog(Base):
     status = Column(String(20), nullable=False, default='success')
     error_message = Column(String(500))
     performance_metrics = Column(JSON)  # Additional performance metrics
-    timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    timestamp = Column(DateTime(timezone=True),
+                       default=utc_now, nullable=False)
     batch_id = Column(String(100))  # For grouping related operations
     tags = Column(JSON)  # For categorizing and filtering usage logs
     cost = Column(Float)  # Cost of operation if applicable
@@ -100,5 +109,5 @@ class ModelUsageLog(Base):
     cache_hit_rate = Column(Float)
 
     # Relationships
+    model = relationship("AIModel", back_populates="usage_logs")
     user = relationship("User", back_populates="model_usage_logs")
-

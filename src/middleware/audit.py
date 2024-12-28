@@ -19,7 +19,7 @@ class SecurityAuditMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         # Get security context
-        context = request.state.security_context
+        context = getattr(request.state, "security_context", {})
 
         # Start timer
         start_time = time.time()
@@ -59,28 +59,27 @@ class SecurityAuditMiddleware(BaseHTTPMiddleware):
         """Log request details to security audit log."""
         try:
             # Get database session
-            db: AsyncSession = await get_db()
+            async for db in get_db():
+                # Create audit log entry
+                log_entry = SecurityAuditLog(
+                    event_type="request",
+                    user_id=getattr(request.state, "user_id", None),
+                    ip_address=request.client.host,
+                    user_agent=request.headers.get("user-agent"),
+                    request_path=request.url.path,
+                    request_method=request.method,
+                    details={
+                        "status_code": getattr(response, "status_code", None) if response else None,
+                        "error": error,
+                        "duration": f"{duration:.3f}s" if duration else None,
+                        "headers": dict(request.headers),
+                        "query_params": dict(request.query_params),
+                        "context": context
+                    }
+                )
 
-            # Create audit log entry
-            log_entry = SecurityAuditLog(
-                event_type="request",
-                user_id=getattr(request.state, "user_id", None),
-                ip_address=request.client.host,
-                user_agent=request.headers.get("user-agent"),
-                request_path=request.url.path,
-                request_method=request.method,
-                details={
-                    "status_code": getattr(response, "status_code", None),
-                    "error": error,
-                    "duration": f"{duration:.3f}s" if duration else None,
-                    "headers": dict(request.headers),
-                    "query_params": dict(request.query_params),
-                    "context": context
-                }
-            )
-
-            db.add(log_entry)
-            await db.commit()
+                db.add(log_entry)
+                await db.commit()
 
         except Exception as e:
             logger.error(f"Failed to create audit log: {str(e)}")

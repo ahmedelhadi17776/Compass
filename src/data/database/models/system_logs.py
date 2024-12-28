@@ -2,7 +2,7 @@
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, 
+    Column, Integer, String, DateTime, ForeignKey,
     Text, JSON, Index, Enum as SQLAEnum
 )
 from sqlalchemy.orm import relationship
@@ -11,6 +11,7 @@ from sqlalchemy.sql import func
 from .user import User
 from .base import Base
 
+
 class LogLevel(str, Enum):
     """Log level enum."""
     DEBUG = "debug"
@@ -18,6 +19,7 @@ class LogLevel(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
+
 
 class LogCategory(str, Enum):
     """Log category enum."""
@@ -28,6 +30,7 @@ class LogCategory(str, Enum):
     DATABASE = "database"
     INTEGRATION = "integration"
     USER = "user"
+
 
 class SystemLog(Base):
     """System log model."""
@@ -44,17 +47,18 @@ class SystemLog(Base):
     category = Column(SQLAEnum(LogCategory), nullable=False)
     message = Column(Text, nullable=False)
     details = Column(JSON)
-    
+
     # Context
     source = Column(String(255))  # Component/module generating the log
     trace_id = Column(String(100))  # For request tracing
-    user_id = Column(Integer, ForeignKey("User.id", ondelete='SET NULL',name='fk_sys_log_user_id'))
-    
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='SET NULL', name='fk_sys_log_user_id'))
+
     # Technical Details
     stack_trace = Column(Text)
     request_data = Column(JSON)
     environment = Column(JSON)  # Environment details
-    
+
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     ip_address = Column(String(45))
@@ -62,6 +66,7 @@ class SystemLog(Base):
 
     # Relationships
     user = relationship("User", back_populates="system_logs")
+
 
 class FileLog(Base):
     """File operation logging model."""
@@ -74,9 +79,11 @@ class FileLog(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("User.id", ondelete='SET NULL',name='fk_file_log_user_id'))
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='SET NULL', name='fk_file_log_user_id'))
     file_path = Column(String(1000), nullable=False)
-    operation = Column(String(50), nullable=False)  # CREATE, READ, UPDATE, DELETE
+    # CREATE, READ, UPDATE, DELETE
+    operation = Column(String(50), nullable=False)
     status = Column(String(50), nullable=False)
     size = Column(Integer)  # File size in bytes
     checksum = Column(String(64))  # File hash
@@ -86,3 +93,57 @@ class FileLog(Base):
 
     # Relationships
     user = relationship("User", back_populates="file_logs")
+
+
+class SecurityAuditLog(Base):
+    """Security audit log model."""
+    __tablename__ = "security_audit_logs"
+    __table_args__ = (
+        Index('ix_security_audit_logs_user_id', 'user_id'),
+        Index('ix_security_audit_logs_created_at', 'created_at'),
+        {'extend_existing': True}
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='CASCADE'), nullable=False)
+    level = Column(SQLAEnum(LogLevel), nullable=False)
+    category = Column(SQLAEnum(LogCategory), nullable=False)
+    message = Column(Text, nullable=False)
+    details = Column(JSON)
+    source = Column(String(255))
+    trace_id = Column(String(255))
+    stack_trace = Column(Text)
+    request_data = Column(JSON)
+    environment = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="security_audit_logs")
+
+
+class SecurityEvent(Base):
+    """Security event model."""
+    __tablename__ = "security_events"
+    __table_args__ = (
+        Index('ix_security_events_user_id', 'user_id'),
+        Index('ix_security_events_created_at', 'created_at'),
+        {'extend_existing': True}
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='CASCADE'), nullable=False)
+    level = Column(SQLAEnum(LogLevel), nullable=False)
+    category = Column(SQLAEnum(LogCategory), nullable=False)
+    message = Column(Text, nullable=False)
+    details = Column(JSON)
+    source = Column(String(255))
+    trace_id = Column(String(255))
+    stack_trace = Column(Text)
+    request_data = Column(JSON)
+    environment = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="security_events")

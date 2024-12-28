@@ -18,9 +18,19 @@ from .system_logs import SystemLog, FileLog
 from .tag import Tag
 from .session import Session
 from .user_preferences import UserPreference
-from .rbac import UserRole,Role,Permission
+from .rbac import Role, Permission
 from .auth import AuthLog, PasswordReset
-from .cache import CacheEntry 
+from .cache import CacheEntry
+from .content_filter import ContentFilterRule
+from .api_key import APIKey
+from .organization import Organization
+from .project import Project
+from .todo import Todo
+from .daily_habit import DailyHabit
+from .background_job import BackgroundJob
+from .security_log import SecurityAuditLog, SecurityEvent
+from .subscription import Subscription, SubscriptionPlan, Payment
+from .associations import task_tags, role_permissions, user_roles
 
 # Export all models
 __all__ = [
@@ -67,4 +77,19 @@ __all__ = [
     'WorkflowTransition',
     'AuthLog',
     'AuthEventType',
+    'role_permissions',
+    'user_roles',
+    'task_tags',
+    'Project',
+    'Organization',
+    'APIKey',
+    'ContentFilterRule',
+    'Todo',
+    'DailyHabit',
+    'BackgroundJob',
+    'SecurityAuditLog',
+    'SecurityEvent',
+    'Subscription',
+    'SubscriptionPlan',
+    'Payment',
 ]
