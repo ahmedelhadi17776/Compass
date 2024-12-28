@@ -2,7 +2,7 @@
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, 
+    Column, Integer, String, DateTime, ForeignKey,
     Text, JSON, Index, Enum as SQLAEnum, Boolean
 )
 from sqlalchemy.orm import relationship
@@ -20,6 +20,7 @@ class TagType(str, Enum):
     LABEL = "label"
     STATUS = "status"
 
+
 class Tag(Base):
     """Tag model for categorization."""
     __tablename__ = "tags"
@@ -35,19 +36,19 @@ class Tag(Base):
     slug = Column(String(100), nullable=False, unique=True)
     description = Column(Text)
     tag_type = Column(SQLAEnum(TagType), nullable=False, default=TagType.USER)
-    
+
     # Styling
     color = Column(String(7))  # Hex color code
     icon = Column(String(50))  # Icon identifier
-    
+
     # Metadata
     extra_metadata = Column(JSON)  # Additional tag properties
     parent_id = Column(Integer, ForeignKey('tags.id'))  # For hierarchical tags
     order = Column(Integer, default=0)  # For custom ordering
     is_public = Column(Boolean, default=True)
-    
+
     # Ownership
-    created_by = Column(Integer, ForeignKey("User.id",name='fk_tag_user_id'))
+    created_by = Column(Integer, ForeignKey("users.id", name='fk_tag_user_id'))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -62,8 +63,6 @@ class Tag(Base):
     creator = relationship("User", back_populates="created_tags")
     parent = relationship("Tag", remote_side=[id], backref="children")
     tasks = relationship("Task", secondary=task_tags, back_populates="tags")
-
-    
 
     def __repr__(self):
         return f"<Tag(id={self.id}, name='{self.name}', type={self.tag_type})>"

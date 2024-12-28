@@ -9,6 +9,7 @@ from sqlalchemy.sql import func
 from .base import Base
 from .user import User
 
+
 class CacheEntry(Base):
     """Model for storing cache entries."""
     __tablename__ = "cache_entries"
@@ -18,12 +19,19 @@ class CacheEntry(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    cache_key = Column(String(255), nullable=False)  # Unique key for the cache entry
+    # Unique key for the cache entry
+    cache_key = Column(String(255), nullable=False)
     cache_value = Column(JSON, nullable=False)  # The cached data
-    created_at = Column(DateTime(timezone=True), server_default=func.now())  # Timestamp when the entry was created
-    expires_at = Column(DateTime(timezone=True), nullable=True)  # Optional expiration timestamp
-    user_id = Column(Integer, ForeignKey("User.id",name='fk_cache_user_id'), nullable=False)  # Optional link to a user
-    user = relationship("User", back_populates="cache_entries")  # Add this relationship
+    # Timestamp when the entry was created
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Optional expiration timestamp
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    user_id = Column(Integer, ForeignKey(
+        "users.id", name='fk_cache_user_id'), nullable=False)  # Optional link to a user
+    # Add this relationship
+    user = relationship("User", back_populates="cache_entries")
+    # Reverse relationship
+    summary = relationship("Summary", back_populates="cache_entry")
 
     def __repr__(self):
-        return f"<CacheEntry(id={self.id}, key='{self.cache_key}', created_at={self.created_at})>" 
+        return f"<CacheEntry(id={self.id}, key='{self.cache_key}', created_at={self.created_at})>"

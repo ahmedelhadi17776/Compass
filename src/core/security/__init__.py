@@ -7,6 +7,7 @@ from .headers import SecurityHeadersService
 from .rate_limit import RateLimiter, RateLimit
 from .logging import SecurityLogger
 from .password import PasswordManager
+from .jwt_utils import create_access_token, decode_access_token
 
 
 __all__ = [
@@ -19,5 +20,9 @@ __all__ = [
     'RateLimiter',
     'RateLimit',
     'SecurityLogger',
-    'PasswordManager'
+    'PasswordManager',
+    'hash_password',
+    'verify_password',
+    'create_access_token',
+    'decode_access_token'
 ]

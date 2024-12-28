@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
 from src.core.security import get_current_user
 from src.services.authentication import AuthenticationService
@@ -17,42 +18,36 @@ from src.schemas.auth import (
     EmailVerificationRequest
 )
 from src.data.database.models import User
+from src.data.database.connection import get_db
+from src.services.authentication.auth_service import AuthService
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+    responses={404: {"description": "Not found"}},
+)
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    user_data: UserCreate,
-    auth_service: AuthenticationService = Depends()
-) -> UserResponse:
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
-    return await auth_service.register_user(user_data)
+    auth_service = AuthService(db)
+    try:
+        token = await auth_service.register_user(user)
+        return token
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.post("/login", response_model=TokenResponse)
-async def login(
-    request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    auth_service: AuthenticationService = Depends()
-) -> TokenResponse:
-    """Login user and return access token."""
-    user = await auth_service.authenticate_user(form_data.username, form_data.password)
-    
-    # Create session with device info
-    device_info = {
-        "user_agent": request.headers.get("user-agent"),
-        "platform": request.headers.get("sec-ch-ua-platform")
-    }
-    session = await auth_service.create_session(
-        user_id=user.id,
-        device_info=device_info,
-        ip_address=request.client.host
-    )
-    
-    return TokenResponse(
-        access_token=session.session_token,
-        refresh_token=session.refresh_token,
-        token_type="bearer"
-    )
+async def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    """Authenticate user and return token."""
+    auth_service = AuthService(db)
+    token = await auth_service.authenticate_user(credentials)
+    if not token:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return token
+
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
@@ -68,6 +63,7 @@ async def refresh_token(
         token_type="bearer"
     )
 
+
 @router.post("/logout")
 async def logout(
     current_user: User = Depends(get_current_user),
@@ -77,6 +73,7 @@ async def logout(
     await auth_service.end_session(current_user.id)
     return {"message": "Successfully logged out"}
 
+
 @router.get("/sessions", response_model=List[SessionResponse])
 async def get_sessions(
     current_user: User = Depends(get_current_user),
@@ -84,6 +81,7 @@ async def get_sessions(
 ) -> List[SessionResponse]:
     """Get all active sessions for current user."""
     return await auth_service.get_user_sessions(current_user.id)
+
 
 @router.post("/sessions/{session_id}/revoke")
 async def revoke_session(
@@ -101,6 +99,7 @@ async def revoke_session(
     await auth_service.end_session(session.session_token)
     return {"message": "Session revoked successfully"}
 
+
 @router.post("/password-reset/request")
 async def request_password_reset(
     reset_request: PasswordResetRequest,
@@ -109,6 +108,7 @@ async def request_password_reset(
     """Request password reset token."""
     await auth_service.request_password_reset(reset_request.email)
     return {"message": "If the email exists, a password reset link has been sent"}
+
 
 @router.post("/password-reset/verify")
 async def reset_password(
@@ -122,6 +122,7 @@ async def reset_password(
     )
     return {"message": "Password reset successfully"}
 
+
 @router.post("/email/verify-request")
 async def request_email_verification(
     verification_request: EmailVerificationRequest,
@@ -131,6 +132,7 @@ async def request_email_verification(
     await auth_service.request_email_verification(verification_request.email)
     return {"message": "Verification email sent"}
 
+
 @router.get("/email/verify/{token}")
 async def verify_email(
     token: str,
@@ -139,6 +141,7 @@ async def verify_email(
     """Verify email using verification token."""
     await auth_service.verify_email(token)
     return {"message": "Email verified successfully"}
+
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(

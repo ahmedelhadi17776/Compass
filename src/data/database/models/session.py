@@ -37,7 +37,7 @@ class Session(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('User.id', ondelete='CASCADE',name='fk_session_user_id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE',name='fk_session_user_id'), nullable=False)
     session_token = Column(String(255), unique=True, nullable=False)
     refresh_token = Column(String(255), unique=True)
     session_type = Column(SQLAEnum(SessionType), nullable=False, default=SessionType.WEB)

@@ -143,7 +143,6 @@ async def configure_alerts(
         db=db,
         notification_service=NotificationService()
     )
-
     # Update alert configuration
     await alerts_service.update_alert_config(config)
 

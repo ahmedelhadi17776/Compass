@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Optional
 import secrets
 from .utils import generate_secure_token
+from src.core.config import settings
 
 
 class EncryptionService:
@@ -13,8 +14,8 @@ class EncryptionService:
 
     def __init__(self, key: Optional[bytes] = None):
         """Initialize with optional key or generate a new one."""
-        self.fernet = Fernet(key or Fernet.generate_key())
-        self._key = key
+        self.key = settings.ENCRYPTION_KEY.encode()
+        self.fernet = Fernet(self.key or Fernet.generate_key())
 
     @classmethod
     def from_password(cls, password: str, salt: Optional[bytes] = None):

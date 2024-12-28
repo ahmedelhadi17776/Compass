@@ -1,13 +1,14 @@
 """Security service module."""
 from typing import Optional, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 from fastapi import Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security import SecurityContext, SecurityEventService
-from src.core.security.events import SecurityEventType
+from src.core.security import SecurityContext
+from src.core.security.events import SecurityEventType, SecurityEvent
 from src.data.database.repositories.security_repository import SecurityRepository
-from src.core.security.logging import SecurityLogger
-from src.core.security.exceptions import SecurityError, SecurityConfigError
+from src.services.security.monitoring_service import SecurityMonitoringService
+from src.services.notification_service.notification_service import NotificationService
 
 
 class SecurityService:
@@ -17,27 +18,30 @@ class SecurityService:
         self.db = db
         self.context = context
         self.repository = SecurityRepository(db)
-        self.event_service = SecurityEventService(db)
+        self.monitoring_service = SecurityMonitoringService(
+            db=db,
+            notification_service=NotificationService()
+        )
 
     async def log_security_event(
         self,
         event_type: SecurityEventType,
         description: str,
+        severity: str = "info",
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """Log a security event."""
-        await self.event_service.log_event(
+        event = SecurityEvent(
             event_type=event_type,
+            timestamp=datetime.utcnow(),
+            description=description,
+            severity=severity,
+            metadata=metadata or {},
             user_id=self.context.user_id,
             ip_address=self.context.client_ip,
-            user_agent=self.context.user_agent,
-            details={
-                "description": description,
-                "path": self.context.path,
-                "method": self.context.method,
-                **(metadata or {})
-            }
+            user_agent=self.context.user_agent
         )
+        await self.repository.create_security_event(event)
 
     async def audit_request(
         self,
@@ -63,22 +67,21 @@ class SecurityService:
             }
         })
 
-    async def log_auth_event(
-        self,
-        event_type: str,
-        user_id: Optional[int],
-        success: bool,
-        details: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Log an authentication event."""
-        event = SecurityEventType.LOGIN_SUCCESS if success else SecurityEventType.LOGIN_FAILED
-
-        await self.log_security_event(
-            event_type=event,
-            description=f"Authentication {event_type}: {
-                'success' if success else 'failed'}",
-            metadata={
-                "user_id": user_id,
-                **(details or {})
-            }
+    async def check_suspicious_activity(self, request: Request) -> None:
+        """Check for suspicious activity patterns."""
+        is_suspicious = await self.monitoring_service.check_suspicious_activity(
+            ip_address=self.context.client_ip,
+            user_id=self.context.user_id
         )
+
+        if is_suspicious:
+            await self.log_security_event(
+                event_type=SecurityEventType.SUSPICIOUS_ACTIVITY,
+                description="Suspicious activity detected",
+                severity="high",
+                metadata={
+                    "request_path": request.url.path,
+                    "request_method": request.method,
+                    "headers": dict(request.headers)
+                }
+            )

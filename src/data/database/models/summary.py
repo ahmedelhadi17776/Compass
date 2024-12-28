@@ -1,29 +1,30 @@
 """Summary models module."""
 from datetime import timedelta
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, Text, 
+    Column, Integer, String, DateTime, ForeignKey, Text,
     Index, JSON, Float
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from src.data.database.models.user import User
-from src.data.database.base import Base
-from src.data.cache import CacheEntry  
+from .import Base
+from src.data.database.models.cache import CacheEntry 
 from src.utils import datetime_utils
-
 
 class Summary(Base):
     """Model for storing AI-generated summaries."""
     __tablename__ = "summaries"
     __table_args__ = (
-        Index('ix_summaries_content_type_id', 'content_type', 'content_id', unique=True),
+        Index('ix_summaries_content_type_id',
+              'content_type', 'content_id', unique=True),
         Index('ix_summaries_created_at', 'created_at'),
         {'extend_existing': True}
     )
 
     id = Column(Integer, primary_key=True)
-    content_type = Column(String(50), nullable=False)  # 'task', 'conversation', 'document'
+    # 'task', 'conversation', 'document'
+    content_type = Column(String(50), nullable=False)
     content_id = Column(Integer, nullable=False)
     summary = Column(Text, nullable=False)
     key_points = Column(JSON)
@@ -32,15 +33,27 @@ class Summary(Base):
     confidence_score = Column(Float)
     extra_info = Column(JSON)
     word_count = Column(Integer)
+    user_id = Column(Integer, ForeignKey(
+        "users.id", ondelete='SET NULL'), nullable=True)
+    cache_entry_id = Column(Integer, ForeignKey(
+        "cache_entries.id", ondelete='SET NULL'), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_validated_at = Column(DateTime(timezone=True))
 
+    # Relationships
+    # If Summary is linked to User, define the relationship
+    user = relationship("User", back_populates="summaries")
+    cache_entry = relationship(
+        "CacheEntry", back_populates="summary", uselist=False)
+
     def __repr__(self):
         return f"<Summary(id={self.id}, type={self.content_type}, content_id={self.content_id})>"
-    
+
     def cache_summary(self, session):
         """Cache the generated summary."""
+        from src.data.database.models.cache import CacheEntry
+
         cache_entry = CacheEntry(
             cache_key=f"summary_{self.content_id}",
             cache_value=self.summary,

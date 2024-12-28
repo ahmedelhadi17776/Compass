@@ -25,10 +25,10 @@ ENV/
 .env.*
 .env.*.local
 
-Logs
-logs
-logs/
-*.log
+#Logs
+#logs
+#logs/
+#*.log
 
 # Database
 *.sqlite3
@@ -65,6 +65,6 @@ Thumbs.db
 *.txt
 
 
-tests/
+#tests/
 *.md
 *.docx

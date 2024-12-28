@@ -1,16 +1,44 @@
-"""Rate limiting module."""
-from datetime import datetime, timedelta
-from typing import Dict, Tuple, Optional
-import time
+"""Rate limiting configuration and utilities."""
 from dataclasses import dataclass
-from .exceptions import RateLimitExceeded
+from typing import Optional
+from src.core.security.constants import (
+    DEFAULT_RATE_LIMIT,
+    DEFAULT_BURST_SIZE
+)
 
 
 @dataclass
-class RateLimit:
+class RateLimitConfig:
     """Rate limit configuration."""
-    requests: int
-    window: int  # seconds
+    requests_per_minute: int = DEFAULT_RATE_LIMIT
+    burst_size: int = DEFAULT_BURST_SIZE
+
+    def validate(self) -> None:
+        """Validate rate limit configuration."""
+        if self.requests_per_minute < 1:
+            raise ValueError("requests_per_minute must be positive")
+        if self.burst_size < self.requests_per_minute:
+            raise ValueError(
+                "burst_size must be greater than requests_per_minute")
+
+
+class RateLimitKey:
+    """Rate limit key generator."""
+
+    @staticmethod
+    def for_ip(ip: str) -> str:
+        """Generate rate limit key for IP."""
+        return f"rate_limit:ip:{ip}"
+
+    @staticmethod
+    def for_user(user_id: int) -> str:
+        """Generate rate limit key for user."""
+        return f"rate_limit:user:{user_id}"
+
+    @staticmethod
+    def for_endpoint(path: str, method: str) -> str:
+        """Generate rate limit key for endpoint."""
+        return f"rate_limit:endpoint:{method}:{path}"
 
 
 class RateLimiter:

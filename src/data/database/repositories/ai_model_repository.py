@@ -6,6 +6,7 @@ from sqlalchemy import and_
 from ..models.ai_model import AIModel, ModelUsageLog, ModelMetrics
 from .base_repository import BaseRepository
 
+
 class AIModelRepository(BaseRepository[AIModel]):
     """Repository for AI Model operations."""
 
@@ -26,6 +27,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         """Get all production models."""
         return self.session.query(AIModel).filter(AIModel.is_production == True).all()
 
+
 class ModelUsageLogRepository(BaseRepository[ModelUsageLog]):
     """Repository for Model Usage Log operations."""
 
@@ -43,6 +45,7 @@ class ModelUsageLogRepository(BaseRepository[ModelUsageLog]):
         return self.session.query(ModelUsageLog).filter(
             ModelUsageLog.user_id == user_id
         ).all()
+
 
 class ModelMetricsRepository(BaseRepository[ModelMetrics]):
     """Repository for Model Metrics operations."""

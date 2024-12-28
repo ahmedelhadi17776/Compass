@@ -2,24 +2,26 @@
 Logging configuration and setup.
 """
 import logging
-import os
-from pathlib import Path
+from src.core.config import settings
+
 
 def setup_logging():
-    """Set up basic logging configuration."""
-    # Create logs directory if it doesn't exist
-    log_dir = Path(__file__).parent.parent.parent / 'logs'
-    log_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Basic logging configuration
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),  # Console handler
-            logging.FileHandler(log_dir / 'app.log')  # File handler
-        ]
-    )
-    
-    # Set level for specific loggers
-    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+    """Set up application-wide logging."""
+    logger = logging.getLogger("aiwa")
+    logger.setLevel(settings.LOG_LEVEL)
+
+    # Console Handler
+    ch = logging.StreamHandler()
+    ch.setLevel(settings.LOG_LEVEL)
+    formatter = logging.Formatter(settings.LOG_FORMAT)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    # File Handler
+    fh = logging.FileHandler("logs/aiwa.log")
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+    # Avoid duplicate logs
+    logger.propagate = False

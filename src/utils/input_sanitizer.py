@@ -16,3 +16,9 @@ class InputSanitizer:
     def validate_email(email: str) -> bool:
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return bool(re.match(pattern, email))
+    
+    @staticmethod
+    def validate_username(username: str) -> bool:
+        """Validate username format."""
+        return len(username) >= 3 and username.isalnum()
+

@@ -10,6 +10,8 @@ logs_dir = Path("logs")
 logs_dir.mkdir(exist_ok=True)
 
 # Configure logging
+
+
 def setup_logging():
     """Configure logging for the application."""
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

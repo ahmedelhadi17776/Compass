@@ -1,7 +1,7 @@
 """Web search and cache related models."""
 from datetime import timedelta
 from sqlalchemy import (
-    Column, Integer, String, DateTime, JSON, ForeignKey, 
+    Column, Integer, String, DateTime, JSON, ForeignKey,
     Index, Text, Boolean, Float
 )
 from sqlalchemy.orm import relationship
@@ -12,6 +12,7 @@ from .cache import CacheEntry
 from .base import Base
 
 from ....utils import datetime_utils
+
 
 class WebSearchQuery(Base):
     """Store web search queries and results."""
@@ -24,7 +25,7 @@ class WebSearchQuery(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('User.id', ondelete='CASCADE',name='fk_web_query_user_id'), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     query_text = Column(Text, nullable=False)
     search_type = Column(String(50), nullable=False)  # web, image, news
     filters = Column(JSON)
@@ -34,7 +35,7 @@ class WebSearchQuery(Base):
     is_cached = Column(Boolean, default=False)
     cache_hit = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationships
     user = relationship("User", back_populates="web_searches")
 
@@ -48,4 +49,3 @@ class WebSearchQuery(Base):
         )
         session.add(cache_entry)
         session.commit()
-
