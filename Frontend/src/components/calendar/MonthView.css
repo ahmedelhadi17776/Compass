@@ -1,0 +1,138 @@
+.month-view {
+  height: 100%;
+  background: hsl(var(--background));
+  padding: 1rem;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.month-weekday-header {
+  background: hsl(var(--background));
+  padding: 12px;
+  text-align: center;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.month-day-cell {
+  background: hsl(var(--background));
+  min-height: 120px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.month-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.month-day-number {
+  font-size: 14px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.month-today .month-day-number {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.month-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.month-event-pill {
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.month-event-pill:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.month-event-time {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 2px;
+  padding-left: 4px;
+}
+
+.month-event-title {
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 4px;
+}
+
+.priority-emoji {
+  font-size: 10px;
+  line-height: 1;
+  margin-right: 2px;
+}
+
+/* Priority styles - matching weekly view */
+.priority-high { 
+  background-color: hsl(var(--destructive));
+  border: 1px solid hsl(var(--destructive));
+}
+
+.priority-medium { 
+  background-color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary));
+}
+
+.priority-low { 
+  background-color: hsl(var(--secondary));
+  border: 1px solid hsl(var(--secondary));
+}
+
+/* Remove category styles since we're using priority styles */
+.category-work,
+.category-meeting,
+.category-important,
+.category-personal { 
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+}
+
+.month-other-day {
+  background: hsl(var(--muted));
+}
+
+.month-other-day .month-day-number {
+  color: hsl(var(--muted-foreground));
+}

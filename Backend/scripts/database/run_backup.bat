@@ -1,5 +1,5 @@
 @echo off 
-cd /d "c:\Users\ahmed\OneDrive\Desktop\Graduation_project\scripts\database\..\.." 
+cd /d "c:\Users\ahmed\OneDrive\Desktop\COMPASS\scripts\database\..\.." 
 call venv312\Scripts\activate.bat 
 python scripts\database\scheduled_backup.py 
 if errorlevel 1 ( 

@@ -4,8 +4,6 @@ import * as React from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
-import { addDays } from "date-fns";
-import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -16,21 +14,20 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-interface DatePickerWithRangeProps {
-  dateRange: DateRange | undefined;
-  onChange: (range: DateRange | undefined) => void;
-  darkMode?: boolean;
+interface DatePickerWithRangeProps extends React.HTMLAttributes<HTMLDivElement> {
+  date?: DateRange;
+  onDateChange?: (date: DateRange | undefined) => void;
+  darkMode?: boolean; // Add darkMode prop
 }
 
 export function DatePickerWithRange({
-  dateRange,
-  onChange,
-  darkMode = false,
+  className,
+  date,
+  onDateChange,
+  darkMode = false, // Changed default to false
 }: DatePickerWithRangeProps) {
-  const { t } = useTranslation();
-
   return (
-    <div className={cn("grid gap-2")}>
+    <div className={cn("grid gap-2", className)}>
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -38,34 +35,42 @@ export function DatePickerWithRange({
             variant={"outline"}
             className={cn(
               "w-[300px] justify-start text-left font-normal",
-              !dateRange && "text-muted-foreground",
-              darkMode && "bg-[#2c2c2e] text-white border-[#3c3c3e]"
+              !date && "text-muted-foreground",
+              darkMode
+                ? "bg-[#2c2c2e] border-[#3c3c3e] text-white hover:bg-[#3c3c3e] hover:text-white"
+                : "bg-white border-gray-200 text-gray-900 hover:bg-gray-100 hover:text-gray-900"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {dateRange?.from ? (
-              dateRange.to ? (
+            {date?.from ? (
+              date.to ? (
                 <>
-                  {format(dateRange.from, "LLL dd, y")} -{" "}
-                  {format(dateRange.to, "LLL dd, y")}
+                  {format(date.from, "dd/MM/yyyy")} -{" "}
+                  {format(date.to, "dd/MM/yyyy")}
                 </>
               ) : (
-                format(dateRange.from, "LLL dd, y")
+                format(date.from, "dd/MM/yyyy")
               )
             ) : (
-              <span>{t('common.pickDate')}</span>
+              <span>Pick a date range</span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent 
+          className={cn(
+            "w-auto p-0 z-[200]",
+            darkMode ? "bg-[#2c2c2e] border-[#3c3c3e]" : "bg-white"
+          )} 
+          align="start"
+        >
           <Calendar
+            darkMode={darkMode}
             initialFocus
             mode="range"
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={onChange}
+            defaultMonth={date?.from}
+            selected={date}
+            onSelect={onDateChange}
             numberOfMonths={2}
-            className={darkMode ? "bg-[#2c2c2e] text-white" : ""}
           />
         </PopoverContent>
       </Popover>
