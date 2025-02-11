@@ -35,8 +35,8 @@ ENV/
 *.db
 *.sql
 
-Backups
-backups/
+#Backups
+#backups/
 
 # Distribution / packaging
 dist/

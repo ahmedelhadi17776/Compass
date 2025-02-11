@@ -243,9 +243,11 @@ WHERE roles.id = %(pk_1)s
 2024-12-01 07:09:03,693 - src.utils.error_handler - ERROR - Error in Database backup: [WinError 2] The system cannot find the file specified
 2024-12-01 07:09:03,693 - __main__ - ERROR - Database backup failed: [WinError 2] The system cannot find the file specified
 2024-12-01 07:11:52,997 - __main__ - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\aiwa_db_name_fields_update_20241201_071152.sql
-2024-12-01 07:11:53,484 - __main__ - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: connection to server at "localhost" (::1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+2024-12-01 07:11:53,484 - __main__ - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: connection to server at "localhost" (::1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
 
-2024-12-01 07:11:53,485 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: connection to server at "localhost" (::1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+
+2024-12-01 07:11:53,485 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: connection to server at "localhost" (::1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+
 
 2024-12-01 07:12:33,613 - __main__ - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\aiwa_db_name_fields_update_20241201_071233.sql
 2024-12-01 07:12:40,549 - __main__ - INFO - Database backup completed successfully: c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\aiwa_db_name_fields_update_20241201_071233.sql.gz
@@ -3595,21 +3597,29 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2024-12-10 02:00:22,609 - __main__ - INFO - Old backup cleanup completed
 2024-12-11 02:00:03,147 - __main__ - INFO - Starting scheduled daily backup
 2024-12-11 02:00:03,162 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241211_020003.sql
-2024-12-11 02:00:08,659 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-11 02:00:08,659 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-11 02:00:08,659 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-11 02:00:08,659 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-11 02:00:08,659 - __main__ - INFO - Daily backup created: False
 2024-12-11 02:00:08,674 - __main__ - INFO - Old backup cleanup completed
 2024-12-12 02:00:03,690 - __main__ - INFO - Starting scheduled daily backup
 2024-12-12 02:00:03,743 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241212_020003.sql
-2024-12-12 02:00:08,397 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-12 02:00:08,397 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-12 02:00:08,397 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-12 02:00:08,397 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-12 02:00:08,397 - __main__ - INFO - Daily backup created: False
 2024-12-12 02:00:08,397 - scripts.database.backup - INFO - Deleted old backup: backup_20241206_020004.sql.gz
@@ -3617,11 +3627,15 @@ pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_se
 2024-12-12 02:00:08,397 - __main__ - INFO - Old backup cleanup completed
 2024-12-13 02:00:03,203 - __main__ - INFO - Starting scheduled daily backup
 2024-12-13 02:00:03,219 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241213_020003.sql
-2024-12-13 02:00:08,017 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-13 02:00:08,017 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-13 02:00:08,017 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-13 02:00:08,017 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-13 02:00:08,017 - __main__ - INFO - Daily backup created: False
 2024-12-13 02:00:08,021 - scripts.database.backup - INFO - Deleted old backup: backup_20241207_020006.sql.gz
@@ -3629,11 +3643,15 @@ pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_se
 2024-12-13 02:00:08,025 - __main__ - INFO - Old backup cleanup completed
 2024-12-14 02:00:02,531 - __main__ - INFO - Starting scheduled daily backup
 2024-12-14 02:00:02,556 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241214_020002.sql
-2024-12-14 02:00:04,302 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-14 02:00:04,302 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-14 02:00:04,302 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-14 02:00:04,302 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-14 02:00:04,302 - __main__ - INFO - Daily backup created: False
 2024-12-14 02:00:04,304 - scripts.database.backup - INFO - Deleted old backup: backup_20241208_020005.sql.gz
@@ -3641,11 +3659,15 @@ pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_se
 2024-12-14 02:00:04,305 - __main__ - INFO - Old backup cleanup completed
 2024-12-15 02:00:11,669 - __main__ - INFO - Starting scheduled daily backup
 2024-12-15 02:00:11,774 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241215_020011.sql
-2024-12-15 02:00:22,068 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-15 02:00:22,068 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-15 02:00:22,071 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-15 02:00:22,071 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-15 02:00:22,071 - __main__ - INFO - Daily backup created: False
 2024-12-15 02:00:22,081 - scripts.database.backup - INFO - Deleted old backup: backup_20241209_020002.sql.gz
@@ -3653,11 +3675,15 @@ pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_se
 2024-12-15 02:00:22,081 - __main__ - INFO - Old backup cleanup completed
 2024-12-16 02:00:09,819 - __main__ - INFO - Starting scheduled daily backup
 2024-12-16 02:00:09,919 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241216_020009.sql
-2024-12-16 02:00:18,341 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-16 02:00:18,341 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-16 02:00:18,341 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-16 02:00:18,341 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-16 02:00:18,341 - __main__ - INFO - Daily backup created: False
 2024-12-16 02:00:18,343 - scripts.database.backup - INFO - Deleted old backup: backup_20241210_020003.sql.gz
@@ -3665,205 +3691,349 @@ pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_se
 2024-12-16 02:00:18,343 - __main__ - INFO - Old backup cleanup completed
 2024-12-17 02:00:17,874 - __main__ - INFO - Starting scheduled daily backup
 2024-12-17 02:00:17,934 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241217_020017.sql
-2024-12-17 02:00:23,127 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-17 02:00:23,127 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-17 02:00:23,128 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-17 02:00:23,128 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-17 02:00:23,128 - __main__ - INFO - Daily backup created: False
 2024-12-17 02:00:23,130 - __main__ - INFO - Old backup cleanup completed
 2024-12-18 02:00:02,529 - __main__ - INFO - Starting scheduled daily backup
 2024-12-18 02:00:02,559 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241218_020002.sql
-2024-12-18 02:00:05,422 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-18 02:00:05,422 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-18 02:00:05,422 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-18 02:00:05,422 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-18 02:00:05,424 - __main__ - INFO - Daily backup created: False
 2024-12-18 02:00:05,425 - __main__ - INFO - Old backup cleanup completed
 2024-12-19 02:00:04,005 - __main__ - INFO - Starting scheduled daily backup
 2024-12-19 02:00:04,029 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241219_020004.sql
-2024-12-19 02:00:05,868 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-19 02:00:05,868 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-19 02:00:05,868 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-19 02:00:05,868 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-19 02:00:05,868 - __main__ - INFO - Daily backup created: False
 2024-12-19 02:00:05,869 - __main__ - INFO - Old backup cleanup completed
 2024-12-21 02:00:02,882 - __main__ - INFO - Starting scheduled daily backup
 2024-12-21 02:00:02,895 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241221_020002.sql
-2024-12-21 02:00:06,214 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-21 02:00:06,214 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-21 02:00:06,214 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-21 02:00:06,214 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-21 02:00:06,214 - __main__ - INFO - Daily backup created: False
 2024-12-21 02:00:06,215 - __main__ - INFO - Old backup cleanup completed
 2024-12-22 02:43:17,262 - __main__ - INFO - Starting scheduled daily backup
 2024-12-22 02:43:17,294 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241222_024317.sql
-2024-12-22 02:43:21,965 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-22 02:43:21,965 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-22 02:43:21,965 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-22 02:43:21,965 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-22 02:43:21,965 - __main__ - INFO - Daily backup created: False
 2024-12-22 02:43:21,965 - __main__ - INFO - Old backup cleanup completed
 2024-12-23 02:15:32,181 - __main__ - INFO - Starting scheduled daily backup
 2024-12-23 02:15:32,226 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241223_021532.sql
-2024-12-23 02:15:36,036 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-23 02:15:36,036 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-23 02:15:36,037 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-23 02:15:36,037 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-23 02:15:36,038 - __main__ - INFO - Daily backup created: False
 2024-12-23 02:15:36,040 - __main__ - INFO - Old backup cleanup completed
 2024-12-24 02:00:03,647 - __main__ - INFO - Starting scheduled daily backup
 2024-12-24 02:00:03,670 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241224_020003.sql
-2024-12-24 02:00:07,441 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-24 02:00:07,441 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-24 02:00:07,441 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-24 02:00:07,441 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-24 02:00:07,441 - __main__ - INFO - Daily backup created: False
 2024-12-24 02:00:07,442 - __main__ - INFO - Old backup cleanup completed
 2024-12-25 02:00:03,048 - __main__ - INFO - Starting scheduled daily backup
 2024-12-25 02:00:03,063 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241225_020003.sql
-2024-12-25 02:00:04,511 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-25 02:00:04,511 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-25 02:00:04,511 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-25 02:00:04,511 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-25 02:00:04,511 - __main__ - INFO - Daily backup created: False
 2024-12-25 02:00:04,526 - __main__ - INFO - Old backup cleanup completed
 2024-12-25 02:23:11,931 - __main__ - INFO - Starting scheduled daily backup
 2024-12-25 02:23:11,931 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241225_022311.sql
-2024-12-25 02:23:12,710 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-25 02:23:12,710 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
 
-2024-12-25 02:23:12,710 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-25 02:23:12,710 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-25 02:23:12,710 - __main__ - INFO - Daily backup created: False
 2024-12-25 02:23:12,710 - __main__ - INFO - Old backup cleanup completed
 2024-12-25 02:28:08,142 - __main__ - INFO - Starting scheduled daily backup
 2024-12-25 02:28:08,142 - scripts.database.backup - INFO - Starting database backup to c:\Users\ahmed\OneDrive\Desktop\Graduation_project\backups\database\backup_20241225_022808.sql
-2024-12-25 02:28:08,549 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: last built-in OID is 16383
-pg_dump: reading extensions
-pg_dump: identifying extension members
-pg_dump: reading schemas
-pg_dump: reading user-defined tables
-pg_dump: reading user-defined functions
-pg_dump: reading user-defined types
-pg_dump: reading procedural languages
-pg_dump: reading user-defined aggregate functions
-pg_dump: reading user-defined operators
-pg_dump: reading user-defined access methods
-pg_dump: reading user-defined operator classes
-pg_dump: reading user-defined operator families
-pg_dump: reading user-defined text search parsers
-pg_dump: reading user-defined text search templates
-pg_dump: reading user-defined text search dictionaries
-pg_dump: reading user-defined text search configurations
-pg_dump: reading user-defined foreign-data wrappers
-pg_dump: reading user-defined foreign servers
-pg_dump: reading default privileges
-pg_dump: reading user-defined collations
-pg_dump: reading user-defined conversions
-pg_dump: reading type casts
-pg_dump: reading transforms
-pg_dump: reading table inheritance information
-pg_dump: reading event triggers
-pg_dump: finding extension tables
-pg_dump: finding inheritance relationships
-pg_dump: reading column info for interesting tables
-pg_dump: finding table default expressions
-pg_dump: finding table check constraints
-pg_dump: flagging inherited columns in subtables
-pg_dump: reading partitioning data
-pg_dump: reading indexes
-pg_dump: flagging indexes in partitioned tables
-pg_dump: reading extended statistics
-pg_dump: reading constraints
-pg_dump: reading triggers
-pg_dump: reading rewrite rules
-pg_dump: reading policies
-pg_dump: reading row-level security policies
-pg_dump: reading publications
-pg_dump: reading publication membership of tables
-pg_dump: reading publication membership of schemas
-pg_dump: reading subscriptions
-pg_dump: reading subscription membership of tables
-pg_dump: reading large objects
-pg_dump: reading dependency data
-pg_dump: saving encoding = UTF8
-pg_dump: saving "standard_conforming_strings = on"
-pg_dump: saving "search_path = "
-pg_dump: saving database definition
-pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+2024-12-25 02:28:08,549 - scripts.database.backup - ERROR - Error in Database backup: pg_dump failed: pg_dump: last built-in OID is 16383
 
-2024-12-25 02:28:08,565 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: last built-in OID is 16383
-pg_dump: reading extensions
-pg_dump: identifying extension members
-pg_dump: reading schemas
-pg_dump: reading user-defined tables
-pg_dump: reading user-defined functions
-pg_dump: reading user-defined types
-pg_dump: reading procedural languages
-pg_dump: reading user-defined aggregate functions
-pg_dump: reading user-defined operators
-pg_dump: reading user-defined access methods
-pg_dump: reading user-defined operator classes
-pg_dump: reading user-defined operator families
-pg_dump: reading user-defined text search parsers
-pg_dump: reading user-defined text search templates
-pg_dump: reading user-defined text search dictionaries
-pg_dump: reading user-defined text search configurations
-pg_dump: reading user-defined foreign-data wrappers
-pg_dump: reading user-defined foreign servers
-pg_dump: reading default privileges
-pg_dump: reading user-defined collations
-pg_dump: reading user-defined conversions
-pg_dump: reading type casts
-pg_dump: reading transforms
-pg_dump: reading table inheritance information
-pg_dump: reading event triggers
-pg_dump: finding extension tables
-pg_dump: finding inheritance relationships
-pg_dump: reading column info for interesting tables
-pg_dump: finding table default expressions
-pg_dump: finding table check constraints
-pg_dump: flagging inherited columns in subtables
-pg_dump: reading partitioning data
-pg_dump: reading indexes
-pg_dump: flagging indexes in partitioned tables
-pg_dump: reading extended statistics
-pg_dump: reading constraints
-pg_dump: reading triggers
-pg_dump: reading rewrite rules
-pg_dump: reading policies
-pg_dump: reading row-level security policies
-pg_dump: reading publications
-pg_dump: reading publication membership of tables
-pg_dump: reading publication membership of schemas
-pg_dump: reading subscriptions
-pg_dump: reading subscription membership of tables
-pg_dump: reading large objects
-pg_dump: reading dependency data
-pg_dump: saving encoding = UTF8
-pg_dump: saving "standard_conforming_strings = on"
-pg_dump: saving "search_path = "
-pg_dump: saving database definition
-pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
-pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+pg_dump: reading extensions
+
+pg_dump: identifying extension members
+
+pg_dump: reading schemas
+
+pg_dump: reading user-defined tables
+
+pg_dump: reading user-defined functions
+
+pg_dump: reading user-defined types
+
+pg_dump: reading procedural languages
+
+pg_dump: reading user-defined aggregate functions
+
+pg_dump: reading user-defined operators
+
+pg_dump: reading user-defined access methods
+
+pg_dump: reading user-defined operator classes
+
+pg_dump: reading user-defined operator families
+
+pg_dump: reading user-defined text search parsers
+
+pg_dump: reading user-defined text search templates
+
+pg_dump: reading user-defined text search dictionaries
+
+pg_dump: reading user-defined text search configurations
+
+pg_dump: reading user-defined foreign-data wrappers
+
+pg_dump: reading user-defined foreign servers
+
+pg_dump: reading default privileges
+
+pg_dump: reading user-defined collations
+
+pg_dump: reading user-defined conversions
+
+pg_dump: reading type casts
+
+pg_dump: reading transforms
+
+pg_dump: reading table inheritance information
+
+pg_dump: reading event triggers
+
+pg_dump: finding extension tables
+
+pg_dump: finding inheritance relationships
+
+pg_dump: reading column info for interesting tables
+
+pg_dump: finding table default expressions
+
+pg_dump: finding table check constraints
+
+pg_dump: flagging inherited columns in subtables
+
+pg_dump: reading partitioning data
+
+pg_dump: reading indexes
+
+pg_dump: flagging indexes in partitioned tables
+
+pg_dump: reading extended statistics
+
+pg_dump: reading constraints
+
+pg_dump: reading triggers
+
+pg_dump: reading rewrite rules
+
+pg_dump: reading policies
+
+pg_dump: reading row-level security policies
+
+pg_dump: reading publications
+
+pg_dump: reading publication membership of tables
+
+pg_dump: reading publication membership of schemas
+
+pg_dump: reading subscriptions
+
+pg_dump: reading subscription membership of tables
+
+pg_dump: reading large objects
+
+pg_dump: reading dependency data
+
+pg_dump: saving encoding = UTF8
+
+pg_dump: saving "standard_conforming_strings = on"
+
+pg_dump: saving "search_path = "
+
+pg_dump: saving database definition
+
+pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
+
+2024-12-25 02:28:08,565 - src.utils.error_handler - ERROR - Error in None: pg_dump failed: pg_dump: last built-in OID is 16383
+
+pg_dump: reading extensions
+
+pg_dump: identifying extension members
+
+pg_dump: reading schemas
+
+pg_dump: reading user-defined tables
+
+pg_dump: reading user-defined functions
+
+pg_dump: reading user-defined types
+
+pg_dump: reading procedural languages
+
+pg_dump: reading user-defined aggregate functions
+
+pg_dump: reading user-defined operators
+
+pg_dump: reading user-defined access methods
+
+pg_dump: reading user-defined operator classes
+
+pg_dump: reading user-defined operator families
+
+pg_dump: reading user-defined text search parsers
+
+pg_dump: reading user-defined text search templates
+
+pg_dump: reading user-defined text search dictionaries
+
+pg_dump: reading user-defined text search configurations
+
+pg_dump: reading user-defined foreign-data wrappers
+
+pg_dump: reading user-defined foreign servers
+
+pg_dump: reading default privileges
+
+pg_dump: reading user-defined collations
+
+pg_dump: reading user-defined conversions
+
+pg_dump: reading type casts
+
+pg_dump: reading transforms
+
+pg_dump: reading table inheritance information
+
+pg_dump: reading event triggers
+
+pg_dump: finding extension tables
+
+pg_dump: finding inheritance relationships
+
+pg_dump: reading column info for interesting tables
+
+pg_dump: finding table default expressions
+
+pg_dump: finding table check constraints
+
+pg_dump: flagging inherited columns in subtables
+
+pg_dump: reading partitioning data
+
+pg_dump: reading indexes
+
+pg_dump: flagging indexes in partitioned tables
+
+pg_dump: reading extended statistics
+
+pg_dump: reading constraints
+
+pg_dump: reading triggers
+
+pg_dump: reading rewrite rules
+
+pg_dump: reading policies
+
+pg_dump: reading row-level security policies
+
+pg_dump: reading publications
+
+pg_dump: reading publication membership of tables
+
+pg_dump: reading publication membership of schemas
+
+pg_dump: reading subscriptions
+
+pg_dump: reading subscription membership of tables
+
+pg_dump: reading large objects
+
+pg_dump: reading dependency data
+
+pg_dump: saving encoding = UTF8
+
+pg_dump: saving "standard_conforming_strings = on"
+
+pg_dump: saving "search_path = "
+
+pg_dump: saving database definition
+
+pg_dump: error: query failed: ERROR:  permission denied for sequence User_id_seq
+
+pg_dump: detail: Query was: SELECT last_value, is_called FROM public."User_id_seq"
+
 
 2024-12-25 02:28:08,575 - __main__ - INFO - Daily backup created: False
 2024-12-25 02:28:08,577 - __main__ - INFO - Old backup cleanup completed
