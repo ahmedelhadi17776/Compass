@@ -41,6 +41,8 @@ ENV/
 # Distribution / packaging
 dist/
 build/
+Frontend/node_modules
+node_modules
 *.egg-info/
 
 # Testing
