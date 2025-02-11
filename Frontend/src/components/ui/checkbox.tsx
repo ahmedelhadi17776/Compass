@@ -35,21 +35,20 @@ Checkbox.displayName = 'Checkbox';
 
 const StyledWrapper = styled.div<{ $darkMode: boolean }>`
   display: flex;
-  align-items: center; /* Vertically center the checkbox and label */
-  gap: 8px; /* Add spacing between the checkbox and label */
+  align-items: center;
+  gap: 8px;
 
-  /* checkbox settings 👇 */
+  /* checkbox settings */
   .ui-checkbox {
     --primary-color: ${props => props.$darkMode ? '#0A84FF' : '#1677ff'};
-    --secondary-color: ${props => props.$darkMode ? '#2c2c2e' : '#fff'};
+    --secondary-color: ${props => props.$darkMode ? 'hsl(220, 3%, 13%)' : '#fff'};
     --primary-hover-color: ${props => props.$darkMode ? '#409cff' : '#4096ff'};
     /* checkbox */
     --checkbox-diameter: 16px;
     --checkbox-border-radius: 4px;
-    --checkbox-border-color: ${props => props.$darkMode ? '#3a3a3c' : '#d9d9d9'};
+    --checkbox-border-color: ${props => props.$darkMode ? 'hsl(220, 3%, 18%)' : 'hsl(214.3, 31.8%, 91.4%)'};
     --checkbox-border-width: 1px;
     --checkbox-border-style: solid;
-    /* checkmark */
     --checkmark-size: 1.2;
   }
 
@@ -114,7 +113,7 @@ const StyledWrapper = styled.div<{ $darkMode: boolean }>`
   /* actions */
   .ui-checkbox:hover {
     border-color: var(--primary-color);
-    background: ${props => props.$darkMode ? '#3a3a3c' : 'var(--secondary-color)'};
+    background: ${props => props.$darkMode ? 'hsl(220, 3%, 16%)' : 'var(--secondary-color)'};
   }
 
   .ui-checkbox:checked {
@@ -149,7 +148,7 @@ const StyledWrapper = styled.div<{ $darkMode: boolean }>`
   .checkbox-label {
     font-size: 14px;
     color: ${(props) => (props.$darkMode ? '#fff' : '#000')};
-    user-select: none; /* Prevent text selection */
+    user-select: none;
   }
 `;
 

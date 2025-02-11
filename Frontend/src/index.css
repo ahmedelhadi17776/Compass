@@ -1,0 +1,214 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+ 
+    --sidebar-background: 0 0% 98%;
+ 
+    --sidebar-foreground: 240 5.3% 26.1%;
+ 
+    --sidebar-primary: 240 5.9% 10%;
+ 
+    --sidebar-primary-foreground: 0 0% 98%;
+ 
+    --sidebar-accent: 240 4.8% 95.9%;
+ 
+    --sidebar-accent-foreground: 240 5.9% 10%;
+ 
+    --sidebar-border: 220 13% 91%;
+ 
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+ 
+  .dark {
+    --background: 0 0% 11%; /* #1C1C1C */
+    --foreground: 210 40% 98%;
+    --card: 220 3% 13%; /* #202023 */
+    --card-foreground: 0 0% 100%;
+    --popover: 220 3% 13%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 220 3% 16%; /* Matching sidebar hover */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 220 3% 16%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 220 3% 18%; /* Matching sidebar hover */
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 3% 18%; /* Matching the darker theme */
+    --input: 220 3% 16%;
+    --ring: 220 3% 16%;
+    --sidebar-background: 220 3% 13%; /* #25262B */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-muted: 220 3% 18%;
+    --sidebar-muted-foreground: 220 3% 70%;
+    --sidebar-accent: 220 3% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 3% 16%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  *:focus {
+    outline: none !important;
+  }
+
+  *:focus-visible {
+    outline: none !important;
+  }
+
+  input[type="checkbox"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* RTL text direction utilities */
+.direction-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.direction-rtl {
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+
+.numbers-ltr {
+  direction: ltr;
+  unicode-bidi: isolate-override;
+}
+
+/* Hide arrows for inputs with the class "no-spinner" */
+.no-spinner::-webkit-inner-spin-button,
+.no-spinner::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spinner {
+  -moz-appearance: textfield;
+}
+
+/* Custom dark mode styles for react-datepicker */
+.react-datepicker {
+  font-family: inherit;
+  border: 1px solid #3c3c3e;
+  background-color: #2c2c2e;
+  color: white;
+}
+
+.react-datepicker__header {
+  background-color: #1c1c1e;
+  border-bottom: 1px solid #3c3c3e;
+}
+
+.react-datepicker__day {
+  color: white;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: #0A84FF;
+  color: white;
+}
+
+.react-datepicker__day:hover {
+  background-color: #3c3c3e;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+  color: white;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: white;
+}
+
+/* Light Mode Scrollbar */
+.scrollbar-light::-webkit-scrollbar {
+  width: 8px; /* Width of the scrollbar */
+}
+
+.scrollbar-light::-webkit-scrollbar-track {
+  background: #f1f1f1; /* Color of the track */
+  border-radius: 4px; /* Rounded corners for the track */
+}
+
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background: #c1c1c1; /* Color of the scrollbar thumb */
+  border-radius: 4px; /* Rounded corners for the thumb */
+}
+
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8; /* Color of the thumb on hover */
+}
+
+/* Dark Mode Scrollbar */
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px; /* Width of the scrollbar */
+}
+
+.scrollbar-dark::-webkit-scrollbar-track {
+  background: #3c3c3e; /* Color of the track */
+  border-radius: 4px; /* Rounded corners for the track */
+}
+
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background: #686868; /* Color of the scrollbar thumb */
+  border-radius: 4px; /* Rounded corners for the thumb */
+}
+
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background: #7c7c7c; /* Color of the thumb on hover */
+}
+
+@layer utilities {
+  .drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  
+  .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
