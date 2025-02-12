@@ -14,6 +14,7 @@ import {
   CalendarClock,
   AudioWaveform,
   Command,
+  Mail,
   GalleryVerticalEnd,
   MessageSquareText,
   BarChart2,
@@ -79,8 +80,12 @@ const data = {
           url: "/dashboard/calendar",
         },
         {
-          title: "System Monitoring",
-          url: "/dashboard/monitoring",
+          title: "Productivity Insights",
+          url: "/dashboard/insights",
+        },
+        {
+          title: "Emotional Intelligence",
+          url: "/dashboard/wellness",
         },
       ],
     },
@@ -96,20 +101,32 @@ const data = {
         {
           title: "Calendar View",
           url: "/calendar",
-        }
+        },
+        {
+          title: "Meeting Preparation",
+          url: "/calendar/meetings",
+        },
       ],
     },
     {
       title: "Workflows",
-      url: "/workflows",
-      icon: Command,
-      items: [
-        {
-          title: "Manage Workflows",
-          url: "/workflows/manage",
-        }
-      ],
-    },
+    url: "/workflows",
+    icon: Command,
+    items: [
+      {
+        title: "Workflow Builder",
+        url: "/workflows/builder",
+      },
+      {
+        title: "Active Workflows",
+        url: "/workflows/active",
+      },
+      {
+        title: "Workflow History",
+        url: "/workflows/history",
+      },
+    ],
+  },
     {
       title: "AIAssistant",
       url: "/ai",
@@ -126,6 +143,25 @@ const data = {
         {
           title: "Agent Management",
           url: "/ai/agents",
+        },
+      ],
+    },
+    {
+      title: "Email",
+      url: "/email",
+      icon: Mail,
+      items: [
+        {
+          title: "Inbox Management",
+          url: "/email/inbox",
+        },
+        {
+          title: "Email Automation",
+          url: "/email/automation",
+        },
+        {
+          title: "Communication Insights",
+          url: "/email/insights",
         },
       ],
     },
@@ -149,12 +185,12 @@ const data = {
       ],
     },
     {
-      title: "Files",
+      title: "Search",
       url: "/files",
       icon: FolderSearch,
       items: [
         {
-          title: "Smart Search",
+          title: "Search & Retrieval",
           url: "/files/search",
         },
         {
@@ -162,8 +198,8 @@ const data = {
           url: "/files/clipboard",
         },
         {
-          title: "Organization",
-          url: "/files/organize",
+          title: "Research Agent",
+          url: "/knowledge/research",
         },
       ],
     },
