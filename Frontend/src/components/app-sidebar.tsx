@@ -44,17 +44,17 @@ const data = {
   },
   teams: [
     {
-      name: "Acme Inc",
+      name: "NMU Inc",
       logo: GalleryVerticalEnd,
       plan: "Enterprise",
     },
     {
-      name: "Acme Corp.",
+      name: "GUC Corp.",
       logo: AudioWaveform,
       plan: "Startup",
     },
     {
-      name: "Evil Corp.",
+      name: "AUC Corp.",
       logo: Command,
       plan: "Free",
     },
@@ -85,45 +85,29 @@ const data = {
       ],
     },
     {
-      title: "Tasks",
+      title: "TaskManagement",
       url: "/tasks",
       icon: ListTodo,
       items: [
         {
-          title: "Create Task",
+          title: "Todo List",
           url: "/tasks/create",
         },
         {
-          title: "Manage Tasks",
-          url: "/tasks/manage",
-        },
-        {
-          title: "Dependencies",
-          url: "/tasks/dependencies",
-        },
-        {
-          title: "Automation",
-          url: "/tasks/automation",
-        },
+          title: "Calendar View",
+          url: "/calendar",
+        }
       ],
     },
     {
-      title: "Calendar",
-      url: "/calendar",
-      icon: Calendar,
+      title: "Workflows",
+      url: "/workflows",
+      icon: Command,
       items: [
         {
-          title: "Calendar Sync",
-          url: "/calendar/sync",
-        },
-        {
-          title: "Schedule Meeting",
-          url: "/calendar/schedule",
-        },
-        {
-          title: "Meeting Notes",
-          url: "/calendar/notes",
-        },
+          title: "Manage Workflows",
+          url: "/workflows/manage",
+        }
       ],
     },
     {
@@ -132,7 +116,7 @@ const data = {
       icon: Brain,
       items: [
         {
-          title: "Smart Queries",
+          title: "Chatbot",
           url: "/ai/queries",
         },
         {
