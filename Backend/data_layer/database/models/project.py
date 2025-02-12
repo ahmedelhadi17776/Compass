@@ -1,26 +1,42 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Index
 from sqlalchemy.orm import relationship
-from .base import Base
-from sqlalchemy.sql import func
+from data_layer.database.base import Base
+import datetime
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    projects = relationship(
+        "Project", back_populates="organization", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        # Unique index on name (already unique, but adding an explicit index for clarity)
+        Index("ix_organization_name", "name", unique=True),
+    )
 
 
 class Project(Base):
-    """Project model to group tasks."""
-    __tablename__ = 'projects'
-    __table_args__ = (
-        Index('ix_projects_name', 'name', unique=True),
-        Index('ix_projects_organization', 'organization_id'),
-        {'extend_existing': True}
-    )
+    __tablename__ = "projects"
 
-    id = Column(Integer, primary_key=True)
-    organization_id = Column(Integer, ForeignKey(
-        'organizations.id'), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    # Relationships
+    # Foreign Key and Relationships
+    organization_id = Column(Integer, ForeignKey(
+        "organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     organization = relationship("Organization", back_populates="projects")
-    tasks = relationship("Task", back_populates="project")
+    tasks = relationship("Task", back_populates="project",
+                         cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_project_name", "name"),
+    )

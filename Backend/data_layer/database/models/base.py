@@ -1,14 +1,19 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import MetaData
+from data_layer.database.models.user import User, Role, UserRole
+from data_layer.database.models.task import Task
+from data_layer.database.models.project import Project, Organization
+from data_layer.database.models.workflow import Workflow
+from sqlalchemy.orm import declarative_base
 
-# Naming convention for constraints
-convention = {
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s"
-}
+# ✅ Correct Base Model (Remove @as_declarative)
+Base = declarative_base()
 
-metadata = MetaData(naming_convention=convention)
-Base = declarative_base(metadata=metadata)
+# ✅ Ensure all models are imported
+__all__ = [
+    "User",
+    "Role",
+    "UserRole",
+    "Task",
+    "Project",
+    "Organization",
+    "Workflow"
+]
