@@ -1,22 +1,39 @@
-"""API routes configuration."""
-from fastapi import APIRouter
-from ..routers.auth import router as auth_router
-from ..routers.users import router as users_router
-from ..routers.tasks import router as tasks_router
-from ..routers.roles import router as roles_router
-from ..routers.permissions import router as permissions_router
-from ..routers.notifications import router as notifications_router
+from fastapi import APIRouter, Depends
+from data_layer.cache.redis_client import get_cached_value, set_cached_value
+import json
 
-# Create main API router
-api_router = APIRouter()
+router = APIRouter()
 
-# Include all routers
-api_router.include_router(auth_router)
-api_router.include_router(users_router)
-api_router.include_router(tasks_router)
-api_router.include_router(roles_router)
-api_router.include_router(permissions_router)
-api_router.include_router(notifications_router)
 
-# Export the main router
-__all__ = ["api_router"]
+@router.get("/ping")
+async def ping():
+    """
+    Simple health check endpoint.
+    """
+    return {"message": "pong"}
+
+
+@router.get("/status")
+async def status():
+    """
+    Returns API status.
+    """
+    return {"status": "running"}
+
+
+@router.get("/cached-status")
+async def cached_status():
+    """Returns API status with Redis caching."""
+    cache_key = "api_status"
+
+    # ✅ Check if cached value exists
+    cached_response = await get_cached_value(cache_key)
+    if cached_response:
+        return json.loads(cached_response)  # Return cached response
+
+    # ✅ If no cache, generate response and store in Redis
+    response = {"status": "running", "message": "API is working!"}
+    # Cache for 60 sec
+    await set_cached_value(cache_key, json.dumps(response), ttl=60)
+
+    return response

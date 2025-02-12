@@ -1,74 +1,47 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from core.rbac import get_current_user, require_role
+from data_layer.database.connection import get_db
+from data_layer.database.models.user import User, Role, UserRole
 
-from Backend.data.database.connection import get_db
-from Backend.data.database.models import User
-from Backend.application.schemas.role import (
-    Role,
-    RoleCreate,
-    RoleUpdate,
-    RoleWithPermissions
-)
-from Backend.services.authorization.role_service import role_service
-from Backend.services.authorization.dependencies import check_permission
-from Backend.services.authentication.auth_service import get_current_user
+router = APIRouter()
 
-router = APIRouter(
-    prefix="/roles",
-    tags=["roles"],
-    dependencies=[Depends(get_current_user)]
-)
 
-@router.post("/", response_model=Role, status_code=status.HTTP_201_CREATED)
-async def create_role(
-    role_data: RoleCreate,
-    db: Session = Depends(get_db),
-    _: User = Depends(check_permission("roles", "create"))
-):
-    """Create a new role."""
-    role_service.db = db
-    return role_service.create_role(role_data)
+# ✅ Create a New Role (Admin Only)
+@router.post("/roles/", status_code=status.HTTP_201_CREATED)
+async def create_role(name: str, description: str, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("admin"))):
+    result = await db.execute(select(Role).filter(Role.name == name))
+    existing_role = result.scalars().first()
 
-@router.get("/", response_model=List[Role])
-async def list_roles(
-    skip: int = 0,
-    limit: int = 10,
-    db: Session = Depends(get_db),
-    _: User = Depends(check_permission("roles", "read"))
-):
-    """List all roles."""
-    role_service.db = db
-    return role_service.list_roles(skip, limit)
+    if existing_role:
+        raise HTTPException(status_code=400, detail="Role already exists")
 
-@router.get("/{role_id}", response_model=RoleWithPermissions)
-async def get_role(
-    role_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(check_permission("roles", "read"))
-):
-    """Get a specific role with its permissions."""
-    role_service.db = db
-    return role_service.get_role(role_id)
+    new_role = Role(name=name, description=description)
+    db.add(new_role)
+    await db.commit()
+    await db.refresh(new_role)
+    return {"message": "Role created successfully"}
 
-@router.put("/{role_id}", response_model=Role)
-async def update_role(
-    role_id: int,
-    role_data: RoleUpdate,
-    db: Session = Depends(get_db),
-    _: User = Depends(check_permission("roles", "update"))
-):
-    """Update a role."""
-    role_service.db = db
-    return role_service.update_role(role_id, role_data)
 
-@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_role(
-    role_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(check_permission("roles", "delete"))
-):
-    """Delete a role."""
-    role_service.db = db
-    role_service.delete_role(role_id)
-    return None
+# ✅ Assign Role to User (Admin Only)
+@router.post("/users/{user_id}/assign-role/")
+async def assign_role(user_id: int, role_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(require_role("admin"))):
+    user_role = UserRole(user_id=user_id, role_id=role_id)
+    db.add(user_role)
+    await db.commit()
+    return {"message": "Role assigned successfully"}
+
+
+# ✅ Get User's Roles (Authenticated User)
+@router.get("/users/me/roles")
+async def get_my_roles(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(UserRole).filter(UserRole.user_id == user.id))
+    user_roles = result.scalars().all()
+
+    role_ids = [ur.role_id for ur in user_roles]
+
+    result = await db.execute(select(Role).filter(Role.id.in_(role_ids)))
+    roles = result.scalars().all()
+
+    return {"roles": [role.name for role in roles]}
