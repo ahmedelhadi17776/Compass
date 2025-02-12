@@ -177,7 +177,7 @@ const data = {
         {
           title: "Metrics",
           url: "/productivity/metrics",
-        },e
+        },
         {
           title: "Wellness",
           url: "/productivity/wellness",
