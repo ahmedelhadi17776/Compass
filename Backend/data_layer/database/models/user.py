@@ -27,6 +27,14 @@ class User(Base):
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(String(255))
     last_login = Column(DateTime)
+    failed_login_attempts = Column(Integer, default=0)
+    last_failed_login = Column(DateTime)
+    account_locked_until = Column(DateTime)
+    password_changed_at = Column(DateTime)
+    force_password_change = Column(Boolean, default=False)
+    security_questions = Column(JSON)  # Encrypted security questions and answers
+    allowed_ip_ranges = Column(JSON)  # List of allowed IP ranges
+    max_sessions = Column(Integer, default=5)  # Maximum concurrent sessions
 
     # Consolidated relationships
     roles = relationship("UserRole", back_populates="user",
@@ -47,9 +55,26 @@ class User(Base):
     agent_feedback = relationship("AgentFeedback", back_populates="user")
     context_snapshots = relationship("ContextSnapshot", back_populates="user")
     files = relationship("File", back_populates="user")
+    
+    # New relationships
+    productivity_metrics = relationship("ProductivityMetrics", back_populates="user", cascade="all, delete-orphan")
+    emotional_metrics = relationship("EmotionalMetrics", back_populates="user", cascade="all, delete-orphan")
+    rag_queries = relationship("RAGQuery", back_populates="user")
+    email_organization = relationship("EmailOrganization", back_populates="user", uselist=False)
+    ai_interactions = relationship("AIAgentInteraction", back_populates="user")
+    meeting_notes = relationship("MeetingNotes", back_populates="user")
+    security_logs = relationship("SecurityAuditLog", back_populates="user")
+    granted_permissions = relationship("RolePermission", foreign_keys="[RolePermission.granted_by]", back_populates="granter")
+    workspace_settings = relationship("UserWorkspaceSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    daily_summaries = relationship("DailySummary", back_populates="user", cascade="all, delete-orphan")
+    todos = relationship("Todo", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_user_email", "email"),
+        Index("ix_user_username", "username"),
+        Index("ix_user_created_at", "created_at"),
+        Index("ix_user_last_login", "last_login"),
+        Index("ix_user_account_locked_until", "account_locked_until"),
     )
 
 
@@ -58,7 +83,9 @@ class Role(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
-    description = Column(String(255))
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     # Relationships
     users = relationship("UserRole", back_populates="role",
@@ -72,6 +99,7 @@ class UserRole(Base):
         "users.id", ondelete="CASCADE"), primary_key=True)
     role_id = Column(Integer, ForeignKey(
         "roles.id", ondelete="CASCADE"), primary_key=True)
+    assigned_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
     user = relationship("User", back_populates="roles")
