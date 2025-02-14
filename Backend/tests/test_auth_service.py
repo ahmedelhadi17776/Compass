@@ -6,6 +6,8 @@ from services.auth_service import AuthService
 from data_layer.repositories.user_repository import UserRepository
 from data_layer.repositories.session_repository import SessionRepository
 from app.schemas.auth import UserCreate
+from data_layer.database.models.session import SessionStatus
+from utils.security_utils import create_access_token
 
 pytestmark = pytest.mark.asyncio  # Mark all tests as async
 
@@ -80,11 +82,11 @@ async def test_authenticate_user_nonexistent(auth_service):
     assert user is False
 
 
-async def test_create_access_token(auth_service):
+async def test_create_access_token():
     token_data = {"sub": "testuser"}
     expires_delta = timedelta(minutes=15)
 
-    token = auth_service.create_access_token(token_data, expires_delta)
+    token = create_access_token(token_data, expires_delta)
     assert isinstance(token, str)
     assert len(token) > 0
 
@@ -100,10 +102,13 @@ async def test_create_session(auth_service, test_user):
     )
 
     assert session.user_id == test_user.id
-    assert session.device_info == device_info
+    assert session.device_info == {"user_agent": device_info}
     assert session.ip_address == ip_address
     assert session.is_valid is True
+    assert session.status == SessionStatus.ACTIVE
     assert isinstance(session.expires_at, datetime)
+    assert session.token is not None
+    assert len(session.token) > 0
 
 
 async def test_validate_session(auth_service, test_user):
@@ -116,6 +121,7 @@ async def test_validate_session(auth_service, test_user):
     valid_session = await auth_service.validate_session(session.token)
     assert valid_session.id == session.id
     assert valid_session.is_valid is True
+    assert valid_session.status == SessionStatus.ACTIVE
 
 
 async def test_validate_invalid_session(auth_service, test_user):
@@ -135,13 +141,20 @@ async def test_validate_invalid_session(auth_service, test_user):
 
 async def test_get_user_sessions(auth_service, test_user):
     # Create multiple sessions
-    await auth_service.create_session(test_user.id, "Browser 1", "127.0.0.1")
-    await auth_service.create_session(test_user.id, "Browser 2", "127.0.0.2")
+    session1 = await auth_service.create_session(test_user.id, "Browser 1", "127.0.0.1")
+    session2 = await auth_service.create_session(test_user.id, "Browser 2", "127.0.0.2")
 
     sessions = await auth_service.get_user_sessions(test_user.id)
     assert len(sessions) == 2
     assert all(session.user_id == test_user.id for session in sessions)
     assert all(session.is_valid for session in sessions)
+    assert all(session.status == SessionStatus.ACTIVE for session in sessions)
+
+    # Verify session details
+    assert any(s.device_info == {"user_agent": "Browser 1"} for s in sessions)
+    assert any(s.device_info == {"user_agent": "Browser 2"} for s in sessions)
+    assert any(s.ip_address == "127.0.0.1" for s in sessions)
+    assert any(s.ip_address == "127.0.0.2" for s in sessions)
 
 
 async def test_invalidate_session(auth_service, test_user):
@@ -157,3 +170,7 @@ async def test_invalidate_session(auth_service, test_user):
     # Verify session is invalid
     with pytest.raises(HTTPException):
         await auth_service.validate_session(session.token)
+
+    # Get session and verify status
+    sessions = await auth_service.get_user_sessions(test_user.id)
+    assert len(sessions) == 0  # Should not return invalid sessions

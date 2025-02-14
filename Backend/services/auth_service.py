@@ -8,8 +8,10 @@ from data_layer.repositories.session_repository import SessionRepository
 from core.config import settings
 from app.schemas.auth import TokenData, UserCreate
 from app.schemas.user import UserResponse
+from utils.security_utils import hash_password, verify_password, create_access_token
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 class AuthService:
     def __init__(self, user_repository: UserRepository, session_repository: SessionRepository):
@@ -17,10 +19,10 @@ class AuthService:
         self.session_repository = session_repository
 
     async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return pwd_context.verify(plain_password, hashed_password)
+        return verify_password(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
-        return pwd_context.hash(password)
+        return hash_password(password)
 
     async def authenticate_user(self, username: str, password: str):
         user = await self.user_repository.get_by_username(username)
@@ -30,16 +32,6 @@ class AuthService:
             return False
         return user
 
-    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(minutes=15)
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-        return encoded_jwt
-
     async def register_user(self, user_create: UserCreate) -> UserResponse:
         # Check if user exists
         existing_user = await self.user_repository.get_by_username(user_create.username)
@@ -48,7 +40,7 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already registered"
             )
-        
+
         # Hash password and create user
         hashed_password = self.get_password_hash(user_create.password)
         user = await self.user_repository.create(
@@ -58,16 +50,17 @@ class AuthService:
             first_name=user_create.first_name,
             last_name=user_create.last_name
         )
-        
+
         return UserResponse.from_orm(user)
 
     async def create_session(self, user_id: int, device_info: str = None, ip_address: str = None):
         expires_at = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        token = self.create_access_token(
+        token = create_access_token(
             data={"sub": str(user_id)},
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            expires_delta=timedelta(
+                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
-        
+
         return await self.session_repository.create_session(
             user_id=user_id,
             token=token,

@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, update
 from data_layer.database.models.session import Session
+import json
 
 
 class SessionRepository:
@@ -9,11 +10,14 @@ class SessionRepository:
         self.db_session = db_session
 
     async def create_session(self, user_id: int, token: str, expires_at: datetime, device_info: str = None, ip_address: str = None) -> Session:
+        # Convert device_info string to a dictionary
+        device_info_dict = {"user_agent": device_info} if device_info else None
+
         session = Session(
             user_id=user_id,
             token=token,
             expires_at=expires_at,
-            device_info=device_info,
+            device_info=device_info_dict,
             ip_address=ip_address
         )
         self.db_session.add(session)
