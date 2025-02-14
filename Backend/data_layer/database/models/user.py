@@ -32,11 +32,15 @@ class User(Base):
     account_locked_until = Column(DateTime)
     password_changed_at = Column(DateTime)
     force_password_change = Column(Boolean, default=False)
-    security_questions = Column(JSON)  # Encrypted security questions and answers
+    # Encrypted security questions and answers
+    security_questions = Column(JSON)
     allowed_ip_ranges = Column(JSON)  # List of allowed IP ranges
     max_sessions = Column(Integer, default=5)  # Maximum concurrent sessions
+    organization_id = Column(Integer, ForeignKey(
+        "organizations.id", ondelete="SET NULL"), nullable=True)
 
     # Consolidated relationships
+    organization = relationship("Organization", back_populates="users")
     roles = relationship("UserRole", back_populates="user",
                          cascade="all, delete-orphan")
     preferences = relationship(
@@ -55,19 +59,26 @@ class User(Base):
     agent_feedback = relationship("AgentFeedback", back_populates="user")
     context_snapshots = relationship("ContextSnapshot", back_populates="user")
     files = relationship("File", back_populates="user")
-    
+
     # New relationships
-    productivity_metrics = relationship("ProductivityMetrics", back_populates="user", cascade="all, delete-orphan")
-    emotional_metrics = relationship("EmotionalMetrics", back_populates="user", cascade="all, delete-orphan")
+    productivity_metrics = relationship(
+        "ProductivityMetrics", back_populates="user", cascade="all, delete-orphan")
+    emotional_metrics = relationship(
+        "EmotionalMetrics", back_populates="user", cascade="all, delete-orphan")
     rag_queries = relationship("RAGQuery", back_populates="user")
-    email_organization = relationship("EmailOrganization", back_populates="user", uselist=False)
+    email_organization = relationship(
+        "EmailOrganization", back_populates="user", uselist=False)
     ai_interactions = relationship("AIAgentInteraction", back_populates="user")
     meeting_notes = relationship("MeetingNotes", back_populates="user")
     security_logs = relationship("SecurityAuditLog", back_populates="user")
-    granted_permissions = relationship("RolePermission", foreign_keys="[RolePermission.granted_by]", back_populates="granter")
-    workspace_settings = relationship("UserWorkspaceSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    daily_summaries = relationship("DailySummary", back_populates="user", cascade="all, delete-orphan")
-    todos = relationship("Todo", back_populates="user", cascade="all, delete-orphan")
+    granted_permissions = relationship(
+        "RolePermission", foreign_keys="[RolePermission.granted_by]", back_populates="granter")
+    workspace_settings = relationship(
+        "UserWorkspaceSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    daily_summaries = relationship(
+        "DailySummary", back_populates="user", cascade="all, delete-orphan")
+    todos = relationship("Todo", back_populates="user",
+                         cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_user_email", "email"),
@@ -75,6 +86,7 @@ class User(Base):
         Index("ix_user_created_at", "created_at"),
         Index("ix_user_last_login", "last_login"),
         Index("ix_user_account_locked_until", "account_locked_until"),
+        Index("ix_user_organization_id", "organization_id"),
     )
 
 
@@ -85,11 +97,14 @@ class Role(Base):
     name = Column(String(100), unique=True, nullable=False, index=True)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow)
 
     # Relationships
     users = relationship("UserRole", back_populates="role",
                          cascade="all, delete-orphan")
+    permissions = relationship("RolePermission", back_populates="role",
+                               cascade="all, delete-orphan")
 
 
 class UserRole(Base):

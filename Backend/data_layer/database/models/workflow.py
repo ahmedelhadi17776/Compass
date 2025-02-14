@@ -24,6 +24,8 @@ class Workflow(Base):
     triggers = Column(JSON, nullable=True)
     permissions = Column(JSON, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"))
+    organization_id = Column(Integer, ForeignKey(
+        "organizations.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
@@ -34,6 +36,7 @@ class Workflow(Base):
     tasks = relationship("Task", back_populates="workflow",
                          cascade="all, delete-orphan")
     creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization", back_populates="workflows")
     steps = relationship(
         "WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
 
@@ -42,4 +45,5 @@ class Workflow(Base):
         Index("ix_workflow_created_by", "created_by"),
         Index("ix_workflow_created_at", "created_at"),
         Index("ix_workflow_version", "version"),
+        Index("ix_workflow_organization_id", "organization_id"),
     )
