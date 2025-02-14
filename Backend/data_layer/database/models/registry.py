@@ -16,7 +16,7 @@ from data_layer.database.models.task_comment import TaskComment
 from data_layer.database.models.task_history import TaskHistory
 from data_layer.database.models.session import Session
 from data_layer.database.models.calendar_event import CalendarEvent
-from data_layer.database.models.ai_models import AgentAction, AgentFeedback, AIModel, AgentType, ModelType 
+from data_layer.database.models.ai_models import AgentAction, AgentFeedback, AIModel, AgentType, ModelType
 from data_layer.database.models.context import ContextSnapshot, KnowledgeBase
 from data_layer.database.models.file import File
 from data_layer.database.models.system_log import SystemLog
@@ -30,7 +30,6 @@ from data_layer.database.models.productivity_metrics import ProductivityMetrics
 from data_layer.database.models.emotional_intelligence import EmotionalMetrics
 from data_layer.database.models.meeting_notes import MeetingNotes
 from data_layer.database.models.todo import Todo, TodoHistory, TodoPriority, TodoStatus
-
 
 __all__ = [
     'Base',
