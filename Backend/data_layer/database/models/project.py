@@ -4,24 +4,6 @@ from data_layer.database.models.base import Base
 import datetime
 
 
-class Organization(Base):
-    __tablename__ = "organizations"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), unique=True, nullable=False)
-    description = Column(Text)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-    # Relationships
-    projects = relationship(
-        "Project", back_populates="organization", cascade="all, delete-orphan")
-
-    __table_args__ = (
-        Index("ix_organization_name", "name", unique=True),
-        Index("ix_organization_created_at", "created_at"),
-    )
-
-
 class Project(Base):
     __tablename__ = "projects"
 
@@ -29,6 +11,7 @@ class Project(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     # Foreign Key and Relationships
     organization_id = Column(Integer, ForeignKey(
@@ -59,4 +42,4 @@ class ProjectMember(Base):
 
     # Relationships
     project = relationship("Project", back_populates="members")
-    user = relationship("User", back_populates="projects")
+    user = relationship("User", back_populates="project_memberships")

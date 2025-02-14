@@ -58,6 +58,7 @@ class Task(Base):
         "TaskComment", back_populates="task", cascade="all, delete-orphan")
     history = relationship(
         "TaskHistory", back_populates="task", cascade="all, delete-orphan")
+    linked_todos = relationship("Todo", back_populates="linked_task")
 
     __table_args__ = (
         Index("ix_task_status", "status"),
