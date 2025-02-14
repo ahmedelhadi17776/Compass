@@ -1,22 +1,23 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, JSON
 from alembic import context
-from data_layer.database.base import Base
+from data_layer.database.models.base import Base
+from data_layer.database.models.registry import __all__ as model_classes
 
-# ✅ Ensure all models are imported so Alembic detects them
-from data_layer.database.models.user import User, Role, UserRole
-from data_layer.database.models.task import Task
-from data_layer.database.models.project import Project, Organization
-from data_layer.database.models.workflow import Workflow
+# This ensures all models are registered with SQLAlchemy
+from data_layer.database.models.registry import *
 
-# ✅ Load Alembic configuration
+# Use SQLAlchemy metadata for migrations
+target_metadata = Base.metadata
+
+# Load Alembic configuration
 config = context.config
 
-# ✅ Configure logging
+# Configure logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# ✅ Use SQLAlchemy metadata for migrations
+# Use SQLAlchemy metadata for migrations
 target_metadata = Base.metadata
 
 
@@ -43,8 +44,10 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection,
-                          target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata
+        )
 
         with context.begin_transaction():
             context.run_migrations()

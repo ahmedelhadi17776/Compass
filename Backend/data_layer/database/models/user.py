@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index, Text, JSON
 from sqlalchemy.orm import relationship
-from data_layer.database.base import Base
+from data_layer.database.models.base import Base
 import datetime
 
 
@@ -17,10 +17,36 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
     deleted_at = Column(DateTime)
+    first_name = Column(String(100))
+    last_name = Column(String(100))
+    avatar_url = Column(String(255))
+    bio = Column(Text)
+    timezone = Column(String(50))
+    locale = Column(String(50))
+    notification_preferences = Column(JSON)
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String(255))
+    last_login = Column(DateTime)
 
-    # Relationships
+    # Consolidated relationships
     roles = relationship("UserRole", back_populates="user",
                          cascade="all, delete-orphan")
+    preferences = relationship(
+        "UserPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    sessions = relationship(
+        "Session", back_populates="user", cascade="all, delete-orphan")
+    created_tasks = relationship(
+        "Task", foreign_keys="[Task.creator_id]", back_populates="creator")
+    assigned_tasks = relationship(
+        "Task", foreign_keys="[Task.assignee_id]", back_populates="assignee")
+    project_memberships = relationship(
+        "ProjectMember", back_populates="user", cascade="all, delete-orphan")
+    calendar_events = relationship(
+        "CalendarEvent", back_populates="user", cascade="all, delete-orphan")
+    agent_actions = relationship("AgentAction", back_populates="user")
+    agent_feedback = relationship("AgentFeedback", back_populates="user")
+    context_snapshots = relationship("ContextSnapshot", back_populates="user")
+    files = relationship("File", back_populates="user")
 
     __table_args__ = (
         Index("ix_user_email", "email"),
