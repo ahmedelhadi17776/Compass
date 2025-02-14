@@ -60,6 +60,11 @@ class AIModel(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
 
+    # Relationships
+    interactions = relationship("AIAgentInteraction", back_populates="ai_model")
+    task_comments = relationship("TaskComment", back_populates="ai_model")
+    task_history = relationship("TaskHistory", back_populates="ai_model")
+
     __table_args__ = (
         Index("ix_ai_model_name_version", "name", "version", unique=True),
         Index("ix_ai_model_type", "type"),

@@ -1,14 +1,25 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, JSON
+from sqlalchemy import engine_from_config, pool, JSON, Text, DateTime, Boolean
 from alembic import context
 from data_layer.database.models.base import Base
-from data_layer.database.models.registry import __all__ as model_classes
 
-# This ensures all models are registered with SQLAlchemy
-from data_layer.database.models.registry import *
-
-# Use SQLAlchemy metadata for migrations
-target_metadata = Base.metadata
+# Import all models to ensure they are known to SQLAlchemy
+from data_layer.database.models import (
+    User, Role, UserRole, UserPreferences,
+    Organization, Project, ProjectMember,
+    Task, TaskStatus, Workflow, WorkflowStep,
+    WorkflowTransition, WorkflowExecution, WorkflowAgentLink,
+    TaskCategory, TaskAttachment, TaskComment, TaskHistory,
+    Session, CalendarEvent, AgentAction, AgentFeedback,
+    AIModel, AgentType, ModelType, ContextSnapshot,
+    KnowledgeBase, File, SystemLog, SubscriptionPlan,
+    Subscription, Payment, Permission, RolePermission,
+    SecurityAuditLog, DailySummary, AIAgentInteraction,
+    EmailOrganization, RAGQuery, MeetingNotes,
+    ProductivityMetrics, EmotionalMetrics,
+    UserWorkspaceSettings, Todo, TodoHistory,
+    TodoPriority, TodoStatus
+)
 
 # Load Alembic configuration
 config = context.config
@@ -20,7 +31,6 @@ if config.config_file_name is not None:
 # Use SQLAlchemy metadata for migrations
 target_metadata = Base.metadata
 
-
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
@@ -29,6 +39,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,  # Compare column types
+        compare_server_default=True,  # Compare default values
     )
 
     with context.begin_transaction():
@@ -46,7 +58,9 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata
+            target_metadata=target_metadata,
+            compare_type=True,  # Compare column types
+            compare_server_default=True,  # Compare default values
         )
 
         with context.begin_transaction():

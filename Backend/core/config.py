@@ -7,15 +7,15 @@ import os
 
 class Settings(BaseSettings):
     # Database settings
-    DB_USER: str
-    DB_PASSWORD: str
-    DB_HOST: str
-    DB_PORT: int
-    DB_NAME: str
-    DATABASE_URL: str
+    DB_USER: str = "ahmed"
+    DB_PASSWORD: str = "0502747598"
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_NAME: str = "compass"
+    DATABASE_URL: str = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
     # JWT settings
-    JWT_SECRET_KEY: str
+    JWT_SECRET_KEY: str = "a82552a2c8133eddce94cc781f716cdcb911d065528783a8a75256aff6731886"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
