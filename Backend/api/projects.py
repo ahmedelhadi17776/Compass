@@ -6,6 +6,8 @@ from data_layer.database.models.project import Project
 
 router = APIRouter()
 
+# ✅ Only "manager" role can create projects
+
 
 @router.post("/projects/")
 def create_project(name: str, description: str, db: Session = Depends(get_db), user=Depends(require_role("manager"))):
