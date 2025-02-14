@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './components/dashboard/Dashboard';
-import HealthDashboard from './components/health/HealthDashboard';
-import Home from './components/home/Home';
-import Workflow from './components/workflow/Workflow';
 import { Tasks } from './components/tasks/Tasks';
 import Calendar from './components/calendar/Calendar';
 import AIAssistant from './components/ai/AIAssistant';
@@ -98,31 +95,6 @@ function App() {
                     <Route path="/dashboard/monitoring" element={
                       <ProtectedRoute>
                         <Dashboard view="monitoring" />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/workflow" element={
-                      <ProtectedRoute>
-                        <Workflow />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/workflow/builder" element={
-                      <ProtectedRoute>
-                        <Workflow view="builder" />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/workflow/templates" element={
-                      <ProtectedRoute>
-                        <Workflow view="templates" />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/workflow/history" element={
-                      <ProtectedRoute>
-                        <Workflow view="history" />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/health" element={
-                      <ProtectedRoute>
-                        <HealthDashboard />
                       </ProtectedRoute>
                     } />
 

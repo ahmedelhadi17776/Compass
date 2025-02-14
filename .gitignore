@@ -64,8 +64,9 @@ docs/
 Thumbs.db
 
 *.toml
-*.txt
+
 
 
 #tests/
+*.md
 *.docx
