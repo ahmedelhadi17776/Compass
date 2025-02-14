@@ -90,6 +90,29 @@ const data = {
       ],
     },
     {
+      title: "Workflow",
+      url: "/workflow",
+      icon: Command,
+      items: [
+        {
+          title: "Overview",
+          url: "/workflow",
+        },
+        {
+          title: "Builder",
+          url: "/workflow/builder",
+        },
+        {
+          title: "Templates",
+          url: "/workflow/templates",
+        },
+        {
+          title: "History",
+          url: "/workflow/history",
+        },
+      ],
+    },
+    {
       title: "TaskManagement",
       url: "/tasks",
       icon: ListTodo,
@@ -108,25 +131,6 @@ const data = {
         },
       ],
     },
-    {
-      title: "Workflows",
-    url: "/workflows",
-    icon: Command,
-    items: [
-      {
-        title: "Workflow Builder",
-        url: "/workflows/builder",
-      },
-      {
-        title: "Active Workflows",
-        url: "/workflows/active",
-      },
-      {
-        title: "Workflow History",
-        url: "/workflows/history",
-      },
-    ],
-  },
     {
       title: "AIAssistant",
       url: "/ai",
