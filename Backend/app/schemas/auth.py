@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
+from Backend.utils.validation_utils import validate_phone_number
 
 
 class Token(BaseModel):
@@ -7,7 +8,7 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    username: str | None = None
+    email: str | None = None
 
 
 class UserCreate(BaseModel):
@@ -16,3 +17,14 @@ class UserCreate(BaseModel):
     password: str
     first_name: str | None = None
     last_name: str | None = None
+    phone_number: str | None = None
+
+    @validator('phone_number')
+    def validate_phone(cls, v):
+        if v is not None:
+            result = validate_phone_number(v)
+            if not result["is_valid"]:
+                raise ValueError(
+                    f"Invalid phone number. Requirements: {result['requirements']}")
+            return result["formatted_number"]
+        return v

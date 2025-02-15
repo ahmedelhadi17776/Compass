@@ -1,13 +1,13 @@
 import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta
-from fastapi import HTTPException
-from services.auth_service import AuthService
-from data_layer.repositories.user_repository import UserRepository
-from data_layer.repositories.session_repository import SessionRepository
-from app.schemas.auth import UserCreate
-from data_layer.database.models.session import SessionStatus
-from utils.security_utils import create_access_token
+from fastapi import HTTPException, status
+from Backend.services.auth_service import AuthService
+from Backend.data_layer.repositories.user_repository import UserRepository
+from Backend.data_layer.repositories.session_repository import SessionRepository
+from Backend.app.schemas.auth import UserCreate
+from Backend.data_layer.database.models.session import SessionStatus
+from Backend.utils.security_utils import create_access_token
 
 pytestmark = pytest.mark.asyncio  # Mark all tests as async
 
