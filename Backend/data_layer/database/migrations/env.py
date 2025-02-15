@@ -1,10 +1,8 @@
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool, JSON, Text, DateTime, Boolean
 from alembic import context
-from data_layer.database.models.base import Base
-
-# Import all models to ensure they are known to SQLAlchemy
-from data_layer.database.models import (
+from Backend.data_layer.database.models.base import Base
+from Backend.data_layer.database.models import (
     User, Role, UserRole, UserPreferences,
     Organization, Project, ProjectMember,
     Task, TaskStatus, Workflow, WorkflowStep,
@@ -18,8 +16,17 @@ from data_layer.database.models import (
     EmailOrganization, RAGQuery, MeetingNotes,
     ProductivityMetrics, EmotionalMetrics,
     UserWorkspaceSettings, Todo, TodoHistory,
-    TodoPriority, TodoStatus
+    TodoPriority, TodoStatus, WorkflowStepExecution
 )
+import os
+import sys
+from pathlib import Path
+
+# Add the parent directory of Backend to the Python path
+# Go up 4 levels to reach the parent of Backend
+project_root = str(Path(__file__).parents[3].parent)
+sys.path.append(project_root)
+
 
 # Load Alembic configuration
 config = context.config
@@ -30,6 +37,7 @@ if config.config_file_name is not None:
 
 # Use SQLAlchemy metadata for migrations
 target_metadata = Base.metadata
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""

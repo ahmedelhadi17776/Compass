@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from core.config import settings
+from Backend.core.config import settings
 
 # Get secret key from settings
 SECRET_KEY = settings.JWT_SECRET_KEY

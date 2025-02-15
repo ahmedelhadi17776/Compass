@@ -3,12 +3,12 @@ from typing import Optional
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from data_layer.repositories.user_repository import UserRepository
-from data_layer.repositories.session_repository import SessionRepository
-from core.config import settings
-from app.schemas.auth import TokenData, UserCreate
-from app.schemas.user import UserResponse
-from utils.security_utils import hash_password, verify_password, create_access_token
+from Backend.data_layer.repositories.user_repository import UserRepository
+from Backend.data_layer.repositories.session_repository import SessionRepository
+from Backend.core.config import settings
+from Backend.app.schemas.auth import TokenData, UserCreate
+from Backend.app.schemas.user import UserResponse
+from Backend.utils.security_utils import hash_password, verify_password, create_access_token
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
