@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Index
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from Backend.data_layer.database.models.base import Base
+from data_layer.database.models.base import Base
 import datetime
 
 
@@ -18,10 +18,4 @@ class File(Base):
                         onupdate=datetime.datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="files")
-
-    __table_args__ = (
-        Index("ix_file_type", "file_type"),
-        Index("ix_file_created_at", "created_at"),
-        Index("ix_file_user_id", "user_id"),
-    )
+    user = relationship("User")

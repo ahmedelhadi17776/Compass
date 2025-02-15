@@ -3,16 +3,16 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from Backend.data_layer.database.session import get_db
-from Backend.services.auth_service import AuthService
-from Backend.data_layer.repositories.user_repository import UserRepository
-from Backend.data_layer.repositories.session_repository import SessionRepository
-from Backend.app.schemas.auth import Token, UserCreate, TokenData
-from Backend.app.schemas.user import UserResponse
-from Backend.data_layer.database.models.session import Session
-from Backend.data_layer.database.models.user import User
-from Backend.core.config import settings
-from Backend.app.schemas.session import SessionResponse
+from data_layer.database.session import get_db
+from services.auth_service import AuthService
+from data_layer.repositories.user_repository import UserRepository
+from data_layer.repositories.session_repository import SessionRepository
+from app.schemas.auth import Token, UserCreate, TokenData
+from app.schemas.user import UserResponse
+from data_layer.database.models.session import Session
+from data_layer.database.models.user import User
+from core.config import settings
+from app.schemas.session import SessionResponse
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")

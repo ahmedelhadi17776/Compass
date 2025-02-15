@@ -69,8 +69,3 @@ Thumbs.db
 
 #tests/
 *.docx
-
-# redis
-*.rdb
-
-*.md

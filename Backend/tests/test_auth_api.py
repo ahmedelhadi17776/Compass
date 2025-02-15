@@ -1,10 +1,9 @@
 import pytest
-from fastapi import status
 from fastapi.testclient import TestClient
-from Backend.app.schemas.auth import Token, UserCreate
-from Backend.app.schemas.user import UserResponse
-from Backend.app.schemas.session import SessionResponse
-from Backend.data_layer.database.models.session import SessionStatus
+from app.schemas.auth import Token, UserCreate
+from app.schemas.user import UserResponse
+from app.schemas.session import SessionResponse
+from data_layer.database.models.session import SessionStatus
 
 
 def test_register(client: TestClient):
@@ -18,7 +17,7 @@ def test_register(client: TestClient):
             "last_name": "User"
         }
     )
-    assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == 200
     data = response.json()
     assert data["username"] == "testuser"
     assert data["email"] == "test@example.com"
