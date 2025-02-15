@@ -228,8 +228,23 @@ const data = {
 }
 
 export function AppSidebar({ onLogout, ...props }: React.ComponentProps<typeof Sidebar> & { onLogout?: () => void }) {
+  // Read from cookie only if global state is not set
+  const defaultOpen = React.useMemo(() => {
+    if (typeof window === 'undefined') return true;
+    
+    return document.cookie
+      .split(';')
+      .find(cookie => cookie.trim().startsWith('sidebar:state='))
+      ?.split('=')[1] === 'true' ?? true;
+  }, []);
+
   return (
-    <Sidebar className="sidebar" collapsible="icon" {...props}>
+    <Sidebar 
+      className="sidebar" 
+      collapsible="icon" 
+      defaultOpen={defaultOpen}
+      {...props}
+    >
       <SidebarHeader>
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
