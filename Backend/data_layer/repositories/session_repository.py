@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, update
-from data_layer.database.models.session import Session
+from Backend.data_layer.database.models.session import Session
 import json
 
 

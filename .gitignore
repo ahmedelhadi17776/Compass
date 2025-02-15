@@ -27,6 +27,11 @@ ENV/
 config.py
 .env.*.local
 
+Backend/.env
+Backend/core/.env
+Backend/core/config.py
+dump.rdb
+
 #Logs
 #logs
 #logs/
