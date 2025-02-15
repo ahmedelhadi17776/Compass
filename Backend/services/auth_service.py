@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional
 from fastapi import HTTPException, status
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from Backend.data_layer.repositories.user_repository import UserRepository
 from Backend.data_layer.repositories.session_repository import SessionRepository
 from Backend.core.config import settings
 from Backend.app.schemas.auth import TokenData, UserCreate
 from Backend.app.schemas.user import UserResponse
-from Backend.utils.security_utils import hash_password, create_access_token, verify_password
-from Backend.data_layer.database.models.user import User
-from Backend.data_layer.database.models.session import Session, SessionStatus
+from Backend.utils.security_utils import hash_password, verify_password, create_access_token
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
@@ -16,15 +18,18 @@ class AuthService:
         self.user_repository = user_repository
         self.session_repository = session_repository
 
+    async def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        return verify_password(plain_password, hashed_password)
+
     def get_password_hash(self, password: str) -> str:
         return hash_password(password)
 
-    async def authenticate_user(self, username: str, password: str) -> Optional[User]:
+    async def authenticate_user(self, username: str, password: str):
         user = await self.user_repository.get_by_username(username)
         if not user:
-            return None
-        if not verify_password(password, user.password_hash):
-            return None
+            return False
+        if not await self.verify_password(password, user.password_hash):
+            return False
         return user
 
     async def register_user(self, user_create: UserCreate) -> UserResponse:
@@ -37,14 +42,13 @@ class AuthService:
             )
 
         # Hash password and create user
-        hashed_password = hash_password(user_create.password)
+        hashed_password = self.get_password_hash(user_create.password)
         user = await self.user_repository.create(
             username=user_create.username,
             email=user_create.email,
             password_hash=hashed_password,
             first_name=user_create.first_name,
-            last_name=user_create.last_name,
-            is_active=True
+            last_name=user_create.last_name
         )
 
         return UserResponse.from_orm(user)

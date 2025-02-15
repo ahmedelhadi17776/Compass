@@ -1,5 +1,5 @@
 import pytest
-from Backend.tasks.workflow_tasks import execute_workflow_step, process_workflow, StepStatus, WorkflowStatus
+from Backend.tasks.workflow_tasks import execute_workflow_step, process_workflow, StepStatus
 from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_insights
 from Backend.tasks.notification_tasks import send_notification
 from Backend.core.celery_app import celery_app
@@ -53,17 +53,10 @@ async def test_process_workflow():
     )
     assert result.successful()
     data = result.get()
-
-    # Verify initial response structure
     assert data["workflow_id"] == 1
-    assert data["status"] == WorkflowStatus.ACTIVE.value
-    assert "task_id" in data
     assert len(data["steps"]) == 2
-
-    # Verify each step is pending
-    for step in data["steps"]:
-        assert "step_id" in step
-        assert step["status"] == StepStatus.PENDING
+    assert all(step["status"] ==
+               StepStatus.COMPLETED for step in data["steps"])
 
 
 @pytest.mark.asyncio

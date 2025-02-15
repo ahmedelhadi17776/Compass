@@ -34,7 +34,7 @@ test_engine = create_async_engine(
     settings.TEST_DATABASE_URL,
     poolclass=NullPool,
     echo=True,
-    isolation_level='READ COMMITTED'  # Changed from AUTOCOMMIT
+    isolation_level='AUTOCOMMIT'  # This is important for test setup
 )
 
 TestingSessionLocal = sessionmaker(
@@ -110,7 +110,7 @@ async def create_test_database():
         raise
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
@@ -118,87 +118,81 @@ def event_loop():
     loop.close()
 
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
-async def setup_database():
-    """Create tables before each test and drop them after."""
+@pytest_asyncio.fixture(scope="function")
+async def db_engine():
+    """Create tables before tests and drop them after."""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
-    yield
+    yield test_engine
 
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest_asyncio.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get a test database session."""
-    async with TestingSessionLocal() as session:
-        try:
-            # Start a transaction
-            await session.begin()
+@pytest_asyncio.fixture(scope="function")
+async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Get a TestingSessionLocal instance that manages transactions properly."""
+    connection = await db_engine.connect()
+    transaction = await connection.begin()
 
-            # Return the session for the test to use
-            yield session
+    session = TestingSessionLocal(bind=connection)
 
-            # After the test, commit any pending changes
-            await session.commit()
-        except Exception as e:
-            # If there was an error, rollback
-            if session.in_transaction():
-                await session.rollback()
-            raise e
-        finally:
-            # Always close the session
-            await session.close()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await transaction.rollback()
+        await connection.close()
 
 
 @pytest_asyncio.fixture
 async def redis_client() -> AsyncGenerator[Redis, None]:
-    """Get a Redis client instance. Returns None if Redis is not available."""
-    client = None
+    """Get a Redis client instance."""
+    client = redis.from_url(
+        settings.TEST_REDIS_URL,
+        encoding="utf-8",
+        decode_responses=True,
+        socket_connect_timeout=1,
+        socket_timeout=1,
+        retry_on_timeout=True
+    )
     try:
-        client = redis.from_url(
-            settings.TEST_REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True,
-            socket_connect_timeout=1,
-            socket_timeout=1,
-            retry_on_timeout=False,
-            retry_on_error=None
-        )
-        await client.ping()
-        await client.flushdb()
+        await client.ping()  # Test connection
+        await client.flushdb()  # Clear test database
         yield client
-    except (redis.ConnectionError, redis.TimeoutError) as e:
-        print(f"Redis connection failed: {e}")
-        yield None
+    except redis.ConnectionError:
+        pytest.skip("Redis server not available")
     finally:
-        if client:
-            try:
-                await client.flushdb()
-                await client.aclose()
-            except Exception as e:
-                print(f"Error closing Redis client: {e}")
+        try:
+            await client.flushdb()
+            await client.close()
+        except:
+            pass
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerator[AsyncClient, None]:
-    """Get a test client."""
-    async def override_get_db():
-        try:
-            yield db_session
-        except Exception:
-            await db_session.rollback()
-            raise
+    """Create a test client with the test database session and Redis client."""
+    # Store original dependencies
+    original_deps = app.dependency_overrides.copy()
 
-    app.dependency_overrides[get_async_session] = override_get_db
-    app.state.redis = redis_client
+    async def get_test_session():
+        return db_session
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        try:
-            yield ac
-        finally:
-            app.dependency_overrides.clear()
-            app.state.redis = None
+    try:
+        # Set up test dependencies
+        app.dependency_overrides[get_async_session] = get_test_session
+        app.state.redis = redis_client
+
+        async with AsyncClient(
+            app=app,
+            base_url="http://test",
+            follow_redirects=True
+        ) as test_client:
+            yield test_client
+    finally:
+        # Restore original dependencies
+        app.dependency_overrides = original_deps
+        app.state.redis = None

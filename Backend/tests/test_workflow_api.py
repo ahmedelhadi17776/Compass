@@ -17,53 +17,13 @@ import json
 from sqlalchemy import select
 
 
-@pytest.fixture
-async def test_user_and_org(db_session: AsyncSession) -> tuple[User, Organization]:
-    """Create test user and organization."""
-    try:
-        # Create test organization with unique name
-        org_name = f"Test Organization {uuid.uuid4()}"
-        test_org = Organization(
-            name=org_name,
-            description="Test Description",
-            created_at=datetime.datetime.utcnow(),
-            updated_at=datetime.datetime.utcnow()
-        )
-        db_session.add(test_org)
-        await db_session.flush()
-
-        # Create test user with organization
-        test_user = User(
-            email=f"test_{uuid.uuid4()}@example.com",  # Unique email
-            username=f"test_user_{uuid.uuid4()}",  # Unique username
-            password_hash="test_password_hash",
-            is_active=True,
-            is_superuser=False,
-            first_name="Test",
-            last_name="User",
-            created_at=datetime.datetime.utcnow(),
-            updated_at=datetime.datetime.utcnow(),
-            organization_id=test_org.id
-        )
-        db_session.add(test_user)
-        await db_session.flush()
-
-        # Commit the transaction to ensure the user and org exist in the database
-        await db_session.commit()
-
-        # Start a new transaction for the test
-        await db_session.begin()
-
-        return test_user, test_org
-    except Exception as e:
-        await db_session.rollback()
-        raise
-
-
 @pytest.mark.asyncio
-async def test_create_workflow(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
-    """Test creating a workflow."""
-    test_user, test_org = test_user_and_org
+async def test_create_workflow(client: AsyncClient, db_session: AsyncSession):
+    """Test workflow creation."""
+    # Create test user and organization
+    test_user = await create_test_user(db_session)
+    test_org = await create_test_organization(db_session)
+    await db_session.flush()
 
     workflow_data = {
         "user_id": test_user.id,
@@ -101,9 +61,12 @@ async def test_create_workflow(client: AsyncClient, db_session: AsyncSession, te
 
 
 @pytest.mark.asyncio
-async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
-    """Test executing a workflow step."""
-    test_user, test_org = test_user_and_org
+async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSession):
+    """Test workflow step execution."""
+    # Create test user and organization
+    test_user = await create_test_user(db_session)
+    test_org = await create_test_organization(db_session)
+    await db_session.flush()
 
     workflow_data = {
         "user_id": test_user.id,
@@ -142,13 +105,16 @@ async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSessi
     workflow = result.scalar_one()
 
     assert workflow is not None
-    assert workflow.status == WorkflowStatus.ACTIVE.value
+    assert workflow.status == WorkflowStatus.RUNNING.value
 
 
 @pytest.mark.asyncio
-async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
-    """Test analyzing a workflow."""
-    test_user, test_org = test_user_and_org
+async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession):
+    """Test workflow analysis."""
+    # Create test user and organization
+    test_user = await create_test_user(db_session)
+    test_org = await create_test_organization(db_session)
+    await db_session.flush()
 
     workflow_data = {
         "user_id": test_user.id,
@@ -194,9 +160,12 @@ async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession, t
 
 
 @pytest.mark.asyncio
-async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
-    """Test canceling a workflow."""
-    test_user, test_org = test_user_and_org
+async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession):
+    """Test workflow cancellation."""
+    # Create test user and organization
+    test_user = await create_test_user(db_session)
+    test_org = await create_test_organization(db_session)
+    await db_session.flush()
 
     workflow_data = {
         "user_id": test_user.id,
@@ -220,15 +189,11 @@ async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession, te
     workflow_id = create_response.json()["workflow_id"]
 
     # Cancel workflow
-    cancel_data = {
-        "user_id": test_user.id,
-        "reason": "Test cancellation"
-    }
-
+    cancel_data = {"user_id": test_user.id}
     response = await client.post(f"/workflows/{workflow_id}/cancel", json=cancel_data)
     assert response.status_code == 200
 
-    # Verify workflow was canceled
+    # Verify workflow was cancelled
     result = await db_session.execute(
         select(Workflow).where(Workflow.id == workflow_id)
     )
@@ -236,3 +201,35 @@ async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession, te
 
     assert workflow is not None
     assert workflow.status == WorkflowStatus.CANCELLED.value
+
+
+# Helper functions for creating test data
+async def create_test_user(session: AsyncSession) -> User:
+    """Create a test user for testing purposes."""
+    unique_id = str(uuid.uuid4())
+    test_user = User(
+        email=f"test_{unique_id}@example.com",
+        username=f"testuser_{unique_id}",
+        password_hash="hashed_password",
+        is_active=True,
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow(),
+        max_sessions=5
+    )
+    session.add(test_user)
+    await session.flush()
+    return test_user
+
+
+async def create_test_organization(session: AsyncSession) -> Organization:
+    """Create a test organization for testing purposes."""
+    unique_id = str(uuid.uuid4())
+    test_org = Organization(
+        name=f"Test Organization {unique_id}",
+        description="Test Organization Description",
+        created_at=datetime.datetime.utcnow(),
+        updated_at=datetime.datetime.utcnow()
+    )
+    session.add(test_org)
+    await session.flush()
+    return test_org

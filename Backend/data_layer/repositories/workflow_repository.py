@@ -21,15 +21,35 @@ class WorkflowRepository:
             raise ValueError("organization_id must be provided")
 
         try:
-            # Create the workflow with the provided IDs
+            # Verify that both user and organization exist
+            result = await self.db_session.execute(
+                select(User).where(User.id == created_by)
+            )
+            user = result.scalar_one_or_none()
+            if user is None:
+                raise ValueError(f"User with ID {created_by} does not exist")
+
+            org_result = await self.db_session.execute(
+                select(Organization).where(Organization.id == organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            if org is None:
+                raise ValueError(
+                    f"Organization with ID {organization_id} does not exist")
+
+            # Remove status from kwargs if it exists to avoid conflict with model default
+            kwargs.pop('status', None)
+
+            # Create the workflow with verified IDs
             workflow = Workflow(
                 created_by=created_by,
                 organization_id=organization_id,
                 **kwargs
             )
             self.db_session.add(workflow)
-            await self.db_session.flush()
+            await self.db_session.flush()  # Flush to get the ID but don't commit yet
             await self.db_session.refresh(workflow)
+            await self.db_session.commit()
             return workflow
 
         except IntegrityError as e:

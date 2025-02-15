@@ -3,14 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, update
 from Backend.data_layer.database.models.session import Session
 import json
-from typing import Optional
 
 
 class SessionRepository:
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
-    async def create_session(self, user_id: int, token: str, expires_at: datetime, device_info: Optional[str] = None, ip_address: Optional[str] = None) -> Session:
+    async def create_session(self, user_id: int, token: str, expires_at: datetime, device_info: str = None, ip_address: str = None) -> Session:
         # Convert device_info string to a dictionary
         device_info_dict = {"user_agent": device_info} if device_info else None
 
@@ -53,7 +52,7 @@ class SessionRepository:
             )
         )
         result = await self.db_session.execute(query)
-        return list(result.scalars().all())
+        return result.scalars().all()
 
     async def cleanup_expired_sessions(self) -> int:
         stmt = update(Session).where(
