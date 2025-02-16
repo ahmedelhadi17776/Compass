@@ -18,14 +18,11 @@ import {
 import { useIsMobile } from "@/hooks/use-is-mobile"
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
-
-// Add a global state to ensure persistence across remounts
-let globalSidebarState: boolean | null = null;
 
 type SidebarContext = {
   state: "expanded" | "collapsed"
@@ -71,48 +68,24 @@ const SidebarProvider = React.forwardRef<
     const isMobile = useIsMobile()
     const [openMobile, setOpenMobile] = React.useState(false)
 
-    // Initialize from global state or cookie
-    const [_open, _setOpen] = React.useState(() => {
-      if (globalSidebarState !== null) {
-        return globalSidebarState;
-      }
-      
-      const cookies = document.cookie.split(';')
-      const sidebarCookie = cookies.find(cookie => 
-        cookie.trim().startsWith(`${SIDEBAR_COOKIE_NAME}=`)
-      )
-      const initialState = sidebarCookie ? sidebarCookie.split('=')[1] === 'true' : defaultOpen;
-      globalSidebarState = initialState;
-      return initialState;
-    })
-
+    // This is the internal state of the sidebar.
+    // We use openProp and setOpenProp for control from outside the component.
+    const [_open, _setOpen] = React.useState(defaultOpen)
     const open = openProp ?? _open
-    
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {
         const openState = typeof value === "function" ? value(open) : value
-        
         if (setOpenProp) {
           setOpenProp(openState)
         } else {
           _setOpen(openState)
         }
 
-        // Update global state
-        globalSidebarState = openState;
-        
-        // Update cookie
+        // This sets the cookie to keep the sidebar state.
         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       },
       [setOpenProp, open]
     )
-
-    // Sync with global state on mount and updates
-    React.useEffect(() => {
-      if (globalSidebarState !== null && globalSidebarState !== open) {
-        _setOpen(globalSidebarState);
-      }
-    }, [open]);
 
     // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {

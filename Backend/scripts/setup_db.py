@@ -1,7 +1,7 @@
 import asyncio
-from Backend.core.database import engine, Base
+from Backend.data_layer.database.connection import engine, Base
 from Backend.core.logging import logger
-from Backend.data.database.models import *  # Import all models
+from Backend.data_layer.database.models import *  # Import all models
 
 
 async def init_db():
