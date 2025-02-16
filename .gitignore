@@ -30,7 +30,7 @@ config.py
 Backend/.env
 Backend/core/.env
 Backend/core/config.py
-dump.rdb
+*.rdb
 
 #Logs
 #logs
