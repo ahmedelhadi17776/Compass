@@ -74,12 +74,12 @@ async def test_authenticate_user_success(auth_service, test_user):
 
 async def test_authenticate_user_wrong_password(auth_service, test_user):
     user = await auth_service.authenticate_user("testuser", "wrongpass")
-    assert user is False
+    assert user is None
 
 
 async def test_authenticate_user_nonexistent(auth_service):
     user = await auth_service.authenticate_user("nonexistent", "pass123")
-    assert user is False
+    assert user is None
 
 
 async def test_create_access_token():
