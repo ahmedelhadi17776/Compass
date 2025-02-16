@@ -22,8 +22,10 @@ ENV/
 # Environment Variables
 #.env
 .env.local
-.env.*
+.env
 .env.*.local
+core/config.py
+
 
 #Logs
 #logs
@@ -69,8 +71,3 @@ Thumbs.db
 
 #tests/
 *.docx
-
-# redis
-*.rdb
-
-*.md

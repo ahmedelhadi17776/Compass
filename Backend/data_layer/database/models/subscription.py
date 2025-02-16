@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Numeric, JSON, ForeignKey, DateTime, Index
+from sqlalchemy import Column, Integer, String, Numeric, JSON, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from Backend.data_layer.database.models.base import Base
+from data_layer.database.models.base import Base
 import datetime
 
 
@@ -18,11 +18,6 @@ class SubscriptionPlan(Base):
     # Relationships
     subscriptions = relationship("Subscription", back_populates="plan")
 
-    __table_args__ = (
-        Index("ix_subscription_plans_name", "name", unique=True),
-        Index("ix_subscription_plans_created_at", "created_at"),
-    )
-
 
 class Subscription(Base):
     __tablename__ = "subscriptions"
@@ -38,17 +33,10 @@ class Subscription(Base):
                         onupdate=datetime.datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="subscriptions")
+    user = relationship("User")
     plan = relationship("SubscriptionPlan", back_populates="subscriptions")
     payments = relationship(
         "Payment", back_populates="subscription", cascade="all, delete-orphan")
-
-    __table_args__ = (
-        Index("ix_subscriptions_user_id", "user_id"),
-        Index("ix_subscriptions_plan_id", "plan_id"),
-        Index("ix_subscriptions_status", "status"),
-        Index("ix_subscriptions_expires_at", "expires_at"),
-    )
 
 
 class Payment(Base):
@@ -65,10 +53,3 @@ class Payment(Base):
 
     # Relationships
     subscription = relationship("Subscription", back_populates="payments")
-
-    __table_args__ = (
-        Index("ix_payments_subscription_id", "subscription_id"),
-        Index("ix_payments_payment_date", "payment_date"),
-        Index("ix_payments_status", "status"),
-        Index("ix_payments_transaction_id", "transaction_id", unique=True),
-    )
