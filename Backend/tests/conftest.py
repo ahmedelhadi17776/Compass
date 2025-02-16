@@ -34,7 +34,7 @@ test_engine = create_async_engine(
     settings.TEST_DATABASE_URL,
     poolclass=NullPool,
     echo=True,
-    isolation_level='AUTOCOMMIT'  # This is important for test setup
+    isolation_level='READ COMMITTED'  # Changed from AUTOCOMMIT
 )
 
 TestingSessionLocal = sessionmaker(
@@ -135,64 +135,83 @@ async def db_engine():
 async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
     """Get a TestingSessionLocal instance that manages transactions properly."""
     connection = await db_engine.connect()
-    transaction = await connection.begin()
-
     session = TestingSessionLocal(bind=connection)
 
     try:
         yield session
     finally:
-        await session.close()
-        await transaction.rollback()
-        await connection.close()
+        try:
+            await session.close()
+        except Exception as e:
+            print(f"Error closing session: {e}")
+        finally:
+            await connection.close()
 
 
 @pytest_asyncio.fixture
 async def redis_client() -> AsyncGenerator[Redis, None]:
-    """Get a Redis client instance."""
-    client = redis.from_url(
-        settings.TEST_REDIS_URL,
-        encoding="utf-8",
-        decode_responses=True,
-        socket_connect_timeout=1,
-        socket_timeout=1,
-        retry_on_timeout=True
-    )
+    """Get a Redis client instance. Returns None if Redis is not available."""
+    client = None
     try:
-        await client.ping()  # Test connection
-        await client.flushdb()  # Clear test database
+        client = redis.from_url(
+            settings.TEST_REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+            retry_on_timeout=False,
+            retry_on_error=None
+        )
+        await client.ping()
+        await client.flushdb()
         yield client
-    except redis.ConnectionError:
-        pytest.skip("Redis server not available")
+    except (redis.ConnectionError, redis.TimeoutError) as e:
+        print(f"Redis connection failed: {e}")
+        yield None
     finally:
-        try:
-            await client.flushdb()
-            await client.close()
-        except:
-            pass
+        if client:
+            try:
+                await client.flushdb()
+                await client.aclose()
+            except Exception as e:
+                print(f"Error closing Redis client: {e}")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with the test database session and Redis client."""
     # Store original dependencies
     original_deps = app.dependency_overrides.copy()
 
     async def get_test_session():
-        return db_session
+        try:
+            yield db_session
+        except Exception as e:
+            print(f"Error in test session: {e}")
+            await db_session.rollback()
+            raise
 
-    try:
-        # Set up test dependencies
-        app.dependency_overrides[get_async_session] = get_test_session
-        app.state.redis = redis_client
+    # Set up test dependencies
+    app.dependency_overrides[get_async_session] = get_test_session
 
-        async with AsyncClient(
-            app=app,
-            base_url="http://test",
-            follow_redirects=True
-        ) as test_client:
-            yield test_client
-    finally:
-        # Restore original dependencies
-        app.dependency_overrides = original_deps
+    # Only set Redis client if it's available and connected
+    if redis_client is not None:
+        try:
+            await redis_client.ping()
+            print("Redis connection successful")
+            app.state.redis = redis_client
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            print(f"Redis connection failed in client fixture: {e}")
+            app.state.redis = None
+    else:
+        print("Redis client is None")
         app.state.redis = None
+
+    # Create test client with proper base_url
+    async with AsyncClient(app=app, base_url="http://test") as test_client:
+        try:
+            yield test_client
+        finally:
+            # Restore original dependencies
+            app.dependency_overrides = original_deps
+            app.state.redis = None

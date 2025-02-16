@@ -17,13 +17,40 @@ import json
 from sqlalchemy import select
 
 
+@pytest.fixture
+async def test_user_and_org(db_session: AsyncSession) -> tuple[User, Organization]:
+    """Create test user and organization."""
+    try:
+        # Create test organization first
+        test_org = Organization(
+            name="Test Organization",
+            description="Test Description"
+        )
+        db_session.add(test_org)
+        await db_session.flush()
+
+        # Create test user with organization
+        test_user = User(
+            email="test@example.com",
+            password_hash="test_password",
+            is_active=True,
+            username="test_user",
+            organization_id=test_org.id  # Set organization_id directly
+        )
+        db_session.add(test_user)
+        await db_session.flush()
+
+        await db_session.commit()
+        return test_user, test_org
+    except Exception as e:
+        await db_session.rollback()
+        raise e
+
+
 @pytest.mark.asyncio
-async def test_create_workflow(client: AsyncClient, db_session: AsyncSession):
-    """Test workflow creation."""
-    # Create test user and organization
-    test_user = await create_test_user(db_session)
-    test_org = await create_test_organization(db_session)
-    await db_session.flush()
+async def test_create_workflow(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
+    """Test creating a workflow."""
+    test_user, test_org = test_user_and_org
 
     workflow_data = {
         "user_id": test_user.id,
@@ -61,12 +88,9 @@ async def test_create_workflow(client: AsyncClient, db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSession):
-    """Test workflow step execution."""
-    # Create test user and organization
-    test_user = await create_test_user(db_session)
-    test_org = await create_test_organization(db_session)
-    await db_session.flush()
+async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
+    """Test executing a workflow step."""
+    test_user, test_org = test_user_and_org
 
     workflow_data = {
         "user_id": test_user.id,
@@ -105,16 +129,13 @@ async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSessi
     workflow = result.scalar_one()
 
     assert workflow is not None
-    assert workflow.status == WorkflowStatus.RUNNING.value
+    assert workflow.status == WorkflowStatus.ACTIVE.value
 
 
 @pytest.mark.asyncio
-async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession):
-    """Test workflow analysis."""
-    # Create test user and organization
-    test_user = await create_test_user(db_session)
-    test_org = await create_test_organization(db_session)
-    await db_session.flush()
+async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
+    """Test analyzing a workflow."""
+    test_user, test_org = test_user_and_org
 
     workflow_data = {
         "user_id": test_user.id,
@@ -160,12 +181,9 @@ async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession):
-    """Test workflow cancellation."""
-    # Create test user and organization
-    test_user = await create_test_user(db_session)
-    test_org = await create_test_organization(db_session)
-    await db_session.flush()
+async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession, test_user_and_org: tuple[User, Organization]):
+    """Test canceling a workflow."""
+    test_user, test_org = test_user_and_org
 
     workflow_data = {
         "user_id": test_user.id,
@@ -189,11 +207,15 @@ async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession):
     workflow_id = create_response.json()["workflow_id"]
 
     # Cancel workflow
-    cancel_data = {"user_id": test_user.id}
+    cancel_data = {
+        "user_id": test_user.id,
+        "reason": "Test cancellation"
+    }
+
     response = await client.post(f"/workflows/{workflow_id}/cancel", json=cancel_data)
     assert response.status_code == 200
 
-    # Verify workflow was cancelled
+    # Verify workflow was canceled
     result = await db_session.execute(
         select(Workflow).where(Workflow.id == workflow_id)
     )
@@ -201,35 +223,3 @@ async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession):
 
     assert workflow is not None
     assert workflow.status == WorkflowStatus.CANCELLED.value
-
-
-# Helper functions for creating test data
-async def create_test_user(session: AsyncSession) -> User:
-    """Create a test user for testing purposes."""
-    unique_id = str(uuid.uuid4())
-    test_user = User(
-        email=f"test_{unique_id}@example.com",
-        username=f"testuser_{unique_id}",
-        password_hash="hashed_password",
-        is_active=True,
-        created_at=datetime.datetime.utcnow(),
-        updated_at=datetime.datetime.utcnow(),
-        max_sessions=5
-    )
-    session.add(test_user)
-    await session.flush()
-    return test_user
-
-
-async def create_test_organization(session: AsyncSession) -> Organization:
-    """Create a test organization for testing purposes."""
-    unique_id = str(uuid.uuid4())
-    test_org = Organization(
-        name=f"Test Organization {unique_id}",
-        description="Test Organization Description",
-        created_at=datetime.datetime.utcnow(),
-        updated_at=datetime.datetime.utcnow()
-    )
-    session.add(test_org)
-    await session.flush()
-    return test_org

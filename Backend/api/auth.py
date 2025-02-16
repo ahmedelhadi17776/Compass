@@ -14,8 +14,8 @@ from Backend.data_layer.database.models.user import User
 from Backend.core.config import settings
 from Backend.app.schemas.session import SessionResponse
 
-router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+router = APIRouter(tags=["auth"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 async def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
