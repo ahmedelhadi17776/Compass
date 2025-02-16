@@ -7,8 +7,8 @@ import os
 
 class Settings(BaseSettings):
     # Database settings
-    DB_USER: str = "ahmed"
-    DB_PASSWORD: str = "0502747598"
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = "1357997531"
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_NAME: str = "compass"
