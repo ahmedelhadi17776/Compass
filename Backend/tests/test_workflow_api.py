@@ -21,30 +21,43 @@ from sqlalchemy import select
 async def test_user_and_org(db_session: AsyncSession) -> tuple[User, Organization]:
     """Create test user and organization."""
     try:
-        # Create test organization first
+        # Create test organization with unique name
+        org_name = f"Test Organization {uuid.uuid4()}"
         test_org = Organization(
-            name="Test Organization",
-            description="Test Description"
+            name=org_name,
+            description="Test Description",
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow()
         )
         db_session.add(test_org)
         await db_session.flush()
 
         # Create test user with organization
         test_user = User(
-            email="test@example.com",
-            password_hash="test_password",
+            email=f"test_{uuid.uuid4()}@example.com",  # Unique email
+            username=f"test_user_{uuid.uuid4()}",  # Unique username
+            password_hash="test_password_hash",
             is_active=True,
-            username="test_user",
-            organization_id=test_org.id  # Set organization_id directly
+            is_superuser=False,
+            first_name="Test",
+            last_name="User",
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+            organization_id=test_org.id
         )
         db_session.add(test_user)
         await db_session.flush()
 
+        # Commit the transaction to ensure the user and org exist in the database
         await db_session.commit()
+
+        # Start a new transaction for the test
+        await db_session.begin()
+
         return test_user, test_org
     except Exception as e:
         await db_session.rollback()
-        raise e
+        raise
 
 
 @pytest.mark.asyncio
