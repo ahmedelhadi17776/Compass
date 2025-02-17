@@ -4,7 +4,7 @@ from starlette.responses import Response
 import logging
 import time
 import redis.asyncio as redis
-from core.config import settings
+from Backend.core.config import settings
 
 class RateLimiterMiddleware(BaseHTTPMiddleware):
     """
