@@ -23,6 +23,8 @@ ENV/
 #.env
 .env.local
 .env.*
+.env
+config.py
 .env.*.local
 
 #Logs
@@ -34,6 +36,8 @@ ENV/
 *.sqlite3
 *.db
 *.sql
+.db_session.db
+*.rdb
 
 #Backups
 #backups/
