@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from data_layer.database.models.session import SessionStatus
+from Backend.data_layer.database.models.session import SessionStatus
 
 
 class SessionResponse(BaseModel):
