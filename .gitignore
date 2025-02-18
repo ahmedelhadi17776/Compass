@@ -21,11 +21,20 @@ ENV/
 
 # Environment Variables
 .env
+.env
 .env.local
 .env.*
 *.env
 config.py
+*.env
+config.py
 .env.*.local
+*.ini
+
+Backend/.env
+Backend/core/.env
+Backend/core/config.py
+*.rdb
 
 #Logs
 #logs
