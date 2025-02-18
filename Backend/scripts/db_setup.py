@@ -11,8 +11,8 @@ import traceback
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
 
-from Backend.data_layer.database.models import Base
-from Backend.data_layer.database.connection import DATABASE_URL, DB_USER, DB_NAME, DB_HOST, DB_PASSWORD, DB_PORT
+from Backend.data.database.models import Base
+from Backend.data.database.connection import DATABASE_URL, DB_USER, DB_NAME, DB_HOST, DB_PASSWORD, DB_PORT
 
 # Configure logging
 logging.basicConfig(

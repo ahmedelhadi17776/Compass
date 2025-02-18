@@ -22,10 +22,10 @@ ENV/
 # Environment Variables
 #.env
 .env.local
-.env.*
 .env
-config.py
 .env.*.local
+core/config.py
+
 
 #Logs
 #logs
@@ -36,8 +36,6 @@ config.py
 *.sqlite3
 *.db
 *.sql
-.db_session.db
-*.rdb
 
 #Backups
 #backups/
@@ -73,8 +71,3 @@ Thumbs.db
 
 #tests/
 *.docx
-
-# redis
-*.rdb
-
-*.md

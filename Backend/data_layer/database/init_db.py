@@ -1,12 +1,12 @@
-from Backend.data_layer.database.connection import engine
-from Backend.data_layer.database.models import (
+from Backend.data.database.connection import engine
+from Backend.data.database.models import (
     Base, User, Role, Permission, 
     TaskStatus, TaskCategory, 
     Tag, role_permissions, task_tags, UserRole
 )
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from Backend.services.auth_service import AuthService
+from Backend.services.authentication.auth_service import AuthService
 import os
 import secrets
 import logging
