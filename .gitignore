@@ -23,7 +23,7 @@ ENV/
 .env
 .env.local
 .env.*
-.env
+*.env
 config.py
 .env.*.local
 
