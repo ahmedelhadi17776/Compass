@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, JSON, ForeignKey, DateTime, Float, Text, Index
 from sqlalchemy.orm import relationship
-from data_layer.database.models.base import Base
+from Backend.data_layer.database.models.base import Base
 import datetime
 
 class DailySummary(Base):
