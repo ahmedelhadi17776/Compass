@@ -26,6 +26,7 @@ ENV/
 *.env
 config.py
 .env.*.local
+*.ini
 
 #Logs
 #logs

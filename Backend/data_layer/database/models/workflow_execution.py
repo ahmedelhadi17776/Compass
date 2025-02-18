@@ -1,24 +1,42 @@
-from data_layer.database.models.workflow import Workflow
-from sqlalchemy import Column, Integer, String, Text, JSON, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from data_layer.database.models.base import Base
+from Backend.data_layer.database.models.base import Base
 import datetime
+
+
+class WorkflowStepExecution(Base):
+    __tablename__ = "workflow_step_executions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    execution_id = Column(Integer, ForeignKey(
+        "workflow_executions.id"), nullable=False)
+    step_id = Column(Integer, ForeignKey("workflow_steps.id"), nullable=False)
+    status = Column(String(50), default="pending")
+    started_at = Column(DateTime, default=datetime.datetime.utcnow)
+    completed_at = Column(DateTime)
+    result = Column(JSON)
+    error = Column(String)
+
+    # Relationships
+    execution = relationship("WorkflowExecution", back_populates="steps")
+    step = relationship("WorkflowStep")
 
 
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"
 
     id = Column(Integer, primary_key=True, index=True)
-    workflow_id = Column(Integer, ForeignKey(
-        "workflows.id", ondelete="CASCADE"))
-    status = Column(String(50))
-    start_time = Column(DateTime, default=datetime.datetime.utcnow)
-    end_time = Column(DateTime)
-    error_log = Column(Text)
-    performance_metrics = Column(JSON)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
+    status = Column(String(50), default="pending")
+    started_at = Column(DateTime, default=datetime.datetime.utcnow)
+    completed_at = Column(DateTime)
+    result = Column(JSON)
+    error = Column(String)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="executions")
+    steps = relationship("WorkflowStepExecution",
+                         back_populates="execution", cascade="all, delete-orphan")
 
 
 class WorkflowAgentLink(Base):
@@ -32,10 +50,3 @@ class WorkflowAgentLink(Base):
 
     # Relationships
     workflow = relationship("Workflow", back_populates="agent_links")
-
-
-# Update Workflow class to include these relationships
-Workflow.executions = relationship(
-    "WorkflowExecution", back_populates="workflow", cascade="all, delete-orphan")
-Workflow.agent_links = relationship(
-    "WorkflowAgentLink", back_populates="workflow", cascade="all, delete-orphan")
