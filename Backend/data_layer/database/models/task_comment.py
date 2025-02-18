@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, Text, ForeignKey, DateTime, Boolean, Float, JSON, Index
 from sqlalchemy.orm import relationship
-from Backend.data_layer.database.models.base import Base
+from data_layer.database.models.base import Base
 import datetime
 
 class TaskComment(Base):

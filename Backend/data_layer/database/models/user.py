@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index, Text, JSON
 from sqlalchemy.orm import relationship
-from Backend.data_layer.database.models.base import Base
+from data_layer.database.models.base import Base
 import datetime
 
 
@@ -19,7 +19,6 @@ class User(Base):
     deleted_at = Column(DateTime)
     first_name = Column(String(100))
     last_name = Column(String(100))
-    phone_number = Column(String(20))
     avatar_url = Column(String(255))
     bio = Column(Text)
     timezone = Column(String(50))
@@ -60,10 +59,6 @@ class User(Base):
     agent_feedback = relationship("AgentFeedback", back_populates="user")
     context_snapshots = relationship("ContextSnapshot", back_populates="user")
     files = relationship("File", back_populates="user")
-    uploaded_attachments = relationship(
-        "TaskAttachment", foreign_keys="[TaskAttachment.uploaded_by]", back_populates="uploader")
-    subscriptions = relationship(
-        "Subscription", back_populates="user", cascade="all, delete-orphan")
 
     # New relationships
     productivity_metrics = relationship(
@@ -92,7 +87,6 @@ class User(Base):
         Index("ix_user_last_login", "last_login"),
         Index("ix_user_account_locked_until", "account_locked_until"),
         Index("ix_user_organization_id", "organization_id"),
-        Index("ix_user_phone_number", "phone_number"),
     )
 
 
