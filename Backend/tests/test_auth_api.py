@@ -1,13 +1,16 @@
 import pytest
-from fastapi.testclient import TestClient
-from app.schemas.auth import Token, UserCreate
-from app.schemas.user import UserResponse
-from app.schemas.session import SessionResponse
-from data_layer.database.models.session import SessionStatus
+from fastapi import status
+from httpx import AsyncClient
+from Backend.app.schemas.auth import Token, UserCreate
+from Backend.app.schemas.user import UserResponse
+from Backend.app.schemas.session import SessionResponse
+from Backend.data_layer.database.models.session import SessionStatus
+from urllib.parse import urlencode
 
 
-def test_register(client: TestClient):
-    response = client.post(
+@pytest.mark.asyncio
+async def test_register(client: AsyncClient):
+    response = await client.post(
         "/auth/register",
         json={
             "username": "testuser",
@@ -17,43 +20,63 @@ def test_register(client: TestClient):
             "last_name": "User"
         }
     )
-    assert response.status_code == 200
+    assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["username"] == "testuser"
     assert data["email"] == "test@example.com"
     assert "password" not in data
 
 
-def test_login(client: TestClient):
+@pytest.mark.asyncio
+async def test_login(client: AsyncClient):
     # Register a user first
-    client.post(
+    register_response = await client.post(
         "/auth/register",
         json={
             "username": "testuser",
             "email": "test@example.com",
-            "password": "testpass123"
+            "password": "testpass123",
+            "first_name": "Test",
+            "last_name": "User"
         }
+    )
+    assert register_response.status_code == status.HTTP_200_OK
+    print("📝 Register response:", register_response.json())
+
+    # Try to login with proper OAuth2 form data
+    login_data = {
+        "username": "testuser",
+        "password": "testpass123",
+        "grant_type": "password",
+        "scope": "",
+        "client_id": "",
+        "client_secret": ""
+    }
+    print("🔑 Login data:", login_data)
+
+    # Ensure we're using the correct content type and form encoding
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+    }
+
+    response = await client.post(
+        "/auth/login",
+        data=login_data,  # Let httpx handle the form encoding
+        headers=headers
     )
 
-    # Try to login
-    response = client.post(
-        "/auth/login",
-        data={
-            "username": "testuser",
-            "password": "testpass123"
-        },
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-    )
-    assert response.status_code == 200
+    print("🔐 Login response status:", response.status_code)
+    print("🔐 Login response content:", response.content)
+
+    assert response.status_code == 200, f"Login failed with status {response.status_code}: {response.content}"
     data = response.json()
-    assert "access_token" in data
+    assert "access_token" in data, f"No access token in response: {data}"
     assert data["token_type"] == "bearer"
 
     # Verify session was created
     token = data["access_token"]
-    session_response = client.get(
+    session_response = await client.get(
         "/auth/sessions",
         headers={"Authorization": f"Bearer {token}"}
     )
@@ -67,28 +90,43 @@ def test_login(client: TestClient):
                       dict) or session["device_info"] is None
 
 
-def test_me_endpoint(client: TestClient):
+@pytest.mark.asyncio
+async def test_me_endpoint(client: AsyncClient):
     # Register and login first
-    client.post(
+    await client.post(
         "/auth/register",
         json={
             "username": "testuser",
             "email": "test@example.com",
-            "password": "testpass123"
+            "password": "testpass123",
+            "first_name": "Test",
+            "last_name": "User"
         }
     )
 
-    login_response = client.post(
+    # Try to login with proper OAuth2 form data
+    form_data = {
+        "username": "testuser",
+        "password": "testpass123",
+        "grant_type": "password",
+        "scope": "",
+        "client_id": "",
+        "client_secret": ""
+    }
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+    }
+    login_response = await client.post(
         "/auth/login",
-        data={
-            "username": "testuser",
-            "password": "testpass123"
-        }
+        data=form_data,
+        headers=headers
     )
+    assert login_response.status_code == 200, f"Login failed with status {login_response.status_code}: {login_response.content}"
     token = login_response.json()["access_token"]
 
     # Test /me endpoint
-    response = client.get(
+    response = await client.get(
         "/auth/me",
         headers={"Authorization": f"Bearer {token}"}
     )
@@ -98,65 +136,92 @@ def test_me_endpoint(client: TestClient):
     assert data["email"] == "test@example.com"
 
 
-def test_logout(client: TestClient):
+@pytest.mark.asyncio
+async def test_logout(client: AsyncClient):
     # Register and login first
-    client.post(
+    await client.post(
         "/auth/register",
         json={
             "username": "testuser",
             "email": "test@example.com",
-            "password": "testpass123"
+            "password": "testpass123",
+            "first_name": "Test",
+            "last_name": "User"
         }
     )
 
-    login_response = client.post(
+    # Try to login with proper OAuth2 form data
+    form_data = {
+        "username": "testuser",
+        "password": "testpass123",
+        "grant_type": "password",
+        "scope": "",
+        "client_id": "",
+        "client_secret": ""
+    }
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+    }
+    login_response = await client.post(
         "/auth/login",
-        data={
-            "username": "testuser",
-            "password": "testpass123"
-        }
+        data=form_data,
+        headers=headers
     )
+    assert login_response.status_code == 200, f"Login failed with status {login_response.status_code}: {login_response.content}"
     token = login_response.json()["access_token"]
 
     # Test logout
-    response = client.post(
+    response = await client.post(
         "/auth/logout",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
 
     # Verify session is invalidated
-    session_response = client.get(
+    session_response = await client.get(
         "/auth/sessions",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert session_response.status_code == 401  # Should be unauthorized now
 
 
-def test_get_user_sessions(client: TestClient):
+@pytest.mark.asyncio
+async def test_get_user_sessions(client: AsyncClient):
     # Register and login first
-    client.post(
+    await client.post(
         "/auth/register",
         json={
             "username": "testuser",
             "email": "test@example.com",
-            "password": "testpass123"
+            "password": "testpass123",
+            "first_name": "Test",
+            "last_name": "User"
         }
     )
 
-    login_response = client.post(
+    # Try to login with proper OAuth2 form data
+    form_data = {
+        "username": "testuser",
+        "password": "testpass123",
+        "grant_type": "password",
+        "scope": "",
+        "client_id": "",
+        "client_secret": ""
+    }
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+    }
+    login_response = await client.post(
         "/auth/login",
-        data={
-            "username": "testuser",
-            "password": "testpass123"
-        },
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
+        data=form_data,
+        headers=headers
     )
+    assert login_response.status_code == 200, f"Login failed with status {login_response.status_code}: {login_response.content}"
     token = login_response.json()["access_token"]
 
-    response = client.get(
+    response = await client.get(
         "/auth/sessions",
         headers={"Authorization": f"Bearer {token}"}
     )
