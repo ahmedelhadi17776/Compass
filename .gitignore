@@ -21,8 +21,11 @@ ENV/
 
 # Environment Variables
 .env
+.env
 .env.local
 .env.*
+*.env
+config.py
 *.env
 config.py
 .env.*.local
