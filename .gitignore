@@ -20,10 +20,10 @@ ENV/
 *.swo
 
 # Environment Variables
-#.env
+.env
 .env.local
 .env.*
-.env
+*.env
 config.py
 .env.*.local
 
