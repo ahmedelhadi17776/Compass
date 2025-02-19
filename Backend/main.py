@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import redis.asyncio as redis
 import logging
 from Backend.core.config import settings
-from Backend.core.dependencies import get_db
+from Backend.data_layer.database.connection import get_db
 from Backend.core.logging import setup_logging
 from Backend.core.celery_app import celery_app
 from Backend.middleware.rate_limiter import RateLimiterMiddleware
