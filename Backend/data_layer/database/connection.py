@@ -1,10 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from Backend.core.config import settings
+from core.config import settings
 
 # Create async engine based on settings
 engine = create_async_engine(
-    settings.DATABASE_URL if not settings.TESTING else settings.TEST_DATABASE_URL,
+    settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,  # Enable connection health checks
@@ -14,8 +14,7 @@ async_session = sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,
-    autocommit=False  # Ensure explicit transaction management
+    autoflush=False
 )
 
 # Get DB Session Dependency
@@ -23,11 +22,4 @@ async_session = sessionmaker(
 
 async def get_db():
     async with async_session() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        yield session

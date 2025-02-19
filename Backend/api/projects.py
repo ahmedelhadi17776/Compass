@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from Backend.core.rbac import require_role
-from Backend.data_layer.database.connection import get_db
-from Backend.data_layer.database.models.project import Project
+from core.rbac import require_role
+from data_layer.database.connection import get_db
+from data_layer.database.models.project import Project
 
 router = APIRouter()
 

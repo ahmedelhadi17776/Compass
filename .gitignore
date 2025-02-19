@@ -20,21 +20,12 @@ ENV/
 *.swo
 
 # Environment Variables
-.env
-.env
+#.env
 .env.local
-.env.*
-*.env
-config.py
-*.env
-config.py
+.env
 .env.*.local
-*.ini
+core/config.py
 
-Backend/.env
-Backend/core/.env
-Backend/core/config.py
-*.rdb
 
 #Logs
 #logs
@@ -45,8 +36,6 @@ Backend/core/config.py
 *.sqlite3
 *.db
 *.sql
-.db_session.db
-*.rdb
 
 #Backups
 #backups/
@@ -82,8 +71,3 @@ Thumbs.db
 
 #tests/
 *.docx
-
-# redis
-*.rdb
-
-*.md

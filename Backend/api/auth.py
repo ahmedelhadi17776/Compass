@@ -3,19 +3,19 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from Backend.data_layer.database.connection import get_db
-from Backend.services.auth_service import AuthService
-from Backend.data_layer.repositories.user_repository import UserRepository
-from Backend.data_layer.repositories.session_repository import SessionRepository
-from Backend.app.schemas.auth import Token, UserCreate, TokenData
-from Backend.app.schemas.user import UserResponse
-from Backend.data_layer.database.models.session import Session
-from Backend.data_layer.database.models.user import User
-from Backend.core.config import settings
-from Backend.app.schemas.session import SessionResponse
+from data_layer.database.session import get_db
+from services.auth_service import AuthService
+from data_layer.repositories.user_repository import UserRepository
+from data_layer.repositories.session_repository import SessionRepository
+from app.schemas.auth import Token, UserCreate, TokenData
+from app.schemas.user import UserResponse
+from data_layer.database.models.session import Session
+from data_layer.database.models.user import User
+from core.config import settings
+from app.schemas.session import SessionResponse
 
-router = APIRouter(tags=["auth"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+router = APIRouter()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
 async def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
@@ -30,7 +30,6 @@ async def get_current_user(
 ) -> User:
     try:
         session = await auth_service.validate_session(token)
-        # Remove .value here
         user = await auth_service.user_repository.get_by_id(session.user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -67,11 +66,11 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Create session with device info - Remove .value here
+    # Create session with device info
     session = await auth_service.create_session(
         user_id=user.id,
-        device_info=request.headers.get("User-Agent") or "Unknown",
-        ip_address=request.client.host if request.client else "Unknown"
+        device_info=request.headers.get("User-Agent"),
+        ip_address=request.client.host
     )
 
     return {
@@ -102,7 +101,6 @@ async def get_user_sessions(
     auth_service: AuthService = Depends(get_auth_service)
 ):
     """Get all active sessions for current user"""
-    # Remove .value here
     return await auth_service.get_user_sessions(current_user.id)
 
 
@@ -124,11 +122,10 @@ async def refresh_token(
     auth_service: AuthService = Depends(get_auth_service)
 ):
     """Get a new access token using current valid token"""
-    # Remove .value here
     session = await auth_service.create_session(
         user_id=current_user.id,
-        device_info=request.headers.get("User-Agent") or "Unknown",
-        ip_address=request.client.host if request.client else "Unknown"
+        device_info=request.headers.get("User-Agent"),
+        ip_address=request.client.host
     )
 
     return {
