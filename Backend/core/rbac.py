@@ -1,9 +1,9 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from utils.security_utils import decode_access_token
-from data_layer.database.connection import get_db
-from data_layer.database.models.user import User, Role, UserRole
+from Backend.utils.security_utils import decode_access_token
+from Backend.data_layer.database.connection import get_db
+from Backend.data_layer.database.models.user import User, Role, UserRole
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
