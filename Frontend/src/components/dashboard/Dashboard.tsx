@@ -48,7 +48,11 @@ interface Meeting {
   type?: string
 }
 
-export default function Page() {
+interface DashboardProps {
+  view?: 'tasks' | 'calendar' | 'monitoring';
+}
+
+export default function Dashboard({ view }: DashboardProps) {
   const [taskMetrics, setTaskMetrics] = useState<TaskMetrics>({
     completed: 0,
     total: 0,

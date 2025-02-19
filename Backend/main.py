@@ -69,7 +69,7 @@ app = FastAPI(
 # ✅ Middleware
 app.add_middleware(RateLimiterMiddleware)
 
-# CORS middleware
+#CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
