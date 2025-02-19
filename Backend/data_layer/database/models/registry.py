@@ -27,7 +27,7 @@ from Backend.data_layer.database.models.workspace_settings import UserWorkspaceS
 from Backend.data_layer.database.models.daily_summary import DailySummary
 from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction, EmailOrganization, RAGQuery
 from Backend.data_layer.database.models.productivity_metrics import ProductivityMetrics
-from Backend.data_layer.database.models.emotional_intelligence import EmotionalMetrics
+from Backend.data_layer.database.models.emotional_intelligence import EmotionalIntelligence
 from Backend.data_layer.database.models.meeting_notes import MeetingNotes
 from Backend.data_layer.database.models.todo import Todo, TodoHistory, TodoPriority, TodoStatus
 
@@ -76,7 +76,7 @@ __all__ = [
     'RAGQuery',
     'MeetingNotes',
     'ProductivityMetrics',
-    'EmotionalMetrics',
+    'EmotionalIntelligence',
     'UserWorkspaceSettings',
     'Todo',
     'TodoHistory',
