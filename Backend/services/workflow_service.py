@@ -5,7 +5,9 @@ from Backend.tasks.notification_tasks import send_notification
 from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_insights
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
 from Backend.core.celery_app import celery_app
-from Backend.data_layer.database.models.workflow import Workflow, WorkflowStatus
+from Backend.data_layer.database.models.workflow import Workflow, WorkflowStatus, WorkflowType
+from Backend.data_layer.database.models.workflow_step import WorkflowStep
+from Backend.data_layer.database.models.workflow_execution import WorkflowExecution
 from celery.result import AsyncResult
 from Backend.data_layer.database.errors import WorkflowNotFoundError
 import asyncio
@@ -17,35 +19,52 @@ class WorkflowService:
 
     async def create_workflow(
         self,
-        user_id: int,
-        organization_id: int,
         name: str,
         description: str,
-        steps: List[Dict]
+        creator_id: int,
+        organization_id: int,
+        workflow_type: WorkflowType = WorkflowType.SEQUENTIAL,
+        config: Optional[Dict] = None,
+        steps: Optional[List[Dict]] = None,
+        ai_enabled: bool = False,
+        ai_confidence_threshold: Optional[float] = None,
+        estimated_duration: Optional[int] = None,
+        deadline: Optional[datetime] = None,
+        tags: Optional[List[str]] = None
     ) -> Dict:
-        # Create workflow with pending status
+        """Create a new workflow with steps."""
         workflow = await self.repository.create_workflow(
-            user_id=user_id,
-            organization_id=organization_id,
             name=name,
             description=description,
-            status=WorkflowStatus.PENDING.value
+            workflow_type=workflow_type,
+            created_by=creator_id,
+            organization_id=organization_id,
+            config=config or {},
+            status=WorkflowStatus.PENDING,
+            ai_enabled=ai_enabled,
+            ai_confidence_threshold=ai_confidence_threshold,
+            estimated_duration=estimated_duration,
+            deadline=deadline,
+            tags=tags or [],
+            workflow_metadata={
+                "created_at": datetime.utcnow().isoformat(),
+                "version": "1.0",
+                "creator_id": creator_id
+            }
         )
 
-        # Start workflow processing in background
-        task = process_workflow.delay(
-            workflow_id=workflow.id,
-            steps=steps,
-            user_id=user_id
-        )
-
-        # Wait briefly to ensure task is registered
-        await asyncio.sleep(0.5)
+        if steps:
+            for step_data in steps:
+                await self.repository.create_workflow_step(
+                    workflow_id=workflow.id,
+                    **step_data
+                )
 
         return {
             "workflow_id": workflow.id,
-            "task_id": task.id,
-            "status": workflow.status
+            "status": workflow.status,
+            "type": workflow.workflow_type,
+            "steps_count": len(steps) if steps else 0
         }
 
     async def execute_step(
@@ -53,34 +72,44 @@ class WorkflowService:
         workflow_id: int,
         step_id: int,
         user_id: int,
-        input_data: Dict
+        input_data: Optional[Dict] = None
     ) -> Dict:
-        # Get workflow with steps
-        workflow = await self.repository.get_workflow(workflow_id, with_steps=True)
+        """Execute a specific workflow step."""
+        workflow = await self.repository.get_workflow(workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
-        # Verify workflow status
-        if workflow.status not in [WorkflowStatus.PENDING.value, WorkflowStatus.ACTIVE.value]:
-            raise ValueError(
-                f"Workflow is in {workflow.status} state and cannot execute steps")
+        step = await self.repository.get_workflow_step(step_id)
+        if not step:
+            raise ValueError(f"Step {step_id} not found")
 
-        # Start step execution in background
+        # Create execution record
+        execution = await self.repository.create_workflow_execution(
+            workflow_id=workflow_id,
+            status=WorkflowStatus.ACTIVE
+        )
+
+        # Create step execution record
+        step_execution = await self.repository.create_step_execution(
+            execution_id=execution.id,
+            step_id=step_id,
+            status="pending"
+        )
+
+        # Execute step in background
         task = execute_workflow_step.delay(
             workflow_id=workflow_id,
             step_id=step_id,
-            input_data=input_data,
-            user_id=user_id
+            execution_id=execution.id,
+            user_id=user_id,
+            input_data=input_data or {}
         )
 
-        # Wait briefly to ensure task is registered
-        await asyncio.sleep(0.5)
-
         return {
-            "workflow_id": workflow_id,
-            "step_id": step_id,
+            "execution_id": execution.id,
+            "step_execution_id": step_execution.id,
             "task_id": task.id,
-            "status": "PENDING"
+            "status": "pending"
         }
 
     async def analyze_workflow(
@@ -91,26 +120,101 @@ class WorkflowService:
         time_range: str,
         metrics: List[str]
     ) -> Dict:
+        """Analyze workflow performance and metrics."""
+        workflow = await self.repository.get_workflow_with_metrics(workflow_id)
+        if not workflow:
+            raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
+
+        return {
+            "workflow_id": workflow_id,
+            "metrics": {
+                "performance": {
+                    "average_completion_time": workflow.average_completion_time,
+                    "success_rate": workflow.success_rate,
+                    "optimization_score": workflow.optimization_score
+                },
+                "bottlenecks": workflow.bottleneck_analysis,
+                "efficiency": {
+                    "estimated_vs_actual": workflow.estimated_duration / workflow.actual_duration if workflow.actual_duration else None,
+                    "optimization_opportunities": workflow.ai_learning_data.get("optimization_suggestions") if workflow.ai_learning_data else None
+                }
+            },
+            "analysis_type": analysis_type,
+            "time_range": time_range
+        }
+
+    async def update_workflow(
+        self,
+        workflow_id: int,
+        updates: Dict,
+        user_id: int
+    ) -> Dict:
+        """Update workflow configuration and metadata."""
+        workflow = await self.repository.update_workflow(workflow_id, updates)
+        if not workflow:
+            raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
+
+        return {
+            "workflow_id": workflow_id,
+            "status": workflow.status,
+            "updated_at": workflow.updated_at.isoformat()
+        }
+
+    async def cancel_workflow(
+        self,
+        workflow_id: int,
+        user_id: int
+    ) -> Dict:
+        """Cancel a workflow and all its pending executions."""
         workflow = await self.repository.get_workflow(workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
-        # Start analysis in background
-        task = process_text_analysis.delay(
-            workflow_id=workflow_id,
-            analysis_type=analysis_type,
-            time_range=time_range,
-            metrics=metrics,
-            user_id=user_id
+        # Update workflow status
+        await self.repository.update_workflow(
+            workflow_id,
+            {"status": WorkflowStatus.CANCELLED}
         )
 
-        # Wait briefly to ensure task is registered
-        await asyncio.sleep(0.5)
+        # Cancel any active executions
+        await self.repository.cancel_active_executions(workflow_id)
 
         return {
             "workflow_id": workflow_id,
-            "analysis_task_id": task.id,
-            "status": "PENDING"
+            "status": WorkflowStatus.CANCELLED,
+            "cancelled_at": datetime.utcnow().isoformat()
+        }
+
+    async def get_workflow_metrics(
+        self,
+        workflow_id: int
+    ) -> Dict:
+        """Get comprehensive workflow metrics and analytics."""
+        workflow = await self.repository.get_workflow_with_metrics(workflow_id)
+        if not workflow:
+            raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
+
+        return {
+            "performance": {
+                "average_completion_time": workflow.average_completion_time,
+                "success_rate": workflow.success_rate,
+                "optimization_score": workflow.optimization_score
+            },
+            "execution": {
+                "total_executions": len(workflow.executions),
+                "successful_executions": sum(1 for e in workflow.executions if e.status == WorkflowStatus.COMPLETED),
+                "failed_executions": sum(1 for e in workflow.executions if e.status == WorkflowStatus.FAILED)
+            },
+            "timing": {
+                "estimated_duration": workflow.estimated_duration,
+                "actual_duration": workflow.actual_duration,
+                "efficiency_ratio": workflow.actual_duration / workflow.estimated_duration if workflow.estimated_duration else None
+            },
+            "ai_metrics": {
+                "ai_enabled": workflow.ai_enabled,
+                "confidence_threshold": workflow.ai_confidence_threshold,
+                "learning_progress": workflow.ai_learning_data.get("learning_progress") if workflow.ai_learning_data else None
+            }
         }
 
     async def get_task_status(self, task_id: str) -> Dict:
@@ -119,32 +223,4 @@ class WorkflowService:
             "task_id": task_id,
             "status": result.status,
             "result": result.result if result.ready() else None
-        }
-
-    async def cancel_workflow(
-        self,
-        workflow_id: int,
-        user_id: int
-    ) -> Dict:
-        # Get workflow and verify ownership
-        workflow = await self.repository.get_workflow(workflow_id)
-        if not workflow:
-            raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
-
-        if workflow.created_by != user_id:
-            raise ValueError("User is not authorized to cancel this workflow")
-
-        # Update workflow status to cancelled
-        success = await self.repository.update_workflow_status(
-            workflow_id=workflow_id,
-            status=WorkflowStatus.CANCELLED.value
-        )
-
-        if not success:
-            raise ValueError(f"Failed to cancel workflow {workflow_id}")
-
-        return {
-            "workflow_id": workflow_id,
-            "status": WorkflowStatus.CANCELLED.value,
-            "task_id": None  # No task ID since this is a direct status update
         }

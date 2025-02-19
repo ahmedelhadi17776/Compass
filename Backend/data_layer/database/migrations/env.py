@@ -14,7 +14,7 @@ from Backend.data_layer.database.models import (
     Subscription, Payment, Permission, RolePermission,
     SecurityAuditLog, DailySummary, AIAgentInteraction,
     EmailOrganization, RAGQuery, MeetingNotes,
-    ProductivityMetrics, EmotionalMetrics,
+    ProductivityMetrics, EmotionalIntelligence,
     UserWorkspaceSettings, Todo, TodoHistory,
     TodoPriority, TodoStatus, WorkflowStepExecution
 )

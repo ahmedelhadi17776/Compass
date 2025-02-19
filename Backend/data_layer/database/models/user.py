@@ -52,6 +52,8 @@ class User(Base):
         "Task", foreign_keys="[Task.creator_id]", back_populates="creator")
     assigned_tasks = relationship(
         "Task", foreign_keys="[Task.assignee_id]", back_populates="assignee")
+    reviewed_tasks = relationship(
+        "Task", foreign_keys="[Task.reviewer_id]", back_populates="reviewer")
     project_memberships = relationship(
         "ProjectMember", back_populates="user", cascade="all, delete-orphan")
     calendar_events = relationship(
@@ -68,8 +70,8 @@ class User(Base):
     # New relationships
     productivity_metrics = relationship(
         "ProductivityMetrics", back_populates="user", cascade="all, delete-orphan")
-    emotional_metrics = relationship(
-        "EmotionalMetrics", back_populates="user", cascade="all, delete-orphan")
+    emotional_data = relationship(
+        "EmotionalIntelligence", back_populates="user", cascade="all, delete-orphan")
     rag_queries = relationship("RAGQuery", back_populates="user")
     email_organization = relationship(
         "EmailOrganization", back_populates="user", uselist=False)
@@ -84,6 +86,8 @@ class User(Base):
         "DailySummary", back_populates="user", cascade="all, delete-orphan")
     todos = relationship("Todo", back_populates="user",
                          cascade="all, delete-orphan")
+    created_workflows = relationship(
+        "Workflow", foreign_keys="[Workflow.created_by]", back_populates="creator")
 
     __table_args__ = (
         Index("ix_user_email", "email"),
