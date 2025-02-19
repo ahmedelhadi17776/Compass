@@ -31,8 +31,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from '@/hooks/useAuth'
-import { useQueryClient } from '@tanstack/react-query'
 
 interface NavUserProps {
   user: {
@@ -45,26 +43,20 @@ interface NavUserProps {
 
 export function NavUser({ user, onLogout }: NavUserProps) {
   const { isMobile } = useSidebar()
-  const { logout, user: authUser } = useAuth()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
 
   const handleLogout = () => {
-    logout.mutate(undefined, {
-      onSuccess: () => {
-        queryClient.clear()
-        navigate('/login', { replace: true })
-      }
-    })
-    onLogout?.()
+    // Call the onLogout callback first if provided
+    if (onLogout) {
+      onLogout();
+    }
+    
+    // Clear any remaining auth data
+    localStorage.removeItem('isAuthenticated');
+    
+    // Force a page reload to clear any remaining state
+    window.location.href = '/login';
   }
-
-  // Use the authenticated user data if available
-  const displayUser = authUser ? {
-    name: `${authUser.first_name} ${authUser.last_name}`,
-    email: authUser.email,
-    avatar: user.avatar // Keep the existing avatar
-  } : user;
 
   return (
     <SidebarMenu>
@@ -77,15 +69,13 @@ export function NavUser({ user, onLogout }: NavUserProps) {
             >
               <div className="flex aspect-square size-8 items-center justify-center">
                 <Avatar className="h-full w-full rounded-lg">
-                  <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
-                  <AvatarFallback className="rounded-lg">
-                    {authUser ? `${authUser.first_name[0]}${authUser.last_name[0]}` : 'AD'}
-                  </AvatarFallback>
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarFallback className="rounded-lg">AD</AvatarFallback>
                 </Avatar>
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{displayUser.name}</span>
-                <span className="truncate text-xs">{displayUser.email}</span>
+                <span className="truncate font-semibold">{user.name}</span>
+                <span className="truncate text-xs">{user.email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -100,15 +90,13 @@ export function NavUser({ user, onLogout }: NavUserProps) {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <div className="flex aspect-square size-8 items-center justify-center">
                   <Avatar className="h-full w-full rounded-lg">
-                    <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
-                    <AvatarFallback className="rounded-lg">
-                      {authUser ? `${authUser.first_name[0]}${authUser.last_name[0]}` : 'AD'}
-                    </AvatarFallback>
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                    <AvatarFallback className="rounded-lg">AD</AvatarFallback>
                   </Avatar>
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{displayUser.name}</span>
-                  <span className="truncate text-xs">{displayUser.email}</span>
+                  <span className="truncate font-semibold">{user.name}</span>
+                  <span className="truncate text-xs">{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
