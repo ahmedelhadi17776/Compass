@@ -2,16 +2,16 @@ import asyncio
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 from Backend.data_layer.database.models.base import Base
 from Backend.data_layer.database.models import User, Organization
-from Backend.data_layer.database.session import get_db as get_async_session
+from Backend.data_layer.database.connection import get_db as get_async_session
 from Backend.main import app
 import os
 import pathlib
-from typing import AsyncGenerator, Generator, AsyncIterator
+from typing import AsyncGenerator, Generator, AsyncIterator, Optional
 import asyncpg
 from sqlalchemy.pool import NullPool
 from Backend.core.config import settings
@@ -19,6 +19,7 @@ import datetime
 from redis.asyncio import Redis
 from httpx import AsyncClient
 import redis.asyncio as redis
+
 
 # Set testing environment before importing settings
 os.environ["TESTING"] = "True"
@@ -37,11 +38,10 @@ test_engine = create_async_engine(
     isolation_level='READ COMMITTED'  # Changed from AUTOCOMMIT
 )
 
-TestingSessionLocal = sessionmaker(
+TestingSessionLocal = async_sessionmaker(
     test_engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autocommit=False,
     autoflush=False
 )
 
@@ -86,7 +86,7 @@ async def create_test_database():
         # Connect to default database to create test database
         conn = await asyncpg.connect(
             user='postgres',
-            password='0502747598',
+            password='1357997531',
             database='postgres',
             host='localhost',
             port=5432
@@ -155,7 +155,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def redis_client() -> AsyncGenerator[Redis, None]:
+async def redis_client() -> AsyncGenerator[Optional[Redis], None]:
     """Get a Redis client instance. Returns None if Redis is not available."""
     client = None
     try:
