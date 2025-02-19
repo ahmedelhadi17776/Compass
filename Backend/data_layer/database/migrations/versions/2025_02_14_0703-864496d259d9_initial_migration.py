@@ -1,8 +1,8 @@
 """initial migration
 
-Revision ID: 1f71fa09e25e
+Revision ID: 864496d259d9
 Revises: 
-Create Date: 2025-02-19 20:21:44.910439+00:00
+Create Date: 2025-02-14 07:03:11.603475+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '1f71fa09e25e'
+revision: str = '864496d259d9'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -89,40 +89,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_subscription_plans_created_at', 'subscription_plans', ['created_at'], unique=False)
     op.create_index(op.f('ix_subscription_plans_id'), 'subscription_plans', ['id'], unique=False)
-    op.create_index('ix_subscription_plans_name', 'subscription_plans', ['name'], unique=True)
-    op.create_table('projects',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('organization_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_project_created_at', 'projects', ['created_at'], unique=False)
-    op.create_index('ix_project_name', 'projects', ['name'], unique=False)
-    op.create_index('ix_project_organization_id', 'projects', ['organization_id'], unique=False)
-    op.create_index(op.f('ix_projects_id'), 'projects', ['id'], unique=False)
-    op.create_index(op.f('ix_projects_organization_id'), 'projects', ['organization_id'], unique=False)
-    op.create_index('uq_project_org_name', 'projects', ['organization_id', 'name'], unique=True)
-    op.create_table('task_categories',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('color_code', sa.String(length=20), nullable=True),
-    sa.Column('icon', sa.String(length=50), nullable=True),
-    sa.Column('parent_id', sa.Integer(), nullable=True),
-    sa.Column('organization_id', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ),
-    sa.ForeignKeyConstraint(['parent_id'], ['task_categories.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_task_categories_id'), 'task_categories', ['id'], unique=False)
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=False),
@@ -135,7 +102,6 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.Column('first_name', sa.String(length=100), nullable=True),
     sa.Column('last_name', sa.String(length=100), nullable=True),
-    sa.Column('phone_number', sa.String(length=20), nullable=True),
     sa.Column('avatar_url', sa.String(length=255), nullable=True),
     sa.Column('bio', sa.Text(), nullable=True),
     sa.Column('timezone', sa.String(length=50), nullable=True),
@@ -152,16 +118,12 @@ def upgrade() -> None:
     sa.Column('security_questions', sa.JSON(), nullable=True),
     sa.Column('allowed_ip_ranges', sa.JSON(), nullable=True),
     sa.Column('max_sessions', sa.Integer(), nullable=True),
-    sa.Column('organization_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_user_account_locked_until', 'users', ['account_locked_until'], unique=False)
     op.create_index('ix_user_created_at', 'users', ['created_at'], unique=False)
     op.create_index('ix_user_email', 'users', ['email'], unique=False)
     op.create_index('ix_user_last_login', 'users', ['last_login'], unique=False)
-    op.create_index('ix_user_organization_id', 'users', ['organization_id'], unique=False)
-    op.create_index('ix_user_phone_number', 'users', ['phone_number'], unique=False)
     op.create_index('ix_user_username', 'users', ['username'], unique=False)
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
@@ -279,32 +241,25 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_email_organization_id'), 'email_organization', ['id'], unique=False)
     op.create_index('ix_email_organization_user_id', 'email_organization', ['user_id'], unique=False)
-    op.create_table('emotional_intelligence',
+    op.create_table('emotional_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('timestamp', sa.DateTime(), nullable=True),
     sa.Column('stress_level', sa.Float(), nullable=True),
-    sa.Column('stress_factors', sa.JSON(), nullable=True),
-    sa.Column('fatigue_score', sa.Float(), nullable=True),
-    sa.Column('screen_time', sa.Integer(), nullable=True),
-    sa.Column('break_frequency', sa.Integer(), nullable=True),
-    sa.Column('posture_score', sa.Float(), nullable=True),
-    sa.Column('focus_duration', sa.Integer(), nullable=True),
-    sa.Column('distraction_count', sa.Integer(), nullable=True),
-    sa.Column('productivity_score', sa.Float(), nullable=True),
-    sa.Column('work_rhythm_pattern', sa.JSON(), nullable=True),
-    sa.Column('noise_level', sa.Float(), nullable=True),
-    sa.Column('lighting_condition', sa.String(length=50), nullable=True),
-    sa.Column('workspace_ergonomics', sa.JSON(), nullable=True),
-    sa.Column('cognitive_load_score', sa.Float(), nullable=True),
-    sa.Column('task_complexity_level', sa.Integer(), nullable=True),
-    sa.Column('context_switching_frequency', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.Column('fatigue_indicators', sa.JSON(), nullable=True),
+    sa.Column('voice_analysis', sa.JSON(), nullable=True),
+    sa.Column('facial_expressions', sa.JSON(), nullable=True),
+    sa.Column('break_recommendations', sa.JSON(), nullable=True),
+    sa.Column('wellness_score', sa.Float(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_emotional_intelligence_id'), 'emotional_intelligence', ['id'], unique=False)
-    op.create_index('ix_emotional_intelligence_timestamp', 'emotional_intelligence', ['timestamp'], unique=False)
-    op.create_index('ix_emotional_intelligence_user_id', 'emotional_intelligence', ['user_id'], unique=False)
+    op.create_index(op.f('ix_emotional_metrics_id'), 'emotional_metrics', ['id'], unique=False)
+    op.create_index('ix_emotional_metrics_stress_level', 'emotional_metrics', ['stress_level'], unique=False)
+    op.create_index('ix_emotional_metrics_timestamp', 'emotional_metrics', ['timestamp'], unique=False)
+    op.create_index('ix_emotional_metrics_user_id', 'emotional_metrics', ['user_id'], unique=False)
+    op.create_index('ix_emotional_metrics_wellness_score', 'emotional_metrics', ['wellness_score'], unique=False)
     op.create_table('files',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
@@ -317,9 +272,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_file_created_at', 'files', ['created_at'], unique=False)
-    op.create_index('ix_file_type', 'files', ['file_type'], unique=False)
-    op.create_index('ix_file_user_id', 'files', ['user_id'], unique=False)
     op.create_index(op.f('ix_files_id'), 'files', ['id'], unique=False)
     op.create_table('knowledge_base',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -342,44 +294,40 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('date', sa.DateTime(), nullable=True),
-    sa.Column('total_focus_time', sa.Integer(), nullable=True),
+    sa.Column('screen_time', sa.Integer(), nullable=True),
+    sa.Column('focus_score', sa.Float(), nullable=True),
     sa.Column('focus_sessions', sa.Integer(), nullable=True),
-    sa.Column('average_focus_duration', sa.Float(), nullable=True),
-    sa.Column('deep_work_periods', sa.JSON(), nullable=True),
-    sa.Column('total_break_time', sa.Integer(), nullable=True),
-    sa.Column('break_intervals', sa.JSON(), nullable=True),
-    sa.Column('break_adherence_score', sa.Float(), nullable=True),
-    sa.Column('optimal_break_schedule', sa.JSON(), nullable=True),
-    sa.Column('tasks_completed', sa.Integer(), nullable=True),
-    sa.Column('tasks_in_progress', sa.Integer(), nullable=True),
-    sa.Column('completion_rate', sa.Float(), nullable=True),
-    sa.Column('average_completion_time', sa.Float(), nullable=True),
-    sa.Column('task_completion_patterns', sa.JSON(), nullable=True),
-    sa.Column('context_switches', sa.Integer(), nullable=True),
-    sa.Column('workflow_optimization_score', sa.Float(), nullable=True),
-    sa.Column('bottleneck_analysis', sa.JSON(), nullable=True),
-    sa.Column('time_allocation', sa.JSON(), nullable=True),
-    sa.Column('meeting_efficiency', sa.Float(), nullable=True),
+    sa.Column('interruptions', sa.Integer(), nullable=True),
+    sa.Column('active_apps', sa.JSON(), nullable=True),
+    sa.Column('typing_speed', sa.Float(), nullable=True),
+    sa.Column('mouse_clicks', sa.Integer(), nullable=True),
     sa.Column('idle_time', sa.Integer(), nullable=True),
-    sa.Column('overtime_patterns', sa.JSON(), nullable=True),
-    sa.Column('productivity_insights', sa.JSON(), nullable=True),
-    sa.Column('improvement_suggestions', sa.JSON(), nullable=True),
-    sa.Column('productivity_trends', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.Column('focus_mode_enabled', sa.Boolean(), nullable=True),
+    sa.Column('stress_indicators', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_productivity_metrics_date', 'productivity_metrics', ['date'], unique=False)
+    op.create_index('ix_productivity_metrics_focus_score', 'productivity_metrics', ['focus_score'], unique=False)
     op.create_index(op.f('ix_productivity_metrics_id'), 'productivity_metrics', ['id'], unique=False)
     op.create_index('ix_productivity_metrics_user_id', 'productivity_metrics', ['user_id'], unique=False)
-    op.create_table('project_members',
-    sa.Column('project_id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('role', sa.String(length=100), nullable=True),
-    sa.Column('joined_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('project_id', 'user_id')
+    op.create_table('projects',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('organization_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('ix_project_created_at', 'projects', ['created_at'], unique=False)
+    op.create_index('ix_project_name', 'projects', ['name'], unique=False)
+    op.create_index('ix_project_organization_id', 'projects', ['organization_id'], unique=False)
+    op.create_index(op.f('ix_projects_id'), 'projects', ['id'], unique=False)
+    op.create_index(op.f('ix_projects_organization_id'), 'projects', ['organization_id'], unique=False)
+    op.create_index('uq_project_org_name', 'projects', ['organization_id', 'name'], unique=True)
     op.create_table('rag_queries',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -409,7 +357,7 @@ def upgrade() -> None:
     op.create_table('sessions',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('token', sa.String(length=255), nullable=False),
+    sa.Column('session_token', sa.String(length=255), nullable=False),
     sa.Column('refresh_token', sa.String(length=255), nullable=True),
     sa.Column('status', sa.Enum('ACTIVE', 'EXPIRED', 'REVOKED', 'SUSPICIOUS', name='sessionstatus'), nullable=False),
     sa.Column('device_info', sa.JSON(), nullable=True),
@@ -423,17 +371,15 @@ def upgrade() -> None:
     sa.Column('last_activity', sa.DateTime(), nullable=True),
     sa.Column('revoked_at', sa.DateTime(), nullable=True),
     sa.Column('revocation_reason', sa.String(length=255), nullable=True),
-    sa.Column('is_valid', sa.Boolean(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('refresh_token'),
-    sa.UniqueConstraint('token')
+    sa.UniqueConstraint('refresh_token')
     )
     op.create_index('ix_sessions_expires_at', 'sessions', ['expires_at'], unique=False)
     op.create_index(op.f('ix_sessions_id'), 'sessions', ['id'], unique=False)
     op.create_index('ix_sessions_last_activity', 'sessions', ['last_activity'], unique=False)
+    op.create_index(op.f('ix_sessions_session_token'), 'sessions', ['session_token'], unique=True)
     op.create_index('ix_sessions_status', 'sessions', ['status'], unique=False)
-    op.create_index('ix_sessions_token', 'sessions', ['token'], unique=True)
     op.create_index('ix_sessions_user_id', 'sessions', ['user_id'], unique=False)
     op.create_table('subscriptions',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -448,11 +394,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_subscriptions_expires_at', 'subscriptions', ['expires_at'], unique=False)
     op.create_index(op.f('ix_subscriptions_id'), 'subscriptions', ['id'], unique=False)
-    op.create_index('ix_subscriptions_plan_id', 'subscriptions', ['plan_id'], unique=False)
-    op.create_index('ix_subscriptions_status', 'subscriptions', ['status'], unique=False)
-    op.create_index('ix_subscriptions_user_id', 'subscriptions', ['user_id'], unique=False)
     op.create_table('system_logs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('level', sa.String(length=50), nullable=True),
@@ -472,6 +414,21 @@ def upgrade() -> None:
     op.create_index(op.f('ix_system_logs_id'), 'system_logs', ['id'], unique=False)
     op.create_index('ix_system_logs_level', 'system_logs', ['level'], unique=False)
     op.create_index('ix_system_logs_user_id', 'system_logs', ['user_id'], unique=False)
+    op.create_table('task_categories',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('color_code', sa.String(length=20), nullable=True),
+    sa.Column('icon', sa.String(length=50), nullable=True),
+    sa.Column('parent_id', sa.Integer(), nullable=True),
+    sa.Column('organization_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ),
+    sa.ForeignKeyConstraint(['parent_id'], ['task_categories.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_task_categories_id'), 'task_categories', ['id'], unique=False)
     op.create_table('user_preferences',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -516,47 +473,25 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('workflow_type', sa.Enum('SEQUENTIAL', 'PARALLEL', 'CONDITIONAL', 'AI_DRIVEN', 'HYBRID', name='workflowtype'), nullable=True),
-    sa.Column('created_by', sa.Integer(), nullable=True),
-    sa.Column('organization_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'ACTIVE', 'PAUSED', 'COMPLETED', 'FAILED', 'CANCELLED', 'ARCHIVED', 'UNDER_REVIEW', 'OPTIMIZING', name='workflowstatus'), nullable=True),
-    sa.Column('config', sa.JSON(), nullable=True),
-    sa.Column('workflow_metadata', sa.JSON(), nullable=True),
+    sa.Column('status', sa.Enum('ACTIVE', 'ARCHIVED', name='workflowstatus'), nullable=False),
     sa.Column('version', sa.String(length=50), nullable=True),
-    sa.Column('tags', sa.JSON(), nullable=True),
-    sa.Column('ai_enabled', sa.Boolean(), nullable=True),
-    sa.Column('ai_confidence_threshold', sa.Float(), nullable=True),
-    sa.Column('ai_override_rules', sa.JSON(), nullable=True),
-    sa.Column('ai_learning_data', sa.JSON(), nullable=True),
-    sa.Column('average_completion_time', sa.Float(), nullable=True),
-    sa.Column('success_rate', sa.Float(), nullable=True),
-    sa.Column('optimization_score', sa.Float(), nullable=True),
-    sa.Column('bottleneck_analysis', sa.JSON(), nullable=True),
-    sa.Column('estimated_duration', sa.Integer(), nullable=True),
-    sa.Column('actual_duration', sa.Integer(), nullable=True),
-    sa.Column('schedule_constraints', sa.JSON(), nullable=True),
-    sa.Column('deadline', sa.DateTime(), nullable=True),
-    sa.Column('error_handling_config', sa.JSON(), nullable=True),
-    sa.Column('retry_policy', sa.JSON(), nullable=True),
-    sa.Column('fallback_steps', sa.JSON(), nullable=True),
-    sa.Column('compliance_rules', sa.JSON(), nullable=True),
-    sa.Column('audit_trail', sa.JSON(), nullable=True),
-    sa.Column('access_control', sa.JSON(), nullable=True),
+    sa.Column('settings', sa.JSON(), nullable=True),
+    sa.Column('triggers', sa.JSON(), nullable=True),
+    sa.Column('permissions', sa.JSON(), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('last_executed_at', sa.DateTime(), nullable=True),
-    sa.Column('next_scheduled_run', sa.DateTime(), nullable=True),
+    sa.Column('published_at', sa.DateTime(), nullable=True),
+    sa.Column('archived_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_workflow_created_at', 'workflows', ['created_at'], unique=False)
-    op.create_index('ix_workflow_optimization_score', 'workflows', ['optimization_score'], unique=False)
-    op.create_index('ix_workflow_organization_id', 'workflows', ['organization_id'], unique=False)
+    op.create_index('ix_workflow_created_by', 'workflows', ['created_by'], unique=False)
     op.create_index('ix_workflow_status', 'workflows', ['status'], unique=False)
-    op.create_index('ix_workflow_success_rate', 'workflows', ['success_rate'], unique=False)
-    op.create_index('ix_workflow_type', 'workflows', ['workflow_type'], unique=False)
+    op.create_index('ix_workflow_version', 'workflows', ['version'], unique=False)
     op.create_index(op.f('ix_workflows_id'), 'workflows', ['id'], unique=False)
+    op.create_index(op.f('ix_workflows_name'), 'workflows', ['name'], unique=False)
     op.create_table('agent_feedback',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('agent_action_id', sa.Integer(), nullable=True),
@@ -600,10 +535,15 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_payments_id'), 'payments', ['id'], unique=False)
-    op.create_index('ix_payments_payment_date', 'payments', ['payment_date'], unique=False)
-    op.create_index('ix_payments_status', 'payments', ['status'], unique=False)
-    op.create_index('ix_payments_subscription_id', 'payments', ['subscription_id'], unique=False)
-    op.create_index('ix_payments_transaction_id', 'payments', ['transaction_id'], unique=True)
+    op.create_table('project_members',
+    sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('role', sa.String(length=100), nullable=True),
+    sa.Column('joined_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('project_id', 'user_id')
+    )
     op.create_table('security_audit_logs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
@@ -628,6 +568,44 @@ def upgrade() -> None:
     op.create_index('ix_security_audit_logs_ip_address', 'security_audit_logs', ['ip_address'], unique=False)
     op.create_index('ix_security_audit_logs_risk_score', 'security_audit_logs', ['risk_score'], unique=False)
     op.create_index('ix_security_audit_logs_user_id', 'security_audit_logs', ['user_id'], unique=False)
+    op.create_table('tasks',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('status', sa.Enum('TODO', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', name='taskstatus'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('creator_id', sa.Integer(), nullable=False),
+    sa.Column('assignee_id', sa.Integer(), nullable=True),
+    sa.Column('priority', sa.String(length=50), nullable=True),
+    sa.Column('category_id', sa.Integer(), nullable=True),
+    sa.Column('confidence_score', sa.Float(), nullable=True),
+    sa.Column('completed_at', sa.DateTime(), nullable=True),
+    sa.Column('due_date', sa.DateTime(), nullable=True),
+    sa.Column('organization_id', sa.Integer(), nullable=False),
+    sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.Column('workflow_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['assignee_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['category_id'], ['task_categories.id'], ),
+    sa.ForeignKeyConstraint(['creator_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_task_assignee_id', 'tasks', ['assignee_id'], unique=False)
+    op.create_index('ix_task_category_id', 'tasks', ['category_id'], unique=False)
+    op.create_index('ix_task_created_at', 'tasks', ['created_at'], unique=False)
+    op.create_index('ix_task_creator_id', 'tasks', ['creator_id'], unique=False)
+    op.create_index('ix_task_due_date', 'tasks', ['due_date'], unique=False)
+    op.create_index('ix_task_organization_id', 'tasks', ['organization_id'], unique=False)
+    op.create_index('ix_task_priority', 'tasks', ['priority'], unique=False)
+    op.create_index('ix_task_project_id', 'tasks', ['project_id'], unique=False)
+    op.create_index('ix_task_status', 'tasks', ['status'], unique=False)
+    op.create_index(op.f('ix_tasks_id'), 'tasks', ['id'], unique=False)
+    op.create_index(op.f('ix_tasks_project_id'), 'tasks', ['project_id'], unique=False)
+    op.create_index(op.f('ix_tasks_title'), 'tasks', ['title'], unique=False)
+    op.create_index(op.f('ix_tasks_workflow_id'), 'tasks', ['workflow_id'], unique=False)
     op.create_table('workflow_agent_links',
     sa.Column('workflow_id', sa.Integer(), nullable=False),
     sa.Column('agent_type', sa.String(length=100), nullable=False),
@@ -638,13 +616,13 @@ def upgrade() -> None:
     )
     op.create_table('workflow_executions',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('workflow_id', sa.Integer(), nullable=False),
+    sa.Column('workflow_id', sa.Integer(), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=True),
-    sa.Column('started_at', sa.DateTime(), nullable=True),
-    sa.Column('completed_at', sa.DateTime(), nullable=True),
-    sa.Column('result', sa.JSON(), nullable=True),
-    sa.Column('error', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ),
+    sa.Column('start_time', sa.DateTime(), nullable=True),
+    sa.Column('end_time', sa.DateTime(), nullable=True),
+    sa.Column('error_log', sa.Text(), nullable=True),
+    sa.Column('performance_metrics', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workflow_executions_id'), 'workflow_executions', ['id'], unique=False)
@@ -670,91 +648,6 @@ def upgrade() -> None:
     op.create_index('ix_workflow_step_order', 'workflow_steps', ['workflow_id', 'step_order'], unique=True)
     op.create_index('ix_workflow_step_workflow_id', 'workflow_steps', ['workflow_id'], unique=False)
     op.create_index(op.f('ix_workflow_steps_id'), 'workflow_steps', ['id'], unique=False)
-    op.create_table('tasks',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('title', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('status', sa.Enum('TODO', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'BLOCKED', 'UNDER_REVIEW', 'DEFERRED', name='taskstatus'), nullable=False),
-    sa.Column('priority', sa.Enum('LOW', 'MEDIUM', 'HIGH', 'URGENT', name='taskpriority'), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('creator_id', sa.Integer(), nullable=False),
-    sa.Column('assignee_id', sa.Integer(), nullable=True),
-    sa.Column('reviewer_id', sa.Integer(), nullable=True),
-    sa.Column('category_id', sa.Integer(), nullable=True),
-    sa.Column('parent_task_id', sa.Integer(), nullable=True),
-    sa.Column('estimated_hours', sa.Float(), nullable=True),
-    sa.Column('actual_hours', sa.Float(), nullable=True),
-    sa.Column('confidence_score', sa.Float(), nullable=True),
-    sa.Column('completed_at', sa.DateTime(), nullable=True),
-    sa.Column('due_date', sa.DateTime(), nullable=True),
-    sa.Column('organization_id', sa.Integer(), nullable=False),
-    sa.Column('project_id', sa.Integer(), nullable=False),
-    sa.Column('workflow_id', sa.Integer(), nullable=True),
-    sa.Column('dependencies', sa.JSON(), nullable=True),
-    sa.Column('current_workflow_step_id', sa.Integer(), nullable=True),
-    sa.Column('ai_suggestions', sa.JSON(), nullable=True),
-    sa.Column('complexity_score', sa.Float(), nullable=True),
-    sa.Column('time_spent', sa.Integer(), nullable=True),
-    sa.Column('time_estimates', sa.JSON(), nullable=True),
-    sa.Column('focus_sessions', sa.JSON(), nullable=True),
-    sa.Column('interruption_logs', sa.JSON(), nullable=True),
-    sa.Column('progress_metrics', sa.JSON(), nullable=True),
-    sa.Column('blockers', sa.JSON(), nullable=True),
-    sa.Column('health_score', sa.Float(), nullable=True),
-    sa.Column('risk_factors', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['assignee_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['category_id'], ['task_categories.id'], ),
-    sa.ForeignKeyConstraint(['creator_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['current_workflow_step_id'], ['workflow_steps.id'], ),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ),
-    sa.ForeignKeyConstraint(['parent_task_id'], ['tasks.id'], ),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['reviewer_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_task_assignee_id', 'tasks', ['assignee_id'], unique=False)
-    op.create_index('ix_task_category_id', 'tasks', ['category_id'], unique=False)
-    op.create_index('ix_task_created_at', 'tasks', ['created_at'], unique=False)
-    op.create_index('ix_task_creator_id', 'tasks', ['creator_id'], unique=False)
-    op.create_index('ix_task_due_date', 'tasks', ['due_date'], unique=False)
-    op.create_index('ix_task_health_score', 'tasks', ['health_score'], unique=False)
-    op.create_index('ix_task_organization_id', 'tasks', ['organization_id'], unique=False)
-    op.create_index('ix_task_priority', 'tasks', ['priority'], unique=False)
-    op.create_index('ix_task_project_id', 'tasks', ['project_id'], unique=False)
-    op.create_index('ix_task_status', 'tasks', ['status'], unique=False)
-    op.create_index('ix_task_workflow_id', 'tasks', ['workflow_id'], unique=False)
-    op.create_index(op.f('ix_tasks_id'), 'tasks', ['id'], unique=False)
-    op.create_index(op.f('ix_tasks_project_id'), 'tasks', ['project_id'], unique=False)
-    op.create_index(op.f('ix_tasks_title'), 'tasks', ['title'], unique=False)
-    op.create_index(op.f('ix_tasks_workflow_id'), 'tasks', ['workflow_id'], unique=False)
-    op.create_table('workflow_step_executions',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('execution_id', sa.Integer(), nullable=False),
-    sa.Column('step_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.String(length=50), nullable=True),
-    sa.Column('started_at', sa.DateTime(), nullable=True),
-    sa.Column('completed_at', sa.DateTime(), nullable=True),
-    sa.Column('result', sa.JSON(), nullable=True),
-    sa.Column('error', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['execution_id'], ['workflow_executions.id'], ),
-    sa.ForeignKeyConstraint(['step_id'], ['workflow_steps.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_workflow_step_executions_id'), 'workflow_step_executions', ['id'], unique=False)
-    op.create_table('workflow_transitions',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('from_step_id', sa.Integer(), nullable=True),
-    sa.Column('to_step_id', sa.Integer(), nullable=True),
-    sa.Column('conditions', sa.JSON(), nullable=True),
-    sa.Column('triggers', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['from_step_id'], ['workflow_steps.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['to_step_id'], ['workflow_steps.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_workflow_transitions_id'), 'workflow_transitions', ['id'], unique=False)
     op.create_table('task_attachments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('task_id', sa.Integer(), nullable=False),
@@ -769,11 +662,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['uploaded_by'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('ix_task_attachments_created_at', 'task_attachments', ['created_at'], unique=False)
-    op.create_index('ix_task_attachments_file_type', 'task_attachments', ['file_type'], unique=False)
     op.create_index(op.f('ix_task_attachments_id'), 'task_attachments', ['id'], unique=False)
-    op.create_index('ix_task_attachments_task_id', 'task_attachments', ['task_id'], unique=False)
-    op.create_index('ix_task_attachments_uploaded_by', 'task_attachments', ['uploaded_by'], unique=False)
     op.create_table('task_comments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('task_id', sa.Integer(), nullable=False),
@@ -811,7 +700,6 @@ def upgrade() -> None:
     sa.Column('old_value', sa.Text(), nullable=True),
     sa.Column('new_value', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('workflow_step_id', sa.Integer(), nullable=True),
     sa.Column('is_ai_generated', sa.Boolean(), nullable=True),
     sa.Column('ai_model_id', sa.Integer(), nullable=True),
     sa.Column('ai_confidence_score', sa.Float(), nullable=True),
@@ -820,7 +708,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['ai_model_id'], ['ai_models.id'], ),
     sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['workflow_step_id'], ['workflow_steps.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_task_history_created_at', 'task_history', ['created_at'], unique=False)
@@ -859,6 +746,18 @@ def upgrade() -> None:
     op.create_index('ix_todos_priority', 'todos', ['priority'], unique=False)
     op.create_index('ix_todos_status', 'todos', ['status'], unique=False)
     op.create_index('ix_todos_user_id', 'todos', ['user_id'], unique=False)
+    op.create_table('workflow_transitions',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('from_step_id', sa.Integer(), nullable=True),
+    sa.Column('to_step_id', sa.Integer(), nullable=True),
+    sa.Column('conditions', sa.JSON(), nullable=True),
+    sa.Column('triggers', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['from_step_id'], ['workflow_steps.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['to_step_id'], ['workflow_steps.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_workflow_transitions_id'), 'workflow_transitions', ['id'], unique=False)
     op.create_table('todo_history',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('todo_id', sa.Integer(), nullable=False),
@@ -879,6 +778,8 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_index(op.f('ix_todo_history_id'), table_name='todo_history')
     op.drop_table('todo_history')
+    op.drop_index(op.f('ix_workflow_transitions_id'), table_name='workflow_transitions')
+    op.drop_table('workflow_transitions')
     op.drop_index('ix_todos_user_id', table_name='todos')
     op.drop_index('ix_todos_status', table_name='todos')
     op.drop_index('ix_todos_priority', table_name='todos')
@@ -899,32 +800,8 @@ def downgrade() -> None:
     op.drop_index('ix_task_comments_created_at', table_name='task_comments')
     op.drop_index('ix_task_comments_ai_confidence_score', table_name='task_comments')
     op.drop_table('task_comments')
-    op.drop_index('ix_task_attachments_uploaded_by', table_name='task_attachments')
-    op.drop_index('ix_task_attachments_task_id', table_name='task_attachments')
     op.drop_index(op.f('ix_task_attachments_id'), table_name='task_attachments')
-    op.drop_index('ix_task_attachments_file_type', table_name='task_attachments')
-    op.drop_index('ix_task_attachments_created_at', table_name='task_attachments')
     op.drop_table('task_attachments')
-    op.drop_index(op.f('ix_workflow_transitions_id'), table_name='workflow_transitions')
-    op.drop_table('workflow_transitions')
-    op.drop_index(op.f('ix_workflow_step_executions_id'), table_name='workflow_step_executions')
-    op.drop_table('workflow_step_executions')
-    op.drop_index(op.f('ix_tasks_workflow_id'), table_name='tasks')
-    op.drop_index(op.f('ix_tasks_title'), table_name='tasks')
-    op.drop_index(op.f('ix_tasks_project_id'), table_name='tasks')
-    op.drop_index(op.f('ix_tasks_id'), table_name='tasks')
-    op.drop_index('ix_task_workflow_id', table_name='tasks')
-    op.drop_index('ix_task_status', table_name='tasks')
-    op.drop_index('ix_task_project_id', table_name='tasks')
-    op.drop_index('ix_task_priority', table_name='tasks')
-    op.drop_index('ix_task_organization_id', table_name='tasks')
-    op.drop_index('ix_task_health_score', table_name='tasks')
-    op.drop_index('ix_task_due_date', table_name='tasks')
-    op.drop_index('ix_task_creator_id', table_name='tasks')
-    op.drop_index('ix_task_created_at', table_name='tasks')
-    op.drop_index('ix_task_category_id', table_name='tasks')
-    op.drop_index('ix_task_assignee_id', table_name='tasks')
-    op.drop_table('tasks')
     op.drop_index(op.f('ix_workflow_steps_id'), table_name='workflow_steps')
     op.drop_index('ix_workflow_step_workflow_id', table_name='workflow_steps')
     op.drop_index('ix_workflow_step_order', table_name='workflow_steps')
@@ -932,6 +809,20 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_workflow_executions_id'), table_name='workflow_executions')
     op.drop_table('workflow_executions')
     op.drop_table('workflow_agent_links')
+    op.drop_index(op.f('ix_tasks_workflow_id'), table_name='tasks')
+    op.drop_index(op.f('ix_tasks_title'), table_name='tasks')
+    op.drop_index(op.f('ix_tasks_project_id'), table_name='tasks')
+    op.drop_index(op.f('ix_tasks_id'), table_name='tasks')
+    op.drop_index('ix_task_status', table_name='tasks')
+    op.drop_index('ix_task_project_id', table_name='tasks')
+    op.drop_index('ix_task_priority', table_name='tasks')
+    op.drop_index('ix_task_organization_id', table_name='tasks')
+    op.drop_index('ix_task_due_date', table_name='tasks')
+    op.drop_index('ix_task_creator_id', table_name='tasks')
+    op.drop_index('ix_task_created_at', table_name='tasks')
+    op.drop_index('ix_task_category_id', table_name='tasks')
+    op.drop_index('ix_task_assignee_id', table_name='tasks')
+    op.drop_table('tasks')
     op.drop_index('ix_security_audit_logs_user_id', table_name='security_audit_logs')
     op.drop_index('ix_security_audit_logs_risk_score', table_name='security_audit_logs')
     op.drop_index('ix_security_audit_logs_ip_address', table_name='security_audit_logs')
@@ -939,10 +830,7 @@ def downgrade() -> None:
     op.drop_index('ix_security_audit_logs_event_type', table_name='security_audit_logs')
     op.drop_index('ix_security_audit_logs_created_at', table_name='security_audit_logs')
     op.drop_table('security_audit_logs')
-    op.drop_index('ix_payments_transaction_id', table_name='payments')
-    op.drop_index('ix_payments_subscription_id', table_name='payments')
-    op.drop_index('ix_payments_status', table_name='payments')
-    op.drop_index('ix_payments_payment_date', table_name='payments')
+    op.drop_table('project_members')
     op.drop_index(op.f('ix_payments_id'), table_name='payments')
     op.drop_table('payments')
     op.drop_index('ix_meeting_notes_user_id', table_name='meeting_notes')
@@ -952,12 +840,11 @@ def downgrade() -> None:
     op.drop_table('meeting_notes')
     op.drop_index(op.f('ix_agent_feedback_id'), table_name='agent_feedback')
     op.drop_table('agent_feedback')
+    op.drop_index(op.f('ix_workflows_name'), table_name='workflows')
     op.drop_index(op.f('ix_workflows_id'), table_name='workflows')
-    op.drop_index('ix_workflow_type', table_name='workflows')
-    op.drop_index('ix_workflow_success_rate', table_name='workflows')
+    op.drop_index('ix_workflow_version', table_name='workflows')
     op.drop_index('ix_workflow_status', table_name='workflows')
-    op.drop_index('ix_workflow_organization_id', table_name='workflows')
-    op.drop_index('ix_workflow_optimization_score', table_name='workflows')
+    op.drop_index('ix_workflow_created_by', table_name='workflows')
     op.drop_index('ix_workflow_created_at', table_name='workflows')
     op.drop_table('workflows')
     op.drop_index('ix_workspace_settings_user_id', table_name='user_workspace_settings')
@@ -966,21 +853,19 @@ def downgrade() -> None:
     op.drop_table('user_roles')
     op.drop_index(op.f('ix_user_preferences_id'), table_name='user_preferences')
     op.drop_table('user_preferences')
+    op.drop_index(op.f('ix_task_categories_id'), table_name='task_categories')
+    op.drop_table('task_categories')
     op.drop_index('ix_system_logs_user_id', table_name='system_logs')
     op.drop_index('ix_system_logs_level', table_name='system_logs')
     op.drop_index(op.f('ix_system_logs_id'), table_name='system_logs')
     op.drop_index('ix_system_logs_created_at', table_name='system_logs')
     op.drop_index('ix_system_logs_category', table_name='system_logs')
     op.drop_table('system_logs')
-    op.drop_index('ix_subscriptions_user_id', table_name='subscriptions')
-    op.drop_index('ix_subscriptions_status', table_name='subscriptions')
-    op.drop_index('ix_subscriptions_plan_id', table_name='subscriptions')
     op.drop_index(op.f('ix_subscriptions_id'), table_name='subscriptions')
-    op.drop_index('ix_subscriptions_expires_at', table_name='subscriptions')
     op.drop_table('subscriptions')
     op.drop_index('ix_sessions_user_id', table_name='sessions')
-    op.drop_index('ix_sessions_token', table_name='sessions')
     op.drop_index('ix_sessions_status', table_name='sessions')
+    op.drop_index(op.f('ix_sessions_session_token'), table_name='sessions')
     op.drop_index('ix_sessions_last_activity', table_name='sessions')
     op.drop_index(op.f('ix_sessions_id'), table_name='sessions')
     op.drop_index('ix_sessions_expires_at', table_name='sessions')
@@ -990,9 +875,16 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_rag_queries_id'), table_name='rag_queries')
     op.drop_index('ix_rag_queries_created_at', table_name='rag_queries')
     op.drop_table('rag_queries')
-    op.drop_table('project_members')
+    op.drop_index('uq_project_org_name', table_name='projects')
+    op.drop_index(op.f('ix_projects_organization_id'), table_name='projects')
+    op.drop_index(op.f('ix_projects_id'), table_name='projects')
+    op.drop_index('ix_project_organization_id', table_name='projects')
+    op.drop_index('ix_project_name', table_name='projects')
+    op.drop_index('ix_project_created_at', table_name='projects')
+    op.drop_table('projects')
     op.drop_index('ix_productivity_metrics_user_id', table_name='productivity_metrics')
     op.drop_index(op.f('ix_productivity_metrics_id'), table_name='productivity_metrics')
+    op.drop_index('ix_productivity_metrics_focus_score', table_name='productivity_metrics')
     op.drop_index('ix_productivity_metrics_date', table_name='productivity_metrics')
     op.drop_table('productivity_metrics')
     op.drop_index('ix_knowledge_base_user_id', table_name='knowledge_base')
@@ -1000,14 +892,13 @@ def downgrade() -> None:
     op.drop_index('ix_knowledge_base_entity_name', table_name='knowledge_base')
     op.drop_table('knowledge_base')
     op.drop_index(op.f('ix_files_id'), table_name='files')
-    op.drop_index('ix_file_user_id', table_name='files')
-    op.drop_index('ix_file_type', table_name='files')
-    op.drop_index('ix_file_created_at', table_name='files')
     op.drop_table('files')
-    op.drop_index('ix_emotional_intelligence_user_id', table_name='emotional_intelligence')
-    op.drop_index('ix_emotional_intelligence_timestamp', table_name='emotional_intelligence')
-    op.drop_index(op.f('ix_emotional_intelligence_id'), table_name='emotional_intelligence')
-    op.drop_table('emotional_intelligence')
+    op.drop_index('ix_emotional_metrics_wellness_score', table_name='emotional_metrics')
+    op.drop_index('ix_emotional_metrics_user_id', table_name='emotional_metrics')
+    op.drop_index('ix_emotional_metrics_timestamp', table_name='emotional_metrics')
+    op.drop_index('ix_emotional_metrics_stress_level', table_name='emotional_metrics')
+    op.drop_index(op.f('ix_emotional_metrics_id'), table_name='emotional_metrics')
+    op.drop_table('emotional_metrics')
     op.drop_index('ix_email_organization_user_id', table_name='email_organization')
     op.drop_index(op.f('ix_email_organization_id'), table_name='email_organization')
     op.drop_table('email_organization')
@@ -1042,25 +933,12 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_index('ix_user_username', table_name='users')
-    op.drop_index('ix_user_phone_number', table_name='users')
-    op.drop_index('ix_user_organization_id', table_name='users')
     op.drop_index('ix_user_last_login', table_name='users')
     op.drop_index('ix_user_email', table_name='users')
     op.drop_index('ix_user_created_at', table_name='users')
     op.drop_index('ix_user_account_locked_until', table_name='users')
     op.drop_table('users')
-    op.drop_index(op.f('ix_task_categories_id'), table_name='task_categories')
-    op.drop_table('task_categories')
-    op.drop_index('uq_project_org_name', table_name='projects')
-    op.drop_index(op.f('ix_projects_organization_id'), table_name='projects')
-    op.drop_index(op.f('ix_projects_id'), table_name='projects')
-    op.drop_index('ix_project_organization_id', table_name='projects')
-    op.drop_index('ix_project_name', table_name='projects')
-    op.drop_index('ix_project_created_at', table_name='projects')
-    op.drop_table('projects')
-    op.drop_index('ix_subscription_plans_name', table_name='subscription_plans')
     op.drop_index(op.f('ix_subscription_plans_id'), table_name='subscription_plans')
-    op.drop_index('ix_subscription_plans_created_at', table_name='subscription_plans')
     op.drop_table('subscription_plans')
     op.drop_index(op.f('ix_roles_name'), table_name='roles')
     op.drop_index(op.f('ix_roles_id'), table_name='roles')

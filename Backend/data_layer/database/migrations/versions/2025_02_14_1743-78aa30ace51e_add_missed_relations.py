@@ -1,8 +1,8 @@
-"""add workflow and task relationships
+"""add missed relations
 
-Revision ID: 5c3154803e74
-Revises: 1f71fa09e25e
-Create Date: 2025-02-19 20:23:38.946464+00:00
+Revision ID: 78aa30ace51e
+Revises: c6855ead97c2
+Create Date: 2025-02-14 17:43:25.499673+00:00
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '5c3154803e74'
-down_revision: Union[str, None] = '1f71fa09e25e'
+revision: str = '78aa30ace51e'
+down_revision: Union[str, None] = 'c6855ead97c2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
