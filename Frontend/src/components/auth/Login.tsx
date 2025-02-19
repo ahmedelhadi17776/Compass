@@ -27,9 +27,6 @@ import { useToast } from "@/components/ui/use-toast"
 import InfiniteScroll from '@/components/ui/infinitescrolling'
 import TitleBar from '@/components/layout/AuthTitleBar';
 import { useTheme } from '@/contexts/theme-provider';
-import { useAuth } from '@/hooks/useAuth';
-import { useMutation } from '@tanstack/react-query';
-import authApi, { LoginCredentials } from '@/api/auth';
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   onLogin?: () => void;
@@ -54,18 +51,13 @@ const FeatureCard = ({ icon: Icon, title, description }: {
 );
 
 export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast } = useToast()
+  const navigate = useNavigate()
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   const [isLoading, setIsLoading] = React.useState<boolean>(false)
   const [showPassword, setShowPassword] = React.useState<boolean>(false)
   const [rememberMe, setRememberMe] = React.useState<boolean>(false)
-  const [formData, setFormData] = React.useState({
-    username: '',
-    password: '',
-  });
 
   const items = [
     {
@@ -119,29 +111,20 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
     },
   ];
 
-  const loginMutation = useMutation({
-    mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
-    onSuccess: (data) => {
-      localStorage.setItem('token', data.access_token);
-      navigate('/dashboard', { replace: true });
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setIsLoading(true)
+
+    setTimeout(() => {
+      setIsLoading(false)
+      localStorage.setItem('isAuthenticated', 'true')
+      onLogin?.()
       toast({
         title: "Success",
         description: "You have successfully logged in.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.response?.data?.detail || "Login failed",
-        variant: "destructive",
-      });
-    }
-  });
-
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    
-    loginMutation.mutate(formData);
+      })
+      navigate("/dashboard")
+    }, 1000)
   }
 
   return (
@@ -183,14 +166,16 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
             <form onSubmit={onSubmit}>
               <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email/Username</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
-                    type="text"
-                    placeholder="Enter your email or username"
-                    value={formData.username}
-                    onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                    disabled={loginMutation.isPending}
+                    type="email"
+                    placeholder="Enter your email"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect="off"
+                    disabled={isLoading}
+                    className="bg-background/10"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -200,9 +185,8 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
-                      value={formData.password}
-                      onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                      disabled={loginMutation.isPending}
+                      disabled={isLoading}
+                      className="bg-background/10"
                     />
                     <Button
                       type="button"
@@ -243,11 +227,11 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                 <Button 
                   className="w-full bg-foreground text-background hover:bg-foreground/90" 
                   type="submit" 
-                  disabled={loginMutation.isPending}
+                  disabled={isLoading}
                 >
-                  {loginMutation.isPending ? (
+                  {isLoading && (
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-                  ) : null}
+                  )}
                   Sign in
                 </Button>
               </CardFooter>
