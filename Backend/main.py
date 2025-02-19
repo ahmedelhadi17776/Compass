@@ -13,6 +13,7 @@ from Backend.api.auth import router as auth_router
 from Backend.api.roles import router as role_router
 from Backend.api.workflows import router as workflow_router
 from datetime import datetime
+from fastapi.middleware.cors import CORSMiddleware
 
 # ✅ Set up structured logging
 setup_logging()
@@ -67,6 +68,15 @@ app = FastAPI(
 
 # ✅ Middleware
 app.add_middleware(RateLimiterMiddleware)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ✅ Include API Routes
 app.include_router(api_router)

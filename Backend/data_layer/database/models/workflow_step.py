@@ -31,6 +31,8 @@ class WorkflowStep(Base):
         "WorkflowTransition", foreign_keys="[WorkflowTransition.from_step_id]", back_populates="from_step")
     transitions_to = relationship(
         "WorkflowTransition", foreign_keys="[WorkflowTransition.to_step_id]", back_populates="to_step")
+    current_tasks = relationship(
+        "Task", back_populates="current_workflow_step")
 
     __table_args__ = (
         Index("ix_workflow_step_workflow_id", "workflow_id"),

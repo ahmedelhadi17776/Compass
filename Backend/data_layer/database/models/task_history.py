@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, JSON, Text, Boolean, Float, Index
 from sqlalchemy.orm import relationship
+from Backend.app.schemas import workflow
 from Backend.data_layer.database.models.base import Base
 import datetime
 
@@ -15,6 +16,7 @@ class TaskHistory(Base):
     new_value = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
+    workflow_step_id = Column(Integer, ForeignKey("workflow_steps.id"))
     # AI-specific fields
     is_ai_generated = Column(Boolean, default=False)  # Whether the change was made by AI
     ai_model_id = Column(Integer, ForeignKey("ai_models.id"))  # Which AI model made the change
@@ -24,6 +26,7 @@ class TaskHistory(Base):
 
     # Relationships
     task = relationship("Task", back_populates="history")
+    workflow_step = relationship("WorkflowStep", foreign_keys=[workflow_step_id])
     user = relationship("User", foreign_keys=[user_id])
     ai_model = relationship("AIModel", foreign_keys=[ai_model_id])
 
