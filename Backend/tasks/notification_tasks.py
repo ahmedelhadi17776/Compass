@@ -29,7 +29,15 @@ def send_notification(
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
+        result = {
+            "status": "error",
+            "user_id": user_id,
+            "notification_type": notification_type,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
         send_notification.retry(exc=e)
+        return result
 
 
 @celery_app.task(

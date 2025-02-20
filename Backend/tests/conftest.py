@@ -86,8 +86,8 @@ async def create_test_database():
         # Connect to default database to create test database
         conn = await asyncpg.connect(
             user='postgres',
-            password='1357997531',
-            database='postgres',
+            password='0502747598',
+            database='compass_test',
             host='localhost',
             port=5432
         )

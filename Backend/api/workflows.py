@@ -37,7 +37,7 @@ async def create_workflow(
     repo = WorkflowRepository(db)
     service = WorkflowService(repo)
     result = await service.create_workflow(
-        user_id=workflow.user_id,
+        creator_id=workflow.user_id,
         organization_id=workflow.organization_id,
         name=workflow.name,
         description=workflow.description,
