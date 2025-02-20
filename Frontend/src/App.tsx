@@ -48,6 +48,13 @@ function App() {
                         <Routes>
                           <Route index element={<Navigate to="/dashboard" replace />} />
                           <Route path="dashboard" element={<Dashboard />} />
+                          <Route path="tasks" element={<Tasks />} />
+                          <Route path="calendar" element={<Calendar />} />
+                          <Route path="ai" element={<AIAssistant />} />
+                          <Route path="focus" element={<FocusMode />} />
+                          <Route path="files" element={<FileManager />} />
+                          <Route path="health" element={<HealthDashboard />} />
+                          <Route path="workflow" element={<Workflow />} />
                         </Routes>
                       </main>
                     </SidebarInset>

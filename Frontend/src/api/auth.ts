@@ -58,6 +58,17 @@ const authApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
+
+  updateUser: async (token: string, userData: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  }): Promise<User> => {
+    const response = await axios.patch(`${API_URL}/auth/me`, userData, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  },
 };
 
 export default authApi; 
