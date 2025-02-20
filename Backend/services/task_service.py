@@ -67,7 +67,6 @@ class TaskService:
     async def update_task(
         self,
         task_id: int,
-        user_id: int,
         title: Optional[str] = None,
         description: Optional[str] = None,
         status: Optional[TaskStatus] = None,
@@ -78,7 +77,8 @@ class TaskService:
         due_date: Optional[datetime] = None,
         actual_hours: Optional[float] = None,
         progress_metrics: Optional[Dict] = None,
-        blockers: Optional[Dict] = None
+        blockers: Optional[Dict] = None,
+        user_id: int
     ) -> Dict:
         task = await self.repository.get_task(task_id)
         if not task:
@@ -108,16 +108,11 @@ class TaskService:
             "health_score": health_score
         }
 
-        # If task is completed and wasn't completed before, set completed_at
-        current_status = TaskStatus(task.status.value)
-        if status == TaskStatus.COMPLETED and current_status != TaskStatus.COMPLETED:
+        # If task is completed, set completed_at
+        if status == TaskStatus.COMPLETED and task.status != TaskStatus.COMPLETED:
             updates["completed_at"] = datetime.utcnow()
 
-        # Update task with the changes
-        updated_task = await self.repository.update_task(task_id, {k: v for k, v in updates.items() if v is not None})
-
-        # Get the final status value
-        final_status = status if status else current_status
+        await self.repository.update_task(task_id, updates)
 
         # Record task history
         history = TaskHistory(
@@ -131,7 +126,7 @@ class TaskService:
 
         return {
             "task_id": task_id,
-            "status": final_status,
+            "status": status or task.status,
             "health_score": health_score
         }
 
@@ -167,28 +162,7 @@ class TaskService:
         task = await self.repository.get_task_with_details(task_id)
         if not task:
             raise TaskNotFoundError(f"Task {task_id} not found")
-
-        # Convert task model to dictionary
-        return {
-            "id": task.id,
-            "title": task.title,
-            "description": task.description,
-            "status": task.status,
-            "priority": task.priority,
-            "created_at": task.created_at,
-            "updated_at": task.updated_at,
-            "creator_id": task.creator_id,
-            "assignee_id": task.assignee_id,
-            "reviewer_id": task.reviewer_id,
-            "project_id": task.project_id,
-            "organization_id": task.organization_id,
-            "workflow_id": task.workflow_id,
-            "current_workflow_step_id": task.current_workflow_step_id,
-            "health_score": task.health_score,
-            "attachments": [{"id": a.id, "file_name": a.file_name} for a in task.attachments],
-            "comments": [{"id": c.id, "content": c.content} for c in task.comments],
-            "history": [{"id": h.id, "action": h.action} for h in task.history]
-        }
+        return task
 
     async def get_task_metrics(self, task_id: int) -> Dict:
         """Get task metrics including time tracking and progress."""

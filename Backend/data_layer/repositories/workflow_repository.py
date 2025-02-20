@@ -49,7 +49,7 @@ class WorkflowRepository:
                 joinedload(Workflow.agent_links)
             )
         )
-        return result.unique().scalar_one_or_none()
+        return result.scalar_one_or_none()
 
     async def get_workflow_step(self, step_id: int) -> Optional[WorkflowStep]:
         """Get a workflow step by ID."""

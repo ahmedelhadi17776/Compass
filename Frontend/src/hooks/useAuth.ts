@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import authApi, { LoginCredentials, User } from '@/api/auth';
 import React from 'react';
 
+// This is a custom hook that combines React Query with auth functionality
 export function useAuth() {
   const queryClient = useQueryClient();
   const [token, setToken] = React.useState<string | null>(localStorage.getItem('token'));
@@ -33,12 +34,24 @@ export function useAuth() {
     },
   });
 
+  const updateUser = useMutation({
+    mutationFn: (userData: {
+      first_name: string
+      last_name: string
+      email: string
+    }) => authApi.updateUser(token!, userData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+    },
+  });
+
   return {
     user,
     login,
     logout,
+    updateUser,
     isAuthenticated: !!token,
     isLoadingUser,
-    queryClient
+    queryClient,
   };
 } 

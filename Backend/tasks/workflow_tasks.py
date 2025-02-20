@@ -25,8 +25,7 @@ def execute_workflow_step(
     workflow_id: int,
     step_id: int,
     input_data: Dict,
-    user_id: int,
-    execution_id: Optional[int] = None
+    user_id: int
 ) -> Dict:
     """
     Execute a single workflow step asynchronously.
@@ -37,21 +36,11 @@ def execute_workflow_step(
             "status": StepStatus.SUCCESS,
             "workflow_id": workflow_id,
             "step_id": step_id,
-            "execution_id": execution_id,
             "result": "Step executed successfully",
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        result = {
-            "status": StepStatus.FAILED,
-            "workflow_id": workflow_id,
-            "step_id": step_id,
-            "execution_id": execution_id,
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
         execute_workflow_step.retry(exc=e)
-        return result
 
 
 @celery_app.task(

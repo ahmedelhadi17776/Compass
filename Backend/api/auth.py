@@ -8,7 +8,7 @@ from Backend.services.auth_service import AuthService
 from Backend.data_layer.repositories.user_repository import UserRepository
 from Backend.data_layer.repositories.session_repository import SessionRepository
 from Backend.app.schemas.auth import Token, UserCreate, TokenData
-from Backend.app.schemas.user import UserResponse
+from Backend.app.schemas.user import UserResponse, UserUpdate
 from Backend.data_layer.database.models.session import Session
 from Backend.data_layer.database.models.user import User
 from Backend.core.config import settings
@@ -135,3 +135,13 @@ async def refresh_token(
         "access_token": session.token,
         "token_type": "bearer"
     }
+
+
+@router.patch("/me", response_model=UserResponse, tags=["auth"])
+async def update_user(
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Update current user information"""
+    return await auth_service.update_user(current_user.id, user_data)

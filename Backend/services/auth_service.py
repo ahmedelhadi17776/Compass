@@ -5,7 +5,7 @@ from Backend.data_layer.repositories.user_repository import UserRepository
 from Backend.data_layer.repositories.session_repository import SessionRepository
 from Backend.core.config import settings
 from Backend.app.schemas.auth import TokenData, UserCreate
-from Backend.app.schemas.user import UserResponse
+from Backend.app.schemas.user import UserResponse, UserUpdate
 from Backend.utils.security_utils import hash_password, create_access_token, verify_password
 from Backend.data_layer.database.models.user import User
 from Backend.data_layer.database.models.session import Session, SessionStatus
@@ -22,19 +22,9 @@ class AuthService:
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
         user = await self.user_repository.get_by_username(username)
         if not user:
-            print(f"🔴 User not found: {username}")
             return None
-
-        if not user.is_active:
-            print(f"🔴 User account is not active: {username}")
-            return None
-
         if not verify_password(password, user.password_hash):
-            print(f"🔴 Invalid password for user: {username}")
-            # Update failed login attempts if needed
             return None
-
-        print(f"✅ User authenticated successfully: {username}")
         return user
 
     async def register_user(self, user_create: UserCreate) -> UserResponse:
@@ -89,3 +79,35 @@ class AuthService:
 
     async def get_user_sessions(self, user_id: int):
         return await self.session_repository.get_user_sessions(user_id)
+
+    async def update_user(self, user_id: int, user_data: UserUpdate) -> User:
+        """Update user information"""
+        # Get existing user
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # If email is being updated, check it's not taken
+        if user_data.email and user_data.email != user.email:
+            existing_user = await self.user_repository.get_by_email(user_data.email)
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered"
+                )
+
+        # Update user
+        try:
+            updated_user = await self.user_repository.update(
+                user_id=user_id,
+                update_data=user_data.model_dump(exclude_unset=True)
+            )
+            return updated_user
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update user: {str(e)}"
+            )

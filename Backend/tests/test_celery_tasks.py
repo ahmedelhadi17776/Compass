@@ -4,7 +4,6 @@ from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_
 from Backend.tasks.notification_tasks import send_notification
 from Backend.core.celery_app import celery_app
 import asyncio
-from sqlalchemy import inspect
 
 
 @pytest.fixture(autouse=True)
@@ -27,11 +26,9 @@ async def test_execute_workflow_step():
     )
     assert result.successful()
     data = result.get()
-
-    # Access dictionary values directly
-    assert data.get("status") == StepStatus.SUCCESS
-    assert data.get("workflow_id") == 1
-    assert data.get("step_id") == 1
+    assert data["status"] == StepStatus.SUCCESS
+    assert data["workflow_id"] == 1
+    assert data["step_id"] == 1
     assert "result" in data
     assert "timestamp" in data
 
@@ -57,16 +54,16 @@ async def test_process_workflow():
     assert result.successful()
     data = result.get()
 
-    # Verify initial response structure using dictionary access
-    assert data.get("workflow_id") == 1
-    assert data.get("status") == WorkflowStatus.ACTIVE.value
+    # Verify initial response structure
+    assert data["workflow_id"] == 1
+    assert data["status"] == WorkflowStatus.ACTIVE.value
     assert "task_id" in data
-    assert len(data.get("steps", [])) == 2
+    assert len(data["steps"]) == 2
 
-    # Verify each step is pending using safe dictionary access
-    for step in data.get("steps", []):
+    # Verify each step is pending
+    for step in data["steps"]:
         assert "step_id" in step
-        assert step.get("status") == StepStatus.PENDING
+        assert step["status"] == StepStatus.PENDING
 
 
 @pytest.mark.asyncio
@@ -79,9 +76,7 @@ async def test_process_text_analysis():
     )
     assert result.successful()
     data = result.get()
-
-    # Use dictionary access for safer value checking
-    assert data.get("status") == "success"
+    assert data["status"] == "success"
     assert "result" in data
     assert "timestamp" in data
 
@@ -95,12 +90,9 @@ async def test_generate_productivity_insights():
     )
     assert result.successful()
     data = result.get()
-
-    # Safe dictionary access for nested data
-    assert data.get("status") == "success"
+    assert data["status"] == "success"
     assert "insights" in data
-    insights = data.get("insights", [])
-    assert len(insights) == 2  # One for each metric
+    assert len(data["insights"]) == 2  # One for each metric
 
 
 @pytest.mark.asyncio
@@ -112,8 +104,6 @@ async def test_send_notification():
     )
     assert result.successful()
     data = result.get()
-
-    # Use safe dictionary access for all values
-    assert data.get("status") == "success"
-    assert data.get("user_id") == 1
+    assert data["status"] == "success"
+    assert data["user_id"] == 1
     assert "timestamp" in data

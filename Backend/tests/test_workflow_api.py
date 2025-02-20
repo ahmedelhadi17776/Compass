@@ -74,8 +74,9 @@ async def test_create_workflow(client: AsyncClient, db_session: AsyncSession, te
             {
                 "id": 1,
                 "name": "Step 1",
-                "step_type": "test",
-                "config": {"input": {}}
+                "type": "test",
+                "config": {},
+                "input": {}
             }
         ]
     }
@@ -93,10 +94,10 @@ async def test_create_workflow(client: AsyncClient, db_session: AsyncSession, te
     workflow = result.scalar_one()
 
     assert workflow is not None
-    assert workflow.__dict__['name'] == workflow_data["name"]
-    assert workflow.__dict__['created_by'] == test_user.id
-    assert workflow.__dict__['organization_id'] == test_org.id
-    assert workflow.__dict__['status'] == WorkflowStatus.PENDING.value
+    assert workflow.name == workflow_data["name"]
+    assert workflow.created_by == test_user.id
+    assert workflow.organization_id == test_org.id
+    assert workflow.status == WorkflowStatus.PENDING.value
 
 
 @pytest.mark.asyncio
@@ -113,8 +114,9 @@ async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSessi
             {
                 "id": 1,
                 "name": "Step 1",
-                "step_type": "test",
-                "config": {"input": {}}
+                "type": "test",
+                "config": {},
+                "input": {}
             }
         ]
     }
@@ -140,7 +142,7 @@ async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSessi
     workflow = result.scalar_one()
 
     assert workflow is not None
-    assert workflow.__dict__['status'] == WorkflowStatus.ACTIVE.value
+    assert workflow.status == WorkflowStatus.ACTIVE.value
 
 
 @pytest.mark.asyncio
@@ -157,8 +159,9 @@ async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession, t
             {
                 "id": 1,
                 "name": "Step 1",
-                "step_type": "test",
-                "config": {"input": {}}
+                "type": "test",
+                "config": {},
+                "input": {}
             }
         ]
     }
@@ -186,8 +189,8 @@ async def test_analyze_workflow(client: AsyncClient, db_session: AsyncSession, t
     workflow = result.scalar_one()
 
     assert workflow is not None
-    assert workflow.__dict__['workflow_metadata'] is not None
-    assert "analysis" in workflow.__dict__['workflow_metadata']
+    assert workflow.workflow_metadata is not None
+    assert "analysis" in workflow.workflow_metadata
 
 
 @pytest.mark.asyncio
@@ -204,8 +207,9 @@ async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession, te
             {
                 "id": 1,
                 "name": "Step 1",
-                "step_type": "test",
-                "config": {"input": {}}
+                "type": "test",
+                "config": {},
+                "input": {}
             }
         ]
     }
@@ -231,4 +235,4 @@ async def test_cancel_workflow(client: AsyncClient, db_session: AsyncSession, te
     workflow = result.scalar_one()
 
     assert workflow is not None
-    assert workflow.__dict__['status'] == WorkflowStatus.CANCELLED.value
+    assert workflow.status == WorkflowStatus.CANCELLED.value
