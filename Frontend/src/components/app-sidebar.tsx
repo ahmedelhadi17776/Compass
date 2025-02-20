@@ -3,24 +3,14 @@
 import * as React from "react"
 import {
   LayoutDashboard,
-  CheckSquare,
-  Calendar,
   Brain,
   Timer,
   FolderSearch,
-  Settings2,
   ListTodo,
-  GitMerge,
-  CalendarClock,
   AudioWaveform,
   Command,
   Mail,
   GalleryVerticalEnd,
-  MessageSquareText,
-  BarChart2,
-  FileSearch,
-  ClipboardList,
-  Bot
 } from "lucide-react"
 
 import { NavMain } from "../components/nav-main"
@@ -88,19 +78,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           },
           {
             title: "Task List",
-            url: "/dashboard/tasks",
+            url: "/tasks",
           },
           {
             title: "Calendar Overview",
-            url: "/dashboard/calendar",
+            url: "/calendar",
           },
           {
             title: "Productivity Insights",
-            url: "/dashboard/insights",
+            url: "/health",
           },
           {
             title: "Emotional Intelligence",
-            url: "/dashboard/wellness",
+            url: "/wellness",
           },
         ],
       },
@@ -134,7 +124,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: [
           {
             title: "Todo List",
-            url: "/tasks/create",
+            url: "/tasks",
           },
           {
             title: "Calendar View",
@@ -153,7 +143,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: [
           {
             title: "Chatbot",
-            url: "/ai/queries",
+            url: "/ai",
           },
           {
             title: "Reports & Insights",
@@ -186,12 +176,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       {
         title: "Focus",
-        url: "/productivity",
+        url: "/focus",
         icon: Timer,
         items: [
           {
             title: "Focus Mode",
-            url: "/productivity/focus",
+            url: "/focus",
           },
           {
             title: "Metrics",
@@ -210,7 +200,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: [
           {
             title: "Search & Retrieval",
-            url: "/files/search",
+            url: "/files",
           },
           {
             title: "Clipboard History",

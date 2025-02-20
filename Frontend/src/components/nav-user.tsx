@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  BadgeCheck,
   Bell,
   ChevronsUpDown,
   CreditCard,
@@ -33,6 +32,8 @@ import {
 import { useNavigate } from "react-router-dom"
 import { useAuth } from '@/hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
+import { SettingsForm } from "@/components/settings-form"
+import { useState } from "react"
 
 interface NavUserProps {
   user: {
@@ -48,6 +49,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
   const { logout, user: authUser } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [showSettings, setShowSettings] = useState(false)
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -121,7 +123,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setShowSettings(true)}>
                 <Settings />
                 Settings
               </DropdownMenuItem>
@@ -142,6 +144,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
+      <SettingsForm open={showSettings} onOpenChange={setShowSettings} />
     </SidebarMenu>
   )
 }
