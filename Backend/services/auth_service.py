@@ -22,9 +22,19 @@ class AuthService:
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
         user = await self.user_repository.get_by_username(username)
         if not user:
+            print(f"🔴 User not found: {username}")
             return None
+
+        if not user.is_active:
+            print(f"🔴 User account is not active: {username}")
+            return None
+
         if not verify_password(password, user.password_hash):
+            print(f"🔴 Invalid password for user: {username}")
+            # Update failed login attempts if needed
             return None
+
+        print(f"✅ User authenticated successfully: {username}")
         return user
 
     async def register_user(self, user_create: UserCreate) -> UserResponse:
