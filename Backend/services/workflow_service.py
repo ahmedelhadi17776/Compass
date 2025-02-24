@@ -4,7 +4,13 @@ from Backend.tasks.workflow_tasks import process_workflow, execute_workflow_step
 from Backend.tasks.notification_tasks import send_notification
 from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_insights
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
-from Backend.core.celery_app import celery_app
+from Backend.core.celery_app import (
+    create_workflow_task,
+    update_workflow_task,
+    delete_workflow_task,
+    get_workflows_task,
+    get_workflow_by_id_task
+)
 from Backend.data_layer.database.models.workflow import Workflow, WorkflowStatus, WorkflowType
 from Backend.data_layer.database.models.workflow_step import WorkflowStep
 from Backend.data_layer.database.models.workflow_execution import WorkflowExecution
@@ -34,25 +40,28 @@ class WorkflowService:
         tags: Optional[List[str]] = None
     ) -> Dict:
         """Create a new workflow with steps."""
-        workflow = await self.repository.create_workflow(
-            name=name,
-            description=description,
-            workflow_type=workflow_type,
-            created_by=creator_id,
-            organization_id=organization_id,
-            config=config or {},
-            status=WorkflowStatus.PENDING,
-            ai_enabled=ai_enabled,
-            ai_confidence_threshold=ai_confidence_threshold,
-            estimated_duration=estimated_duration,
-            deadline=deadline,
-            tags=tags or [],
-            workflow_metadata={
+        workflow_data = {
+            "name": name,
+            "description": description,
+            "workflow_type": workflow_type,
+            "created_by": creator_id,
+            "organization_id": organization_id,
+            "config": config or {},
+            "status": WorkflowStatus.PENDING,
+            "ai_enabled": ai_enabled,
+            "ai_confidence_threshold": ai_confidence_threshold,
+            "estimated_duration": estimated_duration,
+            "deadline": deadline,
+            "tags": tags or [],
+            "workflow_metadata": {
                 "created_at": datetime.utcnow().isoformat(),
                 "version": "1.0",
                 "creator_id": creator_id
             }
-        )
+        }
+
+        # Create workflow using Celery task
+        workflow = await create_workflow_task.delay(workflow_data=workflow_data)
 
         if steps:
             for step_data in steps:
@@ -76,7 +85,7 @@ class WorkflowService:
         input_data: Optional[Dict] = None
     ) -> Dict:
         """Execute a specific workflow step."""
-        workflow = await self.repository.get_workflow(workflow_id)
+        workflow = await get_workflow_by_id_task.delay(workflow_id=workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
@@ -85,7 +94,10 @@ class WorkflowService:
             raise ValueError(f"Step {step_id} not found")
 
         # Update workflow status to active
-        await self.repository.update_workflow_status(workflow_id, WorkflowStatus.ACTIVE.value)
+        await update_workflow_task.delay(
+            workflow_id=workflow_id,
+            updates={"status": WorkflowStatus.ACTIVE.value}
+        )
 
         # Create execution record
         execution = await self.repository.create_workflow_execution(
@@ -203,7 +215,7 @@ class WorkflowService:
         user_id: int
     ) -> Dict:
         """Update workflow configuration and metadata."""
-        workflow = await self.repository.update_workflow(workflow_id, updates)
+        workflow = await update_workflow_task.delay(workflow_id=workflow_id, updates=updates)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
@@ -219,14 +231,14 @@ class WorkflowService:
         user_id: int
     ) -> Dict:
         """Cancel a workflow and all its pending executions."""
-        workflow = await self.repository.get_workflow(workflow_id)
+        workflow = await get_workflow_by_id_task.delay(workflow_id=workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
         # Update workflow status
-        await self.repository.update_workflow(
-            workflow_id,
-            {"status": WorkflowStatus.CANCELLED}
+        await update_workflow_task.delay(
+            workflow_id=workflow_id,
+            updates={"status": WorkflowStatus.CANCELLED}
         )
 
         # Cancel any active executions
@@ -281,6 +293,7 @@ class WorkflowService:
         }
 
     async def get_task_status(self, task_id: str) -> Dict:
+        """Get the status of a Celery task."""
         result = AsyncResult(task_id)
         return {
             "task_id": task_id,

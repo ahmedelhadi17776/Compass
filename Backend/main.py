@@ -8,6 +8,7 @@ from Backend.core.logging import setup_logging
 from Backend.core.celery_app import celery_app
 from Backend.middleware.rate_limiter import RateLimiterMiddleware
 from Backend.api.routes import router as api_router
+from Backend.api.todo_routes import router as todo_router
 from sqlalchemy import text
 from Backend.api.auth import router as auth_router
 from Backend.api.roles import router as role_router
@@ -69,7 +70,7 @@ app = FastAPI(
 # ✅ Middleware
 app.add_middleware(RateLimiterMiddleware)
 
-#CORS middleware
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,6 +81,9 @@ app.add_middleware(
 
 # ✅ Include API Routes
 app.include_router(api_router)
+
+# Include Todo routes
+app.include_router(todo_router, prefix="/todos", tags=["todos"])
 
 # Include authentication endpoints
 app.include_router(auth_router, prefix="/auth")

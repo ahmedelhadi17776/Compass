@@ -1,5 +1,10 @@
-from celery import Celery
+from celery import Celery, shared_task
+from celery.signals import worker_init
 from Backend.core.config import settings
+from Backend.data_layer.database.connection import get_db
+from Backend.data_layer.database.models.task import Task
+from Backend.data_layer.database.session import get_db_session
+import asyncio
 
 # Create Celery instance
 celery_app = Celery(
@@ -48,7 +53,14 @@ celery_app.conf.update(
     redis_backend_use_ssl=False,  # Disable SSL for Redis in test mode
     redis_max_connections=None,  # No connection limit in test mode
     broker_connection_retry=True,  # Retry broker connections
-    broker_connection_max_retries=None  # Unlimited retries for broker connections
+    broker_connection_max_retries=None,  # Unlimited retries for broker connections
+    beat_schedule={
+        'check-task-dependencies': {
+            'task': 'tasks.task_tasks.check_dependencies',
+            'schedule': 300.0,  # Every 5 minutes
+            'args': None
+        }
+    }
 )
 
 # Configure task routing
@@ -68,3 +80,115 @@ celery_app.conf.task_annotations = {
     "tasks.email_tasks.send_email": {"rate_limit": "100/m"},
     "tasks.ai_tasks.*": {"rate_limit": "50/m"}
 }
+
+
+def run_async(coro):
+    created_loop = False
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        created_loop = True
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        if created_loop:
+            loop.close()
+
+
+@shared_task
+def create_todo_task(todo_data: dict):
+    async def _create():
+        async with get_db_session() as session:
+            todo = Task(**todo_data)
+            session.add(todo)
+            await session.commit()
+            await session.refresh(todo)
+            return todo
+    return run_async(_create())
+
+
+@shared_task
+def update_todo_task(todo_id, user_id, updates):
+    from Backend.data_layer.repositories.todo_repository import TodoRepository
+
+    async def _update():
+        async for db in get_db():
+            todo_repo = TodoRepository()
+            return await todo_repo.update(todo_id, user_id, **updates)
+    return run_async(_update())
+
+
+@shared_task
+def delete_todo_task(todo_id, user_id):
+    from Backend.data_layer.repositories.todo_repository import TodoRepository
+
+    async def _delete():
+        async for db in get_db():
+            todo_repo = TodoRepository()
+            return await todo_repo.delete(todo_id, user_id)
+    return run_async(_delete())
+
+
+@shared_task
+def get_todos(user_id):
+    from Backend.data_layer.repositories.todo_repository import TodoRepository
+
+    async def _get_todos():
+        async for db in get_db():
+            todo_repo = TodoRepository()
+            return await todo_repo.get_user_todos(user_id)
+    return run_async(_get_todos())
+
+
+@shared_task
+def get_todo_by_id(todo_id, user_id):
+    from Backend.data_layer.repositories.todo_repository import TodoRepository
+
+    async def _get_by_id():
+        async for db in get_db():
+            todo_repo = TodoRepository()
+            return await todo_repo.get_by_id(todo_id, user_id)
+    return run_async(_get_by_id())
+
+
+@shared_task
+async def create_workflow_task(workflow_data):
+    from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
+    async for db in get_db():
+        workflow_repo = WorkflowRepository(db)
+        return await workflow_repo.create_workflow(**workflow_data)
+
+
+@shared_task
+async def update_workflow_task(workflow_id, updates):
+    from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
+    async for db in get_db():
+        workflow_repo = WorkflowRepository(db)
+        return await workflow_repo.update_workflow(workflow_id, updates)
+
+
+@shared_task
+async def delete_workflow_task(workflow_id):
+    from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
+    async for db in get_db():
+        workflow_repo = WorkflowRepository(db)
+        # Implement delete logic here, assuming a delete_workflow method exists
+        return await workflow_repo.delete_workflow(workflow_id)
+
+
+@shared_task
+async def get_workflows_task(user_id):
+    from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
+    async for db in get_db():
+        workflow_repo = WorkflowRepository(db)
+        return await workflow_repo.get_user_workflows(user_id)
+
+
+@shared_task
+async def get_workflow_by_id_task(workflow_id):
+    from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
+    async for db in get_db():
+        workflow_repo = WorkflowRepository(db)
+        return await workflow_repo.get_workflow(workflow_id)

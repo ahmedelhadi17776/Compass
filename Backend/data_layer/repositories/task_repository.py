@@ -2,12 +2,18 @@ from typing import Dict, List, Optional, cast, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from Backend.data_layer.database.models.task import Task, TaskStatus
+from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
 from Backend.data_layer.database.models.task_history import TaskHistory
 from datetime import datetime
+from Backend.data_layer.repositories.base_repository import BaseRepository
+import logging
+from Backend.data_layer.database.connection import get_db
+import json
+
+logger = logging.getLogger(__name__)
 
 
-class TaskRepository:
+class TaskRepository(BaseRepository):
     def __init__(self, session: AsyncSession):
         self.session = session
 
@@ -21,10 +27,18 @@ class TaskRepository:
 
     async def get_task(self, task_id: int) -> Optional[Task]:
         """Get a task by ID."""
-        result = await self.session.execute(
-            select(Task).where(Task.id == task_id)
-        )
-        return result.scalar_one_or_none()
+        result = await self.session.execute(select(Task).where(Task.id == task_id))
+        task = result.scalar_one_or_none()
+        if task:
+            # Initialize dependencies from _dependencies_list
+            try:
+                deps = json.loads(task._dependencies_list) if task._dependencies_list else []
+                task.dependencies = deps
+                task.task_dependencies = deps  # Ensure both properties are set
+            except (json.JSONDecodeError, TypeError):
+                task.dependencies = []
+                task.task_dependencies = []
+        return task
 
     async def get_task_with_details(self, task_id: int) -> Optional[Task]:
         """Get a task with all its related details."""
@@ -41,15 +55,33 @@ class TaskRepository:
         )
         return result.scalar_one_or_none()
 
-    async def update_task(self, task_id: int, updates: Dict) -> Optional[Task]:
-        """Update a task."""
-        task = await self.get_task(task_id)
-        if task:
-            for key, value in updates.items():
-                if value is not None:  # Only update non-None values
+    async def update_task(self, task_id: int, task_data: dict) -> Task:
+        task = await self.session.get(Task, task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        for key, value in task_data.items():
+            if hasattr(task, key):
+                if key == 'dependencies':
+                    # Store dependencies both as a list and JSON string
+                    task.dependencies = value
+                    task._dependencies_list = json.dumps(value)
+                    task.task_dependencies = value  # Ensure task_dependencies is also set
+                elif key == '_dependencies_list':
+                    # Ensure _dependencies_list is always a JSON string
+                    task._dependencies_list = value if isinstance(value, str) else json.dumps(value)
+                    task.dependencies = json.loads(value if isinstance(value, str) else json.dumps(value))
+                    task.task_dependencies = task.dependencies  # Keep task_dependencies in sync
+                else:
                     setattr(task, key, value)
-            await self.session.commit()
-            await self.session.refresh(task)
+
+        await self.session.commit()
+        await self.session.refresh(task)
+        # Ensure dependencies are properly set after refresh
+        if task._dependencies_list:
+            deps = json.loads(task._dependencies_list)
+            task.dependencies = deps
+            task.task_dependencies = deps
         return task
 
     async def delete_task(self, task_id: int) -> bool:
@@ -66,13 +98,34 @@ class TaskRepository:
         project_id: int,
         skip: int = 0,
         limit: int = 100,
-        status: Optional[TaskStatus] = None
+        status: Optional[TaskStatus] = None,
+        priority: Optional[TaskPriority] = None,
+        assignee_id: Optional[int] = None,
+        creator_id: Optional[int] = None,
+        due_date_start: Optional[datetime] = None,
+        due_date_end: Optional[datetime] = None
     ) -> List[Task]:
         """Get tasks by project ID with optional filtering."""
         query = select(Task).where(Task.project_id == project_id)
+        
+        # Apply filters
         if status:
             query = query.where(Task.status == status)
+        if priority:
+            query = query.where(Task.priority == priority)
+        if assignee_id:
+            query = query.where(Task.assignee_id == assignee_id)
+        if creator_id:
+            query = query.where(Task.creator_id == creator_id)
+        if due_date_start:
+            query = query.where(Task.due_date >= due_date_start)
+        if due_date_end:
+            query = query.where(Task.due_date <= due_date_end)
+            
+        # Apply pagination
         query = query.offset(skip).limit(limit)
+        
+        # Execute query
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -127,3 +180,43 @@ class TaskRepository:
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def get_due_todos(self):
+        return await self.get_due_todos()
+
+    async def get_recurring_todos(self):
+        return await self.get_recurring_todos()
+
+    async def create_recurring_instance(self, original_todo, next_date):
+        return await self.create_recurring_instance(original_todo, next_date)
+
+    async def update_next_occurrence(self, todo_id: int, next_occurrence: datetime):
+        return await self.update_next_occurrence(todo_id, next_occurrence)
+
+    async def update_task_dependencies(self, task_id: int, dependencies: List[int]) -> bool:
+        """Update task dependencies."""
+        try:
+            task = await self.session.get(Task, task_id)
+            if not task:
+                return False
+
+            # Validate that all dependency tasks exist
+            for dep_id in dependencies:
+                dep_task = await self.get_task(dep_id)
+                if not dep_task:
+                    raise ValueError(f"Dependency task {dep_id} not found")
+
+            # Update dependencies - store both as list and JSON string
+            task.dependencies = dependencies
+            task._dependencies_list = json.dumps(dependencies)
+            task.task_dependencies = dependencies  # Ensure task_dependencies is also set
+            await self.session.commit()
+            await self.session.refresh(task)
+            # Ensure dependencies are properly set after refresh
+            task.dependencies = dependencies
+            task.task_dependencies = dependencies
+            return True
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error updating task dependencies: {str(e)}")
+            return False

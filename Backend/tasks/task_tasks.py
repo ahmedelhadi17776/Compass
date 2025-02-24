@@ -8,10 +8,29 @@ from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
 import logging
 import asyncio
-from typing import Dict, Any, cast
+from typing import Dict, Any, cast, Optional
 from sqlalchemy.sql.elements import ColumnElement
+import json
 
 logger = logging.getLogger(__name__)
+
+
+async def _update_task_with_error(task_id: int, error: Exception, step_id: Optional[int] = None):
+    """Common error handling for task updates."""
+    async with async_session() as session:
+        task_repo = TaskRepository(session)
+        blockers = {
+            "error": str(error),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        if step_id:
+            blockers["step_id"] = step_id
+
+        await task_repo.update_task(task_id, {
+            "status": TaskStatus.BLOCKED,
+            "blockers": blockers
+        })
+        await session.commit()
 
 
 @celery_app.task(
@@ -27,7 +46,6 @@ def process_task(task_id: int, user_id: int):
         async with async_session() as session:
             task_repo = TaskRepository(session)
 
-            # Get task and update status
             task = await task_repo.get_task(task_id)
             if not task:
                 raise ValueError(f"Task {task_id} not found")
@@ -49,43 +67,26 @@ def process_task(task_id: int, user_id: int):
             }
 
             # Update task with completion data
-            task_metrics = {}
-            if isinstance(task.progress_metrics, dict):
-                task_metrics = task.progress_metrics
+            task_metrics = task.progress_metrics if isinstance(task.progress_metrics, dict) else {}
             task_metrics.update({
                 "completed_at": datetime.utcnow().isoformat(),
                 "processing_result": result
             })
 
-            completion_updates = {
+            await task_repo.update_task(task_id, {
                 "status": TaskStatus.COMPLETED,
                 "completed_at": datetime.utcnow(),
                 "progress_metrics": task_metrics
-            }
-            await task_repo.update_task(task_id, completion_updates)
+            })
             await session.commit()
-
             return result
 
     try:
         return asyncio.run(_process())
     except Exception as e:
         logger.error(f"Error processing task {task_id}: {str(e)}")
-
-        async def _handle_error():
-            async with async_session() as session:
-                task_repo = TaskRepository(session)
-                await task_repo.update_task(task_id, {
-                    "status": TaskStatus.BLOCKED,
-                    "blockers": {
-                        "error": str(e),
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                })
-                await session.commit()
-
         try:
-            asyncio.run(_handle_error())
+            asyncio.run(_update_task_with_error(task_id, e))
         except:
             pass
         raise
@@ -105,7 +106,6 @@ def execute_task_step(task_id: int, workflow_step_id: int, user_id: int):
             task_repo = TaskRepository(session)
             workflow_repo = WorkflowRepository(session)
 
-            # Get task and workflow step
             task = await task_repo.get_task(task_id)
             if not task:
                 raise ValueError(f"Task {task_id} not found")
@@ -136,9 +136,7 @@ def execute_task_step(task_id: int, workflow_step_id: int, user_id: int):
             }
 
             # Update task with step completion
-            task_metrics = {}
-            if isinstance(task.progress_metrics, dict):
-                task_metrics = task.progress_metrics
+            task_metrics = task.progress_metrics if isinstance(task.progress_metrics, dict) else {}
             task_metrics.update({
                 "current_step": {
                     "id": workflow_step_id,
@@ -163,24 +161,54 @@ def execute_task_step(task_id: int, workflow_step_id: int, user_id: int):
     try:
         return asyncio.run(_execute())
     except Exception as e:
-        logger.error(
-            f"Error executing step {workflow_step_id} for task {task_id}: {str(e)}")
-
-        async def _handle_error():
-            async with async_session() as session:
-                task_repo = TaskRepository(session)
-                await task_repo.update_task(task_id, {
-                    "status": TaskStatus.BLOCKED,
-                    "blockers": {
-                        "error": str(e),
-                        "step_id": workflow_step_id,
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                })
-                await session.commit()
-
+        logger.error(f"Error executing step {workflow_step_id} for task {task_id}: {str(e)}")
         try:
-            asyncio.run(_handle_error())
+            asyncio.run(_update_task_with_error(task_id, e, workflow_step_id))
         except:
             pass
+        raise
+
+
+@celery_app.task(
+    name="tasks.task_tasks.check_dependencies",
+    queue="tasks",
+    priority=4
+)
+def check_dependencies(task_id: int):
+    """Check if all dependencies are completed for a task."""
+    async def _check():
+        async with async_session() as session:
+            task_repo = TaskRepository(session)
+            task = await task_repo.get_task(task_id)
+            if not task:
+                return False
+
+            # Safely get dependencies
+            deps_str = getattr(task, 'dependencies', None)
+            dependencies = json.loads(deps_str) if isinstance(deps_str, str) else []
+
+            if not dependencies:
+                return True  # No dependencies to check
+
+            # Check if all dependencies are completed
+            all_completed = True
+            for dep_id in dependencies:
+                dep_task = await task_repo.get_task(int(dep_id))
+                if not dep_task or getattr(dep_task, 'status', None) != TaskStatus.COMPLETED:
+                    all_completed = False
+                    break
+
+            if all_completed:
+                # Update task status if all dependencies are completed
+                await task_repo.update_task(task_id, {
+                    "status": TaskStatus.TODO,
+                    "blockers": None
+                })
+                return True
+            return False
+
+    try:
+        return asyncio.run(_check())
+    except Exception as e:
+        logger.error(f"Error checking dependencies for task {task_id}: {str(e)}")
         raise
