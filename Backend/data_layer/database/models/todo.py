@@ -42,7 +42,6 @@ class Todo(Base):
         "calendar_events.id", ondelete="SET NULL"))
     ai_generated = Column(Boolean, default=False)
     ai_suggestions = Column(JSON)  # AI-generated insights or suggestions
-    completion_date = Column(DateTime)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
@@ -54,6 +53,19 @@ class Todo(Base):
         "CalendarEvent", foreign_keys=[linked_calendar_event_id])
     history = relationship(
         "TodoHistory", back_populates="todo", cascade="all, delete-orphan")
+
+    @property
+    def completion_date(self):
+        return self._completion_date
+
+    @completion_date.setter
+    def completion_date(self, value):
+        if isinstance(value, datetime.datetime):
+            self._completion_date = value
+        else:
+            raise ValueError("completion_date must be a datetime object")
+
+    _completion_date = Column(DateTime)
 
     __table_args__ = (
         Index("ix_todos_user_id", "user_id"),

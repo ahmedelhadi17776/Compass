@@ -188,3 +188,11 @@ class WorkflowRepository:
         )
         workflows = result.scalars().all()
         return cast(List[Workflow], list(workflows))
+
+    async def delete_workflow(self, workflow_id: int) -> bool:
+        workflow = await self.get_workflow(workflow_id)
+        if workflow:
+            await self.db_session.delete(workflow)
+            await self.db_session.commit()
+            return True
+        return False

@@ -77,7 +77,8 @@ async def test_create_workflow(client: AsyncClient, db_session: AsyncSession, te
                 "step_type": "test",
                 "config": {"input": {}}
             }
-        ]
+        ],
+        "dependencies": []  # Ensure dependencies are included
     }
 
     # Create workflow
@@ -116,7 +117,8 @@ async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSessi
                 "step_type": "test",
                 "config": {"input": {}}
             }
-        ]
+        ],
+        "dependencies": []  # Ensure dependencies are included
     }
 
     # Create workflow
@@ -127,7 +129,8 @@ async def test_execute_workflow_step(client: AsyncClient, db_session: AsyncSessi
     # Execute workflow step
     step_data = {
         "user_id": test_user.id,
-        "input_data": {"test": "data"}
+        "input_data": {"test": "data"},
+        "dependencies": []  # Ensure dependencies are included
     }
 
     response = await client.post(f"/workflows/{workflow_id}/steps/1/execute", json=step_data)

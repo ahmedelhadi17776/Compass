@@ -2,9 +2,17 @@ import pytest
 from Backend.tasks.workflow_tasks import execute_workflow_step, process_workflow, StepStatus, WorkflowStatus
 from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_insights
 from Backend.tasks.notification_tasks import send_notification
-from Backend.core.celery_app import celery_app
+from Backend.core.celery_app import (
+    celery_app,
+    create_todo_task,
+    update_todo_task,
+    delete_todo_task,
+    get_todos,
+    get_todo_by_id
+)
 import asyncio
 from sqlalchemy import inspect
+from datetime import datetime
 
 
 @pytest.fixture(autouse=True)
@@ -15,6 +23,71 @@ def celery_test_setup():
         CELERY_TASK_ALWAYS_EAGER=True,
         CELERY_TASK_EAGER_PROPAGATES=True,  # Exceptions are propagated
     )
+
+
+@pytest.mark.asyncio
+async def test_create_todo_task():
+    todo_data = {
+        "user_id": 1,
+        "title": "Test Todo",
+        "description": "Test Description",
+        "priority": "medium",
+        "due_date": datetime.utcnow().isoformat(),
+        "is_recurring": False,
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat(),
+        "dependencies": []  # Ensure dependencies are included
+    }
+
+    result = create_todo_task.delay(todo_data=todo_data)
+    assert result.successful()
+    data = result.get()
+
+    assert data["title"] == todo_data["title"]
+    assert data["description"] == todo_data["description"]
+    assert data["user_id"] == todo_data["user_id"]
+
+
+@pytest.mark.asyncio
+async def test_update_todo_task():
+    update_data = {
+        "title": "Updated Todo",
+        "description": "Updated Description",
+        "status": "completed"
+    }
+
+    result = update_todo_task.delay(todo_id=1, user_id=1, updates=update_data)
+    assert result.successful()
+    data = result.get()
+
+    assert data["title"] == update_data["title"]
+    assert data["description"] == update_data["description"]
+    assert data["status"] == update_data["status"]
+
+
+@pytest.mark.asyncio
+async def test_delete_todo_task():
+    result = delete_todo_task.delay(todo_id=1, user_id=1)
+    assert result.successful()
+    success = result.get()
+    assert success is True
+
+
+@pytest.mark.asyncio
+async def test_get_todos_task():
+    result = get_todos.delay(user_id=1)
+    assert result.successful()
+    todos = result.get()
+    assert isinstance(todos, list)
+
+
+@pytest.mark.asyncio
+async def test_get_todo_by_id_task():
+    result = get_todo_by_id.delay(todo_id=1, user_id=1)
+    assert result.successful()
+    todo = result.get()
+    assert todo is None or isinstance(todo, dict)
 
 
 @pytest.mark.asyncio
