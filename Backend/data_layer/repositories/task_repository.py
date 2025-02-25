@@ -220,3 +220,68 @@ class TaskRepository(BaseRepository):
             await self.session.rollback()
             logger.error(f"Error updating task dependencies: {str(e)}")
             return False
+
+# Add to TaskRepository class
+async def track_ai_interaction(self, task_id: int, ai_result: Dict) -> None:
+    """Track AI interaction for a task."""
+    try:
+        interaction = AIAgentInteraction(
+            task_id=task_id,
+            ai_model_id=ai_result.get("model_id"),
+            interaction_type="task_classification",
+            input_data=ai_result.get("input"),
+            output_data=ai_result.get("output"),
+            success_rate=ai_result.get("confidence", 1.0)
+        )
+        self.session.add(interaction)
+        await self.session.commit()
+    except Exception as e:
+        logger.error(f"Error tracking AI interaction: {str(e)}")
+        await self.session.rollback()
+        logger.error(f"Failed to track AI interaction: {str(e)}")
+        raise
+
+
+async def create_task_agent_interaction(self, **interaction_data) -> TaskAgentInteraction:
+    """Create a new task agent interaction."""
+    interaction = TaskAgentInteraction(**interaction_data)
+    self.session.add(interaction)
+    await self.session.commit()
+    await self.session.refresh(interaction)
+    return interaction
+
+async def get_task_agent_interactions(self, task_id: int) -> List[TaskAgentInteraction]:
+    """Get all agent interactions for a task."""
+    query = select(TaskAgentInteraction).where(TaskAgentInteraction.task_id == task_id)
+    result = await self.session.execute(query)
+    return list(result.scalars().all())
+
+async def update_task_ai_metrics(self, task_id: int, metrics: Dict) -> Task:
+    """Update AI-related metrics for a task."""
+    task = await self.get_task(task_id)
+    if task:
+        task.ai_suggestions = metrics.get('suggestions', task.ai_suggestions)
+        task.complexity_score = metrics.get('complexity_score', task.complexity_score)
+        task.health_score = metrics.get('health_score', task.health_score)
+        task.risk_factors = metrics.get('risk_factors', task.risk_factors)
+        await self.session.commit()
+        await self.session.refresh(task)
+    return task
+
+async def track_ai_optimization(self, task_id: int, optimization_data: Dict) -> None:
+    """Track AI optimization attempts for a task."""
+    try:
+        task = await self.get_task(task_id)
+        if task:
+            interaction = TaskAgentInteraction(
+                task_id=task_id,
+                interaction_type="optimization",
+                confidence_score=optimization_data.get('confidence_score'),
+                recommendations=optimization_data.get('recommendations'),
+                result=optimization_data.get('result')
+            )
+            self.session.add(interaction)
+            await self.session.commit()
+    except Exception as e:
+        logger.error(f"Error tracking AI optimization: {str(e)}")
+        await self.session.rollback()

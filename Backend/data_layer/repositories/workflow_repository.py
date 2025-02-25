@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from Backend.data_layer.database.models.workflow_step import WorkflowStep
 from Backend.data_layer.database.models.workflow_execution import WorkflowExecution, WorkflowStepExecution
 from datetime import datetime
+from Backend.data_layer.database.models.workflow_agent_interaction import WorkflowAgentInteraction
 
 
 class WorkflowRepository:
@@ -196,3 +197,67 @@ class WorkflowRepository:
             await self.db_session.commit()
             return True
         return False
+# Add these methods to the existing WorkflowRepository class
+
+async def create_workflow_agent_interaction(self, **interaction_data) -> WorkflowAgentInteraction:
+    """Create a new workflow agent interaction."""
+    interaction = WorkflowAgentInteraction(**interaction_data)
+    self.db_session.add(interaction)
+    await self.db_session.commit()
+    await self.db_session.refresh(interaction)
+    return interaction
+
+async def get_workflow_agent_interactions(
+    self,
+    workflow_id: int,
+    interaction_type: Optional[str] = None
+) -> List[WorkflowAgentInteraction]:
+    """Get all agent interactions for a workflow."""
+    query = select(WorkflowAgentInteraction).where(
+        WorkflowAgentInteraction.workflow_id == workflow_id
+    )
+    if interaction_type:
+        query = query.where(WorkflowAgentInteraction.interaction_type == interaction_type)
+    result = await self.db_session.execute(query)
+    return list(result.scalars().all())
+
+async def update_workflow_ai_state(
+    self,
+    workflow_id: int,
+    ai_state: Dict
+) -> Optional[Workflow]:
+    """Update AI-related state for a workflow."""
+    workflow = await self.get_workflow(workflow_id)
+    if workflow:
+        workflow.ai_enabled = ai_state.get('enabled', workflow.ai_enabled)
+        workflow.ai_confidence_threshold = ai_state.get('confidence_threshold', workflow.ai_confidence_threshold)
+        workflow.ai_override_rules = ai_state.get('override_rules', workflow.ai_override_rules)
+        workflow.ai_learning_data = ai_state.get('learning_data', workflow.ai_learning_data)
+        await self.db_session.commit()
+        await self.db_session.refresh(workflow)
+    return workflow
+
+async def track_workflow_optimization(
+    self,
+    workflow_id: int,
+    optimization_data: Dict
+) -> Optional[WorkflowAgentInteraction]:
+    """Track workflow optimization attempts."""
+    try:
+        interaction = WorkflowAgentInteraction(
+            workflow_id=workflow_id,
+            interaction_type="optimization",
+            confidence_score=optimization_data.get('confidence_score'),
+            input_data=optimization_data.get('input_data'),
+            output_data=optimization_data.get('output_data'),
+            performance_metrics=optimization_data.get('performance_metrics'),
+            optimization_suggestions=optimization_data.get('suggestions')
+        )
+        self.db_session.add(interaction)
+        await self.db_session.commit()
+        await self.db_session.refresh(interaction)
+        return interaction
+    except Exception as e:
+        logger.error(f"Error tracking workflow optimization: {str(e)}")
+        await self.db_session.rollback()
+        return None

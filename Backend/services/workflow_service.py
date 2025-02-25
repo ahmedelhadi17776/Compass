@@ -18,11 +18,16 @@ from celery.result import AsyncResult
 from Backend.data_layer.database.errors import WorkflowNotFoundError
 import asyncio
 from sqlalchemy import inspect, and_, or_
+from Backend.services.integration_service import IntegrationService
+from Backend.orchestration.crew_orchestrator import CrewOrchestrator
+
 
 
 class WorkflowService:
     def __init__(self, repository: WorkflowRepository):
         self.repository = repository
+        self.integration_service = IntegrationService()
+        self.crew_orchestrator = CrewOrchestrator()
 
     async def create_workflow(
         self,
@@ -300,3 +305,34 @@ class WorkflowService:
             "status": result.status,
             "result": result.result if result.ready() else None
         }
+
+    # Add error handling for AI service failures
+
+
+    async def optimize_workflow(self, workflow_id: int) -> Dict:
+        try:
+            workflow = await self.repository.get_workflow(workflow_id)
+            if not workflow:
+                raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
+    
+            optimization_result = await self.crew_orchestrator.process_task({
+                "workflow_id": workflow_id,
+                "current_state": workflow.dict(),
+                "steps": await self.repository.get_workflow_steps(workflow_id)
+            })
+    
+            await self.update_workflow(
+                workflow_id=workflow_id,
+                updates={
+                    "optimization_score": optimization_result.get("optimization_score"),
+                    "ai_recommendations": optimization_result.get("recommendations", []),
+                    "last_optimized": datetime.utcnow().isoformat()
+                },
+                user_id=workflow.created_by
+            )
+    
+            return optimization_result
+        except Exception as e:
+            logger.error(f"Workflow optimization failed: {str(e)}")
+            raise
+        

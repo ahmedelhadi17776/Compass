@@ -13,6 +13,7 @@ from sqlalchemy import text
 from Backend.api.auth import router as auth_router
 from Backend.api.roles import router as role_router
 from Backend.api.workflows import router as workflow_router
+from Backend.api.ai_routes import router as ai_router
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -81,6 +82,7 @@ app.add_middleware(
 
 # ✅ Include API Routes
 app.include_router(api_router)
+app.include_router(ai_router)
 
 # Include Todo routes
 app.include_router(todo_router, prefix="/todos", tags=["todos"])
