@@ -6,9 +6,12 @@ from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.data_layer.database.errors import TaskNotFoundError
 from Backend.tasks.task_tasks import process_task, execute_task_step
 from celery.result import AsyncResult
+from Backend.ai_services.rag.rag_service import RAGService
 import asyncio
 import logging
 import json
+from Backend.orchestration.crew_orchestrator import CrewOrchestrator
+from Backend.services.integration_service import IntegrationService
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,8 @@ class TaskUpdateError(Exception):
 class TaskService:
     def __init__(self, repository: TaskRepository):
         self.repo = repository
+        self.crew_orchestrator = CrewOrchestrator()
+        self.integration_service = IntegrationService()
 
     async def update_task_status(self, task_id: int, new_status: TaskStatus, user_id: int) -> Task:
         """Update task status with validation and history tracking."""
@@ -144,10 +149,7 @@ class TaskService:
         dependencies: Optional[List[int]] = None,
         _dependencies_list: Optional[str] = None
     ) -> Task:
-        """Create a new task."""
-        # Handle dependencies - prefer dependencies list if provided
-        deps = dependencies if dependencies is not None else (json.loads(_dependencies_list) if _dependencies_list else [])
-        
+        """Create a new task with RAG indexing."""
         task = await self.repo.create_task(
             title=title,
             description=description,
@@ -162,9 +164,13 @@ class TaskService:
             parent_task_id=parent_task_id,
             estimated_hours=estimated_hours,
             due_date=due_date,
-            _dependencies_list=json.dumps(deps),
-            dependencies=deps
+            _dependencies_list=json.dumps(dependencies or []),
+            dependencies=dependencies or []
         )
+        
+        # Index task in RAG
+        await self.index_task_for_rag(task.id)
+        
         return task
 
     async def update_task(self, task_id: int, task_data: Dict) -> Task:
@@ -341,3 +347,76 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error updating task dependencies: {str(e)}")
             return False
+# Add to TaskService class
+
+
+    async def process_with_ai(self, task_id: int, process_type: str) -> Dict:
+        """Process task with AI agents."""
+        task = await self.repo.get_task(task_id)
+        if not task:
+             raise TaskNotFoundError(f"Task {task_id} not found")
+
+        result = await self.integration_service.process_with_agents(
+            data=task.dict(),
+            process_type=process_type
+        )
+
+        # Update task with AI insights
+        await self.update_task(task_id, {
+            "ai_insights": result.get("analysis", {}),
+            "ai_recommendations": result.get("recommendations", []),
+            "last_ai_process": datetime.utcnow().isoformat()
+        })
+
+        return result
+
+
+# Add these methods to TaskService class
+async def find_similar_tasks_rag(self, task_id: int) -> Dict:
+    """Find similar tasks using RAG."""
+    try:
+        task = await self.get_task_with_details(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task {task_id} not found")
+
+        rag_service = RAGService()
+        query = f"{task['title']} {task['description']}"
+
+        similar_tasks = await rag_service.query_knowledge_base(
+            query=query,
+            limit=5
+        )
+
+        return {
+            "task_id": task_id,
+            "similar_tasks": similar_tasks["sources"],
+            "confidence": similar_tasks["confidence"]
+        }
+    except Exception as e:
+        logger.error(f"Error finding similar tasks: {str(e)}")
+        raise
+
+
+async def index_task_for_rag(self, task_id: int) -> bool:
+    """Index task in RAG knowledge base."""
+    try:
+        task = await self.get_task_with_details(task_id)
+        if not task:
+            return False
+
+        rag_service = RAGService()
+        content = f"{task['title']}\n{task['description']}"
+
+        return await rag_service.add_to_knowledge_base(
+            content=content,
+            metadata={
+                "id": str(task_id),
+                "title": task["title"],
+                "status": task["status"],
+                "priority": task["priority"],
+                "project_id": task["project_id"]
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error indexing task: {str(e)}")
+        return False

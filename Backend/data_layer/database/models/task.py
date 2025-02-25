@@ -117,6 +117,8 @@ class Task(Base):
         self._dependencies_list = json.dumps(value) if value is not None else '[]'
         self.task_dependencies = value
 
+    # Add to existing relationships
+    agent_interactions = relationship("TaskAgentInteraction", back_populates="task", cascade="all, delete-orphan")
     __table_args__ = (
         Index("ix_task_status", "status"),
         Index("ix_task_creator_id", "creator_id"),

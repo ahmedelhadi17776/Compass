@@ -6,104 +6,111 @@ from enum import Enum
 
 class WorkflowStatus(str, Enum):
     PENDING = "pending"
-    PROCESSING = "processing"
+    ACTIVE = "active"
+    PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    ARCHIVED = "archived"
+    UNDER_REVIEW = "under_review"
+    OPTIMIZING = "optimizing"
 
 
-class WorkflowStep(BaseModel):
-    id: int
-    name: str
-    type: str
-    input: Dict
-    dependencies: Optional[List[int]] = Field(default_factory=list)
-    timeout: Optional[int] = 3600  # Default 1 hour timeout
-    retry_count: Optional[int] = 3
-    priority: Optional[int] = 5
+class WorkflowType(str, Enum):
+    SEQUENTIAL = "sequential"
+    PARALLEL = "parallel"
+    CONDITIONAL = "conditional"
+    AI_DRIVEN = "ai_driven"
+    HYBRID = "hybrid"
 
 
-class WorkflowCreate(BaseModel):
-    user_id: int
+class WorkflowBase(BaseModel):
     name: str
     description: Optional[str] = None
-    steps: List[WorkflowStep]
-    notify_on_completion: bool = True
-    priority: Optional[int] = 5
-    timeout: Optional[int] = 7200  # Default 2 hours timeout
-    metadata: Optional[Dict] = Field(default_factory=dict)
+    workflow_type: WorkflowType = WorkflowType.SEQUENTIAL
+    organization_id: int
+    config: Optional[Dict] = Field(default_factory=dict)
+    workflow_metadata: Optional[Dict] = Field(default_factory=dict)
+    version: Optional[str] = None
+    tags: Optional[List[str]] = Field(default_factory=list)
+    
+    # AI Integration
+    ai_enabled: bool = False
+    ai_confidence_threshold: Optional[float] = None
+    ai_override_rules: Optional[Dict] = Field(default_factory=dict)
+    ai_learning_data: Optional[Dict] = Field(default_factory=dict)
+
+    # Performance Configuration
+    estimated_duration: Optional[int] = None
+    schedule_constraints: Optional[Dict] = Field(default_factory=dict)
+    error_handling_config: Optional[Dict] = Field(default_factory=dict)
+    retry_policy: Optional[Dict] = Field(default_factory=dict)
+    fallback_steps: Optional[Dict] = Field(default_factory=list)
+    compliance_rules: Optional[Dict] = Field(default_factory=dict)
+    access_control: Optional[Dict] = Field(default_factory=dict)
 
 
-class WorkflowResponse(BaseModel):
-    workflow_id: int
-    task_id: str
-    status: str
+class WorkflowCreate(WorkflowBase):
+    created_by: int
+    steps: List[Dict]
+    deadline: Optional[datetime] = None
 
 
-class WorkflowStepExecute(BaseModel):
-    user_id: int
-    input_data: Dict
-    priority: Optional[int] = 5
-    timeout: Optional[int] = 3600
+class WorkflowUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    workflow_type: Optional[WorkflowType] = None
+    config: Optional[Dict] = None
+    workflow_metadata: Optional[Dict] = None
+    version: Optional[str] = None
+    tags: Optional[List[str]] = None
+    ai_enabled: Optional[bool] = None
+    ai_confidence_threshold: Optional[float] = None
+    ai_override_rules: Optional[Dict] = None
+    error_handling_config: Optional[Dict] = None
+    deadline: Optional[datetime] = None
 
 
-class AnalysisType(str, Enum):
-    PERFORMANCE = "performance"
-    EFFICIENCY = "efficiency"
-    BOTTLENECKS = "bottlenecks"
-    OPTIMIZATION = "optimization"
-    TRENDS = "trends"
-
-
-class WorkflowAnalysis(BaseModel):
-    user_id: int
-    analysis_type: AnalysisType
-    time_range: Optional[str] = None
-    metrics: Optional[List[str]] = None
-    options: Optional[Dict] = Field(default_factory=dict)
-
-
-class TaskStatus(BaseModel):
-    task_id: str
-    status: str
-    result: Optional[Dict] = None
-    error: Optional[str] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-
-
-class WorkflowDetail(BaseModel):
+class WorkflowResponse(WorkflowBase):
     id: int
-    name: str
-    description: Optional[str]
-    user_id: int
+    created_by: int
     status: WorkflowStatus
-    steps: List[WorkflowStep]
     created_at: datetime
     updated_at: datetime
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
-    task_ids: List[str]
-    metadata: Dict
-    error: Optional[str]
+    last_executed_at: Optional[datetime] = None
+    next_scheduled_run: Optional[datetime] = None
+    
+    # Performance Metrics
+    average_completion_time: Optional[float] = None
+    success_rate: Optional[float] = None
+    optimization_score: Optional[float] = None
+    bottleneck_analysis: Optional[Dict] = None
+    actual_duration: Optional[int] = None
+    audit_trail: Optional[Dict] = None
+
+    class Config:
+        from_attributes = True
 
 
-class WorkflowStepResult(BaseModel):
-    step_id: int
-    task_id: str
-    status: str
-    result: Optional[Dict]
-    error: Optional[str]
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
+class WorkflowDetail(WorkflowResponse):
+    steps: List[Dict]
+    tasks: List[Dict]
+    executions: List[Dict]
+    agent_interactions: List[Dict] = Field(default_factory=list)
+    agent_links: List[Dict] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
 
 
-class WorkflowAnalysisResult(BaseModel):
+class WorkflowMetrics(BaseModel):
     workflow_id: int
-    analysis_type: AnalysisType
-    analysis_task_id: str
-    insights_task_id: Optional[str]
-    status: str
-    results: Optional[Dict]
-    created_at: datetime
-    completed_at: Optional[datetime]
+    performance: Dict
+    execution_stats: Dict
+    timing: Dict
+    ai_metrics: Dict
+    bottlenecks: List[Dict] = Field(default_factory=list)
+    optimization_suggestions: List[Dict] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
