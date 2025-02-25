@@ -4,12 +4,13 @@ from typing import List, Optional, Dict
 from datetime import datetime
 
 from Backend.data_layer.database.connection import get_db
-from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
+from Backend.data_layer.database.models.task import TaskStatus, TaskPriority, Task
 from Backend.app.schemas.task_schemas import (
     TaskCreate,
     TaskUpdate,
     TaskResponse,
-    TaskWithDetails
+    TaskWithDetails,
+    TaskDependencyUpdate
 )
 from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.services.task_service import TaskService
@@ -25,26 +26,82 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Create a new task."""
+    """Create a new task with proper dependency validation."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+
+        # Validate dependencies if provided
+        if task.dependencies:
+            for dep_id in task.dependencies:
+                dep_task = await service.get_task(dep_id)
+                if not dep_task:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Dependency task {dep_id} not found"
+                    )
+
+        result = await service.create_task(
+            title=task.title,
+            description=task.description,
+            creator_id=current_user.id,
+            project_id=task.project_id,
+            organization_id=task.organization_id,
+            workflow_id=task.workflow_id,
+            assignee_id=task.assignee_id,
+            reviewer_id=task.reviewer_id,
+            priority=task.priority,
+            category_id=task.category_id,
+            parent_task_id=task.parent_task_id,
+            estimated_hours=task.estimated_hours,
+            due_date=task.due_date,
+            dependencies=task.dependencies or []
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating task: {str(e)}"
+        )
+
+
+@router.put("/{task_id}/dependencies")
+async def update_task_dependencies(
+    task_id: int,
+    dependencies: TaskDependencyUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Update task dependencies."""
     repo = TaskRepository(db)
     service = TaskService(repo)
 
-    result = await service.create_task(
-        title=task.title,
-        description=task.description,
-        creator_id=current_user.id,
-        project_id=task.project_id,
-        organization_id=task.organization_id,
-        workflow_id=task.workflow_id,
-        assignee_id=task.assignee_id,
-        reviewer_id=task.reviewer_id,
-        priority=task.priority,
-        category_id=task.category_id,
-        parent_task_id=task.parent_task_id,
-        estimated_hours=task.estimated_hours,
-        due_date=task.due_date
-    )
-    return result
+    result = await service.update_task_dependencies(task_id, dependencies.dependencies)
+    if not result:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"message": "Dependencies updated successfully"}
+
+
+@router.get("/{task_id}/dependencies")
+async def get_task_dependencies(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Get task dependencies."""
+    repo = TaskRepository(db)
+    service = TaskService(repo)
+
+    task = await service.get_task_with_details(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Ensure task is a Task object
+    if isinstance(task, dict):
+        task = Task(**task)  # Convert dict back to Task object if necessary
+
+    dependencies = getattr(task, 'dependencies', None)
+    return {"dependencies": dependencies or []}
 
 
 @router.get("/{task_id}", response_model=TaskWithDetails)
@@ -82,6 +139,10 @@ async def get_tasks(
     status: Optional[TaskStatus] = None,
     priority: Optional[TaskPriority] = None,
     project_id: Optional[int] = None,
+    assignee_id: Optional[int] = None,
+    creator_id: Optional[int] = None,
+    due_date_start: Optional[datetime] = None,
+    due_date_end: Optional[datetime] = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -89,6 +150,19 @@ async def get_tasks(
     repo = TaskRepository(db)
     service = TaskService(repo)
 
+    tasks = await repo.get_tasks_by_project(
+        project_id=project_id,
+        skip=skip,
+        limit=limit,
+        status=status,
+        priority=priority,
+        assignee_id=assignee_id,
+        creator_id=creator_id,
+        due_date_start=due_date_start,
+        due_date_end=due_date_end
+    ) if project_id else []
+
+    return tasks
     if project_id:
         tasks = await repo.get_tasks_by_project(
             project_id=project_id,
@@ -109,30 +183,51 @@ async def update_task(
     task_update: TaskUpdate,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
-):
-    """Update a task."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
+) -> TaskResponse:
+    """Update an existing task with status transition validation."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
 
-    result = await service.update_task(
-        task_id=task_id,
-        title=task_update.title,
-        description=task_update.description,
-        status=task_update.status,
-        assignee_id=task_update.assignee_id,
-        reviewer_id=task_update.reviewer_id,
-        priority=task_update.priority,
-        category_id=task_update.category_id,
-        due_date=task_update.due_date,
-        actual_hours=task_update.actual_hours,
-        progress_metrics=task_update.progress_metrics,
-        blockers=task_update.blockers,
-        user_id=current_user.id
-    )
+        # Get existing task
+        existing_task = await service.get_task(task_id)
+        if not existing_task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} not found"
+            )
 
-    if not result:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return result
+        task_data = task_update.dict(exclude_unset=True)
+
+        # Handle status transition if status is being updated
+        if 'status' in task_data:
+            new_status = TaskStatus(task_data['status'])
+            try:
+                updated_task = await service.update_task_status(
+                    task_id,
+                    new_status,
+                    current_user.id
+                )
+                # Remove status from task_data as it's already updated
+                task_data.pop('status')
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e)
+                )
+
+        # Update remaining fields if any
+        if task_data:
+            updated_task = await service.update_task(task_id, task_data)
+
+        return TaskResponse.from_orm(updated_task)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating task: {str(e)}"
+        )
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -145,7 +240,7 @@ async def delete_task(
     repo = TaskRepository(db)
     service = TaskService(repo)
 
-    success = await repo.delete_task(task_id)
+    success = await service.delete_task(task_id)
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task deleted successfully"}

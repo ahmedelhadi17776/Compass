@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Dict
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
@@ -14,58 +14,62 @@ from Backend.app.schemas.history_schemas import HistoryResponse
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
-    priority: Optional[TaskPriority] = TaskPriority.MEDIUM
-    category_id: Optional[int] = None
-    assignee_id: Optional[int] = None
-    reviewer_id: Optional[int] = None
-    due_date: Optional[datetime] = None
-    estimated_hours: Optional[float] = None
-    parent_task_id: Optional[int] = None
-
-
-class TaskCreate(TaskBase):
+    priority: TaskPriority = TaskPriority.MEDIUM
+    status: TaskStatus = TaskStatus.TODO
     project_id: int
     organization_id: int
     workflow_id: Optional[int] = None
+    assignee_id: Optional[int] = None
+    reviewer_id: Optional[int] = None
+    category_id: Optional[int] = None
+    parent_task_id: Optional[int] = None
+    estimated_hours: Optional[float] = None
+    due_date: Optional[datetime] = None
+    dependencies: Optional[List[int]] = Field(default_factory=list)
 
 
-class TaskUpdate(TaskBase):
+class TaskCreate(TaskBase):
+    pass
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
     status: Optional[TaskStatus] = None
-    completed_at: Optional[datetime] = None
+    assignee_id: Optional[int] = None
+    reviewer_id: Optional[int] = None
+    priority: Optional[TaskPriority] = None
+    category_id: Optional[int] = None
+    due_date: Optional[datetime] = None
     actual_hours: Optional[float] = None
-    progress_metrics: Optional[Dict] = None
-    blockers: Optional[Dict] = None
+    progress_metrics: Optional[Dict] = Field(default_factory=dict)
+    blockers: Optional[List[str]] = Field(default_factory=list)
+    dependencies: Optional[List[int]] = Field(default_factory=list)
+    _dependencies_list: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+class TaskDependencyUpdate(BaseModel):
+    dependencies: List[int] = Field(default_factory=list)
 
 
 class TaskResponse(TaskBase):
     id: int
-    status: TaskStatus
+    creator_id: int
     created_at: datetime
     updated_at: datetime
-    creator_id: int
-    project_id: int
-    organization_id: int
-    workflow_id: Optional[int]
-    current_workflow_step_id: Optional[int]
-    health_score: Optional[float]
-    complexity_score: Optional[float]
-    time_spent: Optional[int]
-    progress_metrics: Optional[Dict]
-    blockers: Optional[Dict]
 
     class Config:
         orm_mode = True
 
 
 class TaskWithDetails(TaskResponse):
-    attachments: List["AttachmentResponse"] = []
-    comments: List["CommentResponse"] = []
-    history: List["HistoryResponse"] = []
-    subtasks: List["TaskResponse"] = []
-    time_estimates: Optional[Dict] = None
-    focus_sessions: Optional[Dict] = None
-    interruption_logs: Optional[Dict] = None
-    risk_factors: Optional[Dict] = None
+    comments: Optional[List[Dict]] = None
+    attachments: Optional[List[Dict]] = None
+    history: Optional[List[Dict]] = None
+    metrics: Optional[Dict] = None
 
     class Config:
         orm_mode = True

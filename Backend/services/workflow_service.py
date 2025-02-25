@@ -4,13 +4,20 @@ from Backend.tasks.workflow_tasks import process_workflow, execute_workflow_step
 from Backend.tasks.notification_tasks import send_notification
 from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_insights
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
-from Backend.core.celery_app import celery_app
+from Backend.core.celery_app import (
+    create_workflow_task,
+    update_workflow_task,
+    delete_workflow_task,
+    get_workflows_task,
+    get_workflow_by_id_task
+)
 from Backend.data_layer.database.models.workflow import Workflow, WorkflowStatus, WorkflowType
 from Backend.data_layer.database.models.workflow_step import WorkflowStep
 from Backend.data_layer.database.models.workflow_execution import WorkflowExecution
 from celery.result import AsyncResult
 from Backend.data_layer.database.errors import WorkflowNotFoundError
 import asyncio
+from sqlalchemy import inspect, and_, or_
 
 
 class WorkflowService:
@@ -33,25 +40,28 @@ class WorkflowService:
         tags: Optional[List[str]] = None
     ) -> Dict:
         """Create a new workflow with steps."""
-        workflow = await self.repository.create_workflow(
-            name=name,
-            description=description,
-            workflow_type=workflow_type,
-            created_by=creator_id,
-            organization_id=organization_id,
-            config=config or {},
-            status=WorkflowStatus.PENDING,
-            ai_enabled=ai_enabled,
-            ai_confidence_threshold=ai_confidence_threshold,
-            estimated_duration=estimated_duration,
-            deadline=deadline,
-            tags=tags or [],
-            workflow_metadata={
+        workflow_data = {
+            "name": name,
+            "description": description,
+            "workflow_type": workflow_type,
+            "created_by": creator_id,
+            "organization_id": organization_id,
+            "config": config or {},
+            "status": WorkflowStatus.PENDING,
+            "ai_enabled": ai_enabled,
+            "ai_confidence_threshold": ai_confidence_threshold,
+            "estimated_duration": estimated_duration,
+            "deadline": deadline,
+            "tags": tags or [],
+            "workflow_metadata": {
                 "created_at": datetime.utcnow().isoformat(),
                 "version": "1.0",
                 "creator_id": creator_id
             }
-        )
+        }
+
+        # Create workflow using Celery task
+        workflow = await create_workflow_task.delay(workflow_data=workflow_data)
 
         if steps:
             for step_data in steps:
@@ -75,13 +85,19 @@ class WorkflowService:
         input_data: Optional[Dict] = None
     ) -> Dict:
         """Execute a specific workflow step."""
-        workflow = await self.repository.get_workflow(workflow_id)
+        workflow = await get_workflow_by_id_task.delay(workflow_id=workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
         step = await self.repository.get_workflow_step(step_id)
         if not step:
             raise ValueError(f"Step {step_id} not found")
+
+        # Update workflow status to active
+        await update_workflow_task.delay(
+            workflow_id=workflow_id,
+            updates={"status": WorkflowStatus.ACTIVE.value}
+        )
 
         # Create execution record
         execution = await self.repository.create_workflow_execution(
@@ -91,7 +107,7 @@ class WorkflowService:
 
         # Create step execution record
         step_execution = await self.repository.create_step_execution(
-            execution_id=execution.id,
+            execution_id=execution.__dict__['id'],
             step_id=step_id,
             status="pending"
         )
@@ -100,13 +116,13 @@ class WorkflowService:
         task = execute_workflow_step.delay(
             workflow_id=workflow_id,
             step_id=step_id,
-            execution_id=execution.id,
+            execution_id=execution.__dict__['id'],
             user_id=user_id,
             input_data=input_data or {}
         )
 
         return {
-            "execution_id": execution.id,
+            "execution_id": execution.__dict__['id'],
             "step_execution_id": step_execution.id,
             "task_id": task.id,
             "status": "pending"
@@ -120,28 +136,77 @@ class WorkflowService:
         time_range: str,
         metrics: List[str]
     ) -> Dict:
-        """Analyze workflow performance and metrics."""
-        workflow = await self.repository.get_workflow_with_metrics(workflow_id)
+        workflow = await self.repository.get_workflow(workflow_id)
         if not workflow:
-            raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
+            raise ValueError(f"Workflow with id {workflow_id} not found")
 
-        return {
-            "workflow_id": workflow_id,
-            "metrics": {
-                "performance": {
-                    "average_completion_time": workflow.average_completion_time,
-                    "success_rate": workflow.success_rate,
-                    "optimization_score": workflow.optimization_score
-                },
-                "bottlenecks": workflow.bottleneck_analysis,
-                "efficiency": {
-                    "estimated_vs_actual": workflow.estimated_duration / workflow.actual_duration if workflow.actual_duration else None,
-                    "optimization_opportunities": workflow.ai_learning_data.get("optimization_suggestions") if workflow.ai_learning_data else None
-                }
+        # Get workflow metrics safely
+        estimated_duration = getattr(workflow, 'estimated_duration', None)
+        actual_duration = getattr(workflow, 'actual_duration', None)
+        ai_enabled = bool(getattr(workflow, 'ai_enabled', False))
+        ai_confidence = getattr(workflow, 'ai_confidence_threshold', None)
+        ai_learning_data = getattr(workflow, 'ai_learning_data', {})
+        learning_progress = ai_learning_data.get(
+            "learning_progress") if ai_learning_data else None
+
+        efficiency_ratio = None
+        if estimated_duration is not None and actual_duration is not None and estimated_duration > 0:
+            efficiency_ratio = actual_duration / estimated_duration
+
+        # Get executions count
+        executions = await self.repository.get_workflow_executions(workflow_id)
+        total_executions = len(executions)
+        successful_executions = sum(1 for e in executions if str(
+            e.status) == WorkflowStatus.COMPLETED.value)
+        failed_executions = sum(1 for e in executions if str(
+            e.status) == WorkflowStatus.FAILED.value)
+
+        # Calculate metrics based on requested analysis
+        metrics_data = {
+            "performance": {
+                "average_completion_time": getattr(workflow, 'average_completion_time', None),
+                "success_rate": getattr(workflow, 'success_rate', None),
+                "optimization_score": getattr(workflow, 'optimization_score', None)
             },
-            "analysis_type": analysis_type,
-            "time_range": time_range
+            "execution": {
+                "total_executions": total_executions,
+                "successful_executions": successful_executions,
+                "failed_executions": failed_executions
+            },
+            "timing": {
+                "estimated_duration": estimated_duration,
+                "actual_duration": actual_duration,
+                "efficiency_ratio": efficiency_ratio
+            },
+            "ai_metrics": {
+                "ai_enabled": ai_enabled,
+                "confidence_threshold": ai_confidence,
+                "learning_progress": learning_progress
+            }
         }
+
+        # Prepare analysis data
+        analysis_data = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "type": analysis_type,
+            "time_range": time_range,
+            "metrics": metrics_data
+        }
+
+        # Get current metadata and update it
+        current_metadata = workflow.workflow_metadata if workflow.workflow_metadata is not None else {}
+        if isinstance(current_metadata, dict):
+            current_metadata = current_metadata.copy()
+        else:
+            current_metadata = {}
+        current_metadata["analysis"] = analysis_data
+
+        # Update workflow metadata in database
+        await self.repository.update_workflow(workflow_id, {
+            "workflow_metadata": current_metadata
+        })
+
+        return metrics_data
 
     async def update_workflow(
         self,
@@ -150,7 +215,7 @@ class WorkflowService:
         user_id: int
     ) -> Dict:
         """Update workflow configuration and metadata."""
-        workflow = await self.repository.update_workflow(workflow_id, updates)
+        workflow = await update_workflow_task.delay(workflow_id=workflow_id, updates=updates)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
@@ -166,14 +231,14 @@ class WorkflowService:
         user_id: int
     ) -> Dict:
         """Cancel a workflow and all its pending executions."""
-        workflow = await self.repository.get_workflow(workflow_id)
+        workflow = await get_workflow_by_id_task.delay(workflow_id=workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
         # Update workflow status
-        await self.repository.update_workflow(
-            workflow_id,
-            {"status": WorkflowStatus.CANCELLED}
+        await update_workflow_task.delay(
+            workflow_id=workflow_id,
+            updates={"status": WorkflowStatus.CANCELLED}
         )
 
         # Cancel any active executions
@@ -194,6 +259,16 @@ class WorkflowService:
         if not workflow:
             raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
 
+        # Calculate efficiency ratio safely
+        efficiency_ratio = None
+        estimated_duration = getattr(workflow, 'estimated_duration', None)
+        actual_duration = getattr(workflow, 'actual_duration', None)
+        if estimated_duration is not None and actual_duration is not None and estimated_duration != 0:
+            try:
+                efficiency_ratio = actual_duration / estimated_duration
+            except (TypeError, ZeroDivisionError):
+                efficiency_ratio = None
+
         return {
             "performance": {
                 "average_completion_time": workflow.average_completion_time,
@@ -206,18 +281,19 @@ class WorkflowService:
                 "failed_executions": sum(1 for e in workflow.executions if e.status == WorkflowStatus.FAILED)
             },
             "timing": {
-                "estimated_duration": workflow.estimated_duration,
-                "actual_duration": workflow.actual_duration,
-                "efficiency_ratio": workflow.actual_duration / workflow.estimated_duration if workflow.estimated_duration else None
+                "estimated_duration": estimated_duration,
+                "actual_duration": actual_duration,
+                "efficiency_ratio": efficiency_ratio
             },
             "ai_metrics": {
                 "ai_enabled": workflow.ai_enabled,
                 "confidence_threshold": workflow.ai_confidence_threshold,
-                "learning_progress": workflow.ai_learning_data.get("learning_progress") if workflow.ai_learning_data else None
+                "learning_progress": workflow.ai_learning_data.get("learning_progress") if getattr(workflow, 'ai_learning_data', None) is not None else None
             }
         }
 
     async def get_task_status(self, task_id: str) -> Dict:
+        """Get the status of a Celery task."""
         result = AsyncResult(task_id)
         return {
             "task_id": task_id,

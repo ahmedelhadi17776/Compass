@@ -1,8 +1,11 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum as SQLAlchemyEnum, Text, Index, Float, JSON
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
+from typing import List
 import datetime
 import enum
+import json
+from sqlalchemy.ext.hybrid import hybrid_property
 
 # Define TaskStatus using Python's enum
 
@@ -59,7 +62,8 @@ class Task(Base):
     workflow_id = Column(Integer, ForeignKey(
         "workflows.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    dependencies = Column(JSON)
+    # Store task dependencies as a list of task IDs
+    _dependencies_list = Column(JSON, default=list, nullable=False)
 
     # Updated relationships - consolidated
     creator = relationship("User", foreign_keys=[
@@ -89,8 +93,8 @@ class Task(Base):
     time_estimates = Column(JSON)
     focus_sessions = Column(JSON)
     interruption_logs = Column(JSON)
-    progress_metrics = Column(JSON)
-    blockers = Column(JSON)
+    progress_metrics = Column(JSON, default=dict, nullable=False)
+    blockers = Column(JSON, default=list, nullable=False)
     health_score = Column(Float)
     risk_factors = Column(JSON)
 
@@ -98,6 +102,20 @@ class Task(Base):
     parent_task = relationship(
         "Task", remote_side=[id], back_populates="subtasks")
     subtasks = relationship("Task", back_populates="parent_task")
+
+    @property
+    def dependencies(self) -> List[int]:
+        """Get task dependencies."""
+        try:
+            return json.loads(self._dependencies_list) if self._dependencies_list else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    @dependencies.setter
+    def dependencies(self, value: List[int]):
+        """Set task dependencies."""
+        self._dependencies_list = json.dumps(value) if value is not None else '[]'
+        self.task_dependencies = value
 
     __table_args__ = (
         Index("ix_task_status", "status"),
