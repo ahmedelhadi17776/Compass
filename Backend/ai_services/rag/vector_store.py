@@ -1,18 +1,15 @@
 from typing import List, Dict
-import chromadb
-from chromadb.config import Settings
 from Backend.core.config import settings
 from Backend.utils.logging_utils import get_logger
+from Backend.data_layer.vector_db.chroma_client import chroma_client
 
 logger = get_logger(__name__)
 
 class VectorStore:
     def __init__(self):
-        self.client = chromadb.Client(Settings(
-            chroma_db_impl="duckdb+parquet",
-            persist_directory=settings.CHROMA_DB_PATH
-        ))
-        self.collection = self.client.get_or_create_collection("tasks")
+        # Use the centralized ChromaClient instance
+        self.client = chroma_client.client
+        self.collection = chroma_client.collection
 
     async def add_task_embedding(self, task_id: str, embedding: List[float], metadata: Dict):
         """Add task embedding to ChromaDB."""

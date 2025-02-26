@@ -11,6 +11,10 @@ from Backend.data_layer.database.models.workflow_execution import WorkflowExecut
 from datetime import datetime
 from Backend.data_layer.database.models.workflow_agent_interaction import WorkflowAgentInteraction
 
+#set the logger
+
+import logging
+logger = logging.getLogger(__name__)
 
 class WorkflowRepository:
     def __init__(self, db_session: AsyncSession):

@@ -49,6 +49,7 @@ class AIServiceBase:
                 logger.error(f"{self.service_name} request failed (attempt {attempt + 1}): {str(e)}")
                 if attempt == self.retry_count - 1:
                     raise
+                
 
     async def close(self):
         """Close the aiohttp session."""

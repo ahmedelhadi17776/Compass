@@ -8,6 +8,7 @@ from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_res
 
 logger = get_logger(__name__)
 
+
 class ProductivityService(AIServiceBase):
     def __init__(self):
         super().__init__("productivity")
@@ -29,7 +30,7 @@ class ProductivityService(AIServiceBase):
 
             metrics = await self._calculate_task_metrics(tasks, time_period)
             insights = await self._generate_task_insights(metrics)
-            
+
             result = {
                 "metrics": metrics,
                 "insights": insights,
@@ -52,8 +53,9 @@ class ProductivityService(AIServiceBase):
         """Calculate comprehensive task metrics."""
         try:
             total_tasks = len(tasks)
-            completed_tasks = sum(1 for task in tasks if task.get("status") == "completed")
-            
+            completed_tasks = sum(
+                1 for task in tasks if task.get("status") == "completed")
+
             # Calculate complexity scores using NLP
             complexity_scores = []
             for task in tasks:
@@ -126,7 +128,8 @@ class ProductivityService(AIServiceBase):
 
             efficiency_ratio = total_time / expected_time if expected_time > 0 else 0
             step_times = [step.get("duration", 0) for step in steps]
-            avg_step_time = sum(step_times) / len(step_times) if step_times else 0
+            avg_step_time = sum(step_times) / \
+                len(step_times) if step_times else 0
 
             # Analyze step descriptions for complexity
             step_complexities = []
@@ -136,7 +139,8 @@ class ProductivityService(AIServiceBase):
                     sentiment = await self.nlp_service.analyze_sentiment(description)
                     step_complexities.append(sentiment["confidence"])
 
-            avg_step_complexity = sum(step_complexities) / len(step_complexities) if step_complexities else 0
+            avg_step_complexity = sum(
+                step_complexities) / len(step_complexities) if step_complexities else 0
 
             return {
                 "efficiency_metrics": {
@@ -155,21 +159,183 @@ class ProductivityService(AIServiceBase):
         """Generate productivity recommendations based on metrics."""
         recommendations = []
         if completion_rate < 0.5:
-            recommendations.append("Consider breaking down tasks into smaller, more manageable units")
+            recommendations.append(
+                "Consider breaking down tasks into smaller, more manageable units")
         if complexity > 0.7:
-            recommendations.append("Task descriptions indicate high complexity. Consider simplifying or delegating")
+            recommendations.append(
+                "Task descriptions indicate high complexity. Consider simplifying or delegating")
         if completion_rate < 0.3 and complexity > 0.5:
-            recommendations.append("High task complexity may be impacting completion rates. Review task allocation")
+            recommendations.append(
+                "High task complexity may be impacting completion rates. Review task allocation")
         return recommendations
 
     def _analyze_workflow_bottlenecks(self, steps: List[Dict]) -> List[str]:
         """Identify workflow bottlenecks and suggest optimizations."""
         suggestions = []
-        step_times = [(step.get("duration", 0), step.get("name", "Unknown")) for step in steps]
-        avg_time = sum(time for time, _ in step_times) / len(step_times) if step_times else 0
+        step_times = [(step.get("duration", 0), step.get(
+            "name", "Unknown")) for step in steps]
+        avg_time = sum(time for time, _ in step_times) / \
+            len(step_times) if step_times else 0
 
         for duration, step_name in step_times:
             if duration > avg_time * 1.5:
-                suggestions.append(f"Step '{step_name}' takes significantly longer than average. Consider optimization")
+                suggestions.append(
+                    f"Step '{step_name}' takes significantly longer than average. Consider optimization")
 
         return suggestions
+
+    def _calculate_recent_completion_rate(self, recent_tasks: List[Dict]) -> float:
+        """Calculate completion rate for recent tasks."""
+        if not recent_tasks:
+            return 0.0
+        completed = sum(1 for task in recent_tasks if task.get(
+            "status") == "completed")
+        return completed / len(recent_tasks)
+
+    def _analyze_task_distribution(self, tasks: List[Dict]) -> Dict:
+        """Analyze task distribution patterns."""
+        categories = {}
+        priorities = {}
+        statuses = {}
+
+        for task in tasks:
+            category = task.get("category", "uncategorized")
+            priority = task.get("priority", "medium")
+            status = task.get("status", "pending")
+
+            categories[category] = categories.get(category, 0) + 1
+            priorities[priority] = priorities.get(priority, 0) + 1
+            statuses[status] = statuses.get(status, 0) + 1
+
+        return {
+            "by_category": categories,
+            "by_priority": priorities,
+            "by_status": statuses
+        }
+
+    def _calculate_time_metrics(self, tasks: List[Dict]) -> Dict:
+        """Calculate time-based metrics for tasks."""
+        total_estimated = 0
+        total_actual = 0
+        overdue_tasks = 0
+        now = datetime.utcnow()
+
+        for task in tasks:
+            estimated = task.get("estimated_hours", 0)
+            actual = task.get("actual_hours", 0)
+            due_date = task.get("due_date")
+
+            total_estimated += estimated
+            total_actual += actual
+
+            if due_date and datetime.fromisoformat(due_date) < now and task.get("status") != "completed":
+                overdue_tasks += 1
+
+        return {
+            "total_estimated_hours": total_estimated,
+            "total_actual_hours": total_actual,
+            "time_efficiency": total_estimated / total_actual if total_actual > 0 else 0,
+            "overdue_tasks": overdue_tasks
+        }
+
+    def _calculate_productivity_score(self, metrics: Dict) -> float:
+        """Calculate overall productivity score."""
+        weights = {
+            "completion_rate": 0.4,
+            "time_efficiency": 0.3,
+            "complexity_handling": 0.3
+        }
+
+        completion_score = metrics["completion_rate"] * 100
+        time_efficiency = metrics["time_metrics"]["time_efficiency"] * \
+            100 if metrics["time_metrics"]["time_efficiency"] <= 1 else 100
+        complexity_score = (1 - metrics["avg_complexity"]) * 100
+
+        return (
+            weights["completion_rate"] * completion_score +
+            weights["time_efficiency"] * time_efficiency +
+            weights["complexity_handling"] * complexity_score
+        )
+
+    def _determine_efficiency_rating(self, metrics: Dict) -> str:
+        """Determine efficiency rating based on metrics."""
+        score = self._calculate_productivity_score(metrics)
+        if score >= 90:
+            return "excellent"
+        elif score >= 75:
+            return "good"
+        elif score >= 60:
+            return "fair"
+        else:
+            return "needs_improvement"
+
+    async def _analyze_trends(self, metrics: Dict) -> Dict:
+        """Analyze productivity trends."""
+        try:
+            return await self._make_request(
+                "analyze_trends",
+                data={
+                    "completion_rate": metrics["completion_rate"],
+                    "time_efficiency": metrics["time_metrics"]["time_efficiency"],
+                    "complexity": metrics["avg_complexity"]
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error analyzing trends: {str(e)}")
+            return {"trend": "stable", "confidence": 0.0}
+
+    async def _identify_bottlenecks(self, metrics: Dict) -> List[str]:
+        """Identify productivity bottlenecks."""
+        bottlenecks = []
+
+        if metrics["completion_rate"] < 0.6:
+            bottlenecks.append("Low task completion rate")
+
+        if metrics["time_metrics"]["time_efficiency"] < 0.7:
+            bottlenecks.append("Time management inefficiency")
+
+        if metrics["time_metrics"]["overdue_tasks"] > 0:
+            bottlenecks.append(
+                f"Has {metrics['time_metrics']['overdue_tasks']} overdue tasks")
+
+        if metrics["avg_complexity"] > 0.7:
+            bottlenecks.append("High task complexity")
+
+        return bottlenecks
+
+    async def _find_optimization_opportunities(self, metrics: Dict) -> List[Dict]:
+        """Find opportunities for productivity optimization."""
+        try:
+            distribution = metrics["task_distribution"]
+            opportunities = []
+
+            # Check category distribution
+            if "uncategorized" in distribution["by_category"]:
+                opportunities.append({
+                    "type": "organization",
+                    "description": "Categorize uncategorized tasks for better organization",
+                    "impact": "medium"
+                })
+
+            # Check priority balance
+            priorities = distribution["by_priority"]
+            if priorities.get("high", 0) > len(priorities) * 0.4:
+                opportunities.append({
+                    "type": "prioritization",
+                    "description": "Too many high-priority tasks. Consider reprioritization",
+                    "impact": "high"
+                })
+
+            # Check workload distribution
+            if metrics["time_metrics"]["time_efficiency"] < 0.8:
+                opportunities.append({
+                    "type": "time_management",
+                    "description": "Improve time estimation accuracy",
+                    "impact": "high"
+                })
+
+            return opportunities
+
+        except Exception as e:
+            logger.error(f"Error finding optimization opportunities: {str(e)}")
+            return []

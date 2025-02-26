@@ -35,10 +35,10 @@ Backend/core/.env
 Backend/core/config.py
 *.rdb
 
-#Logs
-#logs
-#logs/
-#*.log
+Logs
+logs
+logs/
+*.log
 
 # Database
 *.sqlite3

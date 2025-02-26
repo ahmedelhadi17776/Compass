@@ -6,7 +6,9 @@ from Backend.data_layer.database.models.ai_models import (
 )
 from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
 from datetime import datetime
+from Backend.utils.logging_utils import get_logger
 
+logger = get_logger(__name__)
 
 class AgentRepository:
     def __init__(self, session: AsyncSession):
@@ -52,6 +54,12 @@ class AgentRepository:
         await self.session.commit()
         await self.session.refresh(interaction)
         return interaction
+    async def get_agent_interaction(self, interaction_id: int) -> Optional[AIAgentInteraction]:
+        """Get an AI agent interaction by ID."""
+        result = await self.session.execute(
+            select(AIAgentInteraction).where(AIAgentInteraction.id == interaction_id)
+        )
+        return result.scalar_one_or_none()
 
     async def get_agent_interactions(
         self,

@@ -2,7 +2,6 @@ from typing import List, Dict, Optional
 from datetime import datetime
 from Backend.tasks.workflow_tasks import process_workflow, execute_workflow_step
 from Backend.tasks.notification_tasks import send_notification
-from Backend.tasks.ai_tasks import process_text_analysis, generate_productivity_insights
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
 from Backend.core.celery_app import (
     create_workflow_task,
@@ -11,6 +10,7 @@ from Backend.core.celery_app import (
     get_workflows_task,
     get_workflow_by_id_task
 )
+from Backend.services.ai_service import AIService
 from Backend.data_layer.database.models.workflow import Workflow, WorkflowStatus, WorkflowType
 from Backend.data_layer.database.models.workflow_step import WorkflowStep
 from Backend.data_layer.database.models.workflow_execution import WorkflowExecution
@@ -18,16 +18,12 @@ from celery.result import AsyncResult
 from Backend.data_layer.database.errors import WorkflowNotFoundError
 import asyncio
 from sqlalchemy import inspect, and_, or_
-from Backend.services.integration_service import IntegrationService
-from Backend.orchestration.crew_orchestrator import CrewOrchestrator
 
 
 
 class WorkflowService:
     def __init__(self, repository: WorkflowRepository):
         self.repository = repository
-        self.integration_service = IntegrationService()
-        self.crew_orchestrator = CrewOrchestrator()
 
     async def create_workflow(
         self,
@@ -141,77 +137,20 @@ class WorkflowService:
         time_range: str,
         metrics: List[str]
     ) -> Dict:
+        """Analyze workflow using AI service."""
         workflow = await self.repository.get_workflow(workflow_id)
         if not workflow:
             raise ValueError(f"Workflow with id {workflow_id} not found")
 
-        # Get workflow metrics safely
-        estimated_duration = getattr(workflow, 'estimated_duration', None)
-        actual_duration = getattr(workflow, 'actual_duration', None)
-        ai_enabled = bool(getattr(workflow, 'ai_enabled', False))
-        ai_confidence = getattr(workflow, 'ai_confidence_threshold', None)
-        ai_learning_data = getattr(workflow, 'ai_learning_data', {})
-        learning_progress = ai_learning_data.get(
-            "learning_progress") if ai_learning_data else None
-
-        efficiency_ratio = None
-        if estimated_duration is not None and actual_duration is not None and estimated_duration > 0:
-            efficiency_ratio = actual_duration / estimated_duration
-
-        # Get executions count
-        executions = await self.repository.get_workflow_executions(workflow_id)
-        total_executions = len(executions)
-        successful_executions = sum(1 for e in executions if str(
-            e.status) == WorkflowStatus.COMPLETED.value)
-        failed_executions = sum(1 for e in executions if str(
-            e.status) == WorkflowStatus.FAILED.value)
-
-        # Calculate metrics based on requested analysis
-        metrics_data = {
-            "performance": {
-                "average_completion_time": getattr(workflow, 'average_completion_time', None),
-                "success_rate": getattr(workflow, 'success_rate', None),
-                "optimization_score": getattr(workflow, 'optimization_score', None)
-            },
-            "execution": {
-                "total_executions": total_executions,
-                "successful_executions": successful_executions,
-                "failed_executions": failed_executions
-            },
-            "timing": {
-                "estimated_duration": estimated_duration,
-                "actual_duration": actual_duration,
-                "efficiency_ratio": efficiency_ratio
-            },
-            "ai_metrics": {
-                "ai_enabled": ai_enabled,
-                "confidence_threshold": ai_confidence,
-                "learning_progress": learning_progress
-            }
-        }
-
-        # Prepare analysis data
-        analysis_data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "type": analysis_type,
-            "time_range": time_range,
-            "metrics": metrics_data
-        }
-
-        # Get current metadata and update it
-        current_metadata = workflow.workflow_metadata if workflow.workflow_metadata is not None else {}
-        if isinstance(current_metadata, dict):
-            current_metadata = current_metadata.copy()
-        else:
-            current_metadata = {}
-        current_metadata["analysis"] = analysis_data
-
-        # Update workflow metadata in database
-        await self.repository.update_workflow(workflow_id, {
-            "workflow_metadata": current_metadata
-        })
-
-        return metrics_data
+        # Delegate analysis to AI service
+        ai_service = AIService()
+        return await ai_service.analyze_workflow(
+            workflow_id=workflow_id,
+            user_id=user_id,
+            analysis_type=analysis_type,
+            time_range=time_range,
+            metrics=metrics
+        )
 
     async def update_workflow(
         self,
@@ -310,29 +249,25 @@ class WorkflowService:
 
 
     async def optimize_workflow(self, workflow_id: int) -> Dict:
-        try:
-            workflow = await self.repository.get_workflow(workflow_id)
-            if not workflow:
-                raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
-    
-            optimization_result = await self.crew_orchestrator.process_task({
-                "workflow_id": workflow_id,
-                "current_state": workflow.dict(),
-                "steps": await self.repository.get_workflow_steps(workflow_id)
-            })
-    
-            await self.update_workflow(
-                workflow_id=workflow_id,
-                updates={
-                    "optimization_score": optimization_result.get("optimization_score"),
-                    "ai_recommendations": optimization_result.get("recommendations", []),
-                    "last_optimized": datetime.utcnow().isoformat()
-                },
-                user_id=workflow.created_by
-            )
-    
-            return optimization_result
-        except Exception as e:
-            logger.error(f"Workflow optimization failed: {str(e)}")
-            raise
+        """Optimize workflow using AI service."""
+        workflow = await self.repository.get_workflow(workflow_id)
+        if not workflow:
+            raise WorkflowNotFoundError(f"Workflow {workflow_id} not found")
+
+        # Delegate optimization to AI service
+        ai_service = AIService()
+        optimization_result = await ai_service.optimize_workflow(workflow_id)
+
+        # Update workflow with optimization results
+        await self.update_workflow(
+            workflow_id=workflow_id,
+            updates={
+                "optimization_score": optimization_result.get("optimization_score"),
+                "ai_recommendations": optimization_result.get("recommendations", []),
+                "last_optimized": datetime.utcnow().isoformat()
+            },
+            user_id=workflow.created_by
+        )
+
+        return optimization_result
         
