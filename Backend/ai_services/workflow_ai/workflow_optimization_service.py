@@ -5,6 +5,7 @@ from Backend.ai_services.summarization_engine.summarization_service import Summa
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
 from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
+import datetime
 
 logger = get_logger(__name__)
 
@@ -46,6 +47,32 @@ class WorkflowOptimizationService(AIServiceBase):
                     "include_historical": include_historical
                 }
             )
+            async def process_feedback(self, feedback_score: float, feedback_text: Optional[str] = None) -> None:
+                """Process feedback to improve workflow optimization recommendations."""
+                try:
+                    # Process feedback data
+                    feedback_data = {
+                        "feedback_score": feedback_score,
+                        "feedback_text": feedback_text,
+                        "model_version": self.model_version,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    
+                    # Update model with feedback
+                    await self._make_request(
+                        "update_model",
+                        data={
+                            "feedback_data": feedback_data,
+                            "model_type": "workflow_optimization"
+                        }
+                    )
+                    
+                    logger.info(f"Processed workflow optimization feedback: {feedback_score}")
+                    
+                except Exception as e:
+                        logger.error(f"Error processing workflow optimization feedback: {str(e)}")
+                        # Don't raise the exception to avoid affecting the main feedback submission
+                        pass
 
             result = {
                 "recommendations": optimization["recommendations"],

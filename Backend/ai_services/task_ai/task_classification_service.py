@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 import aiohttp
 from Backend.core.config import settings
 from Backend.utils.cache_utils import cache_response
@@ -138,3 +138,29 @@ class TaskClassificationService(AIServiceBase):
         """Close the aiohttp session."""
         if self.session and not self.session.closed:
             await self.session.close()
+    async def process_feedback(self, feedback_score: float, feedback_text: Optional[str] = None) -> None:
+        """Process feedback to improve task classification model."""
+        try:
+            # Process feedback data
+            feedback_data = {
+                "feedback_score": feedback_score,
+                "feedback_text": feedback_text,
+                "model_version": self.model_version,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            # Update model with feedback
+            await self._make_request(
+                "update_model",
+                data={
+                    "feedback_data": feedback_data,
+                    "model_type": "task_classification"
+                }
+            )
+
+            logger.info(f"Processed task classification feedback: {feedback_score}")
+
+        except Exception as e:
+            logger.error(f"Error processing task classification feedback: {str(e)}")
+            # Don't raise the exception to avoid affecting the main feedback submission
+            pass

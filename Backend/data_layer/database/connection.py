@@ -27,18 +27,18 @@ async_session = async_sessionmaker(
 
 
 async def get_db():
-    async with async_session() as session:
-        try:
-            # Set search path to public schema
-            await session.execute(text("SET search_path TO public"))
+    session = async_session()
+    try:
+        # Set search path to public schema
+        await session.execute(text("SET search_path TO public"))
 
-            # Test the connection
-            await session.execute(text("SELECT 1"))
+        # Test the connection
+        await session.execute(text("SELECT 1"))
 
-            yield session
-            await session.commit()
-        except Exception as e:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        yield session
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()

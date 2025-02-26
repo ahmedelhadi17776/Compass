@@ -114,3 +114,27 @@ class NLPService(AIServiceBase):
                 "complexity_level": "medium",
                 "technical_terms": []
             }
+
+    async def process_feedback(self, feedback_score: float, feedback_text: Optional[str] = None):
+        """Process feedback to improve NLP service performance."""
+        try:
+            # Log feedback for model improvement
+            feedback_data = {
+                "service": "nlp",
+                "model_version": self.model_version,
+                "feedback_score": feedback_score,
+                "feedback_text": feedback_text,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            # Store feedback for model retraining
+            await self._make_request(
+                "store_feedback",
+                data=feedback_data
+            )
+            
+            logger.info(f"Processed NLP service feedback: {feedback_score}")
+        except Exception as e:
+            logger.error(f"Failed to process NLP feedback: {str(e)}")
+            # Don't raise to avoid affecting the main flow
+            pass

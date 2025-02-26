@@ -1,19 +1,43 @@
 from typing import Dict, List, Optional
-from Backend.agents.base.base_agent import BaseAgent
+from crewai import Agent
+from langchain.tools import Tool
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.utils.logging_utils import get_logger
 from datetime import datetime, timedelta
 
 logger = get_logger(__name__)
 
-class TaskManagementAgent(BaseAgent):
+class TaskManagementAgent(Agent):
     def __init__(self):
+        # Initialize AI service
+        self.ai_service = LLMService()
+
+        # Define agent tools
+        tools = [
+            Tool.from_function(
+                func=self.create_task,
+                name="create_task",
+                description="Creates a new task with AI-enhanced metadata and planning"
+            ),
+            Tool.from_function(
+                func=self.update_task,
+                name="update_task",
+                description="Updates existing tasks with impact analysis and recommendations"
+            ),
+            Tool.from_function(
+                func=self.plan_task_timeline,
+                name="plan_timeline",
+                description="Plans optimal task timeline considering team capacity and dependencies"
+            )
+        ]
+
         super().__init__(
             name="Task Manager",
             role="Task Management Specialist",
-            goal="Manage task lifecycle and planning",
-            ai_service=LLMService(),
-            backstory="I specialize in task creation, planning, and management to ensure optimal workflow."
+            goal="Optimize task lifecycle management and resource planning",
+            backstory="I am an expert in task management and planning, using AI to enhance decision-making and ensure optimal workflow execution.",
+            tools=tools,
+            verbose=True
         )
 
     async def create_task(

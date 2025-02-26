@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import chromadb
 from chromadb.config import Settings
 from Backend.core.config import settings
@@ -7,27 +7,19 @@ from Backend.ai_services.llm.llm_service import LLMService
 from Backend.ai_services.embedding.embedding_service import EmbeddingService
 from Backend.ai_services.base.ai_service_base import AIServiceBase
 from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
+from Backend.data_layer.vector_db.chroma_client import chroma_client
 
 logger = get_logger(__name__)
+
 
 class RAGService(AIServiceBase):
     def __init__(self):
         super().__init__("rag")
-        self._initialize_chromadb()
+        # Use the centralized ChromaClient instance
+        self.client = chroma_client.client
+        self.collection = chroma_client.collection
         self.llm_service = LLMService()
         self.embedding_service = EmbeddingService()
-
-    def _initialize_chromadb(self) -> None:
-        """Initialize ChromaDB with error handling."""
-        try:
-            self.client = chromadb.Client(Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=settings.CHROMA_DB_PATH
-            ))
-            self.collection = self.client.get_or_create_collection("tasks")
-        except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB: {str(e)}")
-            raise
 
     async def query_knowledge_base(
         self,
@@ -48,20 +40,20 @@ class RAGService(AIServiceBase):
                 query,
                 normalize=normalize
             )
-            
+
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=limit,
                 where=filters
             )
-            
+
             context = "\n".join([doc for doc in results["documents"][0]])
-            
+
             response = await self.llm_service.generate_response(
                 prompt=query,
                 context={"reference_docs": context[:context_window]}
             )
-            
+
             result = {
                 "answer": response.get("text", ""),
                 "sources": results["metadatas"][0],
@@ -95,10 +87,10 @@ class RAGService(AIServiceBase):
                 normalize=normalize,
                 batch_size=batch_size
             )
-            
-            ids = [meta.get("id", str(i + len(self.collection))) 
-                  for i, meta in enumerate(metadata)]
-            
+
+            ids = [meta.get("id", str(i + len(self.collection)))
+                   for i, meta in enumerate(metadata)]
+
             self.collection.add(
                 embeddings=embeddings,
                 documents=content,
@@ -123,7 +115,7 @@ class RAGService(AIServiceBase):
                 content,
                 normalize=normalize
             )
-            
+
             self.collection.update(
                 ids=[doc_id],
                 embeddings=[embedding],

@@ -6,6 +6,7 @@ from typing import List
 from celery import shared_task
 from Backend.orchestration.crew_orchestrator import CrewOrchestrator
 from Backend.utils.logging_utils import get_logger
+from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -251,6 +252,61 @@ async def recommend_tasks(
     user_context: Dict,
     max_recommendations: int = 5
 ) -> Dict:
+    """Generate personalized task recommendations."""
+    try:
+        llm_service = LLMService()
+        recommendations = await llm_service.generate_task_recommendations(
+            user_context=user_context,
+            limit=max_recommendations
+        )
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "recommendations": recommendations,
+            "recommendation_count": len(recommendations),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+@celery_app.task(
+    name="tasks.ai_tasks.process_text_analysis",
+    queue="ai",
+    priority=5,
+    rate_limit="30/m"
+)
+async def process_text_analysis(
+    text: str,
+    analysis_type: str,
+    user_id: int,
+    options: Optional[Dict] = None
+) -> Dict:
+    """Process text analysis using AI services."""
+    try:
+        llm_service = LLMService()
+        result = await llm_service.analyze_text(
+            text=text,
+            analysis_type=analysis_type,
+            options=options
+        )
+        
+        return {
+            "status": "success",
+            "result": result,
+            "user_id": user_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
     """Generate personalized task recommendations."""
     try:
         llm_service = LLMService()

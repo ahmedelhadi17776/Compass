@@ -1,18 +1,47 @@
-from typing import Dict
-from Backend.agents.base.base_agent import BaseAgent
+from typing import Dict, List
+from crewai import Agent
+from langchain.tools import Tool
 from Backend.ai_services.task_ai.task_classification_service import TaskClassificationService
 from Backend.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-class TaskAnalysisAgent(BaseAgent):
+class TaskAnalysisAgent(Agent):
     def __init__(self):
+        # Initialize AI service
+        self.ai_service = TaskClassificationService()
+
+        # Define agent tools
+        tools = [
+            Tool.from_function(
+                func=self.analyze_task,
+                name="analyze_task",
+                description="Analyzes and classifies tasks based on their description and metadata"
+            ),
+            Tool.from_function(
+                func=self._determine_task_type,
+                name="determine_task_type",
+                description="Determines the type of task based on its characteristics"
+            ),
+            Tool.from_function(
+                func=self._extract_required_skills,
+                name="extract_skills",
+                description="Extracts required skills from task description"
+            ),
+            Tool.from_function(
+                func=self._assess_risks,
+                name="assess_risks",
+                description="Assesses potential risks associated with the task"
+            )
+        ]
+
         super().__init__(
             name="Task Analyzer",
             role="Task Analysis Specialist",
-            goal="Analyze and classify tasks accurately",
-            ai_service=TaskClassificationService(),
-            backstory="I specialize in analyzing tasks to determine their complexity, priority, and requirements."
+            goal="Analyze and classify tasks accurately to optimize workflow and resource allocation",
+            backstory="I am an expert in task analysis with deep understanding of project management and technical requirements. I help teams make informed decisions by providing detailed insights about tasks.",
+            tools=tools,
+            verbose=True
         )
 
     async def analyze_task(self, task_data: Dict) -> Dict:

@@ -16,9 +16,8 @@ from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.services.task_service import TaskService
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.api.auth import get_current_user
-from Backend.ai_services.task_ai.task_classification_service import TaskClassificationService
 
-task_classifier = TaskClassificationService()
+# Keep only core task operations
 
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
@@ -26,131 +25,17 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Create a new task with AI classification."""
+    """Create a new task."""
     try:
-        # Get AI classification with interaction logging
-        ai_analysis = await task_classifier.classify_task(
-            task_data={
-                "title": task.title,
-                "description": task.description,
-                "context": {
-                    "project_id": task.project_id,
-                    "organization_id": task.organization_id
-                }
-            },
-            db_session=db,
-            user_id=current_user.id
-        )
-        
-        # Update task data with AI insights
-        task_data = task.dict()
-        task_data.update({
-            "priority": ai_analysis["priority"],
-            "estimated_hours": ai_analysis["estimated_hours"],
-            "complexity_score": ai_analysis["complexity"],
-            "ai_category": ai_analysis["category"],
-            "ai_confidence": ai_analysis["confidence"]
-        })
-
         repo = TaskRepository(db)
         service = TaskService(repo)
-        result = await service.create_task(**task_data)
+        result = await service.create_task(**task.dict())
         return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating task: {str(e)}"
         )
-@router.post("/{task_id}/ai-analyze")
-async def analyze_task_with_ai(
-    task_id: int,
-    analysis_type: str,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Analyze task using AI capabilities."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-    result = await service.analyze_task_with_ai(task_id, analysis_type)
-    return result
-
-@router.post("/{task_id}/agent-interaction")
-async def create_task_agent_interaction(
-    task_id: int,
-    interaction_data: Dict,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Record a new agent interaction with the task."""
-    repo = TaskRepository(db)
-    interaction = await repo.create_task_agent_interaction(
-        task_id=task_id,
-        user_id=current_user.id,
-        **interaction_data
-    )
-    return interaction
-
-@router.get("/{task_id}/agent-interactions")
-async def get_task_agent_interactions(
-    task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Get all agent interactions for a task."""
-    repo = TaskRepository(db)
-    interactions = await repo.get_task_agent_interactions(task_id)
-    return interactions
-
-@router.post("/{task_id}/optimize")
-async def optimize_task(
-    task_id: int,
-    optimization_params: Dict,
-    db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Optimize task using AI agents."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-    result = await service.optimize_task(task_id, optimization_params)
-    return result
-@router.put("/{task_id}/dependencies")
-async def update_task_dependencies(
-    task_id: int,
-    dependencies: TaskDependencyUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Update task dependencies."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-
-    result = await service.update_task_dependencies(task_id, dependencies.dependencies)
-    if not result:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Dependencies updated successfully"}
-
-
-@router.get("/{task_id}/dependencies")
-async def get_task_dependencies(
-    task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Get task dependencies."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-
-    task = await service.get_task_with_details(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    # Ensure task is a Task object
-    if isinstance(task, dict):
-        task = Task(**task)  # Convert dict back to Task object if necessary
-
-    dependencies = getattr(task, 'dependencies', None)
-    return {"dependencies": dependencies or []}
-
 
 @router.get("/{task_id}", response_model=TaskWithDetails)
 async def get_task(
@@ -218,36 +103,8 @@ async def get_tasks(
     )
 
     return tasks
-@router.get("/{task_id}/similar", response_model=Dict)
-async def get_similar_tasks(
-    task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Get similar tasks using RAG."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-    
-    similar_tasks = await service.find_similar_tasks_rag(task_id)
-    return similar_tasks
-@router.post("/analyze", response_model=Dict)
-async def analyze_task(
-    task_data: TaskCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Analyze task using AI agents without creating it."""
-    try:
-        service = TaskService(TaskRepository(db))
-        crew_orchestrator = CrewOrchestrator()
-        
-        analysis = await crew_orchestrator.analyze_and_optimize_task(task_data.dict())
-        return analysis
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error analyzing task: {str(e)}"
-        )
+
+
 @router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: int,
