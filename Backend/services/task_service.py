@@ -6,6 +6,7 @@ from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.data_layer.database.errors import TaskNotFoundError
 from Backend.tasks.task_tasks import process_task, execute_task_step
 from celery.result import AsyncResult
+from Backend.ai_services.rag.rag_service import RAGService
 import asyncio
 import logging
 import json
@@ -19,6 +20,7 @@ class TaskUpdateError(Exception):
 class TaskService:
     def __init__(self, repository: TaskRepository):
         self.repo = repository
+        self.rag_service = RAGService()
 
     async def update_task_status(self, task_id: int, new_status: TaskStatus, user_id: int) -> Task:
         """Update task status with validation and history tracking."""
@@ -144,10 +146,7 @@ class TaskService:
         dependencies: Optional[List[int]] = None,
         _dependencies_list: Optional[str] = None
     ) -> Task:
-        """Create a new task."""
-        # Handle dependencies - prefer dependencies list if provided
-        deps = dependencies if dependencies is not None else (json.loads(_dependencies_list) if _dependencies_list else [])
-        
+        """Create a new task and index it in RAG knowledge base."""
         task = await self.repo.create_task(
             title=title,
             description=description,
@@ -162,9 +161,27 @@ class TaskService:
             parent_task_id=parent_task_id,
             estimated_hours=estimated_hours,
             due_date=due_date,
-            _dependencies_list=json.dumps(deps),
-            dependencies=deps
+            _dependencies_list=json.dumps(dependencies or []),
+            dependencies=dependencies or []
         )
+
+        # Index the task in RAG knowledge base
+        try:
+            content = f"{title}\n{description}"
+            await self.rag_service.add_to_knowledge_base(
+                content=content,
+                metadata={
+                    "id": str(task.id),
+                    "title": title,
+                    "status": task.status,
+                    "priority": str(priority) if priority else None,
+                    "project_id": project_id
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error indexing task in RAG: {str(e)}")
+            # Don't raise the error as indexing failure shouldn't prevent task creation
+
         return task
 
     async def update_task(self, task_id: int, task_data: Dict) -> Task:
@@ -341,3 +358,4 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error updating task dependencies: {str(e)}")
             return False
+# Add to TaskService class

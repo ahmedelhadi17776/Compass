@@ -75,6 +75,21 @@ class Todo(Base):
         Index("ix_todos_created_at", "created_at"),
     )
 
+    def to_dict(self):
+        """Convert the todo object to a dictionary for JSON serialization."""
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'title': self.title,
+            'description': self.description,
+            'status': self.status.value if hasattr(self, 'status') and self.status else None,
+            'priority': self.priority.value if hasattr(self, 'priority') and self.priority else None,
+            'due_date': self.due_date.isoformat() if hasattr(self, 'due_date') and self.due_date else None,
+            'is_recurring': self.is_recurring,
+            'created_at': self.created_at.isoformat() if hasattr(self, 'created_at') and self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if hasattr(self, 'updated_at') and self.updated_at else None
+        }
+
 
 class TodoHistory(Base):
     __tablename__ = "todo_history"

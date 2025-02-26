@@ -90,7 +90,12 @@ class Workflow(Base):
     agent_links = relationship(
         "WorkflowAgentLink", back_populates="workflow", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="workflow")
-
+    # Add to existing relationships in Workflow class
+    agent_interactions = relationship(
+        "WorkflowAgentInteraction", 
+        back_populates="workflow", 
+        cascade="all, delete-orphan"
+    )
     __table_args__ = (
         Index("ix_workflow_organization_id", "organization_id"),
         Index("ix_workflow_status", "status"),

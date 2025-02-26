@@ -107,16 +107,29 @@ class Task(Base):
     def dependencies(self) -> List[int]:
         """Get task dependencies."""
         try:
-            return json.loads(self._dependencies_list) if self._dependencies_list else []
+            deps_list = self._dependencies_list
+            if isinstance(deps_list, str):
+                return json.loads(deps_list)
+            if hasattr(deps_list, 'type'):  # Check if it's a Column
+                return []
+            if deps_list is None:
+                return []
+            if isinstance(deps_list, (list, tuple, set)):
+                return list(deps_list)
+            return []
         except (json.JSONDecodeError, TypeError):
             return []
 
     @dependencies.setter
     def dependencies(self, value: List[int]):
         """Set task dependencies."""
-        self._dependencies_list = json.dumps(value) if value is not None else '[]'
+        self._dependencies_list = json.dumps(
+            value) if value is not None else '[]'
         self.task_dependencies = value
 
+    # Add to existing relationships
+    agent_interactions = relationship(
+        "TaskAgentInteraction", back_populates="task", cascade="all, delete-orphan")
     __table_args__ = (
         Index("ix_task_status", "status"),
         Index("ix_task_creator_id", "creator_id"),

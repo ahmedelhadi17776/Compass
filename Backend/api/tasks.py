@@ -17,8 +17,7 @@ from Backend.services.task_service import TaskService
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.api.auth import get_current_user
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
-
+# Keep only core task operations
 
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
@@ -26,83 +25,17 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Create a new task with proper dependency validation."""
+    """Create a new task."""
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
-
-        # Validate dependencies if provided
-        if task.dependencies:
-            for dep_id in task.dependencies:
-                dep_task = await service.get_task(dep_id)
-                if not dep_task:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Dependency task {dep_id} not found"
-                    )
-
-        result = await service.create_task(
-            title=task.title,
-            description=task.description,
-            creator_id=current_user.id,
-            project_id=task.project_id,
-            organization_id=task.organization_id,
-            workflow_id=task.workflow_id,
-            assignee_id=task.assignee_id,
-            reviewer_id=task.reviewer_id,
-            priority=task.priority,
-            category_id=task.category_id,
-            parent_task_id=task.parent_task_id,
-            estimated_hours=task.estimated_hours,
-            due_date=task.due_date,
-            dependencies=task.dependencies or []
-        )
+        result = await service.create_task(**task.dict())
         return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating task: {str(e)}"
         )
-
-
-@router.put("/{task_id}/dependencies")
-async def update_task_dependencies(
-    task_id: int,
-    dependencies: TaskDependencyUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Update task dependencies."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-
-    result = await service.update_task_dependencies(task_id, dependencies.dependencies)
-    if not result:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Dependencies updated successfully"}
-
-
-@router.get("/{task_id}/dependencies")
-async def get_task_dependencies(
-    task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Get task dependencies."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
-
-    task = await service.get_task_with_details(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    # Ensure task is a Task object
-    if isinstance(task, dict):
-        task = Task(**task)  # Convert dict back to Task object if necessary
-
-    dependencies = getattr(task, 'dependencies', None)
-    return {"dependencies": dependencies or []}
-
 
 @router.get("/{task_id}", response_model=TaskWithDetails)
 async def get_task(
@@ -130,8 +63,6 @@ async def get_task(
                 **{**task_response.dict(), "metrics": metrics})
 
     return task_response
-
-
 @router.get("/", response_model=List[TaskResponse])
 async def get_tasks(
     skip: int = 0,
@@ -160,19 +91,16 @@ async def get_tasks(
         creator_id=creator_id,
         due_date_start=due_date_start,
         due_date_end=due_date_end
-    ) if project_id else []
-
-    return tasks
-    if project_id:
-        tasks = await repo.get_tasks_by_project(
-            project_id=project_id,
-            skip=skip,
-            limit=limit,
-            status=status
-        )
-    else:
-        # TODO: Implement get_tasks with more filters
-        tasks = []
+    ) if project_id else await repo.get_tasks(
+        skip=skip,
+        limit=limit,
+        status=status,
+        priority=priority,
+        assignee_id=assignee_id,
+        creator_id=creator_id,
+        due_date_start=due_date_start,
+        due_date_end=due_date_end
+    )
 
     return tasks
 

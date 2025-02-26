@@ -3,106 +3,147 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from Backend.data_layer.database.connection import get_db
 from Backend.services.workflow_service import WorkflowService
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
-from typing import Dict, List
-from pydantic import BaseModel
+from Backend.app.schemas.workflow import (
+    WorkflowCreate, WorkflowUpdate, WorkflowResponse, 
+    WorkflowDetail, WorkflowMetrics
+)
+from Backend.core.rbac import get_current_user
+from typing import Dict, List, Optional
+from datetime import datetime
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
-
-class WorkflowCreate(BaseModel):
-    user_id: int
-    organization_id: int
-    name: str
-    description: str
-    steps: List[Dict]
-
-
-class WorkflowStepExecute(BaseModel):
-    user_id: int
-    input_data: Dict
-
-
-class WorkflowAnalyze(BaseModel):
-    user_id: int
-    analysis_type: str
-    time_range: str
-    metrics: List[str]
-
-
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=WorkflowResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow(
     workflow: WorkflowCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
+    """Create a new workflow with AI optimization."""
     repo = WorkflowRepository(db)
     service = WorkflowService(repo)
     result = await service.create_workflow(
-        creator_id=workflow.user_id,
-        organization_id=workflow.organization_id,
-        name=workflow.name,
-        description=workflow.description,
-        steps=workflow.steps
+        creator_id=current_user.id,
+        **workflow.dict()
     )
     return result
 
-
-@router.post("/{workflow_id}/steps/{step_id}/execute")
-async def execute_workflow_step(
+@router.get("/{workflow_id}", response_model=WorkflowDetail)
+async def get_workflow(
     workflow_id: int,
-    step_id: int,
-    data: WorkflowStepExecute,
-    db: AsyncSession = Depends(get_db)
+    include_metrics: bool = False,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
+    """Get workflow details with optional metrics."""
     repo = WorkflowRepository(db)
     service = WorkflowService(repo)
-    result = await service.execute_step(
-        workflow_id=workflow_id,
-        step_id=step_id,
-        user_id=data.user_id,
-        input_data=data.input_data
-    )
+    workflow = await service.get_workflow_with_details(workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return workflow
+
+@router.put("/{workflow_id}", response_model=WorkflowResponse)
+async def update_workflow(
+    workflow_id: int,
+    workflow_update: WorkflowUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Update workflow with AI state tracking."""
+    repo = WorkflowRepository(db)
+    service = WorkflowService(repo)
+    result = await service.update_workflow(workflow_id, workflow_update.dict(exclude_unset=True))
+    if not result:
+        raise HTTPException(status_code=404, detail="Workflow not found")
     return result
 
-
-@router.post("/{workflow_id}/analyze")
+@router.post("/{workflow_id}/ai-analyze")
 async def analyze_workflow(
     workflow_id: int,
-    data: WorkflowAnalyze,
-    db: AsyncSession = Depends(get_db)
+    analysis_params: Dict,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
+    """Analyze workflow using AI capabilities."""
     repo = WorkflowRepository(db)
     service = WorkflowService(repo)
-    result = await service.analyze_workflow(
-        workflow_id=workflow_id,
-        user_id=data.user_id,
-        analysis_type=data.analysis_type,
-        time_range=data.time_range,
-        metrics=data.metrics
-    )
+    result = await service.analyze_workflow_with_ai(workflow_id, analysis_params)
     return result
 
-
-@router.get("/tasks/{task_id}")
-async def get_task_status(
-    task_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    repo = WorkflowRepository(db)
-    service = WorkflowService(repo)
-    result = await service.get_task_status(task_id)
-    return result
-
-
-@router.post("/{workflow_id}/cancel")
-async def cancel_workflow(
+@router.post("/{workflow_id}/optimize")
+async def optimize_workflow(
     workflow_id: int,
-    data: dict,
-    db: AsyncSession = Depends(get_db)
+    optimization_params: Dict,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
+    """Optimize workflow using AI agents."""
     repo = WorkflowRepository(db)
     service = WorkflowService(repo)
-    result = await service.cancel_workflow(
-        workflow_id=workflow_id,
-        user_id=data["user_id"]
-    )
+    result = await service.optimize_workflow(workflow_id, optimization_params)
     return result
+
+@router.get("/{workflow_id}/agent-interactions")
+async def get_workflow_agent_interactions(
+    workflow_id: int,
+    interaction_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Get all agent interactions for a workflow."""
+    repo = WorkflowRepository(db)
+    interactions = await repo.get_workflow_agent_interactions(
+        workflow_id,
+        interaction_type=interaction_type
+    )
+    return interactions
+
+@router.get("/{workflow_id}/metrics", response_model=WorkflowMetrics)
+async def get_workflow_metrics(
+    workflow_id: int,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Get workflow performance metrics."""
+    repo = WorkflowRepository(db)
+    service = WorkflowService(repo)
+    metrics = await service.get_workflow_metrics(
+        workflow_id, 
+        start_date=start_date, 
+        end_date=end_date
+    )
+    if not metrics:
+        raise HTTPException(status_code=404, detail="Workflow metrics not found")
+    return metrics
+
+@router.post("/{workflow_id}/agent-interaction")
+async def create_workflow_agent_interaction(
+    workflow_id: int,
+    interaction_data: Dict,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Record a new agent interaction with the workflow."""
+    repo = WorkflowRepository(db)
+    interaction = await repo.create_workflow_agent_interaction(
+        workflow_id=workflow_id,
+        user_id=current_user.id,
+        **interaction_data
+    )
+    return interaction
+
+@router.get("/{workflow_id}/ai-insights")
+async def get_workflow_ai_insights(
+    workflow_id: int,
+    metric_types: Optional[List[str]] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Get AI-generated insights for the workflow."""
+    repo = WorkflowRepository(db)
+    service = WorkflowService(repo)
+    insights = await service.get_workflow_ai_insights(workflow_id, metric_types)
+    return insights

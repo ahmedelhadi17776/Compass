@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, Float, Index
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
 import datetime
@@ -42,11 +42,19 @@ class WorkflowExecution(Base):
 class WorkflowAgentLink(Base):
     __tablename__ = "workflow_agent_links"
 
-    workflow_id = Column(Integer, ForeignKey(
-        "workflows.id", ondelete="CASCADE"), primary_key=True)
-    agent_type = Column(String(100), primary_key=True)
-    config = Column(JSON)
-    assigned_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete="CASCADE"))
+    agent_id = Column(Integer, ForeignKey("agent_actions.id"))
+    interaction_type = Column(String(100))
+    confidence_score = Column(Float)
+    interaction_metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="agent_links")
+    agent = relationship("AgentAction")
+
+    __table_args__ = (
+        Index("ix_workflow_agent_links_workflow_id", "workflow_id"),
+        Index("ix_workflow_agent_links_agent_id", "agent_id"),
+    )

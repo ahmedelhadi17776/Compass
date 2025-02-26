@@ -7,6 +7,23 @@ import json
 from pathlib import Path
 
 
+def get_logger(name: str, log_dir: str = 'logs') -> logging.Logger:
+    """
+    Get a configured logger with both file and console handlers.
+
+    Args:
+        name: Logger name
+        log_dir: Directory for log files
+    """
+    log_file = os.path.join(log_dir, f'{name}.log')
+    return setup_logger(
+        name=name,
+        log_file=log_file,
+        level=logging.INFO,
+        format_string='[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s'
+    )
+
+
 def setup_logger(
     name: str,
     log_file: str,

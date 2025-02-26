@@ -1,183 +1,118 @@
-import json
-from typing import Any, Optional, Union
-from datetime import datetime, timedelta
-import redis.asyncio as redis
 from functools import wraps
-import hashlib
-import pickle
+from typing import Any, Callable, Optional
+import json
+from datetime import datetime, timedelta
+import redis
+from Backend.core.config import settings
+from Backend.utils.logging_utils import get_logger
 
+logger = get_logger(__name__)
 
-class RedisCache:
-    def __init__(self, redis_url: str):
-        self.redis = redis.from_url(
-            redis_url, encoding="utf-8", decode_responses=True)
+# Initialize Redis client
+redis_client = redis.Redis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    db=settings.REDIS_DB,
+    password=settings.REDIS_PASSWORD,
+    decode_responses=True
+)
 
-    async def set(
-        self,
-        key: str,
-        value: Any,
-        expire: Optional[int] = None,
-        nx: bool = False
-    ) -> bool:
-        """
-        Set key-value pair in Redis.
+def generate_cache_key(func: Callable, *args, **kwargs) -> str:
+    """Generate a unique cache key based on function name and arguments."""
+    try:
+        # Create a unique key based on function name and arguments
+        key_parts = [
+            func.__module__,
+            func.__name__,
+            str(args),
+            str(sorted(kwargs.items()))
+        ]
+        return ":".join(key_parts)
+    except Exception as e:
+        logger.error(f"Error generating cache key: {str(e)}")
+        return f"{func.__module__}:{func.__name__}:fallback"
 
-        Args:
-            key: Cache key
-            value: Value to cache
-            expire: Expiration time in seconds
-            nx: If True, set only if key doesn't exist
-        """
-        try:
-            # Serialize value if it's not a string
-            if not isinstance(value, (str, int, float)):
-                value = json.dumps(value)
+def serialize_data(data: Any) -> str:
+    """Serialize data to JSON string format."""
+    try:
+        return json.dumps(data)
+    except Exception as e:
+        logger.error(f"Error serializing data: {str(e)}")
+        raise
 
-            if nx:
-                return await self.redis.set(key, value, ex=expire, nx=True)
-            return await self.redis.set(key, value, ex=expire)
-        except Exception as e:
-            print(f"Error setting cache: {str(e)}")
-            return False
+def deserialize_data(data_str: str) -> Any:
+    """Deserialize JSON string back to Python object."""
+    try:
+        return json.loads(data_str)
+    except Exception as e:
+        logger.error(f"Error deserializing data: {str(e)}")
+        raise
 
-    async def get(self, key: str, default: Any = None) -> Any:
-        """Get value from Redis."""
-        try:
-            value = await self.redis.get(key)
-            if value is None:
-                return default
-
-            # Try to deserialize JSON
-            try:
-                return json.loads(value)
-            except json.JSONDecodeError:
-                return value
-        except Exception as e:
-            print(f"Error getting from cache: {str(e)}")
-            return default
-
-    async def delete(self, key: str) -> bool:
-        """Delete key from Redis."""
-        try:
-            return bool(await self.redis.delete(key))
-        except Exception as e:
-            print(f"Error deleting from cache: {str(e)}")
-            return False
-
-    async def exists(self, key: str) -> bool:
-        """Check if key exists in Redis."""
-        try:
-            return bool(await self.redis.exists(key))
-        except Exception as e:
-            print(f"Error checking cache existence: {str(e)}")
-            return False
-
-    async def increment(self, key: str, amount: int = 1) -> Optional[int]:
-        """Increment value in Redis."""
-        try:
-            return await self.redis.incrby(key, amount)
-        except Exception as e:
-            print(f"Error incrementing cache: {str(e)}")
-            return None
-
-    async def expire_at(self, key: str, timestamp: Union[int, datetime]) -> bool:
-        """Set expiration time for key."""
-        try:
-            if isinstance(timestamp, datetime):
-                timestamp = int(timestamp.timestamp())
-            return await self.redis.expireat(key, timestamp)
-        except Exception as e:
-            print(f"Error setting expiration: {str(e)}")
-            return False
-
-    async def clear_pattern(self, pattern: str) -> int:
-        """Delete all keys matching pattern."""
-        try:
-            keys = await self.redis.keys(pattern)
-            if keys:
-                return await self.redis.delete(*keys)
-            return 0
-        except Exception as e:
-            print(f"Error clearing cache pattern: {str(e)}")
-            return 0
-
-
-def cache_key_builder(*args, **kwargs) -> str:
-    """Build cache key from arguments."""
-    key_parts = [str(arg) for arg in args]
-    key_parts.extend(f"{k}:{v}" for k, v in sorted(kwargs.items()))
-    key_string = ":".join(key_parts)
-    return hashlib.md5(key_string.encode()).hexdigest()
-
-
-def async_cache(
-    cache: RedisCache,
-    prefix: str,
-    expire: Optional[int] = None,
-    key_builder: callable = cache_key_builder
-):
-    """
-    Decorator for caching async function results.
-
+def cache_response(ttl: int = 3600):
+    """Decorator to cache function responses in Redis.
+    
     Args:
-        cache: RedisCache instance
-        prefix: Cache key prefix
-        expire: Cache expiration time in seconds
-        key_builder: Function to build cache key from arguments
+        ttl (int): Time to live in seconds for cached data. Defaults to 1 hour.
     """
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Build cache key
-            cache_key = f"{prefix}:{key_builder(*args, **kwargs)}"
-
-            # Try to get from cache
-            cached_value = await cache.get(cache_key)
-            if cached_value is not None:
-                return cached_value
-
-            # Call function and cache result
-            result = await func(*args, **kwargs)
-            await cache.set(cache_key, result, expire=expire)
-            return result
+            try:
+                # Generate cache key
+                cache_key = generate_cache_key(func, *args, **kwargs)
+                
+                # Try to get cached response
+                cached_data = redis_client.get(cache_key)
+                if cached_data:
+                    return deserialize_data(cached_data)
+                
+                # If no cache, execute function and cache result
+                result = await func(*args, **kwargs)
+                serialized_result = serialize_data(result)
+                
+                # Store in Redis with TTL
+                redis_client.setex(cache_key, ttl, serialized_result)
+                
+                return result
+            except redis.RedisError as e:
+                logger.error(f"Redis error in cache_response: {str(e)}")
+                # Fall back to executing function without caching
+                return await func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Unexpected error in cache_response: {str(e)}")
+                raise
+        
         return wrapper
     return decorator
 
+def clear_cache(pattern: str = "*") -> None:
+    """Clear cache entries matching the given pattern.
+    
+    Args:
+        pattern (str): Pattern to match cache keys. Defaults to all keys.
+    """
+    try:
+        cursor = 0
+        while True:
+            cursor, keys = redis_client.scan(cursor, match=pattern)
+            if keys:
+                redis_client.delete(*keys)
+            if cursor == 0:
+                break
+    except Exception as e:
+        logger.error(f"Error clearing cache: {str(e)}")
+        raise
 
-class LocalCache:
-    """Simple in-memory cache with expiration."""
-
-    def __init__(self):
-        self._cache = {}
-        self._expires = {}
-
-    def set(self, key: str, value: Any, expire: Optional[int] = None):
-        """Set value in cache with optional expiration."""
-        self._cache[key] = value
-        if expire:
-            self._expires[key] = datetime.now() + timedelta(seconds=expire)
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get value from cache."""
-        self._cleanup()
-        return self._cache.get(key, default)
-
-    def delete(self, key: str) -> bool:
-        """Delete key from cache."""
-        self._cleanup()
-        if key in self._cache:
-            del self._cache[key]
-            self._expires.pop(key, None)
-            return True
-        return False
-
-    def _cleanup(self):
-        """Remove expired entries."""
-        now = datetime.now()
-        expired = [
-            key for key, expires in self._expires.items()
-            if expires <= now
-        ]
-        for key in expired:
-            self._cache.pop(key, None)
-            self._expires.pop(key, None)
+def get_cache_stats() -> dict:
+    """Get cache statistics and metrics."""
+    try:
+        info = redis_client.info()
+        return {
+            "used_memory": info.get("used_memory_human"),
+            "connected_clients": info.get("connected_clients"),
+            "total_keys": redis_client.dbsize(),
+            "uptime_days": info.get("uptime_in_days")
+        }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {str(e)}")
+        raise
