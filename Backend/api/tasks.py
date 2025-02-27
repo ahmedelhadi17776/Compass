@@ -16,8 +16,12 @@ from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.services.task_service import TaskService
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.api.auth import get_current_user
+from Backend.orchestration.crew_orchestrator import CrewOrchestrator
 
 # Keep only core task operations
+
+router = APIRouter()
+
 
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
@@ -37,6 +41,7 @@ async def create_task(
             detail=f"Error creating task: {str(e)}"
         )
 
+
 @router.get("/{task_id}", response_model=TaskWithDetails)
 async def get_task(
     task_id: int,
@@ -46,23 +51,25 @@ async def get_task(
     current_user=Depends(get_current_user)
 ):
     """Get task details with optional metrics."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        task = await service.get_task_with_details(task_id)
+        if not task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID {task_id} not found"
+            )
+        return task
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving task: {str(e)}"
+        )
 
-    task = await service.get_task_with_details(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
 
-    # Convert to Pydantic model
-    task_response = TaskWithDetails.from_orm(task)
-
-    if include_metrics:
-        metrics = await service.get_task_metrics(task_id)
-        if metrics:
-            task_response = TaskWithDetails(
-                **{**task_response.dict(), "metrics": metrics})
-
-    return task_response
 @router.get("/", response_model=List[TaskResponse])
 async def get_tasks(
     skip: int = 0,
@@ -202,3 +209,43 @@ async def get_task_metrics(
     if not metrics:
         raise HTTPException(status_code=404, detail="Task not found")
     return metrics
+
+
+@router.post("/{task_id}/ai-process", response_model=Dict)
+async def process_task_with_ai(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Process a task using AI agents via CrewOrchestrator.
+
+    This endpoint triggers AI processing on the task, which includes:
+    - Task analysis and classification
+    - Resource allocation recommendations
+    - Timeline optimization
+    - Dependency analysis
+
+    Returns:
+        Dict: Results of AI processing
+    """
+    try:
+        # Initialize orchestrator
+        orchestrator = CrewOrchestrator()
+
+        # Process the task
+        results = await orchestrator.process_db_task(task_id)
+
+        if "error" in results:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=results["error"]
+            )
+
+        return results
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing task with AI: {str(e)}"
+        )

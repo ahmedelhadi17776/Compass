@@ -3,14 +3,19 @@ from crewai import Agent
 from langchain.tools import Tool
 from Backend.ai_services.task_ai.task_classification_service import TaskClassificationService
 from Backend.utils.logging_utils import get_logger
+from pydantic import Field
+import os
 
 logger = get_logger(__name__)
 
-class TaskAnalysisAgent(Agent):
-    def __init__(self):
-        # Initialize AI service
-        self.ai_service = TaskClassificationService()
+os.environ["OPENAI_API_KEY"] = "ZacAdKKUscsLMldtyUpqSJJwiaCnc5Xa"
 
+
+class TaskAnalysisAgent(Agent):
+    ai_service: TaskClassificationService = Field(
+        default_factory=TaskClassificationService)
+
+    def __init__(self):
         # Define agent tools
         tools = [
             Tool.from_function(
@@ -36,7 +41,6 @@ class TaskAnalysisAgent(Agent):
         ]
 
         super().__init__(
-            name="Task Analyzer",
             role="Task Analysis Specialist",
             goal="Analyze and classify tasks accurately to optimize workflow and resource allocation",
             backstory="I am an expert in task analysis with deep understanding of project management and technical requirements. I help teams make informed decisions by providing detailed insights about tasks.",
@@ -49,7 +53,7 @@ class TaskAnalysisAgent(Agent):
         try:
             # Classify task
             classification = await self.ai_service.classify_task(task_data)
-            
+
             # Enhance with additional analysis
             analysis_result = {
                 **classification,
@@ -57,7 +61,7 @@ class TaskAnalysisAgent(Agent):
                 "required_skills": self._extract_required_skills(task_data),
                 "risk_assessment": self._assess_risks(task_data)
             }
-            
+
             return analysis_result
         except Exception as e:
             logger.error(f"Task analysis failed: {str(e)}")
@@ -79,7 +83,7 @@ class TaskAnalysisAgent(Agent):
         try:
             description = task_data.get('description', '').lower()
             skills = set()
-            
+
             # Technical skills
             if any(tech in description for tech in ['python', 'java', 'javascript', 'react']):
                 skills.add('programming')
@@ -87,38 +91,39 @@ class TaskAnalysisAgent(Agent):
                 skills.add('database')
             if 'api' in description or 'rest' in description:
                 skills.add('api_development')
-                
+
             # Soft skills
             if 'team' in description or 'collaborate' in description:
                 skills.add('teamwork')
             if 'analyze' in description or 'research' in description:
                 skills.add('analytical')
-                
+
             return list(skills)
         except Exception as e:
             logger.error(f"Error extracting skills: {str(e)}")
             return []
+
     def _assess_risks(self, task_data: Dict) -> Dict:
         """Assess potential risks associated with the task."""
         try:
             risks = []
             risk_level = "low"
-            
+
             # Deadline risk
             if task_data.get('due_date') and task_data.get('estimated_hours', 0) > 20:
                 risks.append("High time commitment required")
                 risk_level = "medium"
-                
+
             # Dependency risk
             if len(task_data.get('dependencies', [])) > 2:
                 risks.append("Multiple dependencies may cause delays")
                 risk_level = "high"
-                
+
             # Technical risk
             if task_data.get('complexity_score', 0) > 0.7:
                 risks.append("High technical complexity")
                 risk_level = "high"
-                
+
             return {
                 "risk_level": risk_level,
                 "potential_issues": risks

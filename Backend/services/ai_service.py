@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, Union, cast
 from datetime import datetime
 from Backend.ai_services.emotion_ai.emotion_service import EmotionService
 from Backend.ai_services.nlp_service.nlp_service import NLPService
@@ -12,8 +12,16 @@ from Backend.data_layer.database.errors import TaskNotFoundError
 from Backend.services.integration_service import IntegrationService
 from Backend.data_layer.repositories.agent_repository import AgentRepository
 from sqlalchemy.ext.asyncio import AsyncSession
+from Backend.ai_services.llm.llm_service import LLMService
+from Backend.ai_services.embedding.embedding_service import EmbeddingService
+from Backend.orchestration.crew_orchestrator import CrewOrchestrator
+from Backend.data_layer.repositories.task_repository import TaskRepository
+from Backend.data_layer.database.models.task import Task
+from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
+import json
 
 logger = get_logger(__name__)
+
 
 class AIService:
     def __init__(self):
@@ -24,8 +32,11 @@ class AIService:
         self.task_classifier = TaskClassificationService()
         self.workflow_optimizer = WorkflowOptimizationService()
         self.rag_service = RAGService()
+        self.llm_service = LLMService()
+        self.embedding_service = EmbeddingService()
+        self.crew_orchestrator = CrewOrchestrator()
 
-    async def analyze_text(self, text: str, analysis_type: str) -> Dict:
+    async def analyze_text(self, text: str, analysis_type: str) -> Dict[str, Any]:
         """Analyze text using different AI services."""
         try:
             results = {}
@@ -42,7 +53,7 @@ class AIService:
             logger.error(f"Text analysis failed: {str(e)}")
             raise
 
-    async def analyze_productivity(self, tasks: List[Dict], time_period: str = "daily") -> Dict:
+    async def analyze_productivity(self, tasks: List[Dict[str, Any]], time_period: str = "daily") -> Dict[str, Any]:
         """Analyze task productivity patterns."""
         try:
             return await self.productivity_service.analyze_task_patterns(tasks, time_period)
@@ -50,7 +61,7 @@ class AIService:
             logger.error(f"Productivity analysis failed: {str(e)}")
             raise
 
-    async def classify_task(self, task_data: Dict, db_session=None, user_id: int = None) -> Dict:
+    async def classify_task(self, task_data: Dict[str, Any], db_session: Optional[AsyncSession] = None, user_id: Optional[int] = None) -> Dict[str, Any]:
         """Classify task using AI."""
         try:
             return await self.task_classifier.classify_task(
@@ -62,7 +73,7 @@ class AIService:
             logger.error(f"Task classification failed: {str(e)}")
             raise
 
-    async def optimize_workflow(self, workflow_id: int, include_historical: bool = True) -> Dict:
+    async def optimize_workflow(self, workflow_id: int, include_historical: bool = True) -> Dict[str, Any]:
         """Generate workflow optimization recommendations."""
         try:
             return await self.workflow_optimizer.optimize_workflow(
@@ -73,9 +84,7 @@ class AIService:
             logger.error(f"Workflow optimization failed: {str(e)}")
             raise
 
-
-
-    async def query_knowledge_base(self, query: str, limit: int = 5, filters: Dict = None) -> Dict:
+    async def query_knowledge_base(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Query the RAG knowledge base."""
         try:
             return await self.rag_service.query_knowledge_base(
@@ -87,7 +96,7 @@ class AIService:
             logger.error(f"Knowledge base query failed: {str(e)}")
             raise
 
-    async def get_emotional_context(self, text: str) -> Dict:
+    async def get_emotional_context(self, text: str) -> Dict[str, Any]:
         """Get comprehensive emotional analysis including sentiment and key phrases."""
         try:
             return await self.emotion_service.get_emotional_context(text)
@@ -95,7 +104,7 @@ class AIService:
             logger.error(f"Emotional context analysis failed: {str(e)}")
             raise
 
-    async def summarize_workflow(self, workflow_data: Dict, include_metrics: bool = True) -> Dict:
+    async def summarize_workflow(self, workflow_data: Dict[str, Any], include_metrics: bool = True) -> Dict[str, Any]:
         """Generate workflow summary with comprehensive metrics."""
         try:
             return await self.summarization_service.summarize_workflow(
@@ -106,7 +115,7 @@ class AIService:
             logger.error(f"Workflow summarization failed: {str(e)}")
             raise
 
-    async def summarize_task_group(self, tasks: List[Dict]) -> Dict:
+    async def summarize_task_group(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate a summary for a group of related tasks."""
         try:
             return await self.summarization_service.summarize_task_group(tasks)
@@ -114,56 +123,159 @@ class AIService:
             logger.error(f"Task group summarization failed: {str(e)}")
             raise
 
-    async def process_task_with_ai(self, task_data: Dict, task_id: int, process_type: str) -> Dict:
-        """Process task with AI agents."""
-        if not task_data:
-            raise TaskNotFoundError(f"Task {task_id} not found")
+    async def process_task_with_ai(self, task_id: int, db_session: AsyncSession) -> Dict[str, Any]:
+        """Process a task with AI agents and update the database.
 
-        integration_service = IntegrationService()
-        result = await integration_service.process_with_agents(
-            data=task_data,
-            process_type=process_type
-        )
+        Args:
+            task_id: ID of the task to process
+            db_session: Database session
 
-        return {
-            "ai_insights": result.get("analysis", {}),
-            "ai_recommendations": result.get("recommendations", []),
-            "last_ai_process": datetime.utcnow().isoformat()
-        }
+        Returns:
+            Dict with processing results
+        """
+        try:
+            # Initialize repositories
+            task_repo = TaskRepository(db_session)
+            agent_repo = AgentRepository(db_session)
 
-    async def find_similar_tasks_rag(self, task_data: Dict, task_id: int) -> Dict:
-        """Find similar tasks using RAG."""
-        if not task_data:
-            raise TaskNotFoundError(f"Task {task_id} not found")
+            # Get task from database
+            task = await task_repo.get_task_with_details(task_id)
+            if not task:
+                return {"error": f"Task with ID {task_id} not found"}
 
-        query = f"{task_data['title']} {task_data['description']}"
-        similar_tasks = await self.rag_service.query_knowledge_base(
-            query=query,
-            limit=5
-        )
+            # Process task with crew orchestrator
+            results = await self.crew_orchestrator.process_db_task(task_id)
 
-        return {
-            "task_id": task_id,
-            "similar_tasks": similar_tasks["sources"],
-            "confidence": similar_tasks["confidence"]
-        }
+            # Record AI interaction
+            interaction = AIAgentInteraction(
+                task_id=task_id,
+                agent_type="crew_orchestrator",
+                interaction_type="task_processing",
+                input_data=json.dumps({"task_id": task_id}),
+                output_data=json.dumps(results),
+                timestamp=datetime.utcnow()
+            )
 
-    async def index_task_for_rag(self, task_data: Dict, task_id: int) -> bool:
-        """Index task in RAG knowledge base."""
-        if not task_data:
+            # Add method to create AI interaction if it doesn't exist
+            if hasattr(agent_repo, "create_ai_interaction"):
+                await agent_repo.create_ai_interaction(interaction)
+            else:
+                logger.warning(
+                    "AgentRepository does not have create_ai_interaction method")
+
+            # Update task with AI suggestions if available
+            if "output" in results and not results.get("error"):
+                # Get current AI suggestions
+                ai_suggestions = {}
+                if hasattr(task, "ai_suggestions") and task.ai_suggestions is not None:
+                    if isinstance(task.ai_suggestions, dict):
+                        ai_suggestions = task.ai_suggestions
+                    else:
+                        logger.warning(
+                            f"Task ai_suggestions is not a dictionary: {type(task.ai_suggestions)}")
+
+                # Add new suggestions
+                ai_suggestions["crew_processing"] = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "result": results.get("output")
+                }
+
+                await task_repo.update_task(task_id, {"ai_suggestions": ai_suggestions})
+
+            return results
+        except Exception as e:
+            logger.error(f"Error processing task with AI: {str(e)}")
+            return {"error": f"Error processing task with AI: {str(e)}"}
+
+    async def store_task_context(self, task_id: int, context_data: Dict[str, Any], db_session: AsyncSession) -> bool:
+        """Store task context in the vector database for future reference.
+
+        Args:
+            task_id: ID of the task
+            context_data: Context data to store
+            db_session: Database session
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get task from database
+            task_repo = TaskRepository(db_session)
+            task = await task_repo.get_task(task_id)
+            if not task:
+                logger.error(f"Task with ID {task_id} not found")
+                return False
+
+            # Prepare metadata
+            metadata = {
+                "task_id": task_id,
+                "title": task.title,
+                "type": "task_context",
+                "created_at": datetime.utcnow().isoformat(),
+                "source": "ai_service"
+            }
+
+            # Convert context data to string
+            content = json.dumps(context_data)
+
+            # Store in vector database
+            result = await self.rag_service.add_to_knowledge_base(
+                content=content,
+                metadata=metadata
+            )
+
+            return result
+        except Exception as e:
+            logger.error(f"Error storing task context: {str(e)}")
             return False
 
-        content = f"{task_data['title']}\n{task_data['description']}"
-        return await self.rag_service.add_to_knowledge_base(
-            content=content,
-            metadata={
-                "id": str(task_id),
-                "title": task_data["title"],
-                "status": task_data["status"],
-                "priority": task_data["priority"],
-                "project_id": task_data["project_id"]
-            }
-        )
+    async def retrieve_similar_tasks(self, task_description: str, limit: int = 5, db_session: Optional[AsyncSession] = None) -> List[Dict[str, Any]]:
+        """Find similar tasks based on semantic similarity.
+
+        Args:
+            task_description: Description of the task to find similar tasks for
+            limit: Maximum number of similar tasks to return
+            db_session: Optional database session
+
+        Returns:
+            List of similar tasks
+        """
+        try:
+            # Query vector database
+            results = await self.rag_service.query_knowledge_base(
+                query=task_description,
+                limit=limit,
+                filters={"type": "task_context"}
+            )
+
+            # Extract task IDs from results
+            task_ids = []
+            if results.get("sources"):
+                for source in results["sources"]:
+                    if isinstance(source, dict) and source.get("task_id"):
+                        task_ids.append(source["task_id"])
+
+            # If we have a database session, get task details
+            if db_session and task_ids:
+                task_repo = TaskRepository(db_session)
+                tasks = []
+                for task_id in task_ids:
+                    task = await task_repo.get_task(task_id)
+                    if task:
+                        tasks.append({
+                            "id": task.id,
+                            "title": task.title,
+                            "description": task.description,
+                            "status": str(task.status),
+                            "priority": str(task.priority),
+                            "similarity_score": results.get("confidence", 0)
+                        })
+                return tasks
+
+            return [{"task_id": source.get("task_id")} for source in results.get("sources", [])]
+        except Exception as e:
+            logger.error(f"Error retrieving similar tasks: {str(e)}")
+            return []
 
     async def analyze_workflow(
         self,
@@ -172,7 +284,7 @@ class AIService:
         analysis_type: str,
         time_range: str,
         metrics: List[str]
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Analyze workflow using AI services."""
         try:
             workflow_metrics = await self.workflow_optimizer.analyze_workflow_patterns(
@@ -217,13 +329,17 @@ class AIService:
         await self.summarization_service.close()
         await self.task_classifier.close()
         await self.workflow_optimizer.close()
+        await self.llm_service.close()
+        await self.embedding_service.close()
+        await self.crew_orchestrator.close()
+
     async def submit_feedback(
         self,
         interaction_id: int,
         feedback_score: float,
         feedback_text: Optional[str] = None,
-        db: AsyncSession = None
-    ) -> Dict:
+        db: Optional[AsyncSession] = None
+    ) -> Dict[str, Any]:
         """Submit and process feedback for an AI interaction."""
         try:
             if not db:
@@ -235,18 +351,25 @@ class AIService:
             # Get the existing interaction
             interaction = await agent_repo.get_agent_interaction(interaction_id)
             if not interaction:
-                raise ValueError(f"Interaction with ID {interaction_id} not found")
+                raise ValueError(
+                    f"Interaction with ID {interaction_id} not found")
 
             # Update the interaction with feedback
-            updated_interaction = await agent_repo.update_agent_interaction(
-                interaction_id=interaction_id,
-                updates={
-                    "feedback_score": feedback_score,
-                    "feedback_text": feedback_text,
-                    "feedback_timestamp": datetime.utcnow(),
-                    "has_feedback": True
-                }
-            )
+            # Add method if it doesn't exist
+            if hasattr(agent_repo, "update_agent_interaction"):
+                updated_interaction = await agent_repo.update_agent_interaction(
+                    interaction_id=interaction_id,
+                    updates={
+                        "feedback_score": feedback_score,
+                        "feedback_text": feedback_text,
+                        "feedback_timestamp": datetime.utcnow(),
+                        "has_feedback": True
+                    }
+                )
+            else:
+                logger.warning(
+                    "AgentRepository does not have update_agent_interaction method")
+                updated_interaction = interaction
 
             # Process feedback for AI improvement
             await self._process_feedback_for_improvement(
@@ -278,11 +401,18 @@ class AIService:
             elif interaction_type == "task_classification":
                 await self.task_classifier.process_feedback(feedback_score, feedback_text)
             elif interaction_type == "workflow_optimization":
-                await self.workflow_optimizer.process_feedback(feedback_score, feedback_text)
+                # Add method if it doesn't exist
+                if hasattr(self.workflow_optimizer, "process_feedback"):
+                    await self.workflow_optimizer.process_feedback(feedback_score, feedback_text)
+                else:
+                    logger.warning(
+                        "WorkflowOptimizationService does not have process_feedback method")
 
-            logger.info(f"Processed feedback for {interaction_type} interaction")
+            logger.info(
+                f"Processed feedback for {interaction_type} interaction")
 
         except Exception as e:
-            logger.error(f"Failed to process feedback for improvement: {str(e)}")
+            logger.error(
+                f"Failed to process feedback for improvement: {str(e)}")
             # Don't raise the exception to avoid affecting the main feedback submission
             pass
