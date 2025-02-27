@@ -1,5 +1,9 @@
+from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
+from Backend.ai_services.embedding.embedding_service import EmbeddingService
+from Backend.ai_services.base.ai_service_base import AIServiceBase
 from typing import Dict, List, Optional
 import aiohttp
+from datetime import datetime
 from Backend.core.config import settings
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
@@ -9,9 +13,6 @@ from Backend.data_layer.database.models.ai_models import AIModel
 
 logger = get_logger(__name__)
 
-from Backend.ai_services.base.ai_service_base import AIServiceBase
-from Backend.ai_services.embedding.embedding_service import EmbeddingService
-from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
 
 class TaskClassificationService(AIServiceBase):
     def __init__(self):
@@ -25,7 +26,7 @@ class TaskClassificationService(AIServiceBase):
         self,
         task_data: Dict,
         db_session=None,
-        user_id: int = None,
+        user_id: Optional[int] = None,
         include_historical: bool = False
     ) -> Dict:
         """Classify task with enhanced analysis and historical comparison."""
@@ -40,7 +41,7 @@ class TaskClassificationService(AIServiceBase):
             task_embedding = await self.embedding_service.get_embedding(task_text)
             sentiment = await self.nlp_service.analyze_sentiment(task_data.get('description', ''))
             entities = await self.nlp_service.extract_entities(task_text)
-            
+
             # Get classification with context
             classification = await self._make_request(
                 "classify",
@@ -71,7 +72,7 @@ class TaskClassificationService(AIServiceBase):
             await cache_ai_result(cache_key, result)
 
             # Log interaction
-            if db_session and user_id:
+            if db_session and user_id is not None:
                 await self._log_interaction(
                     db_session=db_session,
                     user_id=user_id,
@@ -138,6 +139,7 @@ class TaskClassificationService(AIServiceBase):
         """Close the aiohttp session."""
         if self.session and not self.session.closed:
             await self.session.close()
+
     async def process_feedback(self, feedback_score: float, feedback_text: Optional[str] = None) -> None:
         """Process feedback to improve task classification model."""
         try:
@@ -158,9 +160,11 @@ class TaskClassificationService(AIServiceBase):
                 }
             )
 
-            logger.info(f"Processed task classification feedback: {feedback_score}")
+            logger.info(
+                f"Processed task classification feedback: {feedback_score}")
 
         except Exception as e:
-            logger.error(f"Error processing task classification feedback: {str(e)}")
+            logger.error(
+                f"Error processing task classification feedback: {str(e)}")
             # Don't raise the exception to avoid affecting the main feedback submission
             pass

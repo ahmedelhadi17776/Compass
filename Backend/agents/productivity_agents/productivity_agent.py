@@ -1,16 +1,18 @@
 from typing import Dict, List
 from crewai import Agent
 from langchain.tools import Tool
+from pydantic import Field
 from Backend.ai_services.productivity_ai.productivity_service import ProductivityService
 from Backend.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-class ProductivityAgent(Agent):
-    def __init__(self):
-        # Initialize AI service
-        self.ai_service = ProductivityService()
 
+class ProductivityAgent(Agent):
+    ai_service: ProductivityService = Field(
+        default_factory=ProductivityService)
+
+    def __init__(self):
         # Define agent tools
         tools = [
             Tool.from_function(
@@ -36,7 +38,6 @@ class ProductivityAgent(Agent):
         ]
 
         super().__init__(
-            name="Productivity Analyzer",
             role="Productivity Optimization Specialist",
             goal="Analyze and optimize task execution efficiency, workflow productivity, and team performance",
             backstory="I am an expert in productivity analysis and optimization, using advanced metrics and AI insights to enhance individual and team performance while maintaining sustainable work practices.",
@@ -54,7 +55,7 @@ class ProductivityAgent(Agent):
             patterns = await self.ai_service.analyze_task_patterns(tasks, time_period)
             workflow_data = self._aggregate_workflow_data(tasks)
             efficiency = await self.ai_service.analyze_workflow_efficiency(workflow_data)
-            
+
             return {
                 "task_patterns": patterns,
                 "workflow_efficiency": efficiency,
@@ -135,16 +136,19 @@ class ProductivityAgent(Agent):
         """Generate detailed productivity recommendations."""
         recommendations = []
         metrics = patterns.get("metrics", {})
-        
+
         if metrics.get("completion_rate", 0) < 0.7:
-            recommendations.append("Improve task completion rate through better task breakdown and prioritization")
-        
+            recommendations.append(
+                "Improve task completion rate through better task breakdown and prioritization")
+
         if efficiency.get("efficiency_metrics", {}).get("efficiency_ratio", 0) < 0.8:
-            recommendations.append("Optimize workflow processes to reduce time inefficiencies")
-        
+            recommendations.append(
+                "Optimize workflow processes to reduce time inefficiencies")
+
         if metrics.get("avg_complexity", 0) > 0.7:
-            recommendations.append("Consider simplifying complex tasks or providing additional resources")
-            
+            recommendations.append(
+                "Consider simplifying complex tasks or providing additional resources")
+
         return recommendations
 
     def _generate_implementation_timeline(self, optimization_data: Dict) -> Dict:

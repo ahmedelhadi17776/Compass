@@ -3,15 +3,15 @@ from crewai import Agent
 from langchain.tools import Tool
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.utils.logging_utils import get_logger
+from pydantic import Field
 
 logger = get_logger(__name__)
 
 
 class ResourceAllocationAgent(Agent):
-    def __init__(self):
-        # Initialize AI service
-        self.ai_service = LLMService()
+    ai_service: LLMService = Field(default_factory=LLMService)
 
+    def __init__(self):
         # Define agent tools
         tools = [
             Tool.from_function(
@@ -37,7 +37,6 @@ class ResourceAllocationAgent(Agent):
         ]
 
         super().__init__(
-            name="Resource Allocator",
             role="Resource Management Specialist",
             goal="Optimize resource allocation, workload distribution, and capacity planning",
             backstory="I am an expert in resource management and allocation, using AI-driven analytics to ensure optimal distribution of resources while maintaining team efficiency and preventing burnout.",

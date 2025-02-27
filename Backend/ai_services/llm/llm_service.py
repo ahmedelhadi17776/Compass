@@ -1,9 +1,12 @@
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat.chat_completion import ChatCompletion
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai._streaming import Stream
 from Backend.core.config import settings
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
-from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
 
 logger = get_logger(__name__)
 
@@ -15,7 +18,7 @@ class LLMService:
             base_url=settings.LLM_API_BASE_URL
         )
         self.model = settings.LLM_MODEL_NAME
-        self.conversation_history = []
+        self.conversation_history: List[ChatCompletionMessageParam] = []
         self.max_history_length = 10
 
     @cache_response(ttl=1800)
@@ -25,7 +28,7 @@ class LLMService:
         context: Optional[Dict] = None,
         model_parameters: Optional[Dict] = None,
         stream: bool = False
-    ) -> Dict:
+    ) -> Union[Dict[str, Any], Stream[ChatCompletionChunk]]:
         try:
             messages = self._prepare_messages(prompt, context)
             params = self._prepare_model_parameters(model_parameters)
@@ -38,40 +41,69 @@ class LLMService:
             )
 
             if stream:
-                return {"stream": response}
+                return response
 
-            result = {
-                "text": response.choices[0].message.content,
-                "usage": {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens
+            if isinstance(response, ChatCompletion) and response.choices:
+                result = {
+                    "text": response.choices[0].message.content,
+                    "usage": {
+                        "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                        "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                        "total_tokens": response.usage.total_tokens if response.usage else 0
+                    }
                 }
-            }
+                self._update_conversation_history(prompt, result["text"])
+                return result
 
-            # Update conversation history
-            self._update_conversation_history(prompt, result["text"])
-            return result
+            raise ValueError("Invalid response from LLM service")
 
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             raise
 
-    def _prepare_messages(self, prompt: str, context: Optional[Dict] = None) -> List[Dict]:
-        messages = []
+    async def _make_request(self, endpoint: str, **kwargs) -> Dict[str, Any]:
+        """Make a request to the LLM API."""
+        try:
+            if endpoint == "model_info":
+                return {
+                    "model": self.model,
+                    "capabilities": {
+                        "streaming": True,
+                        "function_calling": True,
+                        "context_window": settings.LLM_MAX_TOKENS,
+                        "temperature_range": [0.0, 2.0]
+                    },
+                    "configuration": {
+                        "temperature": settings.LLM_TEMPERATURE,
+                        "max_tokens": settings.LLM_MAX_TOKENS,
+                        "top_p": settings.LLM_TOP_P,
+                        "min_p": settings.LLM_MIN_P,
+                        "top_k": settings.LLM_TOP_K
+                    }
+                }
+            raise ValueError(f"Unknown endpoint: {endpoint}")
+        except Exception as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
 
-        # Add system message if context provides it
+    def _prepare_messages(
+        self,
+        prompt: str,
+        context: Optional[Dict] = None
+    ) -> List[ChatCompletionMessageParam]:
+        messages: List[ChatCompletionMessageParam] = []
+
         if context and context.get("system_message"):
-            messages.append(
-                {"role": "system", "content": context["system_message"]})
+            messages.append({
+                "role": "system",
+                "content": context["system_message"]
+            })
 
-        # Add conversation history
         messages.extend(self.conversation_history[-self.max_history_length:])
-
-        # Add current prompt
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    def _prepare_model_parameters(self, parameters: Optional[Dict] = None) -> Dict:
+    def _prepare_model_parameters(self, parameters: Optional[Dict] = None) -> Dict[str, Any]:
         default_params = {
             "temperature": settings.LLM_TEMPERATURE,
             "max_tokens": settings.LLM_MAX_TOKENS,
@@ -88,7 +120,6 @@ class LLMService:
         self.conversation_history.append(
             {"role": "assistant", "content": response})
 
-        # Trim history if it exceeds max length
         if len(self.conversation_history) > self.max_history_length * 2:
             self.conversation_history = self.conversation_history[-self.max_history_length * 2:]
 
@@ -148,6 +179,6 @@ class LLMService:
         }
 
     async def close(self):
-        """Close the aiohttp session."""
-        if self.session and not self.session.closed:
-            await self.session.close()
+        """Close the LLM service."""
+        # No active connections to close in OpenAI client
+        pass

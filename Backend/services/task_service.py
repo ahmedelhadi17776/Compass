@@ -13,9 +13,11 @@ import json
 
 logger = logging.getLogger(__name__)
 
+
 class TaskUpdateError(Exception):
     """Custom exception for task update errors."""
     pass
+
 
 class TaskService:
     def __init__(self, repository: TaskRepository):
@@ -31,13 +33,15 @@ class TaskService:
 
             # Validate status transition
             if task.status == TaskStatus.TODO and new_status == TaskStatus.COMPLETED:
-                raise TaskUpdateError("Cannot transition directly from TODO to COMPLETED")
+                raise TaskUpdateError(
+                    "Cannot transition directly from TODO to COMPLETED")
 
             # Check dependencies if transitioning to COMPLETED
             if new_status == TaskStatus.COMPLETED:
                 dependencies_completed = await self.check_dependencies(task_id)
                 if not dependencies_completed:
-                    raise TaskUpdateError("Cannot complete task: dependencies not completed")
+                    raise TaskUpdateError(
+                        "Cannot complete task: dependencies not completed")
 
             # Update task status
             updated_task = await self.repo.update_task(task_id, {"status": new_status})
@@ -84,20 +88,27 @@ class TaskService:
             visited.add(current_id)
             path.add(current_id)
 
-            task = await self.repo.get_task(current_id)
-            if task and task.dependencies:
-                deps = json.loads(task.dependencies) if isinstance(task.dependencies, str) else []
-                for dep_id in deps:
-                    if await dfs(int(dep_id)):
+            # If we're checking the original task and it would depend on any of the new dependencies
+            if current_id == task_id:
+                for dep_id in dependencies:
+                    if await dfs(dep_id):
                         return True
+            else:
+                # Check existing dependencies
+                task = await self.repo.get_task(current_id)
+                if task and task.dependencies:
+                    deps = json.loads(task.dependencies) if isinstance(
+                        task.dependencies, str) else []
+                    for dep_id in deps:
+                        if await dfs(int(dep_id)):
+                            return True
 
             path.remove(current_id)
             return False
 
-        # Check if adding new dependencies would create a cycle
-        for dep_id in dependencies:
-            if await dfs(dep_id):
-                return True
+        # Start DFS from the task that would have new dependencies
+        if await dfs(task_id):
+            return True
 
         return False
 
@@ -207,7 +218,8 @@ class TaskService:
                 return None
             # Initialize dependencies from _dependencies_list
             try:
-                deps = json.loads(task._dependencies_list) if task._dependencies_list else []
+                deps = json.loads(
+                    task._dependencies_list) if task._dependencies_list else []
                 task.dependencies = deps
                 task.task_dependencies = deps
             except (json.JSONDecodeError, TypeError):
@@ -226,7 +238,8 @@ class TaskService:
                 return True
 
             # Get dependencies from _dependencies_list
-            deps = json.loads(task._dependencies_list) if task._dependencies_list else []
+            deps = json.loads(
+                task._dependencies_list) if task._dependencies_list else []
 
             if not deps:
                 return True
@@ -277,7 +290,8 @@ class TaskService:
 
             # Safely get blockers value
             blockers = getattr(task, 'blockers', None)
-            blockers_list = json.loads(blockers) if isinstance(blockers, str) else []
+            blockers_list = json.loads(
+                blockers) if isinstance(blockers, str) else []
 
             metrics = {
                 "dependencies_completed": await self.check_dependencies(task_id),
@@ -347,9 +361,10 @@ class TaskService:
                     raise ValueError(f"Dependency task {dep_id} not found")
 
             # Update task with new dependencies
-            logger.info(f"Updating task {task_id} with dependencies: {dependencies}")
+            logger.info(
+                f"Updating task {task_id} with dependencies: {dependencies}")
             result = await self.repo.update_task_dependencies(task_id, dependencies)
-            
+
             # Refresh task after update to ensure we have the latest state
             updated_task = await self.repo.get_task(task_id)
             if updated_task and updated_task.dependencies == dependencies:

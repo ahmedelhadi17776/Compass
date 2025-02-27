@@ -19,7 +19,12 @@ import datetime
 from redis.asyncio import Redis
 from httpx import AsyncClient
 import redis.asyncio as redis
+import sys
+from unittest.mock import MagicMock, patch
 
+# Add the parent directory to sys.path
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
 
 # Set testing environment before importing settings
 os.environ["TESTING"] = "True"
@@ -29,6 +34,8 @@ os.environ["ENVIRONMENT"] = "testing"
 os.environ["JWT_SECRET_KEY"] = "test_secret_key"
 os.environ["JWT_ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:postgres@localhost:5432/compass_test"
+os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
 # Create test database engine
 test_engine = create_async_engine(
@@ -202,3 +209,35 @@ async def client(db_session: AsyncSession, redis_client: Redis) -> AsyncGenerato
         finally:
             app.dependency_overrides.clear()
             app.state.redis = None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_chroma_client():
+    """Mock ChromaDB client to prevent actual initialization during tests."""
+    # Create a mock collection with all the methods we need
+    mock_collection = MagicMock()
+    mock_collection.query.return_value = {
+        "documents": [["This is a test document"]],
+        "metadatas": [[{"source": "test", "date": "2023-01-01"}]],
+        "distances": [[0.1]],
+        "ids": [["test-id-1"]]
+    }
+    mock_collection.add.return_value = None
+    mock_collection.update.return_value = None
+    mock_collection.delete.return_value = None
+    mock_collection.count.return_value = 1
+
+    # Create a mock client that returns our mock collection
+    mock_client = MagicMock()
+    mock_client.get_or_create_collection.return_value = mock_collection
+
+    # Create a mock ChromaClient class
+    mock_chroma_client = MagicMock()
+    mock_chroma_client.client = mock_client
+    mock_chroma_client.collection = mock_collection
+
+    # Patch the ChromaClient class and its initialization
+    with patch('Backend.data_layer.vector_db.chroma_client.ChromaClient', return_value=mock_chroma_client):
+        with patch('Backend.data_layer.vector_db.chroma_client.chromadb.PersistentClient', return_value=mock_client):
+            with patch('Backend.ai_services.rag.rag_service.ChromaClient', return_value=mock_chroma_client):
+                yield mock_chroma_client
