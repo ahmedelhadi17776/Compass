@@ -3,14 +3,16 @@ from crewai import Agent
 from langchain.tools import Tool
 from Backend.ai_services.workflow_ai.workflow_optimization_service import WorkflowOptimizationService
 from Backend.utils.logging_utils import get_logger
+from pydantic import Field
 
 logger = get_logger(__name__)
 
-class WorkflowOptimizationAgent(Agent):
-    def __init__(self):
-        # Initialize AI service
-        self.ai_service = WorkflowOptimizationService()
 
+class WorkflowOptimizationAgent(Agent):
+    ai_service: WorkflowOptimizationService = Field(
+        default_factory=WorkflowOptimizationService)
+
+    def __init__(self):
         # Define agent tools
         tools = [
             Tool.from_function(
@@ -36,7 +38,6 @@ class WorkflowOptimizationAgent(Agent):
         ]
 
         super().__init__(
-            name="Workflow Optimizer",
             role="Workflow Optimization Specialist",
             goal="Optimize workflow efficiency, identify improvements, and maximize team productivity",
             backstory="I am an expert in workflow analysis and optimization, specializing in identifying inefficiencies and suggesting improvements to streamline processes and enhance team productivity.",
@@ -49,7 +50,7 @@ class WorkflowOptimizationAgent(Agent):
         try:
             optimization_result = await self.ai_service.optimize_workflow(workflow_id)
             patterns = await self.ai_service.analyze_workflow_patterns(workflow_id)
-            
+
             return {
                 **optimization_result,
                 "identified_patterns": patterns["patterns"],

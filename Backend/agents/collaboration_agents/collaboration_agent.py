@@ -3,15 +3,15 @@ from crewai import Agent
 from langchain.tools import Tool
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.utils.logging_utils import get_logger
+from pydantic import Field
 
 logger = get_logger(__name__)
 
 
 class CollaborationAgent(Agent):
-    def __init__(self):
-        # Initialize AI service
-        self.ai_service = LLMService()
+    ai_service: LLMService = Field(default_factory=LLMService)
 
+    def __init__(self):
         # Define agent tools
         tools = [
             Tool.from_function(
@@ -37,7 +37,6 @@ class CollaborationAgent(Agent):
         ]
 
         super().__init__(
-            name="Collaboration Coordinator",
             role="Team Collaboration Specialist",
             goal="Enhance team collaboration, communication efficiency, and interpersonal dynamics",
             backstory="I am an expert in team dynamics and collaboration optimization, using AI-driven insights to improve team performance and create a positive work environment.",
