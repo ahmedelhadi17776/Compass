@@ -145,3 +145,33 @@ async def update_user(
 ):
     """Update current user information"""
     return await auth_service.update_user(current_user.id, user_data)
+
+
+# auth for swagger ui post /auth/toke
+
+@router.post("/token", tags=["auth"])
+async def login_for_access_token(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Login and get access token"""
+    user = await auth_service.authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create proper session with token instead of using password hash
+    session = await auth_service.create_session(
+        user_id=user.id,
+        device_info=request.headers.get("User-Agent") or "Unknown",
+        ip_address=request.client.host if request.client else "Unknown"
+    )
+
+    return {
+        "access_token": session.token,
+        "token_type": "bearer"
+        }

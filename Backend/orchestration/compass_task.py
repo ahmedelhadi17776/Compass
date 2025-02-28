@@ -16,37 +16,30 @@ class CompassTask(Task):
         task_data: Dict[str, Any],
         task_type: Optional[str] = None
     ):
-        """Initialize a CompassTask with proper context handling.
-
-        Args:
-            description: Task description
-            agent: Agent assigned to the task
-            expected_output: Expected output description
-            task_data: Task-specific data and context
-            task_type: Type of task (e.g., "analysis", "creation", "update")
-        """
-        self.task_data = task_data
-        self.task_type = task_type or "general"
-
-        # Initialize the parent Task class
+        """Initialize a CompassTask with proper context handling."""
+        # Initialize the parent Task class first
         super().__init__(
             description=description,
             agent=agent,
             expected_output=expected_output
         )
+        
+        # Set task-specific attributes after parent initialization
+        self._task_data = task_data
+        self._task_type = task_type or "general"
 
     def get_task_data(self) -> Dict[str, Any]:
         """Get the task data."""
-        return self.task_data
+        return self._task_data
 
     def get_task_type(self) -> str:
         """Get the task type."""
-        return self.task_type
+        return self._task_type
 
     def update_task_data(self, new_data: Dict[str, Any]) -> None:
         """Update task data with new information."""
-        if isinstance(self.task_data, dict):
-            self.task_data.update(new_data)
+        if isinstance(self._task_data, dict):
+            self._task_data.update(new_data)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary format."""

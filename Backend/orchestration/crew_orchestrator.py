@@ -11,6 +11,8 @@ from Backend.orchestration.compass_task import CompassTask
 from Backend.utils.logging_utils import get_logger
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.database.connection import get_db
+from Backend.core.config import settings
+
 from datetime import datetime
 
 logger = get_logger(__name__)
@@ -18,7 +20,17 @@ logger = get_logger(__name__)
 
 class CrewOrchestrator:
     def __init__(self):
-        # Initialize agents with CrewAI-specific configurations
+        # Configure OpenAI client for DeepInfra
+        import os
+        from openai import OpenAI
+
+        os.environ["OPENAI_API_KEY"] = settings.LLM_API_KEY
+        os.environ["OPENAI_API_BASE"] = settings.LLM_API_BASE_URL
+
+        self.client = OpenAI(
+            api_key=settings.LLM_API_KEY,
+            base_url=settings.LLM_API_BASE_URL
+        )
         self.task_analyzer: Agent = TaskAnalysisAgent()
         self.task_manager: Agent = TaskManagementAgent()
         self.workflow_optimizer: Agent = WorkflowOptimizationAgent()

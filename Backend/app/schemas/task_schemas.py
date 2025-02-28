@@ -142,14 +142,18 @@ class CommentResponse(BaseModel):
 
 
 # History Response Schema
-class HistoryResponse(BaseModel):
+class TaskHistoryResponse(BaseModel):
     id: int
+    task_id: int
+    user_id: int
     action: str
     field: Optional[str]
     old_value: Optional[str]
     new_value: Optional[str]
-    user_id: int
     created_at: datetime
+    is_ai_generated: Optional[bool] = False
+    ai_confidence_score: Optional[float] = None
+    ai_reasoning: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True

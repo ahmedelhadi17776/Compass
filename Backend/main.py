@@ -14,6 +14,9 @@ from Backend.api.auth import router as auth_router
 from Backend.api.roles import router as role_router
 from Backend.api.workflows import router as workflow_router
 from Backend.api.ai_routes import router as ai_router
+from Backend.api.tasks import router as task_router
+from Backend.api.organizations import router as organization_router
+from Backend.api.projects import router as project_router
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -82,15 +85,46 @@ app.add_middleware(
 
 # ✅ Include API Routes
 app.include_router(api_router)
-app.include_router(ai_router)
-
-# Include Todo routes
-app.include_router(todo_router, prefix="/todos", tags=["todos"])
 
 # Include authentication endpoints
 app.include_router(auth_router, prefix="/auth")
 app.include_router(role_router, prefix="/admin")
+
+app.include_router(organization_router, prefix="/organizations", tags=["organizations"])
+
+app.include_router(project_router, prefix="/projects", tags=["projects"])
+
+app.include_router(task_router, prefix="/tasks", tags=["tasks"])
+
+# Include Todo routes
+app.include_router(todo_router, prefix="/todos", tags=["todos"])
+
 app.include_router(workflow_router)
+
+app.include_router(ai_router)
+
+
+# ✅ Celery Beat Scheduler
+'''
+@app.on_event("startup")
+async def startup_event():
+    celery_app.conf.update(
+        broker_url=settings.CELERY_BROKER_URL,
+        result_backend=settings.CELERY_RESULT_BACKEND
+    )
+    celery_app.conf.beat_schedule = {
+        'process-scheduled-notifications': {
+            'task': 'tasks.notification_tasks.process_scheduled_notifications',
+            'schedule': 60.0,  # Every minute
+            'args': (datetime.utcnow().isoformat(),)
+        },
+        'generate-productivity-insights': {
+            'task': 'tasks.ai_tasks.generate_productivity_insights',
+           'schedule': 3600.0,  # Every hour
+            'args': (None, 'hourly', ['focus', 'productivity', 'breaks'])
+        }
+    }
+'''
 
 # ✅ Root Health Check
 
