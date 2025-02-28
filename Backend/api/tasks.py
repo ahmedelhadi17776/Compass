@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict
 from datetime import datetime
-
 from Backend.data_layer.database.connection import get_db
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority, Task
 from Backend.app.schemas.task_schemas import (
@@ -10,7 +9,8 @@ from Backend.app.schemas.task_schemas import (
     TaskUpdate,
     TaskResponse,
     TaskWithDetails,
-    TaskDependencyUpdate
+    TaskDependencyUpdate,
+    TaskHistoryResponse
 )
 from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.services.task_service import TaskService
@@ -181,7 +181,7 @@ async def delete_task(
     return {"message": "Task deleted successfully"}
 
 
-@router.get("/{task_id}/history", response_model=List[TaskHistory])
+@router.get("/{task_id}/history", response_model=List[TaskHistoryResponse])
 async def get_task_history(
     task_id: int,
     skip: int = 0,
