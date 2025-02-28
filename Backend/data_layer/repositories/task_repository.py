@@ -101,19 +101,69 @@ class TaskRepository(BaseRepository[Task]):
     async def get_tasks_by_project(
         self,
         project_id: int,
+        skip: int = 0,
+        limit: int = 100,
         status: Optional[str] = None,
         priority: Optional[str] = None,
-        limit: int = 100
+        assignee_id: Optional[int] = None,
+        creator_id: Optional[int] = None,
+        due_date_start: Optional[datetime] = None,
+        due_date_end: Optional[datetime] = None
     ) -> List[Task]:
         """Get tasks by project with optional filters."""
         query = select(Task).where(Task.project_id == project_id)
-
+    
+        # Apply filters
         if status:
             query = query.where(Task.status == status)
         if priority:
             query = query.where(Task.priority == priority)
+        if assignee_id:
+            query = query.where(Task.assignee_id == assignee_id)
+        if creator_id:
+            query = query.where(Task.creator_id == creator_id)
+        if due_date_start:
+            query = query.where(Task.due_date >= due_date_start)
+        if due_date_end:
+            query = query.where(Task.due_date <= due_date_end)
+    
+        # Apply pagination
+        query = query.offset(skip).limit(limit)
+    
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
-        query = query.limit(limit)
+    async def get_tasks(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
+        assignee_id: Optional[int] = None,
+        creator_id: Optional[int] = None,
+        due_date_start: Optional[datetime] = None,
+        due_date_end: Optional[datetime] = None
+    ) -> List[Task]:
+        """Get all tasks with optional filters."""
+        query = select(Task)
+    
+        # Apply filters
+        if status:
+            query = query.where(Task.status == status)
+        if priority:
+            query = query.where(Task.priority == priority)
+        if assignee_id:
+            query = query.where(Task.assignee_id == assignee_id)
+        if creator_id:
+            query = query.where(Task.creator_id == creator_id)
+        if due_date_start:
+            query = query.where(Task.due_date >= due_date_start)
+        if due_date_end:
+            query = query.where(Task.due_date <= due_date_end)
+    
+        # Apply pagination
+        query = query.offset(skip).limit(limit)
+        
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -122,6 +172,23 @@ class TaskRepository(BaseRepository[Task]):
         self.db.add(history)
         await self.db.flush()
         return history
+
+    async def get_task_history(
+        self,
+        task_id: int,
+        skip: int = 0,
+        limit: int = 50
+    ) -> List[TaskHistory]:
+        """Get paginated task history entries for a specific task."""
+        query = (
+            select(TaskHistory)
+            .where(TaskHistory.task_id == task_id)
+            .order_by(TaskHistory.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
     async def get_recent_tasks(
         self,

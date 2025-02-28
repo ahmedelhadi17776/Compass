@@ -146,35 +146,60 @@ class TaskService:
         creator_id: int,
         project_id: int,
         organization_id: int,
+        status: TaskStatus = TaskStatus.TODO,  # Add status parameter with default
+        priority: TaskPriority = TaskPriority.MEDIUM,  # Add priority parameter with default
         workflow_id: Optional[int] = None,
         assignee_id: Optional[int] = None,
         reviewer_id: Optional[int] = None,
-        priority: Optional[TaskPriority] = None,
         category_id: Optional[int] = None,
         parent_task_id: Optional[int] = None,
         estimated_hours: Optional[float] = None,
         due_date: Optional[datetime] = None,
         dependencies: Optional[List[int]] = None,
+        ai_suggestions: Optional[Dict] = None,
+        complexity_score: Optional[float] = None,
+        time_estimates: Optional[Dict] = None,
+        focus_sessions: Optional[Dict] = None,
+        interruption_logs: Optional[Dict] = None,
+        progress_metrics: Optional[Dict] = None,
+        blockers: Optional[List[str]] = None,
+        health_score: Optional[float] = None,
+        risk_factors: Optional[Dict] = None,
         _dependencies_list: Optional[str] = None
     ) -> Task:
         """Create a new task and index it in RAG knowledge base."""
-        task = await self.repo.create_task(
-            title=title,
-            description=description,
-            creator_id=creator_id,
-            project_id=project_id,
-            organization_id=organization_id,
-            workflow_id=workflow_id,
-            assignee_id=assignee_id,
-            reviewer_id=reviewer_id,
-            priority=priority,
-            category_id=category_id,
-            parent_task_id=parent_task_id,
-            estimated_hours=estimated_hours,
-            due_date=due_date,
-            _dependencies_list=json.dumps(dependencies or []),
-            dependencies=dependencies or []
-        )
+        # Convert timezone-aware datetime to naive UTC datetime
+        if due_date and due_date.tzinfo is not None:
+            due_date = due_date.replace(tzinfo=None)
+    
+        task_data = {
+            "title": title,
+            "description": description,
+            "creator_id": creator_id,
+            "project_id": project_id,
+            "organization_id": organization_id,
+            "status": status,
+            "priority": priority,
+            "workflow_id": workflow_id if workflow_id and workflow_id > 0 else None,
+            "assignee_id": assignee_id,
+            "reviewer_id": reviewer_id,
+            "category_id": category_id if category_id and category_id > 0 else None,
+            "parent_task_id": parent_task_id if parent_task_id and parent_task_id > 0 else None,
+            "estimated_hours": estimated_hours,
+            "due_date": due_date,
+            "_dependencies_list": json.dumps(dependencies or []),
+            "ai_suggestions": ai_suggestions or {},
+            "complexity_score": complexity_score,
+            "time_estimates": time_estimates or {},
+            "focus_sessions": focus_sessions or {},
+            "interruption_logs": interruption_logs or {},
+            "progress_metrics": progress_metrics or {},
+            "blockers": blockers or [],
+            "health_score": health_score,
+            "risk_factors": risk_factors or {}
+        }
+
+        task = await self.repo.create(**task_data)
 
         # Index the task in RAG knowledge base
         try:
@@ -184,14 +209,13 @@ class TaskService:
                 metadata={
                     "id": str(task.id),
                     "title": title,
-                    "status": task.status,
+                    "status": status,
                     "priority": str(priority) if priority else None,
                     "project_id": project_id
                 }
             )
         except Exception as e:
             logger.error(f"Error indexing task in RAG: {str(e)}")
-            # Don't raise the error as indexing failure shouldn't prevent task creation
 
         return task
 

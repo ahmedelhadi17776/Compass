@@ -1,8 +1,8 @@
-"""initial migration
+"""Add project status and creator fields
 
-Revision ID: 1f71fa09e25e
+Revision ID: 54e9b8cbbe70
 Revises: 
-Create Date: 2025-02-19 20:21:44.910439+00:00
+Create Date: 2025-02-27 07:06:29.442698+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '1f71fa09e25e'
+revision: str = '54e9b8cbbe70'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -92,22 +92,6 @@ def upgrade() -> None:
     op.create_index('ix_subscription_plans_created_at', 'subscription_plans', ['created_at'], unique=False)
     op.create_index(op.f('ix_subscription_plans_id'), 'subscription_plans', ['id'], unique=False)
     op.create_index('ix_subscription_plans_name', 'subscription_plans', ['name'], unique=True)
-    op.create_table('projects',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('organization_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index('ix_project_created_at', 'projects', ['created_at'], unique=False)
-    op.create_index('ix_project_name', 'projects', ['name'], unique=False)
-    op.create_index('ix_project_organization_id', 'projects', ['organization_id'], unique=False)
-    op.create_index(op.f('ix_projects_id'), 'projects', ['id'], unique=False)
-    op.create_index(op.f('ix_projects_organization_id'), 'projects', ['organization_id'], unique=False)
-    op.create_index('uq_project_org_name', 'projects', ['organization_id', 'name'], unique=True)
     op.create_table('task_categories',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
@@ -371,15 +355,26 @@ def upgrade() -> None:
     op.create_index('ix_productivity_metrics_date', 'productivity_metrics', ['date'], unique=False)
     op.create_index(op.f('ix_productivity_metrics_id'), 'productivity_metrics', ['id'], unique=False)
     op.create_index('ix_productivity_metrics_user_id', 'productivity_metrics', ['user_id'], unique=False)
-    op.create_table('project_members',
-    sa.Column('project_id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('role', sa.String(length=100), nullable=True),
-    sa.Column('joined_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('project_id', 'user_id')
+    op.create_table('projects',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('status', sa.Enum('ACTIVE', 'COMPLETED', 'ARCHIVED', 'ON_HOLD', name='projectstatus'), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('creator_id', sa.Integer(), nullable=False),
+    sa.Column('organization_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['creator_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('ix_project_created_at', 'projects', ['created_at'], unique=False)
+    op.create_index('ix_project_name', 'projects', ['name'], unique=False)
+    op.create_index('ix_project_organization_id', 'projects', ['organization_id'], unique=False)
+    op.create_index('ix_project_status', 'projects', ['status'], unique=False)
+    op.create_index(op.f('ix_projects_id'), 'projects', ['id'], unique=False)
+    op.create_index(op.f('ix_projects_organization_id'), 'projects', ['organization_id'], unique=False)
+    op.create_index('uq_project_org_name', 'projects', ['organization_id', 'name'], unique=True)
     op.create_table('rag_queries',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -604,6 +599,15 @@ def upgrade() -> None:
     op.create_index('ix_payments_status', 'payments', ['status'], unique=False)
     op.create_index('ix_payments_subscription_id', 'payments', ['subscription_id'], unique=False)
     op.create_index('ix_payments_transaction_id', 'payments', ['transaction_id'], unique=True)
+    op.create_table('project_members',
+    sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('role', sa.String(length=100), nullable=True),
+    sa.Column('joined_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('project_id', 'user_id')
+    )
     op.create_table('security_audit_logs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
@@ -629,13 +633,20 @@ def upgrade() -> None:
     op.create_index('ix_security_audit_logs_risk_score', 'security_audit_logs', ['risk_score'], unique=False)
     op.create_index('ix_security_audit_logs_user_id', 'security_audit_logs', ['user_id'], unique=False)
     op.create_table('workflow_agent_links',
-    sa.Column('workflow_id', sa.Integer(), nullable=False),
-    sa.Column('agent_type', sa.String(length=100), nullable=False),
-    sa.Column('config', sa.JSON(), nullable=True),
-    sa.Column('assigned_at', sa.DateTime(), nullable=True),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('workflow_id', sa.Integer(), nullable=True),
+    sa.Column('agent_id', sa.Integer(), nullable=True),
+    sa.Column('interaction_type', sa.String(length=100), nullable=True),
+    sa.Column('confidence_score', sa.Float(), nullable=True),
+    sa.Column('interaction_metadata', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['agent_id'], ['agent_actions.id'], ),
     sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('workflow_id', 'agent_type')
+    sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('ix_workflow_agent_links_agent_id', 'workflow_agent_links', ['agent_id'], unique=False)
+    op.create_index(op.f('ix_workflow_agent_links_id'), 'workflow_agent_links', ['id'], unique=False)
+    op.create_index('ix_workflow_agent_links_workflow_id', 'workflow_agent_links', ['workflow_id'], unique=False)
     op.create_table('workflow_executions',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('workflow_id', sa.Integer(), nullable=False),
@@ -691,7 +702,7 @@ def upgrade() -> None:
     sa.Column('organization_id', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
     sa.Column('workflow_id', sa.Integer(), nullable=True),
-    sa.Column('dependencies', sa.JSON(), nullable=True),
+    sa.Column('_dependencies_list', sa.JSON(), nullable=False),
     sa.Column('current_workflow_step_id', sa.Integer(), nullable=True),
     sa.Column('ai_suggestions', sa.JSON(), nullable=True),
     sa.Column('complexity_score', sa.Float(), nullable=True),
@@ -699,8 +710,8 @@ def upgrade() -> None:
     sa.Column('time_estimates', sa.JSON(), nullable=True),
     sa.Column('focus_sessions', sa.JSON(), nullable=True),
     sa.Column('interruption_logs', sa.JSON(), nullable=True),
-    sa.Column('progress_metrics', sa.JSON(), nullable=True),
-    sa.Column('blockers', sa.JSON(), nullable=True),
+    sa.Column('progress_metrics', sa.JSON(), nullable=False),
+    sa.Column('blockers', sa.JSON(), nullable=False),
     sa.Column('health_score', sa.Float(), nullable=True),
     sa.Column('risk_factors', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['assignee_id'], ['users.id'], ),
@@ -755,6 +766,24 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workflow_transitions_id'), 'workflow_transitions', ['id'], unique=False)
+    op.create_table('task_agent_interactions',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('task_id', sa.Integer(), nullable=True),
+    sa.Column('agent_id', sa.Integer(), nullable=True),
+    sa.Column('interaction_type', sa.String(length=100), nullable=True),
+    sa.Column('confidence_score', sa.Float(), nullable=True),
+    sa.Column('recommendations', sa.JSON(), nullable=True),
+    sa.Column('action_taken', sa.String(length=100), nullable=True),
+    sa.Column('result', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['agent_id'], ['agent_actions.id'], ),
+    sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_task_agent_interactions_agent_id', 'task_agent_interactions', ['agent_id'], unique=False)
+    op.create_index('ix_task_agent_interactions_created_at', 'task_agent_interactions', ['created_at'], unique=False)
+    op.create_index(op.f('ix_task_agent_interactions_id'), 'task_agent_interactions', ['id'], unique=False)
+    op.create_index('ix_task_agent_interactions_task_id', 'task_agent_interactions', ['task_id'], unique=False)
     op.create_table('task_attachments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('task_id', sa.Integer(), nullable=False),
@@ -845,9 +874,9 @@ def upgrade() -> None:
     sa.Column('linked_calendar_event_id', sa.Integer(), nullable=True),
     sa.Column('ai_generated', sa.Boolean(), nullable=True),
     sa.Column('ai_suggestions', sa.JSON(), nullable=True),
-    sa.Column('completion_date', sa.DateTime(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('_completion_date', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['linked_calendar_event_id'], ['calendar_events.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['linked_task_id'], ['tasks.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
@@ -905,6 +934,11 @@ def downgrade() -> None:
     op.drop_index('ix_task_attachments_file_type', table_name='task_attachments')
     op.drop_index('ix_task_attachments_created_at', table_name='task_attachments')
     op.drop_table('task_attachments')
+    op.drop_index('ix_task_agent_interactions_task_id', table_name='task_agent_interactions')
+    op.drop_index(op.f('ix_task_agent_interactions_id'), table_name='task_agent_interactions')
+    op.drop_index('ix_task_agent_interactions_created_at', table_name='task_agent_interactions')
+    op.drop_index('ix_task_agent_interactions_agent_id', table_name='task_agent_interactions')
+    op.drop_table('task_agent_interactions')
     op.drop_index(op.f('ix_workflow_transitions_id'), table_name='workflow_transitions')
     op.drop_table('workflow_transitions')
     op.drop_index(op.f('ix_workflow_step_executions_id'), table_name='workflow_step_executions')
@@ -931,6 +965,9 @@ def downgrade() -> None:
     op.drop_table('workflow_steps')
     op.drop_index(op.f('ix_workflow_executions_id'), table_name='workflow_executions')
     op.drop_table('workflow_executions')
+    op.drop_index('ix_workflow_agent_links_workflow_id', table_name='workflow_agent_links')
+    op.drop_index(op.f('ix_workflow_agent_links_id'), table_name='workflow_agent_links')
+    op.drop_index('ix_workflow_agent_links_agent_id', table_name='workflow_agent_links')
     op.drop_table('workflow_agent_links')
     op.drop_index('ix_security_audit_logs_user_id', table_name='security_audit_logs')
     op.drop_index('ix_security_audit_logs_risk_score', table_name='security_audit_logs')
@@ -939,6 +976,7 @@ def downgrade() -> None:
     op.drop_index('ix_security_audit_logs_event_type', table_name='security_audit_logs')
     op.drop_index('ix_security_audit_logs_created_at', table_name='security_audit_logs')
     op.drop_table('security_audit_logs')
+    op.drop_table('project_members')
     op.drop_index('ix_payments_transaction_id', table_name='payments')
     op.drop_index('ix_payments_subscription_id', table_name='payments')
     op.drop_index('ix_payments_status', table_name='payments')
@@ -990,7 +1028,14 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_rag_queries_id'), table_name='rag_queries')
     op.drop_index('ix_rag_queries_created_at', table_name='rag_queries')
     op.drop_table('rag_queries')
-    op.drop_table('project_members')
+    op.drop_index('uq_project_org_name', table_name='projects')
+    op.drop_index(op.f('ix_projects_organization_id'), table_name='projects')
+    op.drop_index(op.f('ix_projects_id'), table_name='projects')
+    op.drop_index('ix_project_status', table_name='projects')
+    op.drop_index('ix_project_organization_id', table_name='projects')
+    op.drop_index('ix_project_name', table_name='projects')
+    op.drop_index('ix_project_created_at', table_name='projects')
+    op.drop_table('projects')
     op.drop_index('ix_productivity_metrics_user_id', table_name='productivity_metrics')
     op.drop_index(op.f('ix_productivity_metrics_id'), table_name='productivity_metrics')
     op.drop_index('ix_productivity_metrics_date', table_name='productivity_metrics')
@@ -1051,13 +1096,6 @@ def downgrade() -> None:
     op.drop_table('users')
     op.drop_index(op.f('ix_task_categories_id'), table_name='task_categories')
     op.drop_table('task_categories')
-    op.drop_index('uq_project_org_name', table_name='projects')
-    op.drop_index(op.f('ix_projects_organization_id'), table_name='projects')
-    op.drop_index(op.f('ix_projects_id'), table_name='projects')
-    op.drop_index('ix_project_organization_id', table_name='projects')
-    op.drop_index('ix_project_name', table_name='projects')
-    op.drop_index('ix_project_created_at', table_name='projects')
-    op.drop_table('projects')
     op.drop_index('ix_subscription_plans_name', table_name='subscription_plans')
     op.drop_index(op.f('ix_subscription_plans_id'), table_name='subscription_plans')
     op.drop_index('ix_subscription_plans_created_at', table_name='subscription_plans')
