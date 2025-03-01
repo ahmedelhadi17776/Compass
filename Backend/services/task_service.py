@@ -7,6 +7,7 @@ from Backend.data_layer.database.errors import TaskNotFoundError
 from Backend.tasks.task_tasks import process_task, execute_task_step
 from celery.result import AsyncResult
 from Backend.ai_services.rag.rag_service import RAGService
+from Backend.utils.cache_utils import cache_response, cache_entity, invalidate_cache
 import asyncio
 import logging
 import json
@@ -65,7 +66,8 @@ class TaskService:
         """Validate if the status transition is allowed."""
         # Define valid transitions
         valid_transitions = {
-            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],  # Allow direct completion
+            # Allow direct completion
+            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],
             TaskStatus.IN_PROGRESS: [TaskStatus.BLOCKED, TaskStatus.COMPLETED, TaskStatus.DEFERRED],
             TaskStatus.BLOCKED: [TaskStatus.TODO, TaskStatus.IN_PROGRESS],
             TaskStatus.COMPLETED: [TaskStatus.IN_PROGRESS],  # Allow reopening
@@ -247,8 +249,13 @@ class TaskService:
             task_data['parent_task_id'] = None
 
         task = await self.repo.update_task(task_id, task_data)
+
+        # Invalidate cache for this task
+        invalidate_cache('task', task_id)
+
         return task
 
+    @cache_entity(entity_type='task')
     async def get_task(self, task_id: int) -> Optional[Task]:
         """Get a task by ID with error handling."""
         try:
@@ -269,6 +276,7 @@ class TaskService:
             logger.error(f"Error getting task: {str(e)}")
             return None
 
+    @cache_response(cache_type='task_dependencies')
     async def check_dependencies(self, task_id: int) -> bool:
         """Check if all dependencies are completed."""
         try:
@@ -286,9 +294,10 @@ class TaskService:
             for dep_id in deps:
                 # Skip invalid dependency IDs (0 or negative values)
                 if dep_id == 0 or dep_id < 0:
-                    logger.warning(f"Skipping invalid dependency ID {dep_id} for task {task_id}")
+                    logger.warning(
+                        f"Skipping invalid dependency ID {dep_id} for task {task_id}")
                     continue
-                    
+
                 dep_task = await self.repo.get_task(int(dep_id))
                 if not dep_task or dep_task.status != TaskStatus.COMPLETED:
                     return False
@@ -296,7 +305,65 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error checking task dependencies: {str(e)}")
             return False
+# Add to TaskService class
 
+    @cache_response(cache_type='task_list')
+    async def get_tasks(
+        self,
+        project_id: Optional[int] = None,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[TaskStatus] = None,
+        priority: Optional[TaskPriority] = None,
+        assignee_id: Optional[int] = None,
+        creator_id: Optional[int] = None,
+        due_date_start: Optional[datetime] = None,
+        due_date_end: Optional[datetime] = None
+    ) -> List[Task]:
+        """Get tasks with optional filters and ensure they're cached in Redis."""
+        try:
+            # Get tasks from repository
+            if project_id:
+                tasks = await self.repo.get_tasks_by_project(
+                    project_id=project_id,
+                    skip=skip,
+                    limit=limit,
+                    status=status,
+                    priority=priority,
+                    assignee_id=assignee_id,
+                    creator_id=creator_id,
+                    due_date_start=due_date_start,
+                    due_date_end=due_date_end
+                )
+            else:
+                tasks = await self.repo.get_tasks(
+                    skip=skip,
+                    limit=limit,
+                    status=status,
+                    priority=priority,
+                    assignee_id=assignee_id,
+                    creator_id=creator_id,
+                    due_date_start=due_date_start,
+                    due_date_end=due_date_end
+                )
+
+            # Initialize dependencies for each task
+            for task in tasks:
+                try:
+                    deps = json.loads(
+                        task._dependencies_list) if task._dependencies_list else []
+                    task.dependencies = deps
+                    task.task_dependencies = deps
+                except (json.JSONDecodeError, TypeError):
+                    task.dependencies = []
+                    task.task_dependencies = []
+
+            return tasks
+        except Exception as e:
+            logger.error(f"Error getting tasks: {str(e)}")
+            return []
+
+    @cache_response(cache_type='task_details')
     async def get_task_with_details(self, task_id: int) -> Dict:
         """Get task with all related details."""
         task = await self.repo.get_task_with_details(task_id)
@@ -325,6 +392,7 @@ class TaskService:
             "history": [dict(h.__dict__) for h in task.history] if task.history else []
         }
 
+    @cache_response(cache_type='task_metrics')
     async def get_task_metrics(self, task_id: int) -> Optional[Dict]:
         """Get task metrics and analytics."""
         try:
@@ -386,10 +454,13 @@ class TaskService:
     async def delete_task(self, task_id: int) -> bool:
         """Delete a task by ID."""
         try:
-            return await self.repo.delete_task(task_id)
+            result = await self.repo.delete_task(task_id)
+            if result:
+                # Invalidate cache for this task
+                invalidate_cache('task', task_id)
+            return result
         except Exception as e:
             logger.error(f"Error deleting task: {str(e)}")
-            return False
 
     async def update_task_dependencies(self, task_id: int, dependencies: List[int]) -> bool:
         """Update task dependencies with validation."""
@@ -417,4 +488,3 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error updating task dependencies: {str(e)}")
             return False
-# Add to TaskService class
