@@ -31,10 +31,10 @@ class TaskService:
             if not task:
                 raise TaskNotFoundError(f"Task {task_id} not found")
 
-            # Validate status transition
-            if task.status == TaskStatus.TODO and new_status == TaskStatus.COMPLETED:
+            # Validate status transition using the transition rules
+            if not self._is_valid_status_transition(task.status, new_status):
                 raise TaskUpdateError(
-                    "Cannot transition directly from TODO to COMPLETED")
+                    f"Invalid status transition from {task.status} to {new_status}")
 
             # Check dependencies if transitioning to COMPLETED
             if new_status == TaskStatus.COMPLETED:
@@ -65,7 +65,7 @@ class TaskService:
         """Validate if the status transition is allowed."""
         # Define valid transitions
         valid_transitions = {
-            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED],
+            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],  # Allow direct completion
             TaskStatus.IN_PROGRESS: [TaskStatus.BLOCKED, TaskStatus.COMPLETED, TaskStatus.DEFERRED],
             TaskStatus.BLOCKED: [TaskStatus.TODO, TaskStatus.IN_PROGRESS],
             TaskStatus.COMPLETED: [TaskStatus.IN_PROGRESS],  # Allow reopening
@@ -147,7 +147,8 @@ class TaskService:
         project_id: int,
         organization_id: int,
         status: TaskStatus = TaskStatus.TODO,  # Add status parameter with default
-        priority: TaskPriority = TaskPriority.MEDIUM,  # Add priority parameter with default
+        # Add priority parameter with default
+        priority: TaskPriority = TaskPriority.MEDIUM,
         workflow_id: Optional[int] = None,
         assignee_id: Optional[int] = None,
         reviewer_id: Optional[int] = None,
@@ -171,7 +172,7 @@ class TaskService:
         # Convert timezone-aware datetime to naive UTC datetime
         if due_date and due_date.tzinfo is not None:
             due_date = due_date.replace(tzinfo=None)
-    
+
         task_data = {
             "title": title,
             "description": description,
@@ -231,6 +232,20 @@ class TaskService:
             task_data['_dependencies_list'] = json.dumps(deps)
             task_data['dependencies'] = deps
 
+        # Convert timezone-aware datetime to naive UTC datetime for due_date
+        if 'due_date' in task_data and task_data['due_date'] and task_data['due_date'].tzinfo is not None:
+            task_data['due_date'] = task_data['due_date'].replace(tzinfo=None)
+
+        # Handle foreign key IDs - if they're 0, set them to None to avoid foreign key violations
+        if 'category_id' in task_data and task_data['category_id'] == 0:
+            task_data['category_id'] = None
+
+        if 'workflow_id' in task_data and task_data['workflow_id'] == 0:
+            task_data['workflow_id'] = None
+
+        if 'parent_task_id' in task_data and task_data['parent_task_id'] == 0:
+            task_data['parent_task_id'] = None
+
         task = await self.repo.update_task(task_id, task_data)
         return task
 
@@ -269,6 +284,11 @@ class TaskService:
                 return True
 
             for dep_id in deps:
+                # Skip invalid dependency IDs (0 or negative values)
+                if dep_id == 0 or dep_id < 0:
+                    logger.warning(f"Skipping invalid dependency ID {dep_id} for task {task_id}")
+                    continue
+                    
                 dep_task = await self.repo.get_task(int(dep_id))
                 if not dep_task or dep_task.status != TaskStatus.COMPLETED:
                     return False

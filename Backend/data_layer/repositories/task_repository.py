@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, cast, Sequence
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
@@ -9,10 +9,7 @@ from Backend.data_layer.database.models.ai_interactions import AIAgentInteractio
 from datetime import datetime, timedelta
 from Backend.data_layer.repositories.base_repository import BaseRepository
 import logging
-from Backend.data_layer.database.connection import get_db
 import json
-from sqlalchemy.future import select
-from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -42,24 +39,37 @@ class TaskRepository(BaseRepository[Task]):
         return result.scalars().first()
 
     async def get_task(self, task_id: int) -> Optional[Task]:
-        """Get a task by ID."""
+        """Get a task by ID without user_id check."""
         return await self.get_by_id(task_id)
 
-    async def update(self, task_id: int, user_id: int, **update_data) -> Optional[Task]:
-        """Update a task."""
-        task = await self.get_by_id(task_id, user_id)
+    async def delete_task(self, task_id: int) -> bool:
+        """Delete a task by ID without user_id check."""
+        task = await self.get_task(task_id)
         if task:
+            await self.db.delete(task)
+            await self.db.flush()
+            return True
+        return False
+
+    async def update(self, id: int, user_id: int, **update_data) -> Optional[Task]:
+        """Update a task. Implementation of abstract method from BaseRepository."""
+        task = await self.get_by_id(id, user_id)
+        if task:
+            # Update task fields
             for key, value in update_data.items():
-                setattr(task, key, value)
+                if hasattr(task, key):
+                    setattr(task, key, value)
             await self.db.flush()
             return task
         return None
 
-    async def delete(self, task_id: int, user_id: int) -> bool:
-        """Delete a task."""
-        task = await self.get_by_id(task_id, user_id)
+    async def delete(self, id: int, user_id: int) -> bool:
+        """Delete an entity. Implementation of abstract method from BaseRepository."""
+        # Using delete_task with user_id check
+        task = await self.get_by_id(id, user_id)
         if task:
             await self.db.delete(task)
+            await self.db.flush()  # Consistent with delete_task
             return True
         return False
 
@@ -85,7 +95,7 @@ class TaskRepository(BaseRepository[Task]):
         return result.scalars().first()
 
     async def update_task(self, task_id: int, task_data: dict) -> Optional[Task]:
-        """Update a task with the given data."""
+        """Update a task with the given data without user_id check."""
         task = await self.get_by_id(task_id)
         if not task:
             raise TaskNotFoundError(f"Task with id {task_id} not found")
@@ -112,7 +122,7 @@ class TaskRepository(BaseRepository[Task]):
     ) -> List[Task]:
         """Get tasks by project with optional filters."""
         query = select(Task).where(Task.project_id == project_id)
-    
+
         # Apply filters
         if status:
             query = query.where(Task.status == status)
@@ -126,10 +136,10 @@ class TaskRepository(BaseRepository[Task]):
             query = query.where(Task.due_date >= due_date_start)
         if due_date_end:
             query = query.where(Task.due_date <= due_date_end)
-    
+
         # Apply pagination
         query = query.offset(skip).limit(limit)
-    
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -146,7 +156,7 @@ class TaskRepository(BaseRepository[Task]):
     ) -> List[Task]:
         """Get all tasks with optional filters."""
         query = select(Task)
-    
+
         # Apply filters
         if status:
             query = query.where(Task.status == status)
@@ -160,15 +170,23 @@ class TaskRepository(BaseRepository[Task]):
             query = query.where(Task.due_date >= due_date_start)
         if due_date_end:
             query = query.where(Task.due_date <= due_date_end)
-    
+
         # Apply pagination
         query = query.offset(skip).limit(limit)
-        
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def add_task_history(self, history: TaskHistory) -> TaskHistory:
+    async def add_task_history(self, task_id: int, user_id: int, field_name: str, old_value: str, new_value: str, action: str = "update") -> TaskHistory:
         """Add a task history entry."""
+        history = TaskHistory(
+            task_id=task_id,
+            user_id=user_id,
+            action=action,
+            field=field_name,
+            old_value=old_value,
+            new_value=new_value
+        )
         self.db.add(history)
         await self.db.flush()
         return history
@@ -230,15 +248,14 @@ class TaskRepository(BaseRepository[Task]):
     async def track_ai_interaction(self, task_id: int, ai_result: Dict) -> None:
         """Track AI interaction for a task."""
         try:
-            interaction = TaskAgentInteraction(
+            # Use create_task_agent_interaction to avoid code duplication
+            await self.create_task_agent_interaction(
                 task_id=task_id,
                 agent_type=ai_result.get("agent_type", "unknown"),
                 interaction_type=ai_result.get("interaction_type", "analysis"),
                 result=ai_result.get("result"),
                 success_rate=ai_result.get("confidence", 1.0)
             )
-            self.db.add(interaction)
-            await self.db.flush()
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Failed to track AI interaction: {str(e)}")
@@ -275,14 +292,13 @@ class TaskRepository(BaseRepository[Task]):
     async def track_ai_optimization(self, task_id: int, optimization_data: Dict) -> None:
         """Track AI optimization attempts for a task."""
         try:
-            interaction = TaskAgentInteraction(
+            # Use create_task_agent_interaction to avoid code duplication
+            await self.create_task_agent_interaction(
                 task_id=task_id,
                 agent_type="optimizer",
                 interaction_type="optimization",
                 result=optimization_data.get('result')
             )
-            self.db.add(interaction)
-            await self.db.flush()
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error tracking AI optimization: {str(e)}")
