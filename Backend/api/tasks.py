@@ -88,21 +88,13 @@ async def get_tasks(
     repo = TaskRepository(db)
     service = TaskService(repo)
 
-    tasks = await repo.get_tasks_by_project(
+    # Use service layer's cached method instead of repository
+    tasks = await service.get_tasks(
+        skip=skip,
+        limit=limit,
+        status=status,
+        priority=priority,
         project_id=project_id,
-        skip=skip,
-        limit=limit,
-        status=status,
-        priority=priority,
-        assignee_id=assignee_id,
-        creator_id=creator_id,
-        due_date_start=due_date_start,
-        due_date_end=due_date_end
-    ) if project_id else await repo.get_tasks(
-        skip=skip,
-        limit=limit,
-        status=status,
-        priority=priority,
         assignee_id=assignee_id,
         creator_id=creator_id,
         due_date_start=due_date_start,
