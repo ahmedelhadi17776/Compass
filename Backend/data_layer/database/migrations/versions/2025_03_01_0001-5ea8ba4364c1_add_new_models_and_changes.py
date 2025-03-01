@@ -1,8 +1,8 @@
-"""Add project status and creator fields
+"""Add new models and changes
 
-Revision ID: 54e9b8cbbe70
+Revision ID: 5ea8ba4364c1
 Revises: 
-Create Date: 2025-02-27 07:06:29.442698+00:00
+Create Date: 2025-03-01 00:01:12.896367+00:00
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '54e9b8cbbe70'
+revision: str = '5ea8ba4364c1'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
