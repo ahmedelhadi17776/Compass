@@ -117,11 +117,16 @@ async def delete_todo_task(todo_id: int, user_id: int) -> bool:
 
 
 @shared_task
-async def get_todos(user_id: int) -> List[Todo]:
+async def get_todos(user_id: int, status: Optional[str] = None) -> List[Todo]:
     async for session in get_session():
         try:
             todo_repo = TodoRepository(session)
-            result = await todo_repo.get_user_todos(user_id)
+            if status:
+                from Backend.data_layer.database.models.todo import TodoStatus
+                status_enum = TodoStatus(status)
+                result = await todo_repo.get_user_todos(user_id, status_enum)
+            else:
+                result = await todo_repo.get_user_todos(user_id)
             return result if result else []
         except Exception as e:
             raise e

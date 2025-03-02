@@ -1,4 +1,4 @@
-from Backend.data_layer.database.models.todo import Todo, TodoStatus
+from Backend.data_layer.database.models.todo import Todo, TodoStatus, TodoPriority
 from Backend.data_layer.database.connection import get_db
 from sqlalchemy.future import select
 from sqlalchemy import and_, update, cast, DateTime, JSON, true, Boolean, Integer
@@ -23,6 +23,36 @@ class TodoRepository(TodoBaseRepository[T]):
 
     async def create(self, **todo_data) -> T:
         """Create a new todo."""
+        # Ensure datetime fields are timezone-naive before database insertion
+        for field in ['due_date', 'reminder_time', 'created_at', 'updated_at']:
+            if field in todo_data and todo_data[field] is not None:
+                if hasattr(todo_data[field], 'tzinfo') and todo_data[field].tzinfo is not None:
+                    # Convert timezone-aware datetime to naive UTC datetime
+                    todo_data[field] = todo_data[field].replace(tzinfo=None)
+        
+        # Handle priority enum conversion
+        if 'priority' in todo_data:
+            if isinstance(todo_data['priority'], str):
+                # Convert string to enum
+                try:
+                    todo_data['priority'] = TodoPriority[todo_data['priority'].upper()]
+                except KeyError:
+                    # Default to MEDIUM if invalid priority
+                    todo_data['priority'] = TodoPriority.MEDIUM
+            elif hasattr(todo_data['priority'], 'value') and not isinstance(todo_data['priority'], TodoPriority):
+                # Handle case where it might be a different enum type
+                try:
+                    todo_data['priority'] = TodoPriority[todo_data['priority'].value.upper()]
+                except (KeyError, AttributeError):
+                    todo_data['priority'] = TodoPriority.MEDIUM
+        
+        # Handle linked IDs - set to None if they are 0 or don't exist
+        if 'linked_calendar_event_id' in todo_data and (todo_data['linked_calendar_event_id'] == 0 or todo_data['linked_calendar_event_id'] is None):
+            todo_data['linked_calendar_event_id'] = None
+            
+        if 'linked_task_id' in todo_data and (todo_data['linked_task_id'] == 0 or todo_data['linked_task_id'] is None):
+            todo_data['linked_task_id'] = None
+
         new_todo = Todo(**todo_data)
         self.db.add(new_todo)
         await self.db.flush()
@@ -49,6 +79,45 @@ class TodoRepository(TodoBaseRepository[T]):
 
     async def update(self, todo_id: int, user_id: int, **update_data) -> Optional[T]:
         """Update a todo."""
+        # Ensure datetime fields are timezone-naive before database update
+        for field in ['due_date', 'reminder_time', 'created_at', 'updated_at']:
+            if field in update_data and update_data[field] is not None:
+                if hasattr(update_data[field], 'tzinfo') and update_data[field].tzinfo is not None:
+                    # Convert timezone-aware datetime to naive UTC datetime
+                    update_data[field] = update_data[field].replace(tzinfo=None)
+        
+        # Handle status enum conversion
+        if 'status' in update_data:
+            if isinstance(update_data['status'], str):
+                # Convert string to enum
+                try:
+                    update_data['status'] = TodoStatus[update_data['status'].upper()]
+                except KeyError:
+                    # Default to PENDING if invalid status
+                    update_data['status'] = TodoStatus.PENDING
+            elif hasattr(update_data['status'], 'value') and not isinstance(update_data['status'], TodoStatus):
+                # Handle case where it might be a different enum type
+                try:
+                    update_data['status'] = TodoStatus[update_data['status'].value.upper()]
+                except (KeyError, AttributeError):
+                    update_data['status'] = TodoStatus.PENDING
+        
+        # Handle priority enum conversion
+        if 'priority' in update_data:
+            if isinstance(update_data['priority'], str):
+                # Convert string to enum
+                try:
+                    update_data['priority'] = TodoPriority[update_data['priority'].upper()]
+                except KeyError:
+                    # Default to MEDIUM if invalid priority
+                    update_data['priority'] = TodoPriority.MEDIUM
+            elif hasattr(update_data['priority'], 'value') and not isinstance(update_data['priority'], TodoPriority):
+                # Handle case where it might be a different enum type
+                try:
+                    update_data['priority'] = TodoPriority[update_data['priority'].value.upper()]
+                except (KeyError, AttributeError):
+                    update_data['priority'] = TodoPriority.MEDIUM
+        
         todo = await self.get_by_id(todo_id, user_id)
         if todo:
             for key, value in update_data.items():

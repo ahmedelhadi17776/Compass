@@ -89,23 +89,32 @@ def serialize_data(data: Any) -> str:
                         cleaned['dependencies'] = []
                 # Convert datetime objects to ISO format strings and handle enums
                 for k, v in cleaned.items():
-                    if isinstance(v, datetime):
-                        cleaned[k] = v.isoformat()
-                    elif isinstance(v, enum.Enum):
-                        cleaned[k] = v.value
+                    cleaned[k] = process_value(v)
                 return cleaned
-            elif isinstance(obj, datetime):
-                return obj.isoformat()
-            elif isinstance(obj, enum.Enum):
-                return obj.value
-            return obj
+            return process_value(obj)
+
+        def process_value(value):
+            """Process any value to ensure it's JSON serializable."""
+            if isinstance(value, datetime):
+                return value.isoformat()
+            elif isinstance(value, enum.Enum):
+                return value.value
+            elif isinstance(value, dict):
+                return {k: process_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [process_value(item) for item in value]
+            elif hasattr(value, '_sa_instance_state'):
+                return clean_sqlalchemy_obj(value)
+            return value
 
         if hasattr(data, '_sa_instance_state'):
             return json.dumps(clean_sqlalchemy_obj(data))
         elif isinstance(data, list):
             return json.dumps([clean_sqlalchemy_obj(item) if hasattr(item, '_sa_instance_state')
-                               else clean_sqlalchemy_obj(item) for item in data])
-        return json.dumps(data)
+                               else process_value(item) for item in data])
+        elif isinstance(data, dict):
+            return json.dumps({k: process_value(v) for k, v in data.items()})
+        return json.dumps(process_value(data))
     except Exception as e:
         logger.error(f"Error serializing data: {str(e)}")
         raise

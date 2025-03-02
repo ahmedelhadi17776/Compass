@@ -370,6 +370,11 @@ class TaskService:
         if not task:
             raise TaskNotFoundError(f"Task {task_id} not found")
 
+        # Get comments, attachments, and history
+        comments = await self.get_task_comments(task_id)
+        attachments = await self.get_task_attachments(task_id)
+        history = await self.repo.get_task_history(task_id)
+
         # Convert task model to dictionary
         return {
             "id": task.id,
@@ -387,9 +392,38 @@ class TaskService:
             "workflow_id": task.workflow_id,
             "current_workflow_step_id": task.current_workflow_step_id,
             "health_score": task.health_score,
-            "attachments": [dict(a.__dict__) for a in task.attachments] if task.attachments else [],
-            "comments": [dict(c.__dict__) for c in task.comments] if task.comments else [],
-            "history": [dict(h.__dict__) for h in task.history] if task.history else []
+            "category_id": task.category_id,
+            "due_date": task.due_date,
+            "estimated_hours": task.estimated_hours,
+            "actual_hours": task.actual_hours,
+            "dependencies": task.dependencies,
+            "attachments": [{
+                "id": a.id,
+                "file_name": a.file_name,
+                "file_path": a.file_path,
+                "file_type": a.file_type,
+                "file_size": a.file_size,
+                "uploaded_by": a.uploaded_by,
+                "created_at": a.created_at
+            } for a in attachments],
+            "comments": [{
+                "id": c.id,
+                "content": c.content,
+                "user_id": c.user_id,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "parent_id": c.parent_id
+            } for c in comments],
+            "history": [{
+                "id": h.id,
+                "task_id": h.task_id,
+                "user_id": h.user_id,
+                "action": h.action,
+                "field": h.field,
+                "old_value": h.old_value,
+                "new_value": h.new_value,
+                "created_at": h.created_at
+            } for h in history]
         }
 
     @cache_response(cache_type='task_metrics')
@@ -416,6 +450,99 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error getting task metrics: {str(e)}")
             return None
+
+    # Task Comment Methods
+    async def create_comment(self, task_id: int, user_id: int, content: str, parent_id: Optional[int] = None):
+        """Create a new comment for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.create_comment(task_id, user_id, content, parent_id)
+
+    async def get_task_comments(self, task_id: int, skip: int = 0, limit: int = 50):
+        """Get all comments for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.get_task_comments(task_id, skip, limit)
+
+    async def update_comment(self, comment_id: int, user_id: int, content: str):
+        """Update a comment."""
+        return await self.repo.update_comment(comment_id, user_id, content)
+
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        """Delete a comment."""
+        return await self.repo.delete_comment(comment_id, user_id)
+
+    # Task Category Methods
+    async def create_category(self, name: str, organization_id: int, description: Optional[str] = None,
+                              color_code: Optional[str] = None, icon: Optional[str] = None,
+                              parent_id: Optional[int] = None):
+        """Create a new task category."""
+        return await self.repo.create_category(
+            name=name,
+            organization_id=organization_id,
+            description=description,
+            color_code=color_code,
+            icon=icon,
+            parent_id=parent_id
+        )
+
+    async def get_categories(self, organization_id: int):
+        """Get all categories for an organization."""
+        return await self.repo.get_categories(organization_id)
+
+    async def get_category(self, category_id: int):
+        """Get a category by ID."""
+        return await self.repo.get_category(category_id)
+
+    async def update_category(self, category_id: int, **update_data):
+        """Update a category."""
+        return await self.repo.update_category(category_id, **update_data)
+
+    async def delete_category(self, category_id: int) -> bool:
+        """Delete a category."""
+        return await self.repo.delete_category(category_id)
+
+    # Task Attachment Methods
+    async def create_attachment(self, task_id: int, file_name: str, file_path: str,
+                                uploaded_by: int, file_type: Optional[str] = None,
+                                file_size: Optional[int] = None):
+        """Create a new attachment for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.create_attachment(
+            task_id=task_id,
+            file_name=file_name,
+            file_path=file_path,
+            uploaded_by=uploaded_by,
+            file_type=file_type,
+            file_size=file_size
+        )
+
+    async def get_task_attachments(self, task_id: int):
+        """Get all attachments for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.get_task_attachments(task_id)
+
+    async def get_attachment(self, attachment_id: int):
+        """Get an attachment by ID."""
+        return await self.repo.get_attachment(attachment_id)
+
+    async def delete_attachment(self, attachment_id: int, user_id: int) -> bool:
+        """Delete an attachment."""
+        return await self.repo.delete_attachment(attachment_id, user_id)
 
     @property
     def dependencies(self) -> List[int]:
