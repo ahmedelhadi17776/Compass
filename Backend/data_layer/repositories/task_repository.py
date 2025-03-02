@@ -303,3 +303,164 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.rollback()
             logger.error(f"Error tracking AI optimization: {str(e)}")
             raise
+            
+    # Task Comment Methods
+    async def create_comment(self, task_id: int, user_id: int, content: str, parent_id: Optional[int] = None) -> "TaskComment":
+        """Create a new comment for a task."""
+        from Backend.data_layer.database.models.task_comment import TaskComment
+        
+        comment = TaskComment(
+            task_id=task_id,
+            user_id=user_id,
+            content=content,
+            parent_id=parent_id
+        )
+        self.db.add(comment)
+        await self.db.flush()
+        return comment
+    
+    async def get_task_comments(self, task_id: int, skip: int = 0, limit: int = 50) -> List["TaskComment"]:
+        """Get all comments for a task."""
+        from Backend.data_layer.database.models.task_comment import TaskComment
+        from sqlalchemy import select
+        
+        query = (
+            select(TaskComment)
+            .where(TaskComment.task_id == task_id)
+            .order_by(TaskComment.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_comment(self, comment_id: int) -> Optional["TaskComment"]:
+        """Get a comment by ID."""
+        from Backend.data_layer.database.models.task_comment import TaskComment
+        from sqlalchemy import select
+        
+        query = select(TaskComment).where(TaskComment.id == comment_id)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def update_comment(self, comment_id: int, user_id: int, content: str) -> Optional["TaskComment"]:
+        """Update a comment."""
+        comment = await self.get_comment(comment_id)
+        if comment and comment.user_id == user_id:
+            comment.content = content
+            comment.updated_at = datetime.utcnow()
+            await self.db.flush()
+            return comment
+        return None
+    
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        """Delete a comment."""
+        comment = await self.get_comment(comment_id)
+        if comment and comment.user_id == user_id:
+            await self.db.delete(comment)
+            await self.db.flush()
+            return True
+        return False
+    
+    # Task Category Methods
+    async def create_category(self, name: str, organization_id: int, description: Optional[str] = None, 
+                             color_code: Optional[str] = None, icon: Optional[str] = None, 
+                             parent_id: Optional[int] = None) -> "TaskCategory":
+        """Create a new task category."""
+        from Backend.data_layer.database.models.task_category import TaskCategory
+        
+        category = TaskCategory(
+            name=name,
+            description=description,
+            color_code=color_code,
+            icon=icon,
+            parent_id=parent_id,
+            organization_id=organization_id
+        )
+        self.db.add(category)
+        await self.db.flush()
+        return category
+    
+    async def get_categories(self, organization_id: int) -> List["TaskCategory"]:
+        """Get all categories for an organization."""
+        from Backend.data_layer.database.models.task_category import TaskCategory
+        from sqlalchemy import select
+        
+        query = select(TaskCategory).where(TaskCategory.organization_id == organization_id)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_category(self, category_id: int) -> Optional["TaskCategory"]:
+        """Get a category by ID."""
+        from Backend.data_layer.database.models.task_category import TaskCategory
+        from sqlalchemy import select
+        
+        query = select(TaskCategory).where(TaskCategory.id == category_id)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def update_category(self, category_id: int, **update_data) -> Optional["TaskCategory"]:
+        """Update a category."""
+        category = await self.get_category(category_id)
+        if category:
+            for key, value in update_data.items():
+                if hasattr(category, key):
+                    setattr(category, key, value)
+            await self.db.flush()
+            return category
+        return None
+    
+    async def delete_category(self, category_id: int) -> bool:
+        """Delete a category."""
+        category = await self.get_category(category_id)
+        if category:
+            await self.db.delete(category)
+            await self.db.flush()
+            return True
+        return False
+    
+    # Task Attachment Methods
+    async def create_attachment(self, task_id: int, file_name: str, file_path: str, 
+                               uploaded_by: int, file_type: Optional[str] = None, 
+                               file_size: Optional[int] = None) -> "TaskAttachment":
+        """Create a new attachment for a task."""
+        from Backend.data_layer.database.models.task_attachment import TaskAttachment
+        
+        attachment = TaskAttachment(
+            task_id=task_id,
+            file_name=file_name,
+            file_path=file_path,
+            file_type=file_type,
+            file_size=file_size,
+            uploaded_by=uploaded_by
+        )
+        self.db.add(attachment)
+        await self.db.flush()
+        return attachment
+    
+    async def get_task_attachments(self, task_id: int) -> List["TaskAttachment"]:
+        """Get all attachments for a task."""
+        from Backend.data_layer.database.models.task_attachment import TaskAttachment
+        from sqlalchemy import select
+        
+        query = select(TaskAttachment).where(TaskAttachment.task_id == task_id)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_attachment(self, attachment_id: int) -> Optional["TaskAttachment"]:
+        """Get an attachment by ID."""
+        from Backend.data_layer.database.models.task_attachment import TaskAttachment
+        from sqlalchemy import select
+        
+        query = select(TaskAttachment).where(TaskAttachment.id == attachment_id)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def delete_attachment(self, attachment_id: int, user_id: int) -> bool:
+        """Delete an attachment."""
+        attachment = await self.get_attachment(attachment_id)
+        if attachment and attachment.uploaded_by == user_id:
+            await self.db.delete(attachment)
+            await self.db.flush()
+            return True
+        return False

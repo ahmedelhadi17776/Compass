@@ -10,7 +10,9 @@ from Backend.app.schemas.task_schemas import (
     TaskResponse,
     TaskWithDetails,
     TaskDependencyUpdate,
-    TaskHistoryResponse
+    TaskHistoryResponse,
+    CommentResponse,
+    AttachmentResponse
 )
 from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.services.task_service import TaskService
@@ -42,7 +44,7 @@ async def create_task(
         )
 
 
-@router.get("/{task_id}", response_model=TaskWithDetails)
+@router.get("/by_id/{task_id}", response_model=TaskWithDetails)
 async def get_task(
     task_id: int,
     include_metrics: bool = Query(
@@ -240,4 +242,354 @@ async def process_task_with_ai(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing task with AI: {str(e)}"
+        )
+
+
+# Task Comment Endpoints
+@router.post("/{task_id}/comments", response_model=CommentResponse)
+async def create_task_comment(
+    task_id: int,
+    content: str,
+    parent_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Create a new comment for a task."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        comment = await service.create_comment(
+            task_id=task_id,
+            user_id=current_user.id,
+            content=content,
+            parent_id=parent_id
+        )
+        return comment
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating comment: {str(e)}"
+        )
+
+
+@router.get("/{task_id}/comments", response_model=List[CommentResponse])
+async def get_task_comments(
+    task_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Get all comments for a task."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        comments = await service.get_task_comments(task_id, skip, limit)
+        return comments
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving comments: {str(e)}"
+        )
+
+
+@router.put("/comments/{comment_id}", response_model=CommentResponse)
+async def update_task_comment(
+    comment_id: int,
+    content: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Update a task comment."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        comment = await service.update_comment(comment_id, current_user.id, content)
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found or you don't have permission to update it"
+            )
+        return comment
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating comment: {str(e)}"
+        )
+
+
+@router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_comment(
+    comment_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Delete a task comment."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        success = await service.delete_comment(comment_id, current_user.id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found or you don't have permission to delete it"
+            )
+        return {"message": "Comment deleted successfully"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting comment: {str(e)}"
+        )
+
+
+# Task Category Endpoints
+@router.post("/categories", response_model=dict)
+async def create_task_category(
+    name: str,
+    organization_id: int,
+    description: Optional[str] = None,
+    color_code: Optional[str] = None,
+    icon: Optional[str] = None,
+    parent_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Create a new task category."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        category = await service.create_category(
+            name=name,
+            organization_id=organization_id,
+            description=description,
+            color_code=color_code,
+            icon=icon,
+            parent_id=parent_id
+        )
+        return {"id": category.id, "name": category.name, "message": "Category created successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating category: {str(e)}"
+        )
+
+
+@router.get("/categories", response_model=List[dict])
+async def get_task_categories(
+    organization_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Get all task categories for an organization."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        categories = await service.get_categories(organization_id)
+        return [{
+            "id": cat.id,
+            "name": cat.name,
+            "description": cat.description,
+            "color_code": cat.color_code,
+            "icon": cat.icon,
+            "parent_id": cat.parent_id
+        } for cat in categories]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving categories: {str(e)}"
+        )
+
+
+@router.get("/categories/{category_id}", response_model=dict)
+async def get_task_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Get a task category by ID."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        category = await service.get_category(category_id)
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category with ID {category_id} not found"
+            )
+        return {
+            "id": category.id,
+            "name": category.name,
+            "description": category.description,
+            "color_code": category.color_code,
+            "icon": category.icon,
+            "parent_id": category.parent_id,
+            "organization_id": category.organization_id
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving category: {str(e)}"
+        )
+
+
+@router.put("/categories/{category_id}", response_model=dict)
+async def update_task_category(
+    category_id: int,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    color_code: Optional[str] = None,
+    icon: Optional[str] = None,
+    parent_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Update a task category."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        update_data = {}
+        if name is not None:
+            update_data["name"] = name
+        if description is not None:
+            update_data["description"] = description
+        if color_code is not None:
+            update_data["color_code"] = color_code
+        if icon is not None:
+            update_data["icon"] = icon
+        if parent_id is not None:
+            update_data["parent_id"] = parent_id
+            
+        category = await service.update_category(category_id, **update_data)
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category with ID {category_id} not found"
+            )
+        return {
+            "id": category.id,
+            "name": category.name,
+            "message": "Category updated successfully"
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating category: {str(e)}"
+        )
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Delete a task category."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        success = await service.delete_category(category_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category with ID {category_id} not found"
+            )
+        return {"message": "Category deleted successfully"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting category: {str(e)}"
+        )
+
+
+# Task Attachment Endpoints
+@router.post("/{task_id}/attachments", response_model=AttachmentResponse)
+async def create_task_attachment(
+    task_id: int,
+    file_name: str,
+    file_path: str,
+    file_type: Optional[str] = None,
+    file_size: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Create a new attachment for a task."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        attachment = await service.create_attachment(
+            task_id=task_id,
+            file_name=file_name,
+            file_path=file_path,
+            uploaded_by=current_user.id,
+            file_type=file_type,
+            file_size=file_size
+        )
+        return attachment
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating attachment: {str(e)}"
+        )
+
+
+@router.get("/{task_id}/attachments", response_model=List[AttachmentResponse])
+async def get_task_attachments(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Get all attachments for a task."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        attachments = await service.get_task_attachments(task_id)
+        return attachments
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving attachments: {str(e)}"
+        )
+
+
+@router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_attachment(
+    attachment_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Delete a task attachment."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+        success = await service.delete_attachment(attachment_id, current_user.id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found or you don't have permission to delete it"
+            )
+        return {"message": "Attachment deleted successfully"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting attachment: {str(e)}"
         )

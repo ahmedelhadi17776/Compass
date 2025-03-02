@@ -31,6 +31,27 @@ class TodoService:
 
         if cached_todo:
             todo_dict = json.loads(cached_todo)
+            # Convert ISO format datetime strings back to datetime objects
+            if 'completion_date' in todo_dict:
+                if todo_dict['completion_date']:
+                    # Set _completion_date directly instead of completion_date to avoid the property setter validation
+                    todo_dict['_completion_date'] = datetime.fromisoformat(
+                        todo_dict['completion_date'])
+                else:
+                    todo_dict['_completion_date'] = None
+                del todo_dict['completion_date']
+            if 'due_date' in todo_dict and todo_dict['due_date']:
+                todo_dict['due_date'] = datetime.fromisoformat(
+                    todo_dict['due_date'])
+            if 'reminder_time' in todo_dict and todo_dict['reminder_time']:
+                todo_dict['reminder_time'] = datetime.fromisoformat(
+                    todo_dict['reminder_time'])
+            if 'created_at' in todo_dict and todo_dict['created_at']:
+                todo_dict['created_at'] = datetime.fromisoformat(
+                    todo_dict['created_at'])
+            if 'updated_at' in todo_dict and todo_dict['updated_at']:
+                todo_dict['updated_at'] = datetime.fromisoformat(
+                    todo_dict['updated_at'])
             return Todo(**todo_dict)
 
         todo = await get_todo_by_id(todo_id, user_id)
@@ -45,9 +66,32 @@ class TodoService:
 
         if cached_todos:
             todos_list = json.loads(cached_todos)
-            return [Todo(**todo_dict) for todo_dict in todos_list]
+            result_todos = []
+            for todo_dict in todos_list:
+                # Convert ISO format datetime strings back to datetime objects
+                if 'completion_date' in todo_dict:
+                    if todo_dict['completion_date']:
+                        todo_dict['_completion_date'] = datetime.fromisoformat(
+                            todo_dict['completion_date'])
+                    else:
+                        todo_dict['_completion_date'] = None
+                    del todo_dict['completion_date']
+                if 'due_date' in todo_dict and todo_dict['due_date']:
+                    todo_dict['due_date'] = datetime.fromisoformat(
+                        todo_dict['due_date'])
+                if 'reminder_time' in todo_dict and todo_dict['reminder_time']:
+                    todo_dict['reminder_time'] = datetime.fromisoformat(
+                        todo_dict['reminder_time'])
+                if 'created_at' in todo_dict and todo_dict['created_at']:
+                    todo_dict['created_at'] = datetime.fromisoformat(
+                        todo_dict['created_at'])
+                if 'updated_at' in todo_dict and todo_dict['updated_at']:
+                    todo_dict['updated_at'] = datetime.fromisoformat(
+                        todo_dict['updated_at'])
+                result_todos.append(Todo(**todo_dict))
+            return result_todos
 
-        todos = await get_todos(user_id)
+        todos = await get_todos(user_id, status)
         if todos:
             todos_list = [todo.to_dict() for todo in todos]
             await set_cached_value(cache_key, json.dumps(todos_list), self.cache_ttl)
@@ -56,33 +100,47 @@ class TodoService:
     async def update_todo(self, todo_id: int, user_id: int, **update_data) -> Optional[Todo]:
         todo = await update_todo_task(todo_id, user_id, update_data)
         if todo:
-            await self._invalidate_cache(user_id)
+            await self._invalidate_cache(user_id, todo_id)
         return todo
 
     async def delete_todo(self, todo_id: int, user_id: int) -> bool:
         success = await delete_todo_task(todo_id, user_id)
         if success:
-            await self._invalidate_cache(user_id)
+            await self._invalidate_cache(user_id, todo_id)
         return success
 
-    async def _invalidate_cache(self, user_id: int) -> None:
+    async def _invalidate_cache(self, user_id: int, todo_id: int = None) -> None:
         cache_keys = [
             f"user_todos:{user_id}:all",
             f"user_todos:{user_id}:pending",
             f"user_todos:{user_id}:completed"
         ]
+
+        # Also invalidate the specific todo cache if todo_id is provided
+        if todo_id is not None:
+            cache_keys.append(f"todo:{todo_id}:{user_id}")
+
         for key in cache_keys:
             await delete_cached_value(key)
 
     async def convert_task_to_todo(self, task) -> Optional[Todo]:
+        # Handle both dictionary and Task model inputs
         todo_data = {
-            "user_id": task.user_id,
-            "title": task.title,
-            "description": task.description,
-            "due_date": task.due_date,
-            "priority": task.priority,
-            "linked_task_id": task.id
+            "user_id": task.get('creator_id') if isinstance(task, dict) else task.creator_id,
+            "title": task.get('title') if isinstance(task, dict) else task.title,
+            "description": task.get('description') if isinstance(task, dict) else task.description,
+            "priority": task.get('priority') if isinstance(task, dict) else task.priority,
+            "linked_task_id": task.get('id') if isinstance(task, dict) else task.id
         }
+
+        # Handle due_date conversion
+        due_date = task.get('due_date') if isinstance(task, dict) else task.due_date
+        if due_date:
+            if isinstance(due_date, str):
+                todo_data['due_date'] = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+            else:
+                todo_data['due_date'] = due_date
+
         return await self.create_todo(**todo_data)
 
     async def get_due_todos(self) -> List[Todo]:
