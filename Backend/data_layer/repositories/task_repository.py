@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, cast, Sequence
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
@@ -9,10 +9,7 @@ from Backend.data_layer.database.models.ai_interactions import AIAgentInteractio
 from datetime import datetime, timedelta
 from Backend.data_layer.repositories.base_repository import BaseRepository
 import logging
-from Backend.data_layer.database.connection import get_db
 import json
-from sqlalchemy.future import select
-from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -42,24 +39,37 @@ class TaskRepository(BaseRepository[Task]):
         return result.scalars().first()
 
     async def get_task(self, task_id: int) -> Optional[Task]:
-        """Get a task by ID."""
+        """Get a task by ID without user_id check."""
         return await self.get_by_id(task_id)
 
-    async def update(self, task_id: int, user_id: int, **update_data) -> Optional[Task]:
-        """Update a task."""
-        task = await self.get_by_id(task_id, user_id)
+    async def delete_task(self, task_id: int) -> bool:
+        """Delete a task by ID without user_id check."""
+        task = await self.get_task(task_id)
         if task:
+            await self.db.delete(task)
+            await self.db.flush()
+            return True
+        return False
+
+    async def update(self, id: int, user_id: int, **update_data) -> Optional[Task]:
+        """Update a task. Implementation of abstract method from BaseRepository."""
+        task = await self.get_by_id(id, user_id)
+        if task:
+            # Update task fields
             for key, value in update_data.items():
-                setattr(task, key, value)
+                if hasattr(task, key):
+                    setattr(task, key, value)
             await self.db.flush()
             return task
         return None
 
-    async def delete(self, task_id: int, user_id: int) -> bool:
-        """Delete a task."""
-        task = await self.get_by_id(task_id, user_id)
+    async def delete(self, id: int, user_id: int) -> bool:
+        """Delete an entity. Implementation of abstract method from BaseRepository."""
+        # Using delete_task with user_id check
+        task = await self.get_by_id(id, user_id)
         if task:
             await self.db.delete(task)
+            await self.db.flush()  # Consistent with delete_task
             return True
         return False
 
@@ -85,7 +95,7 @@ class TaskRepository(BaseRepository[Task]):
         return result.scalars().first()
 
     async def update_task(self, task_id: int, task_data: dict) -> Optional[Task]:
-        """Update a task with the given data."""
+        """Update a task with the given data without user_id check."""
         task = await self.get_by_id(task_id)
         if not task:
             raise TaskNotFoundError(f"Task with id {task_id} not found")
@@ -112,7 +122,7 @@ class TaskRepository(BaseRepository[Task]):
     ) -> List[Task]:
         """Get tasks by project with optional filters."""
         query = select(Task).where(Task.project_id == project_id)
-    
+
         # Apply filters
         if status:
             query = query.where(Task.status == status)
@@ -126,10 +136,10 @@ class TaskRepository(BaseRepository[Task]):
             query = query.where(Task.due_date >= due_date_start)
         if due_date_end:
             query = query.where(Task.due_date <= due_date_end)
-    
+
         # Apply pagination
         query = query.offset(skip).limit(limit)
-    
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -146,7 +156,7 @@ class TaskRepository(BaseRepository[Task]):
     ) -> List[Task]:
         """Get all tasks with optional filters."""
         query = select(Task)
-    
+
         # Apply filters
         if status:
             query = query.where(Task.status == status)
@@ -160,15 +170,23 @@ class TaskRepository(BaseRepository[Task]):
             query = query.where(Task.due_date >= due_date_start)
         if due_date_end:
             query = query.where(Task.due_date <= due_date_end)
-    
+
         # Apply pagination
         query = query.offset(skip).limit(limit)
-        
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def add_task_history(self, history: TaskHistory) -> TaskHistory:
+    async def add_task_history(self, task_id: int, user_id: int, field_name: str, old_value: str, new_value: str, action: str = "update") -> TaskHistory:
         """Add a task history entry."""
+        history = TaskHistory(
+            task_id=task_id,
+            user_id=user_id,
+            action=action,
+            field=field_name,
+            old_value=old_value,
+            new_value=new_value
+        )
         self.db.add(history)
         await self.db.flush()
         return history
@@ -230,15 +248,14 @@ class TaskRepository(BaseRepository[Task]):
     async def track_ai_interaction(self, task_id: int, ai_result: Dict) -> None:
         """Track AI interaction for a task."""
         try:
-            interaction = TaskAgentInteraction(
+            # Use create_task_agent_interaction to avoid code duplication
+            await self.create_task_agent_interaction(
                 task_id=task_id,
                 agent_type=ai_result.get("agent_type", "unknown"),
                 interaction_type=ai_result.get("interaction_type", "analysis"),
                 result=ai_result.get("result"),
                 success_rate=ai_result.get("confidence", 1.0)
             )
-            self.db.add(interaction)
-            await self.db.flush()
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Failed to track AI interaction: {str(e)}")
@@ -275,15 +292,175 @@ class TaskRepository(BaseRepository[Task]):
     async def track_ai_optimization(self, task_id: int, optimization_data: Dict) -> None:
         """Track AI optimization attempts for a task."""
         try:
-            interaction = TaskAgentInteraction(
+            # Use create_task_agent_interaction to avoid code duplication
+            await self.create_task_agent_interaction(
                 task_id=task_id,
                 agent_type="optimizer",
                 interaction_type="optimization",
                 result=optimization_data.get('result')
             )
-            self.db.add(interaction)
-            await self.db.flush()
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error tracking AI optimization: {str(e)}")
             raise
+            
+    # Task Comment Methods
+    async def create_comment(self, task_id: int, user_id: int, content: str, parent_id: Optional[int] = None) -> "TaskComment":
+        """Create a new comment for a task."""
+        from Backend.data_layer.database.models.task_comment import TaskComment
+        
+        comment = TaskComment(
+            task_id=task_id,
+            user_id=user_id,
+            content=content,
+            parent_id=parent_id
+        )
+        self.db.add(comment)
+        await self.db.flush()
+        return comment
+    
+    async def get_task_comments(self, task_id: int, skip: int = 0, limit: int = 50) -> List["TaskComment"]:
+        """Get all comments for a task."""
+        from Backend.data_layer.database.models.task_comment import TaskComment
+        from sqlalchemy import select
+        
+        query = (
+            select(TaskComment)
+            .where(TaskComment.task_id == task_id)
+            .order_by(TaskComment.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_comment(self, comment_id: int) -> Optional["TaskComment"]:
+        """Get a comment by ID."""
+        from Backend.data_layer.database.models.task_comment import TaskComment
+        from sqlalchemy import select
+        
+        query = select(TaskComment).where(TaskComment.id == comment_id)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def update_comment(self, comment_id: int, user_id: int, content: str) -> Optional["TaskComment"]:
+        """Update a comment."""
+        comment = await self.get_comment(comment_id)
+        if comment and comment.user_id == user_id:
+            comment.content = content
+            comment.updated_at = datetime.utcnow()
+            await self.db.flush()
+            return comment
+        return None
+    
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        """Delete a comment."""
+        comment = await self.get_comment(comment_id)
+        if comment and comment.user_id == user_id:
+            await self.db.delete(comment)
+            await self.db.flush()
+            return True
+        return False
+    
+    # Task Category Methods
+    async def create_category(self, name: str, organization_id: int, description: Optional[str] = None, 
+                             color_code: Optional[str] = None, icon: Optional[str] = None, 
+                             parent_id: Optional[int] = None) -> "TaskCategory":
+        """Create a new task category."""
+        from Backend.data_layer.database.models.task_category import TaskCategory
+        
+        category = TaskCategory(
+            name=name,
+            description=description,
+            color_code=color_code,
+            icon=icon,
+            parent_id=parent_id,
+            organization_id=organization_id
+        )
+        self.db.add(category)
+        await self.db.flush()
+        return category
+    
+    async def get_categories(self, organization_id: int) -> List["TaskCategory"]:
+        """Get all categories for an organization."""
+        from Backend.data_layer.database.models.task_category import TaskCategory
+        from sqlalchemy import select
+        
+        query = select(TaskCategory).where(TaskCategory.organization_id == organization_id)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_category(self, category_id: int) -> Optional["TaskCategory"]:
+        """Get a category by ID."""
+        from Backend.data_layer.database.models.task_category import TaskCategory
+        from sqlalchemy import select
+        
+        query = select(TaskCategory).where(TaskCategory.id == category_id)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def update_category(self, category_id: int, **update_data) -> Optional["TaskCategory"]:
+        """Update a category."""
+        category = await self.get_category(category_id)
+        if category:
+            for key, value in update_data.items():
+                if hasattr(category, key):
+                    setattr(category, key, value)
+            await self.db.flush()
+            return category
+        return None
+    
+    async def delete_category(self, category_id: int) -> bool:
+        """Delete a category."""
+        category = await self.get_category(category_id)
+        if category:
+            await self.db.delete(category)
+            await self.db.flush()
+            return True
+        return False
+    
+    # Task Attachment Methods
+    async def create_attachment(self, task_id: int, file_name: str, file_path: str, 
+                               uploaded_by: int, file_type: Optional[str] = None, 
+                               file_size: Optional[int] = None) -> "TaskAttachment":
+        """Create a new attachment for a task."""
+        from Backend.data_layer.database.models.task_attachment import TaskAttachment
+        
+        attachment = TaskAttachment(
+            task_id=task_id,
+            file_name=file_name,
+            file_path=file_path,
+            file_type=file_type,
+            file_size=file_size,
+            uploaded_by=uploaded_by
+        )
+        self.db.add(attachment)
+        await self.db.flush()
+        return attachment
+    
+    async def get_task_attachments(self, task_id: int) -> List["TaskAttachment"]:
+        """Get all attachments for a task."""
+        from Backend.data_layer.database.models.task_attachment import TaskAttachment
+        from sqlalchemy import select
+        
+        query = select(TaskAttachment).where(TaskAttachment.task_id == task_id)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+    
+    async def get_attachment(self, attachment_id: int) -> Optional["TaskAttachment"]:
+        """Get an attachment by ID."""
+        from Backend.data_layer.database.models.task_attachment import TaskAttachment
+        from sqlalchemy import select
+        
+        query = select(TaskAttachment).where(TaskAttachment.id == attachment_id)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def delete_attachment(self, attachment_id: int, user_id: int) -> bool:
+        """Delete an attachment."""
+        attachment = await self.get_attachment(attachment_id)
+        if attachment and attachment.uploaded_by == user_id:
+            await self.db.delete(attachment)
+            await self.db.flush()
+            return True
+        return False

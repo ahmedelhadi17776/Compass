@@ -7,6 +7,7 @@ from Backend.data_layer.database.errors import TaskNotFoundError
 from Backend.tasks.task_tasks import process_task, execute_task_step
 from celery.result import AsyncResult
 from Backend.ai_services.rag.rag_service import RAGService
+from Backend.utils.cache_utils import cache_response, cache_entity, invalidate_cache
 import asyncio
 import logging
 import json
@@ -31,10 +32,10 @@ class TaskService:
             if not task:
                 raise TaskNotFoundError(f"Task {task_id} not found")
 
-            # Validate status transition
-            if task.status == TaskStatus.TODO and new_status == TaskStatus.COMPLETED:
+            # Validate status transition using the transition rules
+            if not self._is_valid_status_transition(task.status, new_status):
                 raise TaskUpdateError(
-                    "Cannot transition directly from TODO to COMPLETED")
+                    f"Invalid status transition from {task.status} to {new_status}")
 
             # Check dependencies if transitioning to COMPLETED
             if new_status == TaskStatus.COMPLETED:
@@ -65,7 +66,8 @@ class TaskService:
         """Validate if the status transition is allowed."""
         # Define valid transitions
         valid_transitions = {
-            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED],
+            # Allow direct completion
+            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],
             TaskStatus.IN_PROGRESS: [TaskStatus.BLOCKED, TaskStatus.COMPLETED, TaskStatus.DEFERRED],
             TaskStatus.BLOCKED: [TaskStatus.TODO, TaskStatus.IN_PROGRESS],
             TaskStatus.COMPLETED: [TaskStatus.IN_PROGRESS],  # Allow reopening
@@ -147,7 +149,8 @@ class TaskService:
         project_id: int,
         organization_id: int,
         status: TaskStatus = TaskStatus.TODO,  # Add status parameter with default
-        priority: TaskPriority = TaskPriority.MEDIUM,  # Add priority parameter with default
+        # Add priority parameter with default
+        priority: TaskPriority = TaskPriority.MEDIUM,
         workflow_id: Optional[int] = None,
         assignee_id: Optional[int] = None,
         reviewer_id: Optional[int] = None,
@@ -171,7 +174,7 @@ class TaskService:
         # Convert timezone-aware datetime to naive UTC datetime
         if due_date and due_date.tzinfo is not None:
             due_date = due_date.replace(tzinfo=None)
-    
+
         task_data = {
             "title": title,
             "description": description,
@@ -231,9 +234,28 @@ class TaskService:
             task_data['_dependencies_list'] = json.dumps(deps)
             task_data['dependencies'] = deps
 
+        # Convert timezone-aware datetime to naive UTC datetime for due_date
+        if 'due_date' in task_data and task_data['due_date'] and task_data['due_date'].tzinfo is not None:
+            task_data['due_date'] = task_data['due_date'].replace(tzinfo=None)
+
+        # Handle foreign key IDs - if they're 0, set them to None to avoid foreign key violations
+        if 'category_id' in task_data and task_data['category_id'] == 0:
+            task_data['category_id'] = None
+
+        if 'workflow_id' in task_data and task_data['workflow_id'] == 0:
+            task_data['workflow_id'] = None
+
+        if 'parent_task_id' in task_data and task_data['parent_task_id'] == 0:
+            task_data['parent_task_id'] = None
+
         task = await self.repo.update_task(task_id, task_data)
+
+        # Invalidate cache for this task
+        invalidate_cache('task', task_id)
+
         return task
 
+    @cache_entity(entity_type='task')
     async def get_task(self, task_id: int) -> Optional[Task]:
         """Get a task by ID with error handling."""
         try:
@@ -254,6 +276,7 @@ class TaskService:
             logger.error(f"Error getting task: {str(e)}")
             return None
 
+    @cache_response(cache_type='task_dependencies')
     async def check_dependencies(self, task_id: int) -> bool:
         """Check if all dependencies are completed."""
         try:
@@ -269,6 +292,12 @@ class TaskService:
                 return True
 
             for dep_id in deps:
+                # Skip invalid dependency IDs (0 or negative values)
+                if dep_id == 0 or dep_id < 0:
+                    logger.warning(
+                        f"Skipping invalid dependency ID {dep_id} for task {task_id}")
+                    continue
+
                 dep_task = await self.repo.get_task(int(dep_id))
                 if not dep_task or dep_task.status != TaskStatus.COMPLETED:
                     return False
@@ -276,12 +305,75 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error checking task dependencies: {str(e)}")
             return False
+# Add to TaskService class
 
+    @cache_response(cache_type='task_list')
+    async def get_tasks(
+        self,
+        project_id: Optional[int] = None,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[TaskStatus] = None,
+        priority: Optional[TaskPriority] = None,
+        assignee_id: Optional[int] = None,
+        creator_id: Optional[int] = None,
+        due_date_start: Optional[datetime] = None,
+        due_date_end: Optional[datetime] = None
+    ) -> List[Task]:
+        """Get tasks with optional filters and ensure they're cached in Redis."""
+        try:
+            # Get tasks from repository
+            if project_id:
+                tasks = await self.repo.get_tasks_by_project(
+                    project_id=project_id,
+                    skip=skip,
+                    limit=limit,
+                    status=status,
+                    priority=priority,
+                    assignee_id=assignee_id,
+                    creator_id=creator_id,
+                    due_date_start=due_date_start,
+                    due_date_end=due_date_end
+                )
+            else:
+                tasks = await self.repo.get_tasks(
+                    skip=skip,
+                    limit=limit,
+                    status=status,
+                    priority=priority,
+                    assignee_id=assignee_id,
+                    creator_id=creator_id,
+                    due_date_start=due_date_start,
+                    due_date_end=due_date_end
+                )
+
+            # Initialize dependencies for each task
+            for task in tasks:
+                try:
+                    deps = json.loads(
+                        task._dependencies_list) if task._dependencies_list else []
+                    task.dependencies = deps
+                    task.task_dependencies = deps
+                except (json.JSONDecodeError, TypeError):
+                    task.dependencies = []
+                    task.task_dependencies = []
+
+            return tasks
+        except Exception as e:
+            logger.error(f"Error getting tasks: {str(e)}")
+            return []
+
+    @cache_response(cache_type='task_details')
     async def get_task_with_details(self, task_id: int) -> Dict:
         """Get task with all related details."""
         task = await self.repo.get_task_with_details(task_id)
         if not task:
             raise TaskNotFoundError(f"Task {task_id} not found")
+
+        # Get comments, attachments, and history
+        comments = await self.get_task_comments(task_id)
+        attachments = await self.get_task_attachments(task_id)
+        history = await self.repo.get_task_history(task_id)
 
         # Convert task model to dictionary
         return {
@@ -300,11 +392,41 @@ class TaskService:
             "workflow_id": task.workflow_id,
             "current_workflow_step_id": task.current_workflow_step_id,
             "health_score": task.health_score,
-            "attachments": [dict(a.__dict__) for a in task.attachments] if task.attachments else [],
-            "comments": [dict(c.__dict__) for c in task.comments] if task.comments else [],
-            "history": [dict(h.__dict__) for h in task.history] if task.history else []
+            "category_id": task.category_id,
+            "due_date": task.due_date,
+            "estimated_hours": task.estimated_hours,
+            "actual_hours": task.actual_hours,
+            "dependencies": task.dependencies,
+            "attachments": [{
+                "id": a.id,
+                "file_name": a.file_name,
+                "file_path": a.file_path,
+                "file_type": a.file_type,
+                "file_size": a.file_size,
+                "uploaded_by": a.uploaded_by,
+                "created_at": a.created_at
+            } for a in attachments],
+            "comments": [{
+                "id": c.id,
+                "content": c.content,
+                "user_id": c.user_id,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "parent_id": c.parent_id
+            } for c in comments],
+            "history": [{
+                "id": h.id,
+                "task_id": h.task_id,
+                "user_id": h.user_id,
+                "action": h.action,
+                "field": h.field,
+                "old_value": h.old_value,
+                "new_value": h.new_value,
+                "created_at": h.created_at
+            } for h in history]
         }
 
+    @cache_response(cache_type='task_metrics')
     async def get_task_metrics(self, task_id: int) -> Optional[Dict]:
         """Get task metrics and analytics."""
         try:
@@ -328,6 +450,99 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error getting task metrics: {str(e)}")
             return None
+
+    # Task Comment Methods
+    async def create_comment(self, task_id: int, user_id: int, content: str, parent_id: Optional[int] = None):
+        """Create a new comment for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.create_comment(task_id, user_id, content, parent_id)
+
+    async def get_task_comments(self, task_id: int, skip: int = 0, limit: int = 50):
+        """Get all comments for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.get_task_comments(task_id, skip, limit)
+
+    async def update_comment(self, comment_id: int, user_id: int, content: str):
+        """Update a comment."""
+        return await self.repo.update_comment(comment_id, user_id, content)
+
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        """Delete a comment."""
+        return await self.repo.delete_comment(comment_id, user_id)
+
+    # Task Category Methods
+    async def create_category(self, name: str, organization_id: int, description: Optional[str] = None,
+                              color_code: Optional[str] = None, icon: Optional[str] = None,
+                              parent_id: Optional[int] = None):
+        """Create a new task category."""
+        return await self.repo.create_category(
+            name=name,
+            organization_id=organization_id,
+            description=description,
+            color_code=color_code,
+            icon=icon,
+            parent_id=parent_id
+        )
+
+    async def get_categories(self, organization_id: int):
+        """Get all categories for an organization."""
+        return await self.repo.get_categories(organization_id)
+
+    async def get_category(self, category_id: int):
+        """Get a category by ID."""
+        return await self.repo.get_category(category_id)
+
+    async def update_category(self, category_id: int, **update_data):
+        """Update a category."""
+        return await self.repo.update_category(category_id, **update_data)
+
+    async def delete_category(self, category_id: int) -> bool:
+        """Delete a category."""
+        return await self.repo.delete_category(category_id)
+
+    # Task Attachment Methods
+    async def create_attachment(self, task_id: int, file_name: str, file_path: str,
+                                uploaded_by: int, file_type: Optional[str] = None,
+                                file_size: Optional[int] = None):
+        """Create a new attachment for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.create_attachment(
+            task_id=task_id,
+            file_name=file_name,
+            file_path=file_path,
+            uploaded_by=uploaded_by,
+            file_type=file_type,
+            file_size=file_size
+        )
+
+    async def get_task_attachments(self, task_id: int):
+        """Get all attachments for a task."""
+        # Verify task exists
+        task = await self.repo.get_task(task_id)
+        if not task:
+            raise TaskNotFoundError(f"Task with id {task_id} not found")
+
+        return await self.repo.get_task_attachments(task_id)
+
+    async def get_attachment(self, attachment_id: int):
+        """Get an attachment by ID."""
+        return await self.repo.get_attachment(attachment_id)
+
+    async def delete_attachment(self, attachment_id: int, user_id: int) -> bool:
+        """Delete an attachment."""
+        return await self.repo.delete_attachment(attachment_id, user_id)
 
     @property
     def dependencies(self) -> List[int]:
@@ -366,10 +581,13 @@ class TaskService:
     async def delete_task(self, task_id: int) -> bool:
         """Delete a task by ID."""
         try:
-            return await self.repo.delete_task(task_id)
+            result = await self.repo.delete_task(task_id)
+            if result:
+                # Invalidate cache for this task
+                invalidate_cache('task', task_id)
+            return result
         except Exception as e:
             logger.error(f"Error deleting task: {str(e)}")
-            return False
 
     async def update_task_dependencies(self, task_id: int, dependencies: List[int]) -> bool:
         """Update task dependencies with validation."""
@@ -397,4 +615,3 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error updating task dependencies: {str(e)}")
             return False
-# Add to TaskService class

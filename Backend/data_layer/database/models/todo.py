@@ -85,7 +85,16 @@ class Todo(Base):
             'status': self.status.value if hasattr(self, 'status') and self.status else None,
             'priority': self.priority.value if hasattr(self, 'priority') and self.priority else None,
             'due_date': self.due_date.isoformat() if hasattr(self, 'due_date') and self.due_date else None,
+            'reminder_time': self.reminder_time.isoformat() if hasattr(self, 'reminder_time') and self.reminder_time else None,
             'is_recurring': self.is_recurring,
+            'recurrence_pattern': self.recurrence_pattern if hasattr(self, 'recurrence_pattern') else None,
+            'tags': self.tags if hasattr(self, 'tags') else None,
+            'checklist': self.checklist if hasattr(self, 'checklist') else None,
+            'linked_task_id': self.linked_task_id if hasattr(self, 'linked_task_id') else None,
+            'linked_calendar_event_id': self.linked_calendar_event_id if hasattr(self, 'linked_calendar_event_id') else None,
+            'ai_generated': self.ai_generated if hasattr(self, 'ai_generated') else False,
+            'ai_suggestions': self.ai_suggestions if hasattr(self, 'ai_suggestions') else None,
+            'completion_date': self.completion_date.isoformat() if hasattr(self, 'completion_date') and self.completion_date else None,
             'created_at': self.created_at.isoformat() if hasattr(self, 'created_at') and self.created_at else None,
             'updated_at': self.updated_at.isoformat() if hasattr(self, 'updated_at') and self.updated_at else None
         }
