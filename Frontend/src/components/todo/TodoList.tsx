@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, X, ChevronUp, ChevronRight, ChevronDown, Tag as TagIcon, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
+import { Plus, X, ChevronUp, ChevronRight, ChevronDown, Tag, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { format, isToday, isThisMonth } from 'date-fns';
+import { isToday } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -15,18 +15,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Progress } from "../ui/progress";
 import Checkbox from "../ui/checkbox";
-import TaskForm from './TaskForm';
+import TodoForm from './TodoForm';
 import { Badge } from "../ui/badge";
 import cn from 'classnames';
 import { useTheme } from '@/contexts/theme-provider';
@@ -75,7 +68,7 @@ const TodoList: React.FC<TodoListProps> = ({
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [activeColumn, setActiveColumn] = useState<'log' | 'thisWeek' | 'today' | 'done'>('today');
   const [editingTask, setEditingTask] = useState<Todo | null>(null);
-  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showTodoForm, setShowTodoForm] = useState(false);
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
@@ -317,10 +310,10 @@ const TodoList: React.FC<TodoListProps> = ({
 
   const handleEditTask = (task: Todo) => {
     setEditingTask(task);
-    setShowTaskForm(true);
+    setShowTodoForm(true);
   };
 
-  const handleTaskFormSubmit = (taskData: { 
+  const handleTodoFormSubmit = (taskData: { 
     title: string; 
     description?: string; 
     dueDate?: Date;
@@ -343,7 +336,7 @@ const TodoList: React.FC<TodoListProps> = ({
         dueDate: taskData.dueDate
       });
     }
-    setShowTaskForm(false);
+    setShowTodoForm(false);
     setEditingTask(null);
   };
 
@@ -491,7 +484,7 @@ const TodoList: React.FC<TodoListProps> = ({
                     variant="ghost"
                     onClick={() => {
                       setAddingToColumn(type);
-                      setShowTaskForm(true);
+                      setShowTodoForm(true);
                     }}
                     className="text-muted-foreground hover:text-foreground"
                   >
@@ -636,7 +629,7 @@ const TodoList: React.FC<TodoListProps> = ({
                 variant="ghost"
                 onClick={() => {
                   setAddingToColumn(type);
-                  setShowTaskForm(true);
+                  setShowTodoForm(true);
                 }}
                 className="text-muted-foreground hover:text-foreground"
               >
@@ -671,9 +664,9 @@ const TodoList: React.FC<TodoListProps> = ({
                 <DialogTitle>Add New Task</DialogTitle>
               </DialogHeader>
               <div className="pt-4">
-                <TaskForm
+                <TodoForm
                   onClose={() => {}}
-                  onSubmit={handleTaskFormSubmit}
+                  onSubmit={handleTodoFormSubmit}
                   column={addingToColumn}
                 />
               </div>

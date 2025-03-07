@@ -27,8 +27,6 @@ flower==2.0.1
 python-magic==0.4.27
 
 # AI and Machine Learning
-transformers==4.30.2
-torch==2.2.0
 sentence-transformers==2.2.2
 protobuf==3.20.3
 numpy==1.26.4
@@ -38,11 +36,6 @@ scikit-learn==1.4.0
 huggingface-hub==0.19.4
 
 # RAG and Vector Databases
-chromadb==0.4.22
-langchain==0.1.9
-langchain-community==0.0.24
-langchain-core==0.1.42
-faiss-cpu==1.7.4
 
 # NLP and Text Processing
 spacy==3.7.4
@@ -51,7 +44,7 @@ regex==2023.12.25
 
 # Embeddings and Neural Search
 onnxruntime==1.17.0
-tensorflow==2.15.0
+tensorflow==2.16.1
 tensorflow-hub==0.15.0
 
 # Metrics and Evaluation
