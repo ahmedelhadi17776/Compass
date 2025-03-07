@@ -16,7 +16,8 @@ from Backend.data_layer.database.models import (
     EmailOrganization, RAGQuery, MeetingNotes,
     ProductivityMetrics, EmotionalIntelligence,
     UserWorkspaceSettings, Todo, TodoHistory,
-    TodoPriority, TodoStatus, WorkflowStepExecution
+    TodoPriority, TodoStatus, WorkflowStepExecution, DailyHabit,
+    WorkflowAgentInteraction
 )
 import os
 import sys
