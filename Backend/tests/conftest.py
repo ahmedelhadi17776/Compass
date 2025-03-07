@@ -1,3 +1,7 @@
+from Backend.api.daily_habits_routes import router as daily_habits_router
+from fastapi import FastAPI
+from Backend.data_layer.database.models.daily_habits import DailyHabit
+from Backend.data_layer.database.connection import get_test_db
 import asyncio
 import pytest
 import pytest_asyncio
@@ -27,14 +31,14 @@ sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..')))
 
 # Set testing environment before importing settings
-os.environ["TESTING"] = "True"
+os.environ["TESTING"] = "1"
 os.environ["APP_NAME"] = "COMPASS_TEST"
 os.environ["APP_VERSION"] = "test"
 os.environ["ENVIRONMENT"] = "testing"
 os.environ["JWT_SECRET_KEY"] = "test_secret_key"
 os.environ["JWT_ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:postgres@localhost:5432/compass_test"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
 os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
 # Create test database engine
@@ -51,6 +55,99 @@ TestingSessionLocal = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False
 )
+
+# Import after setting environment variables
+
+# Create a minimal version of the app for testing
+test_app = FastAPI()
+
+# Add only the routes we need for testing
+test_app.include_router(daily_habits_router,
+                        prefix="/daily-habits", tags=["daily-habits"])
+
+# Mock Redis for testing
+
+
+class MockRedis:
+    def __init__(self):
+        self.data = {}
+
+    async def get(self, key):
+        return self.data.get(key)
+
+    async def set(self, key, value, ex=None):
+        self.data[key] = value
+
+    async def delete(self, key):
+        if key in self.data:
+            del self.data[key]
+
+    async def close(self):
+        pass
+
+# Add Redis to app state
+
+
+@pytest.fixture(scope="session")
+def event_loop() -> Generator:
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+async def redis_client():
+    redis = MockRedis()
+    yield redis
+
+
+@pytest.fixture
+async def app_with_redis(redis_client):
+    test_app.state.redis = redis_client
+    yield test_app
+
+
+@pytest.fixture
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get a test database session."""
+    async for session in get_test_db():
+        yield session
+
+
+@pytest.fixture
+async def client(app_with_redis) -> AsyncGenerator[AsyncClient, None]:
+    """Get a test client for the FastAPI app."""
+    async with AsyncClient(app=app_with_redis, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
+async def test_habit(db_session):
+    """Create a test habit for testing."""
+    from datetime import date, timedelta
+
+    habit = DailyHabit(
+        user_id=1,
+        habit_name="Test Habit",
+        description="A test habit for testing",
+        start_day=date.today() - timedelta(days=7),
+        end_day=date.today() + timedelta(days=30),
+        current_streak=0,
+        longest_streak=0,
+        is_completed=False
+    )
+    db_session.add(habit)
+    await db_session.flush()
+    await db_session.commit()
+
+    # Refresh to get the ID
+    await db_session.refresh(habit)
+
+    yield habit
+
+    # Cleanup
+    await db_session.delete(habit)
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -117,7 +214,7 @@ async def create_test_database():
         raise
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop_policy().new_event_loop()

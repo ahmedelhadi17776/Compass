@@ -86,6 +86,8 @@ class User(Base):
         "DailySummary", back_populates="user", cascade="all, delete-orphan")
     todos = relationship("Todo", back_populates="user",
                          cascade="all, delete-orphan")
+    daily_habits = relationship("DailyHabit", back_populates="user",
+                                cascade="all, delete-orphan")
     created_workflows = relationship(
         "Workflow", foreign_keys="[Workflow.created_by]", back_populates="creator")
 

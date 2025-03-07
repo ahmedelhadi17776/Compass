@@ -19,6 +19,7 @@ from Backend.api.tasks import router as task_router
 from Backend.api.organizations import router as organization_router
 from Backend.api.projects import router as project_router
 from Backend.api.cache_routes import router as cache_router
+from Backend.api.daily_habits_routes import router as daily_habits_router
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -57,6 +58,11 @@ async def lifespan(app: FastAPI):
             'task': 'tasks.ai_tasks.generate_productivity_insights',
             'schedule': 3600.0,  # Every hour
             'args': (None, 'hourly', ['focus', 'productivity', 'breaks'])
+        },
+        'process-daily-habit-reset': {
+            'task': 'tasks.habit_tasks.process_daily_habit_reset',
+            'schedule': 86400.0,  # Every 24 hours
+            'args': ()
         }
     }
 
@@ -104,6 +110,10 @@ app.include_router(cache_test_router)
 # Include Todo routes
 app.include_router(todo_router, prefix="/todos", tags=["todos"])
 
+# Include Daily Habits routes
+app.include_router(daily_habits_router,
+                   prefix="/daily-habits", tags=["daily-habits"])
+
 app.include_router(workflow_router)
 
 app.include_router(ai_router)
@@ -129,6 +139,11 @@ async def startup_event():
             'task': 'tasks.ai_tasks.generate_productivity_insights',
            'schedule': 3600.0,  # Every hour
             'args': (None, 'hourly', ['focus', 'productivity', 'breaks'])
+        },
+        'process-daily-habit-reset': {
+            'task': 'tasks.habit_tasks.process_daily_habit_reset',
+            'schedule': 86400.0,  # Every 24 hours
+            'args': ()
         }
     }
 '''

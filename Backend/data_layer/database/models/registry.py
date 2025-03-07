@@ -5,6 +5,7 @@ from Backend.data_layer.database.models.organization import Organization
 from Backend.data_layer.database.models.project import Project, ProjectMember
 from Backend.data_layer.database.models.task import Task, TaskStatus
 from Backend.data_layer.database.models.workflow import Workflow
+from Backend.data_layer.database.models.daily_habits import DailyHabit
 
 from Backend.data_layer.database.models.workflow_step import WorkflowStep
 from Backend.data_layer.database.models.workflow_transition import WorkflowTransition
@@ -30,6 +31,7 @@ from Backend.data_layer.database.models.productivity_metrics import Productivity
 from Backend.data_layer.database.models.emotional_intelligence import EmotionalIntelligence
 from Backend.data_layer.database.models.meeting_notes import MeetingNotes
 from Backend.data_layer.database.models.todo import Todo, TodoHistory, TodoPriority, TodoStatus
+from Backend.data_layer.database.models.task_agent_interaction import TaskAgentInteraction
 
 
 __all__ = [
@@ -81,5 +83,7 @@ __all__ = [
     'Todo',
     'TodoHistory',
     'TodoPriority',
-    'TodoStatus'
+    'TodoStatus',
+    'TaskAgentInteraction',
+    'DailyHabit'
 ]
