@@ -11,12 +11,14 @@ import { cn } from "@/lib/utils";
 import { Switch } from "../ui/switch";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import authApi, { User } from '@/api/auth';
 
 type Priority = 'high' | 'medium' | 'low';
 
 const API_BASE_URL = 'http://localhost:8000';
 
 interface TodoFormData {
+  user_id: number;
   title: string;
   description: string;
   priority: Priority;
@@ -28,11 +30,13 @@ interface TodoFormData {
 
 interface TodoFormProps {
   onClose: () => void;
+  user: User;
 }
 
-const TodoForm: React.FC<TodoFormProps> = ({ onClose }) => {
+const TodoForm: React.FC<TodoFormProps> = ({ onClose, user }) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<TodoFormData>({
+    user_id: user.id,
     title: '',
     description: '',
     priority: 'medium',
@@ -43,12 +47,19 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose }) => {
   });
 
   const mutation = useMutation({
-    mutationFn: (data: TodoFormData) => 
-      axios.post<TodoFormData>(`${API_BASE_URL}/todos`, {
+    mutationFn: async (data: TodoFormData) => {
+      const token = localStorage.getItem('token');
+      return axios.post<TodoFormData>(`${API_BASE_URL}/todos`, {
         ...data,
         due_date: data.due_date.toISOString(),
         reminder_time: data.reminder_time?.toISOString(),
-      }),
+        tags: data.tags || [],
+        checklist: [],
+        recurrence_pattern: {},
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       onClose();
