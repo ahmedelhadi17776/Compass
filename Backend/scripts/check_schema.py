@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, MetaData, inspect
 from sqlalchemy.schema import ForeignKeyConstraint
 
 # Database connection
-DATABASE_URL = "postgresql://ahmed:0502747598@localhost:5432/aiwa_dev"
+DATABASE_URL = "postgresql://postgres:1357997531@localhost:5432/aiwa_dev"
 
 def main():
     """Check database schema and relationships."""
