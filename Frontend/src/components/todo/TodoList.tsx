@@ -23,6 +23,8 @@ import TodoForm from './TodoForm';
 import { Badge } from "../ui/badge";
 import cn from 'classnames';
 import { useTheme } from '@/contexts/theme-provider';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import authApi, { User } from '@/api/auth';
 
 interface Tag {
   id: string;
@@ -64,6 +66,15 @@ const TodoList: React.FC<TodoListProps> = ({
   onUpdateTodo,
   onReorderTodo,
 }) => {
+  const { data: user } = useQuery<User>({
+    queryKey: ['user'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token found');
+      return authApi.getMe(token);
+    },
+  });
+
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [activeColumn, setActiveColumn] = useState<'log' | 'thisWeek' | 'today' | 'done'>('today');
@@ -645,6 +656,10 @@ const TodoList: React.FC<TodoListProps> = ({
     );
   };
 
+  if (!user) {
+    return <div>Please log in to view todos</div>;
+  }
+
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="grid grid-cols-4 gap-4 p-6 h-full w-full">
@@ -666,8 +681,7 @@ const TodoList: React.FC<TodoListProps> = ({
               <div className="pt-4">
                 <TodoForm
                   onClose={() => {}}
-                  onSubmit={handleTodoFormSubmit}
-                  column={addingToColumn}
+                  user={user}
                 />
               </div>
             </DialogContent>
