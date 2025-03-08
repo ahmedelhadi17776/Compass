@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -28,27 +28,12 @@ interface TodoFormData {
   tags: string[];
 }
 
-interface Todo {
-  id: number;
-  user_id: number;
-  title: string;
-  description?: string;
-  status: string;
-  priority: string;
-  due_date?: string;
-  reminder_time?: string;
-  is_recurring: boolean;
-  tags?: string[];
-}
-
 interface TodoFormProps {
   onClose: () => void;
   user: User;
-  todo?: Todo;
-  onSubmit?: (formData: TodoFormData) => void;
 }
 
-const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) => {
+const TodoForm: React.FC<TodoFormProps> = ({ onClose, user }) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<TodoFormData>({
     user_id: user.id,
@@ -60,22 +45,6 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
     is_recurring: false,
     tags: [],
   });
-
-  // Initialize form with todo data if editing
-  useEffect(() => {
-    if (todo) {
-      setFormData({
-        user_id: todo.user_id,
-        title: todo.title || '',
-        description: todo.description || '',
-        priority: todo.priority as Priority || 'medium',
-        due_date: todo.due_date ? new Date(todo.due_date) : new Date(),
-        reminder_time: todo.reminder_time ? new Date(todo.reminder_time) : undefined,
-        is_recurring: todo.is_recurring || false,
-        tags: todo.tags || [],
-      });
-    }
-  }, [todo]);
 
   const mutation = useMutation({
     mutationFn: async (data: TodoFormData) => {
@@ -95,9 +64,6 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       onClose();
     },
-    onError: (error) => {
-      console.error("Failed to create todo:", error);
-    },
   });
 
   const [newTag, setNewTag] = useState('');
@@ -105,16 +71,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (onSubmit) {
-      onSubmit(formData);
-    } else {
-      mutation.mutate(formData);
-    }
-  };
-
-  const handleCancel = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onClose();
+    mutation.mutate(formData);
   };
 
   const handleAddTag = (e: React.FormEvent) => {
@@ -144,7 +101,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
           id="title"
           value={formData.title}
           onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
-          placeholder="Todo title"
+          placeholder="Task title"
           required
         />
       </div>
@@ -155,7 +112,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
           id="description"
           value={formData.description}
           onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-          placeholder="Todo description"
+          placeholder="Task description"
           className="min-h-[100px]"
         />
       </div>
@@ -262,11 +219,11 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
       </div>
 
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={handleCancel}>
+        <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Saving...' : todo ? 'Update Todo' : 'Create Todo'}
+          {mutation.isPending ? 'Creating...' : 'Create Task'}
         </Button>
       </div>
     </form>

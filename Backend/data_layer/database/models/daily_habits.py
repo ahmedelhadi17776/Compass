@@ -87,8 +87,8 @@ class DailyHabit(Base):
             yesterday = today - timedelta(days=1)
 
             if self.last_completed_date < yesterday:
-                # Streak broken - reset to 0
-                self.current_streak = 0
+                # Streak broken - reset to 1
+                self.current_streak = 1
             else:
                 # Streak continues
                 self.current_streak += 1
