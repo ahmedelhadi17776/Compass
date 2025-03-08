@@ -1,4 +1,4 @@
-from Backend.core.celery_app import celery_app
+from Backend.celery_app import celery_app
 from typing import List, Dict, Optional
 from datetime import datetime
 

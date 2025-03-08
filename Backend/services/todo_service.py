@@ -1,11 +1,11 @@
 from Backend.data_layer.repositories.todo_repository import TodoRepository
 from Backend.data_layer.cache.redis_client import get_cached_value, set_cached_value, delete_cached_value
-from Backend.core.celery_app import (
+from Backend.celery_app.tasks.todo_tasks import (
     create_todo_task,
     update_todo_task,
     delete_todo_task,
-    get_todos,
-    get_todo_by_id
+    get_todos_task,  # Corrected import name
+    get_todo_by_id_task
 )
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
@@ -54,9 +54,10 @@ class TodoService:
                     todo_dict['updated_at'])
             return Todo(**todo_dict)
 
-        todo = await get_todo_by_id(todo_id, user_id)
+        todo = await get_todo_by_id_task(todo_id, user_id)
         if todo:
-            todo_dict = todo.to_dict()
+            # Check if todo is a dictionary or ORM object
+            todo_dict = todo.to_dict() if hasattr(todo, 'to_dict') else todo
             await set_cached_value(cache_key, json.dumps(todo_dict), self.cache_ttl)
         return todo
 
@@ -91,9 +92,10 @@ class TodoService:
                 result_todos.append(Todo(**todo_dict))
             return result_todos
 
-        todos = await get_todos(user_id, status)
+        todos = await get_todos_task(user_id, status)
         if todos:
-            todos_list = [todo.to_dict() for todo in todos]
+            # Convert mixed return types to dictionaries
+            todos_list = [t.to_dict() if hasattr(t, 'to_dict') else t for t in todos]
             await set_cached_value(cache_key, json.dumps(todos_list), self.cache_ttl)
         return todos if todos else []
 
@@ -134,10 +136,12 @@ class TodoService:
         }
 
         # Handle due_date conversion
-        due_date = task.get('due_date') if isinstance(task, dict) else task.due_date
+        due_date = task.get('due_date') if isinstance(
+            task, dict) else task.due_date
         if due_date:
             if isinstance(due_date, str):
-                todo_data['due_date'] = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                todo_data['due_date'] = datetime.fromisoformat(
+                    due_date.replace('Z', '+00:00'))
             else:
                 todo_data['due_date'] = due_date
 

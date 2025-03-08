@@ -6,7 +6,7 @@ import logging
 from Backend.core.config import settings
 from Backend.data_layer.database.connection import get_db
 from Backend.core.logging import setup_logging
-from Backend.core.celery_app import celery_app
+from Backend.celery_app import celery_app
 from Backend.middleware.rate_limiter import RateLimiterMiddleware
 from Backend.api.routes import router as api_router
 from Backend.api.todo_routes import router as todo_router
@@ -46,25 +46,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logging.error(f"❌ Database connection failed: {e}")
         break  # Exit loop after first attempt
-
-    # Initialize Celery Beat schedule for periodic tasks
-    celery_app.conf.beat_schedule = {
-        'process-scheduled-notifications': {
-            'task': 'tasks.notification_tasks.process_scheduled_notifications',
-            'schedule': 60.0,  # Every minute
-            'args': (datetime.utcnow().isoformat(),)
-        },
-        'generate-productivity-insights': {
-            'task': 'tasks.ai_tasks.generate_productivity_insights',
-            'schedule': 3600.0,  # Every hour
-            'args': (None, 'hourly', ['focus', 'productivity', 'breaks'])
-        },
-        'process-daily-habit-reset': {
-            'task': 'tasks.habit_tasks.process_daily_habit_reset',
-            'schedule': 86400.0,  # Every 24 hours
-            'args': ()
-        }
-    }
 
     yield
 
@@ -121,36 +102,7 @@ app.include_router(ai_router)
 app.include_router(cache_router)
 
 
-# ✅ Celery Beat Scheduler
-'''
-@app.on_event("startup")
-async def startup_event():
-    celery_app.conf.update(
-        broker_url=settings.CELERY_BROKER_URL,
-        result_backend=settings.CELERY_RESULT_BACKEND
-    )
-    celery_app.conf.beat_schedule = {
-        'process-scheduled-notifications': {
-            'task': 'tasks.notification_tasks.process_scheduled_notifications',
-            'schedule': 60.0,  # Every minute
-            'args': (datetime.utcnow().isoformat(),)
-        },
-        'generate-productivity-insights': {
-            'task': 'tasks.ai_tasks.generate_productivity_insights',
-           'schedule': 3600.0,  # Every hour
-            'args': (None, 'hourly', ['focus', 'productivity', 'breaks'])
-        },
-        'process-daily-habit-reset': {
-            'task': 'tasks.habit_tasks.process_daily_habit_reset',
-            'schedule': 86400.0,  # Every 24 hours
-            'args': ()
-        }
-    }
-'''
-
 # ✅ Root Health Check
-
-
 @app.get("/")
 async def health_check():
     return {
@@ -168,12 +120,8 @@ async def get_task_status(task_id: str):
     """
     Get the status of a Celery task by its ID.
     """
-    task = celery_app.AsyncResult(task_id)
-    return {
-        "task_id": task_id,
-        "status": task.status,
-        "result": task.result if task.ready() else None
-    }
+    from Backend.celery_app.monitoring import get_task_status
+    return get_task_status(task_id)
 
 if __name__ == "__main__":
     import uvicorn

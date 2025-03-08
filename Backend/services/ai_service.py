@@ -180,7 +180,7 @@ class AIService:
                     "result": results.get("output")
                 }
 
-                await task_repo.update_task(task_id, {"ai_suggestions": ai_suggestions})
+                await task_repo.update_ai_suggestions(task_id, ai_suggestions)
 
             return results
         except Exception as e:

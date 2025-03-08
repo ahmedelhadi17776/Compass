@@ -4,7 +4,7 @@ from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
 from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.data_layer.database.errors import TaskNotFoundError
-from Backend.tasks.task_tasks import process_task, execute_task_step
+from Backend.celery_app.tasks.task_tasks import process_task, execute_task_step
 from celery.result import AsyncResult
 from Backend.ai_services.rag.rag_service import RAGService
 from Backend.utils.cache_utils import cache_response, cache_entity, invalidate_cache
