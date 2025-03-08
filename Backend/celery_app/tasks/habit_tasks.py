@@ -1,14 +1,17 @@
-from Backend.core.celery_app import celery_app
+from Backend.celery_app import celery_app
 from Backend.data_layer.repositories.daily_habits_repository import DailyHabitRepository
 from Backend.data_layer.database.connection import get_db
 import logging
 from datetime import datetime
+from Backend.celery_app.utils import async_to_sync, task_with_retry
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="tasks.habit_tasks.process_daily_habit_reset")
-async def process_daily_habit_reset():
+@celery_app.task(name="habits.process_daily_reset")
+# Retry up to 3 times with 5 min delay
+@task_with_retry(max_retries=3, countdown=300)
+def process_daily_habit_reset():
     """
     Process daily reset operations for habits:
     1. Reset completion status for all habits
@@ -16,6 +19,11 @@ async def process_daily_habit_reset():
 
     This task should be scheduled to run once per day, typically at midnight.
     """
+    return async_to_sync(_process_daily_habit_reset)()
+
+
+async def _process_daily_habit_reset():
+    """Async implementation of the daily habit reset process."""
     logger.info(f"Starting daily habit reset process at {datetime.now()}")
 
     try:

@@ -1,4 +1,4 @@
-from Backend.core.celery_app import celery_app
+from Backend.celery_app import celery_app
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.ai_services.task_ai.task_classification_service import TaskClassificationService
 from typing import Dict, Optional

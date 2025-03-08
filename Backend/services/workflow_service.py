@@ -1,9 +1,9 @@
 from typing import List, Dict, Optional
 from datetime import datetime
-from Backend.tasks.workflow_tasks import process_workflow, execute_workflow_step
-from Backend.tasks.notification_tasks import send_notification
+from Backend.celery_app.tasks.workflow_tasks import process_workflow, execute_workflow_step
+from Backend.celery_app.tasks.notification_tasks import send_notification
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
-from Backend.core.celery_app import (
+from Backend.celery_app.tasks.workflow_tasks import (
     create_workflow_task,
     update_workflow_task,
     delete_workflow_task,

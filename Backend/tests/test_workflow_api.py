@@ -4,7 +4,7 @@ from httpx import AsyncClient
 import redis.asyncio as redis
 from Backend.core.config import settings
 from Backend.data_layer.database.models.workflow import WorkflowStatus
-from Backend.tasks.workflow_tasks import StepStatus
+from Backend.celery_app.tasks.workflow_tasks import StepStatus
 from Backend.main import app
 from redis import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
