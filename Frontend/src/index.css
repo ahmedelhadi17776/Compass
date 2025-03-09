@@ -99,21 +99,30 @@
   }
 }
 
-/* RTL text direction utilities */
-.direction-ltr {
-  direction: ltr;
-  unicode-bidi: isolate;
+-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.direction-rtl {
-  direction: rtl;
-  unicode-bidi: isolate;
+::-webkit-scrollbar-track {
+  background-color: transparent;
 }
 
-.numbers-ltr {
-  direction: ltr;
-  unicode-bidi: isolate-override;
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
 }
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
 
 /* Hide arrows for inputs with the class "no-spinner" */
 .no-spinner::-webkit-inner-spin-button,
