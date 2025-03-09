@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, Query } from '@tanstack/react-query';
 import authApi, { LoginCredentials, User } from '@/api/auth';
 import React from 'react';
+import axios, { AxiosError } from 'axios';
 
 // This is a custom hook that combines React Query with auth functionality
 export function useAuth() {
@@ -12,7 +13,26 @@ export function useAuth() {
     queryKey: ['user'],
     queryFn: () => authApi.getMe(token!),
     enabled: !!token,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
   });
+
+  // Handle unauthorized errors
+  React.useEffect(() => {
+    const subscription = queryClient.getQueryCache().subscribe((event) => {
+      const error = event?.query?.state?.error as AxiosError;
+      if (error?.response?.status === 401) {
+        localStorage.removeItem('token');
+        setToken(null);
+        queryClient.clear();
+      }
+    });
+
+    return () => {
+      subscription();
+    };
+  }, [queryClient]);
 
   // Login mutation
   const login = useMutation({
