@@ -146,6 +146,8 @@ const TodoList: React.FC = () => {
       return response.data;
     },
     enabled: !!user?.id,
+    initialData: [],
+    staleTime: 0,
   });
 
   // Create habit mutation
