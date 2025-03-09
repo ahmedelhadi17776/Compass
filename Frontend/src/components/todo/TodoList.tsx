@@ -33,9 +33,6 @@ const TodoList: React.FC = () => {
   const queryClient = useQueryClient();
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [activeColumn, setActiveColumn] = useState<'log' | 'thisWeek' | 'today' | 'done'>('today');
   const [editingTask, setEditingTask] = useState<Todo | null>(null);
   const [showTodoForm, setShowTodoForm] = useState(false);
   const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
@@ -43,6 +40,7 @@ const TodoList: React.FC = () => {
   const [newHabit, setNewHabit] = useState('');
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [showHabitTracker, setShowHabitTracker] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
 
   // User authentication query
   const { data: user } = useQuery<User>({
@@ -55,7 +53,7 @@ const TodoList: React.FC = () => {
   });
 
   // Todos query
-  const { data: todoList, isLoading, isError, error } = useQuery<Todo[]>({
+  const { data: todoList, isLoading } = useQuery<Todo[]>({
     queryKey: ['todos', user?.id],
     queryFn: async () => {
       const token = localStorage.getItem('token');
@@ -203,53 +201,33 @@ const TodoList: React.FC = () => {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newTodoTitle.trim() && user) {
-      const now = new Date();
-      let dueDate = new Date();
+  // Edit habit mutation
+  const editHabitMutation = useMutation({
+    mutationFn: async ({ habitId, habit_name }: { habitId: number; habit_name: string }) => {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) throw new Error('Authentication required');
       
-      // Set due date based on the column
-      switch (addingToColumn) {
-        case 'thisWeek': {
-          // Set to tomorrow by default for week view
-          dueDate = new Date();
-          dueDate.setDate(now.getDate() + 1);
-          dueDate.setHours(23, 59, 59, 999);
-          break;
+      return axios.put(
+        `${API_BASE_URL}/daily-habits/${habitId}`,
+        { habit_name },
+        {
+          params: { user_id: user.id },
+          headers: { Authorization: `Bearer ${token}` }
         }
-        case 'log': {
-          // Set to 8 days from now
-          dueDate = new Date();
-          dueDate.setDate(now.getDate() + 8);
-          dueDate.setHours(23, 59, 59, 999);
-          break;
-        }
-        case 'today':
-        default: {
-          // Set to end of today
-          dueDate = new Date();
-          dueDate.setHours(23, 59, 59, 999);
-          break;
-        }
-      }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      setNewHabit('');
+      setShowHabitInput(false);
+      setEditingHabit(null);
+    },
+  });
 
-      const newTodo: Omit<Todo, 'id' | 'created_at' | 'updated_at' | 'completion_date'> = {
-        user_id: user.id,
-        title: newTodoTitle.trim(),
-        status: TodoStatus.PENDING,
-        priority: TodoPriority.MEDIUM,
-        is_recurring: false,
-        due_date: dueDate.toISOString(),
-        tags: [],
-        checklist: [],
-      };
-
-      createTodoMutation.mutate(newTodo);
-      setNewTodoTitle('');
-      setShowQuickAdd(false);
-      setAddingToColumn(null);
-    }
+  const handleEditHabit = (habit: Habit) => {
+    setEditingHabit(habit);
+    setNewHabit(habit.habit_name);
+    setShowHabitInput(true);
   };
 
   const handleEditTask = (task: Todo) => {
@@ -388,7 +366,15 @@ const TodoList: React.FC = () => {
 
   const handleAddHabit = () => {
     if (!newHabit.trim()) return;
-    createHabitMutation.mutate(newHabit.trim());
+
+    if (editingHabit) {
+      editHabitMutation.mutate({
+        habitId: editingHabit.id,
+        habit_name: newHabit.trim()
+      });
+    } else {
+      createHabitMutation.mutate(newHabit.trim());
+    }
   };
 
   const toggleHabit = (id: number) => {
@@ -563,10 +549,22 @@ const TodoList: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setShowHabitInput(false)}
+                      onClick={() => {
+                        setShowHabitInput(false);
+                        setEditingHabit(null);
+                        setNewHabit('');
+                      }}
                       className="text-muted-foreground hover:text-foreground"
                     >
                       <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleAddHabit}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Check className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
@@ -605,14 +603,24 @@ const TodoList: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
-                            onClick={() => deleteHabit(habit.id)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[160px]">
+                              <DropdownMenuItem onClick={() => handleEditHabit(habit)}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => deleteHabit(habit.id)}>
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     ))}
