@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format, isSameDay } from 'date-fns';
 import './DayView.css';
-import cn from 'classnames';
+import { cn } from '@/lib/utils';
 
 interface Event {
   id: string;
@@ -27,24 +27,24 @@ interface DayViewProps {
 
 const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDrop, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<Event | null>(null);
-  const [currentTimePosition, setCurrentTimePosition] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
   useEffect(() => {
     const updateTimeIndicator = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const minutes = now.getMinutes();
-      
-      // Calculate position based on hour slots (60px) and current minutes
-      const position = (hours * 60) + minutes;
-      setCurrentTimePosition(position);
+      setCurrentTime(new Date());
     };
 
     updateTimeIndicator();
-    const interval = setInterval(updateTimeIndicator, 60000);
+    const interval = setInterval(updateTimeIndicator, 60000); // Update every minute
 
     return () => clearInterval(interval);
   }, []);
+
+  const getCurrentTimePosition = () => {
+    const hours = currentTime.getHours();
+    const minutes = currentTime.getMinutes();
+    return (hours * 60) + minutes;
+  };
 
   const todayEvents = events.filter(event => isSameDay(new Date(event.start), date));
   const sortedEvents = todayEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -79,97 +79,85 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
     }
   };
 
-  const getCurrentTimePosition = () => {
-    return currentTimePosition;
-  };
-
   return (
-    <div className={cn(
-      "h-full flex flex-col overflow-hidden",
-      darkMode ? "bg-[#25262B] text-white" : "bg-white text-gray-900"
-    )}>
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-[60px_1fr] h-full">
-          <div className="time-labels border-r border-gray-200 dark:border-gray-700">
-            {timeSlots.map(hour => (
-              <div key={hour} className="h-16 -mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {format(new Date().setHours(hour), 'ha')}
-              </div>
-            ))}
+    <div className="day-view">
+      <div className="day-container">
+        <div className="day-header">
+          <div className="time-label-header"></div>
+          <div className={cn(
+            "date-header",
+            isSameDay(date, new Date()) && "current-day"
+          )}>
+            <div className="day-name">{format(date, 'EEEE')}</div>
+            <div className="day-date">{format(date, 'MMMM d, yyyy')}</div>
           </div>
-          
-          <div className="relative">
-            {/* Current time indicator */}
-            {isSameDay(date, new Date()) && (
-              <div 
-                className="absolute w-full border-t border-red-500 z-10"
-                style={{ top: `${getCurrentTimePosition()}px` }}
-              >
-                <div className="w-2 h-2 rounded-full bg-red-500 -mt-1 -ml-1" />
+        </div>
+        <div className="time-slots">
+          {timeSlots.map(hour => (
+            <div key={hour} className="time-slot">
+              <div className="time-label">
+                {format(new Date().setHours(hour, 0), 'h:mm a')}
               </div>
-            )}
-            
-            {/* Time slots */}
-            {timeSlots.map(hour => (
-              <div 
-                key={hour} 
-                className="h-16 border-b border-gray-200 dark:border-gray-700 relative"
-              >
-                {events
-                  .filter(event => {
-                    const eventStart = new Date(event.start);
-                    return eventStart.getHours() === hour && isSameDay(eventStart, date);
-                  })
-                  .map(event => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      onClick={() => onEventClick(event)}
-                      darkMode={darkMode}
+              <div className="time-content">
+                <div
+                  className={cn(
+                    "day-column",
+                    hour === 0 && "has-current-time"
+                  )}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(hour, e)}
+                  style={hour === 0 ? { '--current-time-top': getCurrentTimePosition() } as React.CSSProperties : undefined}
+                >
+                  {isSameDay(date, currentTime) && hour === currentTime.getHours() && (
+                    <div 
+                      className="current-time-indicator"
+                      style={{
+                        top: `${currentTime.getMinutes()}px`,
+                      }}
                     />
-                  ))}
+                  )}
+                  {sortedEvents
+                    .filter(event => {
+                      const eventStart = new Date(event.start);
+                      return eventStart.getHours() === hour && isSameDay(eventStart, date);
+                    })
+                    .map(event => (
+                      <div 
+                        key={event.id} 
+                        className={cn(
+                          "event-card",
+                          `priority-${event.priority}`
+                        )}
+                        draggable
+                        onDragStart={(e) => handleDragStart(event, e)}
+                        onClick={() => onEventClick(event)}
+                        style={{
+                          top: `${new Date(event.start).getMinutes()}px`,
+                          height: `${getDurationInMinutes(event.start, event.end)}px`,
+                        }}
+                      >
+                        <div className="event-title">
+                          <span className="priority-indicator">{getPriorityEmoji(event.priority)}</span>
+                          {event.title || 'Untitled'}
+                        </div>
+                        <div className="event-time">
+                          {format(new Date(event.start), 'h:mm a')} - {format(new Date(event.end), 'h:mm a')}
+                          {event.location && ` - 📍 ${event.location}`}
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 };
 
-interface EventCardProps {
-  event: Event;
-  onClick: () => void;
-  darkMode: boolean;
-}
-
-const EventCard: React.FC<EventCardProps> = ({ event, onClick, darkMode }) => {
-  const getDurationInMinutes = (start: Date, end: Date): number => {
-    return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60);
-  };
-
-  return (
-    <div 
-      className={cn(
-        "absolute bg-white dark:bg-gray-800 shadow-md rounded p-2",
-        darkMode ? "text-white" : "text-gray-900"
-      )}
-      style={{
-        height: `${getDurationInMinutes(event.start, event.end)}px`,
-        top: `${new Date(event.start).getMinutes()}px`
-      }}
-      onClick={onClick}
-    >
-      <div className="event-title">
-        <span className="priority-indicator">{getPriorityEmoji(event.priority)}</span>
-        {event.title || 'Untitled'}
-      </div>
-      <div className="event-time">
-        {format(new Date(event.start), 'h:mm a')} - {format(new Date(event.end), 'h:mm a')}
-        {event.location && ` - 📍 ${event.location}`}
-      </div>
-    </div>
-  );
+const getDurationInMinutes = (start: Date, end: Date): number => {
+  return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60);
 };
 
 export default DayView;

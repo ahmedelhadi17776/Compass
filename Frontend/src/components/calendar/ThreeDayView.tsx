@@ -1,5 +1,6 @@
 import React from 'react';
 import { format, isSameDay, addDays } from 'date-fns';
+import { cn } from '@/lib/utils';
 import './ThreeDayView.css';
 
 interface Event {
@@ -91,74 +92,85 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick,
 
   return (
     <div className="three-day-view">
-      <div className="days-header">
-        <div className="time-label-header"></div>
-        {days.map(day => (
-          <div 
-            key={day.toISOString()} 
-            className={`day-header ${isSameDay(day, new Date()) ? 'current-day' : ''}`}
-          >
-            <div className="day-name">{format(day, 'EEE')}</div>
-            <div className="day-date">{format(day, 'MMM d')}</div>
-          </div>
-        ))}
-      </div>
-      <div className="time-slots">
-        {timeSlots.map(hour => (
-          <div key={hour} className="time-slot">
-            <div className="time-label">
-              {format(new Date().setHours(hour, 0), 'h:mm a')}
+      <div className="three-day-container">
+        <div className="days-header">
+          <div className="time-label-header"></div>
+          {days.map(day => (
+            <div 
+              key={day.toISOString()} 
+              className={cn(
+                "day-header",
+                isSameDay(day, new Date()) && "current-day"
+              )}
+            >
+              <div className="day-name">{format(day, 'EEE')}</div>
+              <div className="day-date">{format(day, 'MMM d')}</div>
             </div>
-            <div className="time-content">
-              {days.map(day => (
-                <div
-                  key={day.toISOString()}
-                  className={`day-column ${hour === 0 ? 'has-current-time' : ''}`}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(hour, e)}
-                  style={hour === 0 ? { '--current-time-top': getCurrentTimePosition() } as React.CSSProperties : undefined}
-                >
-                  {isSameDay(day, currentTime) && hour === 0 && (
-                    <div 
-                      className="current-time-indicator"
-                      style={{
-                        top: `${getCurrentTimePosition()}px`,
-                      }}
-                    />
-                  )}
-                  {threeDayEvents
-                    .filter(event => {
-                      const eventStart = new Date(event.start);
-                      const eventHour = eventStart.getHours();
-                      return eventHour === hour && isSameDay(eventStart, day);
-                    })
-                    .map(event => (
+          ))}
+        </div>
+        <div className="time-slots">
+          {timeSlots.map(hour => (
+            <div key={hour} className="time-slot">
+              <div className="time-label">
+                {format(new Date().setHours(hour, 0), 'h:mm a')}
+              </div>
+              <div className="time-content">
+                {days.map(day => (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      "day-column",
+                      hour === 0 && "has-current-time"
+                    )}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(hour, e)}
+                    style={hour === 0 ? { '--current-time-top': getCurrentTimePosition() } as React.CSSProperties : undefined}
+                  >
+                    {isSameDay(day, currentTime) && hour === 0 && (
                       <div 
-                        key={event.id} 
-                        className="event-card"
-                        draggable
-                        onDragStart={(e) => handleDragStart(event, e)}
-                        onClick={() => onEventClick(event)}
+                        className="current-time-indicator"
                         style={{
-                          height: `${getDurationInMinutes(event.start, event.end)}px`,
-                          top: `${new Date(event.start).getMinutes() + 26}px`
+                          top: `${getCurrentTimePosition()}px`,
                         }}
-                      >
-                        <div className="event-title">
-                          <span className="priority-indicator">{getPriorityEmoji(event.priority)}</span>
-                          {event.title || 'Untitled'}
+                      />
+                    )}
+                    {threeDayEvents
+                      .filter(event => {
+                        const eventStart = new Date(event.start);
+                        const eventHour = eventStart.getHours();
+                        return eventHour === hour && isSameDay(eventStart, day);
+                      })
+                      .map(event => (
+                        <div 
+                          key={event.id} 
+                          className={cn(
+                            "event-card",
+                            `priority-${event.priority}`
+                          )}
+                          draggable
+                          onDragStart={(e) => handleDragStart(event, e)}
+                          onClick={() => onEventClick(event)}
+                          style={{
+                            height: `${getDurationInMinutes(event.start, event.end)}px`,
+                            top: `${new Date(event.start).getMinutes()}px`
+                          }}
+                        >
+                          <div className="event-title">
+                            <span className="priority-indicator">{getPriorityEmoji(event.priority)}</span>
+                            {event.title || 'Untitled'}
+                          </div>
+                          <div className="event-time">
+                            {format(new Date(event.start), 'h:mm a')} - {format(new Date(event.end), 'h:mm a')}
+                            {event.location && ` - 📍 ${event.location}`}
+                          </div>
                         </div>
-                        <div className="event-time">
-                          {format(new Date(event.start), 'h:mm a')} - {format(new Date(event.end), 'h:mm a')}
-                          {event.location && ` - 📍 ${event.location}`}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ))}
+                      ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

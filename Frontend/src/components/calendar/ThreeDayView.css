@@ -2,6 +2,17 @@
     height: 100%;
     overflow-y: auto;
     background: hsl(var(--background));
+    padding: 1rem;
+  }
+  
+  .three-day-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    overflow: hidden;
   }
   
   .three-day-view .days-header {
@@ -20,7 +31,7 @@
   }
   
   .three-day-view .day-header {
-    padding: 8px;
+    padding: 12px;
     text-align: center;
     font-weight: 600;
     color: hsl(var(--foreground));
@@ -55,6 +66,7 @@
   .three-day-view .time-slots {
     display: flex;
     flex-direction: column;
+    background: hsl(var(--background));
   }
   
   .three-day-view .time-slot {
@@ -88,6 +100,7 @@
     height: 60px;
     padding: 0 2px;
     overflow: visible;
+    background: hsl(var(--background));
   }
   
   .three-day-view .event-card {
@@ -102,6 +115,7 @@
     overflow: hidden;
     cursor: pointer;
     z-index: 10;
+    transition: all 0.2s ease;
   }
   
   .three-day-view .event-card:hover {
@@ -166,7 +180,7 @@
   }
   
   .three-day-view .event-card:hover {
-    transform: translateY(-50%) scale(1.01);
+    transform: scale(1.01);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
   
