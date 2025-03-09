@@ -40,10 +40,6 @@ const TodoList: React.FC = () => {
   const [showTodoForm, setShowTodoForm] = useState(false);
   const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
-  const [habits, setHabits] = useState<Habit[]>(() => {
-    const saved = localStorage.getItem('habits');
-    return saved ? JSON.parse(saved) : [];
-  });
   const [newHabit, setNewHabit] = useState('');
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [showHabitTracker, setShowHabitTracker] = useState(false);
@@ -137,6 +133,74 @@ const TodoList: React.FC = () => {
     },
   });
 
+  // Habits query
+  const { data: habits = [] } = useQuery<Habit[]>({
+    queryKey: ['habits', user?.id],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) throw new Error('Authentication required');
+      
+      const response = await axios.get<Habit[]>(`${API_BASE_URL}/daily-habits/user/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Create habit mutation
+  const createHabitMutation = useMutation({
+    mutationFn: async (habit_name: string) => {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) throw new Error('Authentication required');
+      
+      return axios.post(`${API_BASE_URL}/daily-habits`, {
+        habit_name,
+        user_id: user.id,
+        start_day: new Date().toISOString().split('T')[0],
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      setNewHabit('');
+      setShowHabitInput(false);
+    },
+  });
+
+  // Toggle habit completion mutation
+  const toggleHabitMutation = useMutation({
+    mutationFn: async (habitId: number) => {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) throw new Error('Authentication required');
+      
+      return axios.post(`${API_BASE_URL}/daily-habits/${habitId}/complete`, null, {
+        params: { user_id: user.id },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+    },
+  });
+
+  // Delete habit mutation
+  const deleteHabitMutation = useMutation({
+    mutationFn: async (habitId: number) => {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) throw new Error('Authentication required');
+      
+      return axios.delete(`${API_BASE_URL}/daily-habits/${habitId}`, {
+        params: { user_id: user.id },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTodoTitle.trim() && user) {
@@ -198,6 +262,7 @@ const TodoList: React.FC = () => {
       const updates: Partial<Todo> = {
         ...formData,
         due_date: formData.due_date?.toISOString(),
+        reminder_time: formData.reminder_time?.toISOString(),
       };
       updateTodoMutation.mutate({ id: editingTask.id, updates });
     } else {
@@ -207,8 +272,9 @@ const TodoList: React.FC = () => {
         description: formData.description,
         status: TodoStatus.PENDING,
         priority: formData.priority,
-        is_recurring: false,
+        is_recurring: formData.is_recurring,
         due_date: formData.due_date?.toISOString(),
+        reminder_time: formData.reminder_time?.toISOString(),
         tags: formData.tags,
         checklist: [],
       };
@@ -318,42 +384,17 @@ const TodoList: React.FC = () => {
     );
   };
 
-  const saveHabits = (updatedHabits: Habit[]) => {
-    localStorage.setItem('habits', JSON.stringify(updatedHabits));
-    setHabits(updatedHabits);
-  };
-
   const handleAddHabit = () => {
     if (!newHabit.trim()) return;
-
-    const habit: Habit = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newHabit.trim(),
-      completed: false,
-      streak: 0,
-    };
-
-    saveHabits([...habits, habit]);
-    setNewHabit('');
-    setShowHabitInput(false);
+    createHabitMutation.mutate(newHabit.trim());
   };
 
-  const toggleHabit = (id: string) => {
-    const updatedHabits = habits.map(habit => {
-      if (habit.id === id) {
-        return {
-          ...habit,
-          completed: !habit.completed,
-          streak: !habit.completed ? habit.streak + 1 : habit.streak,
-        };
-      }
-      return habit;
-    });
-    saveHabits(updatedHabits);
+  const toggleHabit = (id: number) => {
+    toggleHabitMutation.mutate(id);
   };
 
-  const deleteHabit = (id: string) => {
-    saveHabits(habits.filter(habit => habit.id !== id));
+  const deleteHabit = (id: number) => {
+    deleteHabitMutation.mutate(id);
   };
 
   const handleFlipToHabits = () => {
@@ -485,7 +526,7 @@ const TodoList: React.FC = () => {
                         <Repeat className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-medium">Daily Habits</h3>
                       </div>
-                      <span className="text-sm text-muted-foreground">{habits.filter(h => h.completed).length}/{habits.length} Done</span>
+                      <span className="text-sm text-muted-foreground">{habits.filter(h => h.is_completed).length}/{habits.length} Done</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -535,13 +576,13 @@ const TodoList: React.FC = () => {
                         key={habit.id}
                         className={cn(
                           "group relative rounded-lg border bg-card p-4 transition-all hover:border-border/50",
-                          habit.completed && "bg-muted"
+                          habit.is_completed && "bg-muted"
                         )}
                       >
                         <div className="flex items-start gap-4">
                           <Checkbox
                             name={`habit-${habit.id}`}
-                            checked={habit.completed}
+                            checked={habit.is_completed}
                             onChange={() => toggleHabit(habit.id)}
                             darkMode={isDarkMode}
                             className="mt-1"
@@ -550,14 +591,14 @@ const TodoList: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <span className={cn(
                                 "text-sm font-medium",
-                                habit.completed && "line-through text-muted-foreground"
+                                habit.is_completed && "line-through text-muted-foreground"
                               )}>
-                                {habit.title}
+                                {habit.habit_name}
                               </span>
-                              {habit.streak > 0 && (
+                              {habit.current_streak > 0 && (
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Repeat className="w-3 h-3" />
-                                  <span>{habit.streak} day streak</span>
+                                  <span>{habit.current_streak} day streak</span>
                                 </div>
                               )}
                             </div>
