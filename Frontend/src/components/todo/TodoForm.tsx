@@ -204,6 +204,12 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit }) =>
               <Input
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newTag.trim()) {
+                    e.preventDefault();
+                    handleAddTag(e);
+                  }
+                }}
                 placeholder="Add tag"
                 className="w-32"
               />
