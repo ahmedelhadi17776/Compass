@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, X, ChevronUp, ChevronRight, ChevronDown, Tag, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
-import { isToday } from 'date-fns';
+import { Plus, X, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -25,63 +24,10 @@ import { useTheme } from '@/contexts/theme-provider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import authApi, { User } from '@/api/auth';
 import axios from 'axios';
+import { Habit } from '@/types/habit';
+import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/types/todo';
 
 const API_BASE_URL = 'http://localhost:8000';
-
-enum TodoPriority {
-  HIGH = "high",
-  MEDIUM = "medium",
-  LOW = "low"
-}
-
-enum TodoStatus {
-  PENDING = "pending",
-  IN_PROGRESS = "in_progress",
-  COMPLETED = "completed",
-  ARCHIVED = "archived"
-}
-
-interface ChecklistItem {
-  id: string;
-  title: string;
-  completed: boolean;
-}
-
-interface Todo {
-  id: number;
-  user_id: number;
-  title: string;
-  description?: string;
-  status: TodoStatus;
-  priority: TodoPriority;
-  due_date?: string;
-  reminder_time?: string;
-  is_recurring: boolean;
-  recurrence_pattern?: Record<string, any>;
-  tags?: string[];
-  checklist?: ChecklistItem[];
-  linked_task_id?: number;
-  linked_calendar_event_id?: number;
-  completion_date?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface TodoFormData {
-  title: string;
-  description?: string;
-  due_date?: Date;
-  priority: TodoPriority;
-  tags?: string[];
-}
-
-interface TodoListProps {
-  todos: Todo[];
-  onAddTodo: (todo: Omit<Todo, 'id'>) => void;
-  onToggleTodo: (id: string) => void;
-  onDeleteTodo: (id: string) => void;
-  onUpdateTodo: (id: string, updates: Partial<Todo>) => void;
-}
 
 const TodoList: React.FC = () => {
   const queryClient = useQueryClient();
@@ -89,6 +35,18 @@ const TodoList: React.FC = () => {
   const isDarkMode = theme === 'dark';
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [activeColumn, setActiveColumn] = useState<'log' | 'thisWeek' | 'today' | 'done'>('today');
+  const [editingTask, setEditingTask] = useState<Todo | null>(null);
+  const [showTodoForm, setShowTodoForm] = useState(false);
+  const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
+  const [isFlipping, setIsFlipping] = useState(false);
+  const [habits, setHabits] = useState<Habit[]>(() => {
+    const saved = localStorage.getItem('habits');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newHabit, setNewHabit] = useState('');
+  const [showHabitInput, setShowHabitInput] = useState(false);
+  const [showHabitTracker, setShowHabitTracker] = useState(false);
 
   // User authentication query
   const { data: user } = useQuery<User>({
@@ -178,19 +136,6 @@ const TodoList: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     },
   });
-
-  const [activeColumn, setActiveColumn] = useState<'log' | 'thisWeek' | 'today' | 'done'>('today');
-  const [editingTask, setEditingTask] = useState<Todo | null>(null);
-  const [showTodoForm, setShowTodoForm] = useState(false);
-  const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
-  const [isFlipping, setIsFlipping] = useState(false);
-  const [habits, setHabits] = useState<{ id: string; title: string; completed: boolean; streak: number; }[]>(() => {
-    const saved = localStorage.getItem('habits');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [newHabit, setNewHabit] = useState('');
-  const [showHabitInput, setShowHabitInput] = useState(false);
-  const [showHabitTracker, setShowHabitTracker] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -373,7 +318,7 @@ const TodoList: React.FC = () => {
     );
   };
 
-  const saveHabits = (updatedHabits: { id: string; title: string; completed: boolean; streak: number; }[]) => {
+  const saveHabits = (updatedHabits: Habit[]) => {
     localStorage.setItem('habits', JSON.stringify(updatedHabits));
     setHabits(updatedHabits);
   };
@@ -381,7 +326,7 @@ const TodoList: React.FC = () => {
   const handleAddHabit = () => {
     if (!newHabit.trim()) return;
 
-    const habit = {
+    const habit: Habit = {
       id: Math.random().toString(36).substr(2, 9),
       title: newHabit.trim(),
       completed: false,
