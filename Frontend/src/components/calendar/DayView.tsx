@@ -2,31 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { format, isSameDay } from 'date-fns';
 import './DayView.css';
 import { cn } from '@/lib/utils';
-
-interface Event {
-  id: string;
-  title: string;
-  start: Date;
-  end: Date;
-  participants?: {
-    name: string;
-    status: 'accepted' | 'pending' | 'rejected';
-  }[];
-  location?: string;
-  description?: string;
-  priority: 'high' | 'medium' | 'low';
-}
+import EventCard from './EventCard';
+import { CalendarEvent } from './types';
 
 interface DayViewProps {
-  events: Event[];
+  events: CalendarEvent[];
   date: Date;
-  onEventClick: (event: Event) => void;
-  onEventDrop?: (event: Event, hour: number, minutes: number) => void;
+  onEventClick: (event: CalendarEvent) => void;
+  onEventDrop?: (event: CalendarEvent, hour: number, minutes: number) => void;
   darkMode: boolean;
 }
 
 const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDrop, darkMode }) => {
-  const [draggingEvent, setDraggingEvent] = React.useState<Event | null>(null);
+  const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
   // Sample event for demonstration - can be removed later
@@ -38,6 +26,7 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
       start: new Date(new Date(date).setHours(9, 30)),
       end: new Date(new Date(date).setHours(10, 30)),
       priority: 'medium' as 'high' | 'medium' | 'low',
+      category: 'work',
     }
   ];
 
@@ -63,9 +52,8 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
     return (hours * 60) + minutes;
   };
 
-  const handleDragStart = (event: Event, e: React.DragEvent) => {
+  const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
     setDraggingEvent(event);
-    e.dataTransfer.setData('text/plain', ''); // Required for Firefox
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -83,10 +71,6 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
     setDraggingEvent(null);
   };
 
-  const getPriorityEmoji = (priority: string): string => {
-    return ''; // We'll use colored borders instead of emojis
-  };
-
   return (
     <div className="day-view">
       <div className="day-container">
@@ -97,7 +81,7 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
             isSameDay(date, new Date()) && "current-day"
           )}>
             <div className="day-name">{format(date, 'EEEE')}</div>
-            <div className="day-date">{format(date, 'MMMM d, yyyy')}</div>
+            <div className="day-date">{format(date, 'd MMMM, yyyy')}</div>
           </div>
         </div>
         <div className="time-slots">
@@ -130,28 +114,16 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
                       return eventStart.getHours() === hour && isSameDay(eventStart, date);
                     })
                     .map(event => (
-                      <div 
-                        key={event.id} 
-                        className={cn(
-                          "event-card",
-                          `priority-${event.priority}`
-                        )}
-                        draggable
-                        onDragStart={(e) => handleDragStart(event, e)}
-                        onClick={() => onEventClick(event)}
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        onClick={onEventClick}
+                        onDragStart={handleDragStart}
                         style={{
                           top: `${new Date(event.start).getMinutes()}px`,
                           height: `${getDurationInMinutes(event.start, event.end)}px`,
                         }}
-                      >
-                        <div className="event-title">
-                          {event.title || 'Untitled'}
-                        </div>
-                        <div className="event-time">
-                          {format(new Date(event.start), 'h:mm a')}
-                          {event.location && ` • ${event.location}`}
-                        </div>
-                      </div>
+                      />
                     ))}
                 </div>
               </div>
