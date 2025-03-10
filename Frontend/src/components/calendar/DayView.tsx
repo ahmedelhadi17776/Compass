@@ -28,6 +28,23 @@ interface DayViewProps {
 const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDrop, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<Event | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  
+  // Sample event for demonstration - can be removed later
+  const sampleEvents = [
+    ...events,
+    {
+      id: 'sample-event-1',
+      title: 'Complete 2 blog posts on coffee',
+      start: new Date(new Date(date).setHours(9, 30)),
+      end: new Date(new Date(date).setHours(10, 30)),
+      priority: 'medium' as 'high' | 'medium' | 'low',
+    }
+  ];
+
+  // Use sampleEvents instead of events
+  const todayEvents = sampleEvents.filter(event => isSameDay(new Date(event.start), date));
+  const sortedEvents = todayEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   useEffect(() => {
     const updateTimeIndicator = () => {
@@ -45,10 +62,6 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
     const minutes = currentTime.getMinutes();
     return (hours * 60) + minutes;
   };
-
-  const todayEvents = events.filter(event => isSameDay(new Date(event.start), date));
-  const sortedEvents = todayEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
-  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   const handleDragStart = (event: Event, e: React.DragEvent) => {
     setDraggingEvent(event);
@@ -71,12 +84,7 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
   };
 
   const getPriorityEmoji = (priority: string): string => {
-    switch (priority) {
-      case 'high': return '🔴 ';
-      case 'medium': return '🟡 ';
-      case 'low': return '🟢 ';
-      default: return '';
-    }
+    return ''; // We'll use colored borders instead of emojis
   };
 
   return (
@@ -137,12 +145,11 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
                         }}
                       >
                         <div className="event-title">
-                          <span className="priority-indicator">{getPriorityEmoji(event.priority)}</span>
                           {event.title || 'Untitled'}
                         </div>
                         <div className="event-time">
-                          {format(new Date(event.start), 'h:mm a')} - {format(new Date(event.end), 'h:mm a')}
-                          {event.location && ` - 📍 ${event.location}`}
+                          {format(new Date(event.start), 'h:mm a')}
+                          {event.location && ` • ${event.location}`}
                         </div>
                       </div>
                     ))}
