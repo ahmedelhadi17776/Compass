@@ -35,7 +35,7 @@ class DailyHabitRepository(BaseRepository[DailyHabit]):
 
     async def get_user_habits(self, user_id: int) -> List[DailyHabit]:
         """Get all habits for a specific user."""
-        query = select(DailyHabit).where(DailyHabit.user_id == user_id)
+        query = select(DailyHabit).where(DailyHabit.user_id == user_id).order_by(DailyHabit.id.desc())
         result = await self.db.execute(query)
         return result.scalars().all()
 
