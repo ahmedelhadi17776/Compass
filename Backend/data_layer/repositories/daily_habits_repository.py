@@ -86,6 +86,16 @@ class DailyHabitRepository(BaseRepository[DailyHabit]):
         await self.db.flush()
         return habit
 
+    async def unmark_habit_completed(self, id: int, user_id: int) -> Optional[DailyHabit]:
+        """Unmark a habit that was accidentally marked as completed today."""
+        habit = await self.get_by_id(id, user_id)
+        if not habit:
+            return None
+
+        habit.unmark_completed()
+        await self.db.flush()
+        return habit
+
     async def reset_daily_completions(self) -> int:
         """
         Reset all daily completions without affecting streaks.

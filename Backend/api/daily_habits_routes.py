@@ -33,6 +33,7 @@ class DailyHabitResponse(DailyHabitBase):
     current_streak: int
     longest_streak: int
     is_completed: bool
+    streak_start_date: Optional[date] = None
     last_completed_date: Optional[date] = None
     created_at: datetime
     updated_at: datetime
@@ -121,6 +122,16 @@ async def mark_habit_completed(habit_id: int, user_id: int, db: AsyncSession = D
 
     return habit
 
+@router.post("/{habit_id}/uncomplete", response_model=DailyHabitResponse)
+async def unmark_habit_completed(habit_id: int, user_id: int, db: AsyncSession = Depends(get_db)):
+    """Unmark a habit that was accidentally marked as completed."""
+    habit_service = DailyHabitService(repository=DailyHabitRepository(db))
+    habit = await habit_service.unmark_habit_completed(habit_id, user_id)
+
+    if not habit:
+        raise HTTPException(status_code=404, detail="Habit not found")
+    
+    return habit
 
 @router.post("/process-daily-reset")
 async def process_daily_reset(background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
