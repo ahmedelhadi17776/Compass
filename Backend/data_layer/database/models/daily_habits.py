@@ -17,6 +17,7 @@ class DailyHabit(Base):
     start_day = Column(Date, nullable=False, default=date.today)
     end_day = Column(Date, nullable=True)
     current_streak = Column(Integer, default=0, nullable=False)
+    streak_start_date = Column(Date, nullable=True)
     longest_streak = Column(Integer, default=0, nullable=False)
     is_completed = Column(Boolean, default=False, nullable=False)
     last_completed_date = Column(Date, nullable=True)
@@ -40,6 +41,7 @@ class DailyHabit(Base):
             'current_streak': self.current_streak,
             'longest_streak': self.longest_streak,
             'is_completed': self.is_completed,
+            'streak_start_date': self.streak_start_date.isoformat() if self.streak_start_date else None,
             'last_completed_date': self.last_completed_date.isoformat() if self.last_completed_date else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
@@ -59,6 +61,9 @@ class DailyHabit(Base):
         if data.get('last_completed_date'):
             data['last_completed_date'] = date.fromisoformat(
                 data['last_completed_date'])
+        if data.get('streak_start_date'):
+            data['streak_start_date'] = date.fromisoformat(
+                data['streak_start_date'])
         if data.get('created_at'):
             data['created_at'] = datetime.fromisoformat(data['created_at'])
         if data.get('updated_at'):
@@ -89,12 +94,19 @@ class DailyHabit(Base):
             if self.last_completed_date < yesterday:
                 # Streak broken - reset to 0
                 self.current_streak = 0
+                # Set new streak start date when starting a new streak
+                self.streak_start_date = today
             else:
                 # Streak continues
                 self.current_streak += 1
+                # If this is the first completion in a streak, set the start date
+                if self.current_streak == 1:
+                    self.streak_start_date = self.last_completed_date
         else:
             # First completion
             self.current_streak = 1
+            # Set streak start date for first completion
+            self.streak_start_date = today
 
         # Update longest streak if needed
         if self.current_streak > self.longest_streak:
@@ -105,6 +117,44 @@ class DailyHabit(Base):
         self.last_completed_date = today
         self.updated_at = get_utc_now()
 
+        return True
+
+    def unmark_completed(self):
+        """
+        Unmark a habit.
+        This will revert the streak changes made by the mark_completed method.
+        
+        Returns:
+            bool: True if unmarking was successful, False if not applicable
+        """
+        today = date.today()
+        
+        # Can only unmark if it was completed today
+        if not self.is_completed or self.last_completed_date != today:
+            return False
+        
+        # If this was the first completion in a streak, reset streak to 0
+        if self.current_streak == 1:
+            self.current_streak = 0
+            self.streak_start_date = None
+        # If this was a continuation of a streak, decrement the streak count
+        elif self.current_streak > 1:
+            self.current_streak -= 1
+            # If we need to adjust the streak start date, we'd need the previous completion date
+            # This is a simplification - in a real app, you might want to store completion history
+        
+        # Unmark as completed
+        self.is_completed = False
+        
+        # Store the previous last_completed_date before today in case we need it
+        
+        if self.current_streak > 0:
+            self.last_completed_date = today - timedelta(days=1)
+        else:
+            self.last_completed_date = None
+        
+        self.updated_at = get_utc_now()
+        
         return True
 
     def reset_daily_completion(self):
@@ -129,3 +179,34 @@ class DailyHabit(Base):
                 return True
 
         return False
+
+    # Add this method to the DailyHabit class
+    def get_streak_info(self) -> dict:
+        """
+        Get detailed information about the current streak.
+        
+        Returns:
+            dict: Streak information including start date, days completed, etc.
+        """
+        today = get_utc_now().date()
+        
+        if self.current_streak == 0:
+            return {
+                "current_streak": 0,
+                "longest_streak": self.longest_streak,
+                "streak_active": False,
+                "days_since_start": 0,
+                "streak_start_date": None,
+                "last_completed_date": self.last_completed_date.isoformat() if self.last_completed_date else None
+            }
+        
+        days_since_start = (today - self.streak_start_date).days + 1 if self.streak_start_date else 0
+        
+        return {
+            "current_streak": self.current_streak,
+            "longest_streak": self.longest_streak,
+            "streak_active": self.is_completed and self.last_completed_date == today,
+            "days_since_start": days_since_start,
+            "streak_start_date": self.streak_start_date.isoformat() if self.streak_start_date else None,
+            "last_completed_date": self.last_completed_date.isoformat() if self.last_completed_date else None
+        }
