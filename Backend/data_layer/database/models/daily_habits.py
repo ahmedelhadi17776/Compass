@@ -121,7 +121,7 @@ class DailyHabit(Base):
 
     def unmark_completed(self):
         """
-        Unmark a habit.
+        Unmark a habit that was accidentally marked as completed.
         This will revert the streak changes made by the mark_completed method.
         
         Returns:
@@ -133,6 +133,9 @@ class DailyHabit(Base):
         if not self.is_completed or self.last_completed_date != today:
             return False
         
+        # Store original values to determine if longest_streak needs updating
+        original_streak = self.current_streak
+        
         # If this was the first completion in a streak, reset streak to 0
         if self.current_streak == 1:
             self.current_streak = 0
@@ -140,17 +143,28 @@ class DailyHabit(Base):
         # If this was a continuation of a streak, decrement the streak count
         elif self.current_streak > 1:
             self.current_streak -= 1
-            # If we need to adjust the streak start date, we'd need the previous completion date
-            # This is a simplification - in a real app, you might want to store completion history
+        
+        # Check if we need to update longest_streak
+        # This happens if the current completion pushed the streak to a new record
+        if self.longest_streak == original_streak and self.current_streak < self.longest_streak:
+            # Find the previous longest streak (this is a simplification)
+            # In a real app with streak history, you'd look up the actual previous max
+            if self.current_streak > 0:
+                self.longest_streak = self.current_streak
+            else:
+                # If we don't have historical data, we can't know for sure what the previous longest was
+                # A conservative approach is to set it to 0 if current is 0
+                self.longest_streak = 0
         
         # Unmark as completed
         self.is_completed = False
         
-        # Store the previous last_completed_date before today in case we need it
-        
+        # Update last_completed_date appropriately
         if self.current_streak > 0:
+            # If we still have a streak, set last_completed_date to yesterday
             self.last_completed_date = today - timedelta(days=1)
         else:
+            # If streak is reset, clear the last_completed_date
             self.last_completed_date = None
         
         self.updated_at = get_utc_now()
