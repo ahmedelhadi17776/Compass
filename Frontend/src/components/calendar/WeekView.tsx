@@ -1,32 +1,19 @@
 import React from 'react';
-import { format, isSameDay, addDays, startOfWeek } from 'date-fns';
+import { format, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import './WeekView.css';
-
-interface Event {
-  id: string;
-  title: string;
-  start: Date;
-  end: Date;
-  description?: string;
-  location?: string;
-  priority: 'high' | 'medium' | 'low';
-  category: string;
-  participants?: {
-    name: string;
-    status: 'accepted' | 'pending' | 'rejected';
-  }[];
-}
+import EventCard from './EventCard';
+import { CalendarEvent } from './types';
 
 interface WeekViewProps {
-  events: Event[];
+  events: CalendarEvent[];
   date: Date;
-  onEventClick: (event: Event) => void;
-  onEventDrop?: (event: Event, hour: number, minutes: number) => void;
+  onEventClick: (event: CalendarEvent) => void;
+  onEventDrop?: (event: CalendarEvent, hour: number, minutes: number) => void;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({ events, date, onEventClick, onEventDrop }) => {
-  const [draggingEvent, setDraggingEvent] = React.useState<Event | null>(null);
+  const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
 
   React.useEffect(() => {
@@ -58,9 +45,8 @@ const WeekView: React.FC<WeekViewProps> = ({ events, date, onEventClick, onEvent
   const timeSlots = Array.from({ length: 24 }, (_, i) => i);
   const days = [0, 1, 2, 3, 4, 5, 6].map(offset => addDays(weekStart, offset));
 
-  const handleDragStart = (event: Event, e: React.DragEvent) => {
+  const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
     setDraggingEvent(event);
-    e.dataTransfer.setData('text/plain', '');
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -76,15 +62,6 @@ const WeekView: React.FC<WeekViewProps> = ({ events, date, onEventClick, onEvent
     
     onEventDrop(draggingEvent, hour, minutes);
     setDraggingEvent(null);
-  };
-
-  const getPriorityEmoji = (priority: string): string => {
-    switch (priority) {
-      case 'high': return '🔴 ';
-      case 'medium': return '🟡 ';
-      case 'low': return '🟢 ';
-      default: return '';
-    }
   };
 
   const getDurationInMinutes = (start: Date, end: Date): number => {
@@ -121,17 +98,21 @@ const WeekView: React.FC<WeekViewProps> = ({ events, date, onEventClick, onEvent
                     key={day.toISOString()}
                     className={cn(
                       "day-column",
-                      hour === 0 && "has-current-time"
+                      isSameDay(day, currentTime) && hour === currentTime.getHours() && "has-current-time"
                     )}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(hour, e)}
-                    style={hour === 0 ? { '--current-time-top': getCurrentTimePosition() } as React.CSSProperties : undefined}
+                    style={
+                      isSameDay(day, currentTime) && hour === currentTime.getHours() 
+                        ? { '--current-time-top': currentTime.getMinutes() } as React.CSSProperties 
+                        : undefined
+                    }
                   >
-                    {isSameDay(day, currentTime) && hour === 0 && (
+                    {isSameDay(day, currentTime) && hour === currentTime.getHours() && (
                       <div 
                         className="current-time-indicator"
                         style={{
-                          top: `${getCurrentTimePosition()}px`,
+                          top: `${currentTime.getMinutes()}px`,
                         }}
                       />
                     )}
@@ -141,29 +122,16 @@ const WeekView: React.FC<WeekViewProps> = ({ events, date, onEventClick, onEvent
                         return eventHour === hour && isSameDay(new Date(event.start), day);
                       })
                       .map(event => (
-                        <div 
-                          key={event.id} 
-                          className={cn(
-                            "event-card",
-                            `priority-${event.priority}`
-                          )}
-                          draggable
-                          onDragStart={(e) => handleDragStart(event, e)}
-                          onClick={() => onEventClick(event)}
+                        <EventCard
+                          key={event.id}
+                          event={event}
+                          onClick={onEventClick}
+                          onDragStart={handleDragStart}
                           style={{
                             height: `${getDurationInMinutes(event.start, event.end)}px`,
                             top: `${new Date(event.start).getMinutes()}px`
                           }}
-                        >
-                          <div className="event-title">
-                            <span className="priority-indicator">{getPriorityEmoji(event.priority)}</span>
-                            {event.title || 'Untitled'}
-                          </div>
-                          <div className="event-time">
-                            {format(new Date(event.start), 'h:mm a')} - {format(new Date(event.end), 'h:mm a')}
-                            {event.location && ` - 📍 ${event.location}`}
-                          </div>
-                        </div>
+                        />
                       ))}
                   </div>
                 ))}
