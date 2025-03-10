@@ -1,16 +1,37 @@
 export interface CalendarEvent {
   id: string;
   title: string;
+  description?: string;
   start: Date;
   end: Date;
-  description?: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  project_id: number;
+  organization_id: number;
+  creator_id: number;
+  assignee_id?: number;
+  reviewer_id?: number;
+  category_id?: number;
+  workflow_id?: number;
+  parent_task_id?: number;
+  estimated_hours?: number;
+  actual_hours?: number;
   location?: string;
-  priority: 'high' | 'medium' | 'low';
   category: string;
   participants?: {
     name: string;
     status: 'accepted' | 'pending' | 'rejected';
   }[];
+  dependencies?: number[];
+  ai_suggestions?: Record<string, any>;
+  complexity_score?: number;
+  time_estimates?: Record<string, any>;
+  focus_sessions?: Record<string, any>;
+  interruption_logs?: Record<string, any>;
+  progress_metrics?: Record<string, any>;
+  blockers?: string[];
+  health_score?: number;
+  risk_factors?: Record<string, any>;
 }
 
 export interface CalendarViewProps {

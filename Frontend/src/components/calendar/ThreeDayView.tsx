@@ -10,9 +10,10 @@ interface ThreeDayViewProps {
   date: Date;
   onEventClick: (event: CalendarEvent) => void;
   onEventDrop?: (event: CalendarEvent, hour: number, minutes: number) => void;
+  darkMode?: boolean;
 }
 
-const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick, onEventDrop }) => {
+const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick, onEventDrop, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
 

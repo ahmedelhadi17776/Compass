@@ -1,26 +1,12 @@
 import React from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
 import './MonthView.css';
-
-interface Event {
-  id: string;
-  title: string;
-  start: Date;
-  end: Date;
-  description?: string;
-  location?: string;
-  priority: 'high' | 'medium' | 'low';
-  category: string;
-  participants?: {
-    name: string;
-    status: 'accepted' | 'pending' | 'rejected';
-  }[];
-}
+import { CalendarEvent } from './types';
 
 interface MonthViewProps {
-  events: Event[];
+  events: CalendarEvent[];
   date: Date;
-  onEventClick: (event: Event) => void;
+  onEventClick: (event: CalendarEvent) => void;
 }
 
 const MonthView: React.FC<MonthViewProps> = ({ events, date, onEventClick }) => {
@@ -38,9 +24,9 @@ const MonthView: React.FC<MonthViewProps> = ({ events, date, onEventClick }) => 
 
   const getPriorityEmoji = (priority: string): string => {
     switch (priority) {
-      case 'high': return '🔴';
-      case 'medium': return '🟡';
-      case 'low': return '🟢';
+      case 'HIGH': return '🔴';
+      case 'MEDIUM': return '🟡';
+      case 'LOW': return '🟢';
       default: return '';
     }
   };
