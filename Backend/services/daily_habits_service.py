@@ -116,6 +116,13 @@ class DailyHabitService:
             user_id, habit_id
         )
 
+    async def unmark_habit_completed(self, habit_id: int, user_id: int) -> Optional[DailyHabit]:
+        """Unmark a habit that was accidentally marked as completed today."""
+        return await self._db_operation(
+            lambda: self.repository.unmark_habit_completed(habit_id, user_id),
+            user_id, habit_id
+        )
+
     async def _invalidate_all_caches(self) -> None:
         """Invalidate all habit-related caches globally."""
         try:

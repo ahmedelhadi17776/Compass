@@ -185,6 +185,21 @@ const TodoList: React.FC = () => {
     },
   });
 
+  const unmarkHabitMutation = useMutation({
+    mutationFn: async (habitId: number) => {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) throw new Error('Authentication required');
+
+      return axios.post(`${API_BASE_URL}/daily-habits/${habitId}/uncomplete`, null, {
+        params: { user_id: user.id },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+    },
+  });
+
   // Delete habit mutation
   const deleteHabitMutation = useMutation({
     mutationFn: async (habitId: number) => {
@@ -377,8 +392,12 @@ const TodoList: React.FC = () => {
     }
   };
 
-  const toggleHabit = (id: number) => {
-    toggleHabitMutation.mutate(id);
+  const toggleHabit = (id: number, isCompleted: boolean) => {
+    if (isCompleted) {
+      unmarkHabitMutation.mutate(id);
+    } else {
+      toggleHabitMutation.mutate(id);
+    }
   };
 
   const deleteHabit = (id: number) => {
@@ -583,7 +602,7 @@ const TodoList: React.FC = () => {
                           <Checkbox
                             name={`habit-${habit.id}`}
                             checked={habit.is_completed}
-                            onChange={() => toggleHabit(habit.id)}
+                            onChange={() => toggleHabit(habit.id, habit.is_completed)}
                             darkMode={isDarkMode}
                             className="mt-1"
                           />
