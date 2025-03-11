@@ -4,36 +4,29 @@ import './DayView.css';
 import { cn } from '@/lib/utils';
 import EventCard from './EventCard';
 import { CalendarEvent } from './types';
+import { useWeekTasks, useUpdateTask } from '@/hooks/useTasks';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface DayViewProps {
-  events: CalendarEvent[];
   date: Date;
   onEventClick: (event: CalendarEvent) => void;
   onEventDrop?: (event: CalendarEvent, hour: number, minutes: number) => void;
   darkMode: boolean;
 }
 
-const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDrop, darkMode }) => {
+const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  // Sample event for demonstration - can be removed later
-  const sampleEvents = [
-    ...events,
-    {
-      id: 'sample-event-1',
-      title: 'Complete 2 blog posts on coffee',
-      start: new Date(new Date(date).setHours(9, 30)),
-      end: new Date(new Date(date).setHours(10, 30)),
-      priority: 'medium' as 'high' | 'medium' | 'low',
-      category: 'work',
-    }
-  ];
-
-  // Use sampleEvents instead of events
-  const todayEvents = sampleEvents.filter(event => isSameDay(new Date(event.start), date));
-  const sortedEvents = todayEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
-  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
+  const { 
+    data: events = [], 
+    isLoading, 
+    isError,
+    error,
+    refetch 
+  } = useWeekTasks(date);
+  
+  const updateTaskMutation = useUpdateTask();
 
   useEffect(() => {
     const updateTimeIndicator = () => {
@@ -46,11 +39,9 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
     return () => clearInterval(interval);
   }, []);
 
-  const getCurrentTimePosition = () => {
-    const hours = currentTime.getHours();
-    const minutes = currentTime.getMinutes();
-    return (hours * 60) + minutes;
-  };
+  const todayEvents = events.filter(event => isSameDay(new Date(event.start), date));
+  const sortedEvents = todayEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
     setDraggingEvent(event);
@@ -60,16 +51,63 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
     e.preventDefault();
   };
 
-  const handleDrop = (hour: number, e: React.DragEvent) => {
+  const handleDrop = async (hour: number, e: React.DragEvent) => {
     e.preventDefault();
-    if (!draggingEvent || !onEventDrop) return;
+    if (!draggingEvent) return;
 
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
-    onEventDrop(draggingEvent, hour, minutes);
+    const newStart = new Date(draggingEvent.start);
+    newStart.setHours(hour);
+    newStart.setMinutes(minutes);
+
+    const duration = draggingEvent.end.getTime() - draggingEvent.start.getTime();
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    try {
+      await updateTaskMutation.mutateAsync({
+        taskId: draggingEvent.id,
+        task: {
+          ...draggingEvent,
+          start: newStart,
+          end: newEnd,
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update task:', error);
+    }
+
     setDraggingEvent(null);
   };
+
+  if (isLoading) {
+    return <DayViewSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-4">
+        <div className={cn(
+          "p-4 mb-4 rounded-md",
+          darkMode ? "bg-red-900/20 text-red-200" : "bg-red-50 text-red-500"
+        )}>
+          {error instanceof Error ? error.message : 'Failed to load events'}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className={cn(
+            "px-4 py-2 rounded-md",
+            darkMode 
+              ? "bg-gray-700 hover:bg-gray-600 text-white" 
+              : "bg-blue-500 hover:bg-blue-600 text-white"
+          )}
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="day-view">
@@ -94,11 +132,10 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
                 <div
                   className={cn(
                     "day-column",
-                    hour === 0 && "has-current-time"
+                    hour === currentTime.getHours() && isSameDay(date, currentTime) && "has-current-time"
                   )}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(hour, e)}
-                  style={hour === 0 ? { '--current-time-top': getCurrentTimePosition() } as React.CSSProperties : undefined}
                 >
                   {isSameDay(date, currentTime) && hour === currentTime.getHours() && (
                     <div 
@@ -121,7 +158,7 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
                         onDragStart={handleDragStart}
                         style={{
                           top: `${new Date(event.start).getMinutes()}px`,
-                          height: `${getDurationInMinutes(event.start, event.end)}px`,
+                          height: `${getDurationInMinutes(new Date(event.start), new Date(event.end))}px`,
                         }}
                       />
                     ))}
@@ -136,7 +173,46 @@ const DayView: React.FC<DayViewProps> = ({ events, date, onEventClick, onEventDr
 };
 
 const getDurationInMinutes = (start: Date, end: Date): number => {
-  return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60);
+  return (end.getTime() - start.getTime()) / (1000 * 60);
+};
+
+const DayViewSkeleton = () => {
+  const timeSlots = Array(24).fill(null);
+
+  return (
+    <div className="day-view">
+      <div className="day-container">
+        <div className="day-header">
+          <div className="time-label-header"></div>
+          <div className="date-header">
+            <Skeleton className="h-6 w-32" />
+          </div>
+        </div>
+        <div className="time-slots">
+          {timeSlots.map((_, hour) => (
+            <div key={hour} className="time-slot">
+              <div className="time-label">
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="time-content">
+                <div className="day-column">
+                  {Math.random() > 0.8 && (
+                    <Skeleton 
+                      className="absolute w-[calc(100%-8px)] rounded-md" 
+                      style={{
+                        height: `${Math.floor(Math.random() * 100 + 30)}px`,
+                        top: `${Math.floor(Math.random() * 45)}px`
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default DayView;

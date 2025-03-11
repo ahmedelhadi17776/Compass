@@ -25,7 +25,8 @@ class TaskBase(BaseModel):
     workflow_id: Optional[int] = None
     parent_task_id: Optional[int] = None
     estimated_hours: Optional[float] = None
-    due_date: Optional[datetime] = None
+    start_date: datetime
+    end_date: Optional[datetime] = None
     dependencies: Optional[List[int]] = Field(default_factory=list)
     
     # AI and Analytics Fields
@@ -52,7 +53,8 @@ class TaskUpdate(BaseModel):
     assignee_id: Optional[int] = None
     reviewer_id: Optional[int] = None
     category_id: Optional[int] = None
-    due_date: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
     dependencies: Optional[List[int]] = None

@@ -4,18 +4,28 @@ import { cn } from '@/lib/utils';
 import './ThreeDayView.css';
 import EventCard from './EventCard';
 import { CalendarEvent } from './types';
+import { useWeekTasks, useUpdateTask } from '@/hooks/useTasks';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ThreeDayViewProps {
-  events: CalendarEvent[];
   date: Date;
   onEventClick: (event: CalendarEvent) => void;
-  onEventDrop?: (event: CalendarEvent, hour: number, minutes: number) => void;
   darkMode?: boolean;
 }
 
-const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick, onEventDrop, darkMode }) => {
+const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
+
+  const { 
+    data: events = [], 
+    isLoading, 
+    isError,
+    error,
+    refetch 
+  } = useWeekTasks(date);
+  
+  const updateTaskMutation = useUpdateTask();
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -50,14 +60,33 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick,
     e.preventDefault();
   };
 
-  const handleDrop = (hour: number, e: React.DragEvent) => {
+  const handleDrop = async (hour: number, e: React.DragEvent) => {
     e.preventDefault();
-    if (!draggingEvent || !onEventDrop) return;
+    if (!draggingEvent) return;
     
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
-    onEventDrop(draggingEvent, hour, minutes);
+    const newStart = new Date(draggingEvent.start);
+    newStart.setHours(hour);
+    newStart.setMinutes(minutes);
+
+    const duration = draggingEvent.end.getTime() - draggingEvent.start.getTime();
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    try {
+      await updateTaskMutation.mutateAsync({
+        taskId: draggingEvent.id,
+        task: {
+          ...draggingEvent,
+          start: newStart,
+          end: newEnd,
+        }
+      });
+    } catch (error) {
+      console.error('Failed to update task:', error);
+    }
+
     setDraggingEvent(null);
   };
 
@@ -67,6 +96,32 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick,
 
   const timeSlots = Array.from({ length: 24 }, (_, i) => i);
   const days = [date, addDays(date, 1), addDays(date, 2)];
+
+  if (isLoading) {
+    return <div className="three-day-view"><Skeleton className="w-full h-full" /></div>;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-4">
+        <div className={cn(
+          "p-4 mb-4 rounded-md",
+          darkMode ? "bg-red-900/20 text-red-200" : "bg-red-50 text-red-500"
+        )}>
+          {error instanceof Error ? error.message : 'Failed to load events'}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className={cn(
+            "px-4 py-2 rounded-md",
+            darkMode ? "bg-gray-800 text-white hover:bg-gray-700" : "bg-white text-gray-900 hover:bg-gray-50"
+          )}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="three-day-view">
@@ -145,4 +200,4 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ events, date, onEventClick,
   );
 };
 
-export default ThreeDayView; 
+export default ThreeDayView;
