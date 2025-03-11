@@ -1,20 +1,31 @@
 import React from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
+import { cn } from '@/lib/utils';
 import './MonthView.css';
 import { CalendarEvent } from './types';
+import { useWeekTasks } from '@/hooks/useTasks';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MonthViewProps {
-  events: CalendarEvent[];
   date: Date;
   onEventClick: (event: CalendarEvent) => void;
+  darkMode?: boolean;
 }
 
-const MonthView: React.FC<MonthViewProps> = ({ events, date, onEventClick }) => {
+const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) => {
   const monthStart = startOfMonth(date);
   const monthEnd = endOfMonth(date);
   const calendarStart = startOfWeek(monthStart);
   const calendarEnd = endOfWeek(monthEnd);
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+
+  const { 
+    data: events = [], 
+    isLoading, 
+    isError,
+    error,
+    refetch 
+  } = useWeekTasks(date);
 
   const getEventsForDay = (day: Date) => {
     return events.filter(event => 
@@ -31,21 +42,52 @@ const MonthView: React.FC<MonthViewProps> = ({ events, date, onEventClick }) => 
     }
   };
 
+  if (isLoading) {
+    return <div className="month-view"><Skeleton className="w-full h-full" /></div>;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-4">
+        <div className={cn(
+          "p-4 mb-4 rounded-md",
+          darkMode ? "bg-red-900/20 text-red-200" : "bg-red-50 text-red-500"
+        )}>
+          {error instanceof Error ? error.message : 'Failed to load events'}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className={cn(
+            "px-4 py-2 rounded-md",
+            darkMode 
+              ? "bg-gray-700 hover:bg-gray-600 text-white" 
+              : "bg-blue-500 hover:bg-blue-600 text-white"
+          )}
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="month-view">
+    <div className={cn("month-view", darkMode && "dark")}>
       <div className="month-grid">
-        {/* Week day headers */}
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="month-weekday-header">
             {day}
           </div>
         ))}
 
-        {/* Calendar days */}
         {days.map(day => (
           <div 
             key={day.toISOString()}
-            className={`month-day-cell ${!isSameMonth(day, date) ? 'month-other-day' : ''} ${isToday(day) ? 'month-today' : ''}`}
+            className={cn(
+              "month-day-cell",
+              !isSameMonth(day, date) && "month-other-day",
+              isToday(day) && "month-today",
+              darkMode && "dark"
+            )}
           >
             <div className="month-day-header">
               <span className="month-day-number">{format(day, 'd')}</span>
@@ -54,7 +96,12 @@ const MonthView: React.FC<MonthViewProps> = ({ events, date, onEventClick }) => 
               {getEventsForDay(day).map(event => (
                 <div 
                   key={event.id}
-                  className={`month-event-pill category-${event.category} priority-${event.priority}`}
+                  className={cn(
+                    "month-event-pill",
+                    `category-${event.category}`,
+                    `priority-${event.priority}`,
+                    darkMode && "dark"
+                  )}
                   onClick={() => onEventClick(event)}
                 >
                   <div className="month-event-time">{format(new Date(event.start), 'h:mm a')}</div>
@@ -72,4 +119,4 @@ const MonthView: React.FC<MonthViewProps> = ({ events, date, onEventClick }) => 
   );
 };
 
-export default MonthView; 
+export default MonthView;

@@ -148,6 +148,7 @@ class TaskService:
         creator_id: int,
         project_id: int,
         organization_id: int,
+        start_date: datetime,
         status: TaskStatus = TaskStatus.TODO,  # Add status parameter with default
         # Add priority parameter with default
         priority: TaskPriority = TaskPriority.MEDIUM,
@@ -157,7 +158,7 @@ class TaskService:
         category_id: Optional[int] = None,
         parent_task_id: Optional[int] = None,
         estimated_hours: Optional[float] = None,
-        due_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
         dependencies: Optional[List[int]] = None,
         ai_suggestions: Optional[Dict] = None,
         complexity_score: Optional[float] = None,
@@ -171,9 +172,11 @@ class TaskService:
         _dependencies_list: Optional[str] = None
     ) -> Task:
         """Create a new task and index it in RAG knowledge base."""
-        # Convert timezone-aware datetime to naive UTC datetime
-        if due_date and due_date.tzinfo is not None:
-            due_date = due_date.replace(tzinfo=None)
+        if not start_date:
+            raise ValueError("start_date is required for task creation")
+        
+        if end_date and start_date > end_date:
+            raise ValueError("Start date must be before end date")
 
         task_data = {
             "title": title,
@@ -189,7 +192,8 @@ class TaskService:
             "category_id": category_id if category_id and category_id > 0 else None,
             "parent_task_id": parent_task_id if parent_task_id and parent_task_id > 0 else None,
             "estimated_hours": estimated_hours,
-            "due_date": due_date,
+            "start_date": start_date,
+            "end_date": end_date,
             "_dependencies_list": json.dumps(dependencies or []),
             "ai_suggestions": ai_suggestions or {},
             "complexity_score": complexity_score,
@@ -224,6 +228,11 @@ class TaskService:
 
     async def update_task(self, task_id: int, task_data: Dict) -> Task:
         """Update an existing task."""
+        # Get existing task first
+        existing_task = await self.repo.get_task(task_id)
+        if not existing_task:
+            raise TaskNotFoundError(f"Task {task_id} not found")
+    
         # Handle dependencies consistently
         if 'dependencies' in task_data:
             deps = task_data['dependencies']
@@ -233,10 +242,12 @@ class TaskService:
             deps = task_data['_dependencies_list']
             task_data['_dependencies_list'] = json.dumps(deps)
             task_data['dependencies'] = deps
-
-        # Convert timezone-aware datetime to naive UTC datetime for due_date
-        if 'due_date' in task_data and task_data['due_date'] and task_data['due_date'].tzinfo is not None:
-            task_data['due_date'] = task_data['due_date'].replace(tzinfo=None)
+    
+        if 'start_date' in task_data or 'end_date' in task_data:
+            new_start = task_data.get('start_date', existing_task.start_date)
+            new_end = task_data.get('end_date', existing_task.end_date)
+            if new_end and new_start > new_end:
+                raise TaskUpdateError("Start date cannot be after end date")
 
         # Handle foreign key IDs - if they're 0, set them to None to avoid foreign key violations
         if 'category_id' in task_data and task_data['category_id'] == 0:
@@ -317,9 +328,14 @@ class TaskService:
         priority: Optional[TaskPriority] = None,
         assignee_id: Optional[int] = None,
         creator_id: Optional[int] = None,
-        due_date_start: Optional[datetime] = None,
-        due_date_end: Optional[datetime] = None
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> List[Task]:
+        # Ensure timezone-naive datetime objects
+        if start_date and start_date.tzinfo:
+            start_date = start_date.replace(tzinfo=None)
+        if end_date and end_date.tzinfo:
+            end_date = end_date.replace(tzinfo=None)
         """Get tasks with optional filters and ensure they're cached in Redis."""
         try:
             # Get tasks from repository
@@ -332,8 +348,8 @@ class TaskService:
                     priority=priority,
                     assignee_id=assignee_id,
                     creator_id=creator_id,
-                    due_date_start=due_date_start,
-                    due_date_end=due_date_end
+                    start_date=start_date,
+                    end_date=end_date
                 )
             else:
                 tasks = await self.repo.get_tasks(
@@ -343,8 +359,8 @@ class TaskService:
                     priority=priority,
                     assignee_id=assignee_id,
                     creator_id=creator_id,
-                    due_date_start=due_date_start,
-                    due_date_end=due_date_end
+                    start_date=start_date,
+                    end_date=end_date
                 )
 
             # Initialize dependencies for each task
@@ -393,7 +409,8 @@ class TaskService:
             "current_workflow_step_id": task.current_workflow_step_id,
             "health_score": task.health_score,
             "category_id": task.category_id,
-            "due_date": task.due_date,
+            "start_date": task.start_date,
+            "end_date": task.end_date,
             "estimated_hours": task.estimated_hours,
             "actual_hours": task.actual_hours,
             "dependencies": task.dependencies,
