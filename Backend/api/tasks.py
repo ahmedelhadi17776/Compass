@@ -28,8 +28,9 @@ router = APIRouter()
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
     task: TaskCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id:int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Create a new task."""
     try:
@@ -47,10 +48,11 @@ async def create_task(
 @router.get("/by_id/{task_id}", response_model=TaskWithDetails)
 async def get_task(
     task_id: int,
+    user_id: int,
     include_metrics: bool = Query(
         False, description="Include task metrics in response"),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get task details with optional metrics."""
     try:
@@ -81,10 +83,10 @@ async def get_tasks(
     project_id: Optional[int] = None,
     assignee_id: Optional[int] = None,
     creator_id: Optional[int] = None,
-    due_date_start: Optional[datetime] = None,
-    due_date_end: Optional[datetime] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get tasks with optional filtering."""
     repo = TaskRepository(db)
@@ -99,8 +101,8 @@ async def get_tasks(
         project_id=project_id,
         assignee_id=assignee_id,
         creator_id=creator_id,
-        due_date_start=due_date_start,
-        due_date_end=due_date_end
+        start_date=start_date,
+        end_date=end_date
     )
 
     return tasks
@@ -109,9 +111,10 @@ async def get_tasks(
 @router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: int,
+    user_id: int,
     task_update: TaskUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ) -> TaskResponse:
     """Update an existing task with status transition validation."""
     try:
@@ -135,7 +138,8 @@ async def update_task(
                 updated_task = await service.update_task_status(
                     task_id,
                     new_status,
-                    current_user.id
+                    user_id
+                    #current_user.id
                 )
                 # Remove status from task_data as it's already updated
                 task_data.pop('status')
@@ -162,8 +166,9 @@ async def update_task(
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Delete a task."""
     repo = TaskRepository(db)
@@ -178,10 +183,11 @@ async def delete_task(
 @router.get("/{task_id}/history", response_model=List[TaskHistoryResponse])
 async def get_task_history(
     task_id: int,
+    user_id: int,
     skip: int = 0,
     limit: int = 50,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get task history entries."""
     repo = TaskRepository(db)
@@ -192,8 +198,9 @@ async def get_task_history(
 @router.get("/{task_id}/metrics")
 async def get_task_metrics(
     task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get task metrics and analytics."""
     repo = TaskRepository(db)
@@ -208,8 +215,9 @@ async def get_task_metrics(
 @router.post("/{task_id}/ai-process", response_model=Dict)
 async def process_task_with_ai(
     task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Process a task using AI agents via CrewOrchestrator.
 
@@ -249,10 +257,11 @@ async def process_task_with_ai(
 @router.post("/{task_id}/comments", response_model=CommentResponse)
 async def create_task_comment(
     task_id: int,
+    user_id: int,
     content: str,
     parent_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Create a new comment for a task."""
     try:
@@ -260,7 +269,7 @@ async def create_task_comment(
         service = TaskService(repo)
         comment = await service.create_comment(
             task_id=task_id,
-            user_id=current_user.id,
+            user_id=user_id,
             content=content,
             parent_id=parent_id
         )
@@ -277,10 +286,11 @@ async def create_task_comment(
 @router.get("/{task_id}/comments", response_model=List[CommentResponse])
 async def get_task_comments(
     task_id: int,
+    user_id: int,
     skip: int = 0,
     limit: int = 50,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get all comments for a task."""
     try:
@@ -300,15 +310,16 @@ async def get_task_comments(
 @router.put("/comments/{comment_id}", response_model=CommentResponse)
 async def update_task_comment(
     comment_id: int,
+    user_id: int,
     content: str,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Update a task comment."""
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
-        comment = await service.update_comment(comment_id, current_user.id, content)
+        comment = await service.update_comment(comment_id, user_id, content)
         if not comment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -327,14 +338,15 @@ async def update_task_comment(
 @router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task_comment(
     comment_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Delete a task comment."""
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
-        success = await service.delete_comment(comment_id, current_user.id)
+        success = await service.delete_comment(comment_id, user_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -355,12 +367,13 @@ async def delete_task_comment(
 async def create_task_category(
     name: str,
     organization_id: int,
+    user_id: int,
     description: Optional[str] = None,
     color_code: Optional[str] = None,
     icon: Optional[str] = None,
     parent_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Create a new task category."""
     try:
@@ -385,8 +398,9 @@ async def create_task_category(
 @router.get("/categories", response_model=List[dict])
 async def get_task_categories(
     organization_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get all task categories for an organization."""
     try:
@@ -411,8 +425,9 @@ async def get_task_categories(
 @router.get("/categories/{category_id}", response_model=dict)
 async def get_task_category(
     category_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get a task category by ID."""
     try:
@@ -445,13 +460,14 @@ async def get_task_category(
 @router.put("/categories/{category_id}", response_model=dict)
 async def update_task_category(
     category_id: int,
+    user_id: int,
     name: Optional[str] = None,
     description: Optional[str] = None,
     color_code: Optional[str] = None,
     icon: Optional[str] = None,
     parent_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Update a task category."""
     try:
@@ -492,8 +508,9 @@ async def update_task_category(
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task_category(
     category_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Delete a task category."""
     try:
@@ -519,12 +536,13 @@ async def delete_task_category(
 @router.post("/{task_id}/attachments", response_model=AttachmentResponse)
 async def create_task_attachment(
     task_id: int,
+    user_id: int,
     file_name: str,
     file_path: str,
     file_type: Optional[str] = None,
     file_size: Optional[int] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Create a new attachment for a task."""
     try:
@@ -534,7 +552,7 @@ async def create_task_attachment(
             task_id=task_id,
             file_name=file_name,
             file_path=file_path,
-            uploaded_by=current_user.id,
+            uploaded_by=user_id,
             file_type=file_type,
             file_size=file_size
         )
@@ -551,8 +569,9 @@ async def create_task_attachment(
 @router.get("/{task_id}/attachments", response_model=List[AttachmentResponse])
 async def get_task_attachments(
     task_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Get all attachments for a task."""
     try:
@@ -572,14 +591,15 @@ async def get_task_attachments(
 @router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task_attachment(
     attachment_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+    #current_user=Depends(get_current_user)
 ):
     """Delete a task attachment."""
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
-        success = await service.delete_attachment(attachment_id, current_user.id)
+        success = await service.delete_attachment(attachment_id, user_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

@@ -49,7 +49,8 @@ class Task(Base):
     actual_hours = Column(Float)
     confidence_score = Column(Float)
     completed_at = Column(DateTime)
-    due_date = Column(DateTime)
+    start_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    end_date = Column(DateTime, nullable=True)
     organization_id = Column(Integer, ForeignKey(
         "organizations.id"), nullable=False)
 
@@ -135,7 +136,8 @@ class Task(Base):
         Index("ix_task_creator_id", "creator_id"),
         Index("ix_task_assignee_id", "assignee_id"),
         Index("ix_task_project_id", "project_id"),
-        Index("ix_task_due_date", "due_date"),
+        Index("ix_task_start_date", "start_date"),
+        Index("ix_task_end_date", "end_date"),
         Index("ix_task_created_at", "created_at"),
         Index("ix_task_category_id", "category_id"),
         Index("ix_task_priority", "priority"),
