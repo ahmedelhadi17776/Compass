@@ -6,6 +6,8 @@ import datetime
 import enum
 import json
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.sql import func
+from Backend.data_layer.database.models.calendar_event import RecurrenceType
 
 # Define TaskStatus using Python's enum
 
@@ -25,7 +27,7 @@ class TaskPriority(enum.Enum):
     MEDIUM = "Medium"
     HIGH = "High"
     URGENT = "Urgent"
-
+    
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -49,8 +51,17 @@ class Task(Base):
     actual_hours = Column(Float)
     confidence_score = Column(Float)
     completed_at = Column(DateTime)
-    start_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    end_date = Column(DateTime, nullable=True)
+    start_date = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False)
+    duration = Column(Float, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    recurrence = Column(SQLAlchemyEnum(RecurrenceType),
+                        default=RecurrenceType.NONE, nullable=False)
+    recurrence_end_date = Column(DateTime, nullable=True)  # When recurrence stops
+    status_updated_at = Column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
     organization_id = Column(Integer, ForeignKey(
         "organizations.id"), nullable=False)
 
@@ -83,6 +94,7 @@ class Task(Base):
     history = relationship(
         "TaskHistory", back_populates="task", cascade="all, delete-orphan")
     linked_todos = relationship("Todo", back_populates="linked_task")
+    calendar_event = relationship("CalendarEvent", back_populates="task", uselist=False)
 
     # Task Management
     current_workflow_step_id = Column(Integer, ForeignKey("workflow_steps.id"))
@@ -94,8 +106,9 @@ class Task(Base):
     time_estimates = Column(JSON)
     focus_sessions = Column(JSON)
     interruption_logs = Column(JSON)
-    progress_metrics = Column(JSON, default=dict, nullable=False)
-    blockers = Column(JSON, default=list, nullable=False)
+    progress_metrics = Column(
+        JSON, server_default=func.json('{}'), nullable=False)
+    blockers = Column(JSON, server_default=func.json('[]'), nullable=False)
     health_score = Column(Float)
     risk_factors = Column(JSON)
 
@@ -137,7 +150,9 @@ class Task(Base):
         Index("ix_task_assignee_id", "assignee_id"),
         Index("ix_task_project_id", "project_id"),
         Index("ix_task_start_date", "start_date"),
-        Index("ix_task_end_date", "end_date"),
+        Index("ix_task_due_date", "due_date"),
+        Index("ix_task_status_updated_at", "status_updated_at"),
+        Index("ix_task_recurrence", "recurrence"),
         Index("ix_task_created_at", "created_at"),
         Index("ix_task_category_id", "category_id"),
         Index("ix_task_priority", "priority"),

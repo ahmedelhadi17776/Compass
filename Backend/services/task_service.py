@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Any
 from datetime import datetime
+from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
 from Backend.data_layer.database.models.task_history import TaskHistory
@@ -45,7 +46,11 @@ class TaskService:
                         "Cannot complete task: dependencies not completed")
 
             # Update task status
-            updated_task = await self.repo.update_task(task_id, {"status": new_status})
+            updated_task = await self.repo.update_task(
+                task_id, {"status": new_status,
+                          "status_updated_at": datetime.utcnow()}
+            )
+
 
             # Add task history entry
             await self.repo.add_task_history(
@@ -158,7 +163,10 @@ class TaskService:
         category_id: Optional[int] = None,
         parent_task_id: Optional[int] = None,
         estimated_hours: Optional[float] = None,
-        end_date: Optional[datetime] = None,
+        duration: Optional[float] = None,  # Updated
+        due_date: Optional[datetime] = None,  # New
+        recurrence: Optional[RecurrenceType] = RecurrenceType.NONE,  # New
+        recurrence_end_date: Optional[datetime] = None,  # New
         dependencies: Optional[List[int]] = None,
         ai_suggestions: Optional[Dict] = None,
         complexity_score: Optional[float] = None,
@@ -175,8 +183,11 @@ class TaskService:
         if not start_date:
             raise ValueError("start_date is required for task creation")
         
-        if end_date and start_date > end_date:
+        if due_date and start_date > due_date:
             raise ValueError("Start date must be before end date")
+        
+        if duration and duration < 0:
+            raise ValueError("Duration must be positive")
 
         task_data = {
             "title": title,
@@ -193,7 +204,10 @@ class TaskService:
             "parent_task_id": parent_task_id if parent_task_id and parent_task_id > 0 else None,
             "estimated_hours": estimated_hours,
             "start_date": start_date,
-            "end_date": end_date,
+            "duration": duration,  # Updated
+            "due_date": due_date,  # New
+            "recurrence": recurrence,  # New
+            "recurrence_end_date": recurrence_end_date,  # New
             "_dependencies_list": json.dumps(dependencies or []),
             "ai_suggestions": ai_suggestions or {},
             "complexity_score": complexity_score,
@@ -243,11 +257,18 @@ class TaskService:
             task_data['_dependencies_list'] = json.dumps(deps)
             task_data['dependencies'] = deps
     
-        if 'start_date' in task_data or 'end_date' in task_data:
-            new_start = task_data.get('start_date', existing_task.start_date)
-            new_end = task_data.get('end_date', existing_task.end_date)
-            if new_end and new_start > new_end:
-                raise TaskUpdateError("Start date cannot be after end date")
+        if "start_date" in task_data or "duration" in task_data:
+            new_start = task_data.get("start_date", existing_task.start_date)
+            new_duration = task_data.get("duration", existing_task.duration)
+
+            if new_duration and new_duration < 0:
+                raise TaskUpdateError("Duration must be positive")
+
+            task_data["start_date"] = new_start
+            task_data["duration"] = new_duration
+        
+        if "status" in task_data and task_data["status"] != existing_task.status:
+            task_data["status_updated_at"] = datetime.utcnow()
 
         # Handle foreign key IDs - if they're 0, set them to None to avoid foreign key violations
         if 'category_id' in task_data and task_data['category_id'] == 0:
@@ -275,13 +296,13 @@ class TaskService:
                 return None
             # Initialize dependencies from _dependencies_list
             try:
-                deps = json.loads(
-                    task._dependencies_list) if task._dependencies_list else []
+                deps = json.loads(task._dependencies_list) if task._dependencies_list else []
                 task.dependencies = deps
-                task.task_dependencies = deps
+
+
             except (json.JSONDecodeError, TypeError):
                 task.dependencies = []
-                task.task_dependencies = []
+
             return task
         except Exception as e:
             logger.error(f"Error getting task: {str(e)}")
@@ -329,13 +350,15 @@ class TaskService:
         assignee_id: Optional[int] = None,
         creator_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        duration: Optional[float] = None,
+        due_date: Optional[datetime] = None,
+        recurrence: Optional[RecurrenceType] = None
     ) -> List[Task]:
         # Ensure timezone-naive datetime objects
         if start_date and start_date.tzinfo:
             start_date = start_date.replace(tzinfo=None)
-        if end_date and end_date.tzinfo:
-            end_date = end_date.replace(tzinfo=None)
+        if due_date and due_date.tzinfo:
+            due_date = due_date.replace(tzinfo=None)
         """Get tasks with optional filters and ensure they're cached in Redis."""
         try:
             # Get tasks from repository
@@ -349,7 +372,9 @@ class TaskService:
                     assignee_id=assignee_id,
                     creator_id=creator_id,
                     start_date=start_date,
-                    end_date=end_date
+                    duration=duration,
+                    due_date=due_date,
+                    recurrence=recurrence
                 )
             else:
                 tasks = await self.repo.get_tasks(
@@ -360,7 +385,9 @@ class TaskService:
                     assignee_id=assignee_id,
                     creator_id=creator_id,
                     start_date=start_date,
-                    end_date=end_date
+                    duration=duration,
+                    due_date=due_date,
+                    recurrence=recurrence
                 )
 
             # Initialize dependencies for each task
@@ -369,10 +396,10 @@ class TaskService:
                     deps = json.loads(
                         task._dependencies_list) if task._dependencies_list else []
                     task.dependencies = deps
-                    task.task_dependencies = deps
+
+
                 except (json.JSONDecodeError, TypeError):
                     task.dependencies = []
-                    task.task_dependencies = []
 
             return tasks
         except Exception as e:
@@ -410,7 +437,10 @@ class TaskService:
             "health_score": task.health_score,
             "category_id": task.category_id,
             "start_date": task.start_date,
-            "end_date": task.end_date,
+            "duration": task.duration,
+            "due_date": task.due_date,
+            "recurrence": task.recurrence,
+            "recurrence_end_date": task.recurrence_end_date,
             "estimated_hours": task.estimated_hours,
             "actual_hours": task.actual_hours,
             "dependencies": task.dependencies,
@@ -560,11 +590,6 @@ class TaskService:
     async def delete_attachment(self, attachment_id: int, user_id: int) -> bool:
         """Delete an attachment."""
         return await self.repo.delete_attachment(attachment_id, user_id)
-
-    @property
-    def dependencies(self) -> List[int]:
-        """Get task dependencies."""
-        return json.loads(self._dependencies_list) if hasattr(self, '_dependencies_list') else []
 
     async def execute_task_step(self, task_id: int, workflow_step_id: int, user_id: int) -> Dict:
         """Execute a workflow step for a task."""
