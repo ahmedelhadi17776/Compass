@@ -1,7 +1,8 @@
 from typing import Dict, List, Optional, cast, Sequence
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
 from Backend.data_layer.database.models.task_history import TaskHistory
 from Backend.data_layer.database.models.task_agent_interaction import TaskAgentInteraction
@@ -23,10 +24,9 @@ class TaskRepository(BaseRepository[Task]):
     def __init__(self, db):
         self.db = db
 
-    async def create(self, start_date: datetime, end_date: Optional[datetime] = None, **task_data) -> Task:
+    async def create(self, start_date: datetime, duration: Optional[float] = None, **task_data) -> Task:
         """Create a new task."""
 
-        task_data.pop('due_date', None)
 
         required_fields = {
             'title', 
@@ -44,8 +44,11 @@ class TaskRepository(BaseRepository[Task]):
         valid_columns = {c.name for c in Task.__table__.columns}
         filtered_data = {k: v for k, v in task_data.items() if k in valid_columns}
         
-        new_task = Task(start_date=start_date,
-                        end_date=end_date, **filtered_data)
+        new_task = Task(
+            start_date=start_date,
+            duration=duration,  
+            **filtered_data
+        )
         self.db.add(new_task)
         await self.db.flush()
         return new_task
@@ -54,7 +57,7 @@ class TaskRepository(BaseRepository[Task]):
         """Get a task by ID with optional user ID check."""
         query = select(Task).where(Task.id == task_id)
         if user_id is not None:
-            query = query.where(Task.user_id == user_id)
+            query = query.where(Task.creator_id == user_id)
         result = await self.db.execute(query)
         return result.scalars().first()
 
@@ -95,7 +98,7 @@ class TaskRepository(BaseRepository[Task]):
 
     async def get_user_tasks(self, user_id: int, status: Optional[str] = None) -> List[Task]:
         """Get all tasks for a user with optional status filter."""
-        query = select(Task).where(Task.user_id == user_id)
+        query = select(Task).where(Task.creator_id == user_id)
         if status:
             query = query.where(Task.status == status)
         result = await self.db.execute(query)
@@ -120,11 +123,21 @@ class TaskRepository(BaseRepository[Task]):
         if not task:
             raise TaskNotFoundError(f"Task with id {task_id} not found")
 
-        if 'start_date' in task_data or 'end_date' in task_data:
-            new_start = task_data.get('start_date', task.start_date)
-            new_end = task_data.get('end_date', task.end_date)
-            if new_end and new_start > new_end:
-                raise ValueError("Start date must be before end date")
+        if "start_date" in task_data or "duration" in task_data:
+            new_start = task_data.get("start_date", task.start_date)
+            new_duration = task_data.get("duration", task.duration)
+
+            if new_duration and new_duration < 0:
+                raise ValueError("Duration must be positive")
+
+            task.start_date = new_start
+            task.duration = new_duration
+
+
+        if "recurrence_end_date" in task_data:
+            if task_data["recurrence_end_date"] and task_data["recurrence_end_date"] < task.start_date:
+                raise ValueError("Recurrence end date cannot be before start date")
+
 
         # Update task fields
         for key, value in task_data.items():
@@ -144,7 +157,9 @@ class TaskRepository(BaseRepository[Task]):
         assignee_id: Optional[int] = None,
         creator_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        due_date: Optional[datetime] = None,
+        duration: Optional[float] = None,
+        recurrence: Optional[RecurrenceType] = None
     ) -> List[Task]:
         """Get tasks by project with optional filters."""
         query = select(Task).where(Task.project_id == project_id)
@@ -159,46 +174,21 @@ class TaskRepository(BaseRepository[Task]):
         if creator_id:
             query = query.where(Task.creator_id == creator_id)
 
-        if start_date and end_date:
+        if start_date and duration:
             query = query.where(
-                or_(
-                    # Task starts within range
-                    and_(Task.start_date >= start_date,
-                         Task.start_date <= end_date),
-                    # Task ends within range
-                    and_(Task.end_date >= start_date,
-                         Task.end_date <= end_date),
-                    # Task spans across the entire range
-                    and_(Task.start_date <= start_date,
-                         Task.end_date >= end_date),
-                    # Task starts before range but ends within range
-                    and_(Task.start_date <= start_date, Task.end_date >=
-                         start_date, Task.end_date <= end_date),
-                    # Task starts within range but ends after range
-                    and_(Task.start_date >= start_date, Task.start_date <=
-                         end_date, Task.end_date >= end_date)
-                )
-            )
-
-        elif start_date:
-            query = query.where(
-                or_(
+                and_(
                     Task.start_date >= start_date,
-                    and_(Task.start_date <= start_date,
-                         Task.end_date >= start_date)
+                    (Task.start_date + timedelta(hours=Task.duration)
+                     ) <= start_date + timedelta(hours=duration)
                 )
             )
 
-        elif end_date:
-            query = query.where(
-                or_(
-                    Task.end_date <= end_date,
-                    and_(Task.start_date <= end_date, or_(
-                        Task.end_date >= end_date, Task.end_date == None))
-                )
-            )
 
-        # Apply pagination
+        if due_date:
+            query = query.where(Task.due_date == due_date)
+
+
+                # Apply pagination
         query = query.offset(skip).limit(limit)
 
         result = await self.db.execute(query)
@@ -213,7 +203,9 @@ class TaskRepository(BaseRepository[Task]):
         assignee_id: Optional[int] = None,
         creator_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        due_date: Optional[datetime] = None,
+        duration: Optional[float] = None,
+        recurrence: Optional[RecurrenceType] = None
     ) -> List[Task]:
         """Get all tasks with optional filters."""
         query = select(Task)
@@ -228,37 +220,20 @@ class TaskRepository(BaseRepository[Task]):
         if creator_id:
             query = query.where(Task.creator_id == creator_id)
 
-        if start_date and end_date:
+        if start_date and duration:
             query = query.where(
-                or_(
-                    # Task starts within range
-                    and_(Task.start_date >= start_date, Task.start_date <= end_date),
-                    # Task ends within range
-                    and_(Task.end_date >= start_date, Task.end_date <= end_date),
-                    # Task spans across the entire range
-                    and_(Task.start_date <= start_date, Task.end_date >= end_date),
-                    # Task starts before range but ends within range
-                    and_(Task.start_date <= start_date, Task.end_date >= start_date, Task.end_date <= end_date),
-                    # Task starts within range but ends after range
-                    and_(Task.start_date >= start_date, Task.start_date <= end_date, Task.end_date >= end_date)
-                )
-            )
-
-        elif start_date:
-            query = query.where(
-                or_(
+                and_(
                     Task.start_date >= start_date,
-                    and_(Task.start_date <= start_date, Task.end_date >= start_date)
+                    (Task.start_date + timedelta(hours=Task.duration)
+                     ) <= start_date + timedelta(hours=duration)
                 )
             )
 
-        elif end_date:
-            query = query.where(
-                or_(
-                    Task.end_date <= end_date,
-                    and_(Task.start_date <= end_date, or_(Task.end_date >= end_date, Task.end_date == None))
-                )
-            )
+        if due_date:
+            query = query.where(Task.due_date == due_date)
+            
+        if recurrence:
+            query = query.where(Task.recurrence == recurrence)
 
         # Apply pagination
         query = query.offset(skip).limit(limit)
@@ -309,8 +284,11 @@ class TaskRepository(BaseRepository[Task]):
             select(Task)
             .where(
                 and_(
-                    Task.user_id == user_id,
-                    Task.created_at >= cutoff_date
+                    Task.creator_id == user_id,
+                    or_(
+                        Task.created_at >= cutoff_date,
+                        Task.status_updated_at >= cutoff_date
+                    )
                 )
             )
             .order_by(Task.created_at.desc())
