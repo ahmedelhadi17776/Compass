@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict
 from datetime import datetime
 from Backend.data_layer.database.connection import get_db
+from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority, Task
 from Backend.app.schemas.task_schemas import (
     TaskCreate,
@@ -36,8 +37,25 @@ async def create_task(
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
-        result = await service.create_task(**task.dict())
+        task_data = task.dict()
+
+        # Validate duration
+        if task_data.get("duration") and task_data["duration"] < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duration must be positive"
+            )
+        
+        # Validate recurrence end date
+        if task_data.get("recurrence_end_date") and task_data["recurrence_end_date"] < task_data["start_date"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Recurrence end date cannot be before start date"
+            )
+        
+        result = await service.create_task(**task_data)
         return result
+    
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -84,7 +102,9 @@ async def get_tasks(
     assignee_id: Optional[int] = None,
     creator_id: Optional[int] = None,
     start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    duration: Optional[float] = None,
+    due_date: Optional[datetime] = None,
+    recurrence: Optional[RecurrenceType] = None,
     db: AsyncSession = Depends(get_db)
     #current_user=Depends(get_current_user)
 ):
@@ -102,7 +122,9 @@ async def get_tasks(
         assignee_id=assignee_id,
         creator_id=creator_id,
         start_date=start_date,
-        end_date=end_date
+        duration=duration,
+        due_date=due_date,
+        recurrence=recurrence
     )
 
     return tasks
@@ -141,6 +163,7 @@ async def update_task(
                     user_id
                     #current_user.id
                 )
+                await service.update_task(task_id, {"status_updated_at": datetime.utcnow()})
                 # Remove status from task_data as it's already updated
                 task_data.pop('status')
             except Exception as e:

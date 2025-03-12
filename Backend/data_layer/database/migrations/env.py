@@ -1,7 +1,3 @@
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, JSON, Text, DateTime, Boolean
-from alembic import context
-from Backend.data_layer.database.models.base import Base
 from Backend.data_layer.database.models import (
     User, Role, UserRole, UserPreferences,
     Organization, Project, ProjectMember,
@@ -19,14 +15,18 @@ from Backend.data_layer.database.models import (
     TodoPriority, TodoStatus, WorkflowStepExecution, DailyHabit,
     WorkflowAgentInteraction
 )
+from Backend.data_layer.database.models.base import Base
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config, pool, JSON, Text, DateTime, Boolean
+from alembic import context
 import os
 import sys
 from pathlib import Path
+from sqlalchemy import text
 
 # Add the parent directory of Backend to the Python path
-# Go up 4 levels to reach the parent of Backend
-project_root = str(Path(__file__).parents[3].parent)
-sys.path.append(project_root)
+backend_dir = str(Path(__file__).resolve().parents[3])
+sys.path.insert(0, backend_dir)
 
 
 # Load Alembic configuration
