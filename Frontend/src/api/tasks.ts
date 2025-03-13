@@ -172,10 +172,18 @@ export const tasksApi = {
       return priorityMap[priority] || priority;
     };
 
+    // Calculate duration if start and end dates are provided
+    let duration = undefined;
+    if (task.start && task.end) {
+      // Duration in hours
+      duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
+    }
+
     const { data } = await axiosInstance.post(`/tasks`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
-      end_date: formatDate(task.end_date || task.end),
+      due_date: formatDate(task.due_date || task.end || task.end_date), // Ensure end_date is mapped to due_date
+      duration: duration,
       project_id: task.project_id || 1,
       organization_id: task.organization_id || 1,
       creator_id: task.creator_id || user_id,
@@ -237,12 +245,20 @@ export const tasksApi = {
       return priorityMap[priority] || priority;
     };
 
+    // Calculate duration if start and end dates are provided
+    let duration = undefined;
+    if (task.start && task.end) {
+      // Duration in hours
+      duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
+    }
+
     const originalId = taskId.split('_')[0];
 
     const { data } = await axiosInstance.put(`/tasks/${originalId}`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
-      end_date: formatDate(task.end_date || task.end),
+      due_date: formatDate(task.due_date || task.end || task.end_date), // Ensure end_date is mapped to due_date
+      duration: duration,
       status: mapStatusForBackend(task.status),
       priority: mapPriorityForBackend(task.priority),
     }, {

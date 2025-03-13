@@ -895,21 +895,34 @@ class TaskService:
             start_date: Start of the calendar range
             end_date: End of the calendar range
             project_id: Optional project filter
-            user_id: Optional user filter (as assignee)
+            user_id: Optional user filter (as creator or assignee)
             expand_recurring: Whether to expand recurring tasks into occurrences
 
         Returns:
             List of task dictionaries formatted for calendar display
         """
         try:
-            # Get base tasks
+            # Get base tasks - show all tasks where user is either creator or assignee
             tasks = await self.get_tasks(
                 project_id=project_id,
-                assignee_id=user_id,
+                creator_id=user_id,  # Include tasks created by the user
                 start_date=start_date,
                 end_date=end_date,
                 include_recurring=True
             )
+
+            # Also get tasks assigned to the user if user_id is provided
+            if user_id:
+                assigned_tasks = await self.get_tasks(
+                    project_id=project_id,
+                    assignee_id=user_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    include_recurring=True
+                )
+                # Combine tasks, removing duplicates by task ID
+                seen_ids = {task.id for task in tasks}
+                tasks.extend([task for task in assigned_tasks if task.id not in seen_ids])
 
             if not expand_recurring:
                 # Return tasks without expanding recurrences
