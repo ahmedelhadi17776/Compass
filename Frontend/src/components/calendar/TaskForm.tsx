@@ -82,6 +82,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
             ...formData,
             start: formData.start_date,
             end: formData.end_date,
+            due_date: formData.end_date,
           }
         });
       } else {
@@ -89,6 +90,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
           ...formData,
           start: formData.start_date,
           end: formData.end_date,
+          due_date: formData.end_date,
         });
       }
       setTimeout(onClose, 300);

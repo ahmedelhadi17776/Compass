@@ -179,10 +179,15 @@ export const tasksApi = {
       duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
     }
 
+    // Prioritize due_date if it's explicitly provided
+    const dueDate = task.due_date ? formatDate(task.due_date) : 
+                   task.end ? formatDate(task.end) : 
+                   task.end_date ? formatDate(task.end_date) : undefined;
+
     const { data } = await axiosInstance.post(`/tasks`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
-      due_date: formatDate(task.due_date || task.end || task.end_date), // Ensure end_date is mapped to due_date
+      due_date: dueDate,
       duration: duration,
       project_id: task.project_id || 1,
       organization_id: task.organization_id || 1,
@@ -254,10 +259,15 @@ export const tasksApi = {
 
     const originalId = taskId.split('_')[0];
 
+    // Prioritize due_date if it's explicitly provided
+    const dueDate = task.due_date ? formatDate(task.due_date) : 
+                   task.end ? formatDate(task.end) : 
+                   task.end_date ? formatDate(task.end_date) : undefined;
+
     const { data } = await axiosInstance.put(`/tasks/${originalId}`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
-      due_date: formatDate(task.due_date || task.end || task.end_date), // Ensure end_date is mapped to due_date
+      due_date: dueDate,
       duration: duration,
       status: mapStatusForBackend(task.status),
       priority: mapPriorityForBackend(task.priority),
