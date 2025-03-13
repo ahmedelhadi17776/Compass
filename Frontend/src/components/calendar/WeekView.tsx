@@ -6,6 +6,8 @@ import EventCard from './EventCard';
 import { CalendarEvent } from './types';
 import { useWeekTasks, useUpdateTask } from '@/hooks/useTasks';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 interface WeekViewProps {
   date: Date;
@@ -22,7 +24,8 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
     isLoading, 
     isError,
     error,
-    refetch 
+    refetch,
+    isFetching 
   } = useWeekTasks(date);
   
   const updateTaskMutation = useUpdateTask();
@@ -82,7 +85,44 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
   };
 
   if (isLoading) {
-    return <WeekViewSkeleton />;
+    return (
+      <div className="week-view">
+        <div className="week-container">
+          <div className="days-header">
+            <div className="time-label-header"></div>
+            {Array(7).fill(null).map((_, i) => (
+              <div key={i} className="day-header">
+                <Skeleton className="h-6 w-20" />
+              </div>
+            ))}
+          </div>
+          <div className="time-slots">
+            {Array(24).fill(null).map((_, hour) => (
+              <div key={hour} className="time-row">
+                <div className="time-label">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="days-content">
+                  {Array(7).fill(null).map((_, i) => (
+                    <div key={i} className="day-column">
+                      {Math.random() > 0.8 && (
+                        <Skeleton 
+                          className="absolute w-[calc(100%-8px)] rounded-md" 
+                          style={{
+                            height: `${Math.floor(Math.random() * 100 + 30)}px`,
+                            top: `${Math.floor(Math.random() * 45)}px`
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (isError) {
@@ -94,17 +134,16 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
         )}>
           {error instanceof Error ? error.message : 'Failed to load events'}
         </div>
-        <button
+        <Button
           onClick={() => refetch()}
-          className={cn(
-            "px-4 py-2 rounded-md",
-            darkMode 
-              ? "bg-gray-700 hover:bg-gray-600 text-white" 
-              : "bg-blue-500 hover:bg-blue-600 text-white"
-          )}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          disabled={isFetching}
         >
-          Try Again
-        </button>
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          {isFetching ? 'Retrying...' : 'Try Again'}
+        </Button>
       </div>
     );
   }
@@ -169,50 +208,6 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
                           }}
                         />
                       ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const WeekViewSkeleton = () => {
-  const days = Array(7).fill(null);
-  const timeSlots = Array(24).fill(null);
-
-  return (
-    <div className="week-view">
-      <div className="week-container">
-        <div className="days-header">
-          <div className="time-label-header"></div>
-          {days.map((_, i) => (
-            <div key={i} className="day-header">
-              <Skeleton className="h-6 w-20" />
-            </div>
-          ))}
-        </div>
-        <div className="time-slots">
-          {timeSlots.map((_, hour) => (
-            <div key={hour} className="time-row">
-              <div className="time-label">
-                <Skeleton className="h-4 w-16" />
-              </div>
-              <div className="days-content">
-                {days.map((_, i) => (
-                  <div key={i} className="day-column">
-                    {Math.random() > 0.8 && (
-                      <Skeleton 
-                        className="absolute w-[calc(100%-8px)] rounded-md" 
-                        style={{
-                          height: `${Math.floor(Math.random() * 100 + 30)}px`,
-                          top: `${Math.floor(Math.random() * 45)}px`
-                        }}
-                      />
-                    )}
                   </div>
                 ))}
               </div>
