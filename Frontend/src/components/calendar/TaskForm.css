@@ -39,15 +39,15 @@
 }
 
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
+  animation: fade-in 0.2s ease-out;
 }
 
 .animate-fade-out {
-  animation: fade-out 0.3s ease-out forwards;
+  animation: fade-out 0.2s ease-out forwards;
 }
 
 .animate-slide-in {
-  animation: slide-in 0.3s ease-out forwards;
+  animation: slide-in 0.3s ease-out;
 }
 
 .animate-slide-out {
@@ -55,7 +55,7 @@
 }
 
 .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item--selected {
-  background-color: #1f1f21 !important;
+  background-color: #2563eb !important;
 }
 
 .react-datepicker__day--selected,
@@ -70,15 +70,15 @@
 .react-datepicker__year-text--selected,
 .react-datepicker__year-text--in-selecting-range,
 .react-datepicker__year-text--in-range {
-  background-color: #1f1f21 !important;
+  background-color: #2563eb !important;
 }
 
 .react-datepicker__day--keyboard-selected,
 .react-datepicker__month-text--keyboard-selected,
 .react-datepicker__quarter-text--keyboard-selected,
 .react-datepicker__year-text--keyboard-selected {
-  background-color: rgba(31, 31, 33, 0.1) !important;
-  color: #1f1f21 !important;
+  background-color: rgba(37, 99, 235, 0.1) !important;
+  color: #2563eb !important;
 }
 
 .file-upload-container {
@@ -86,7 +86,7 @@
 }
 
 .file-upload-container:hover {
-  border-color: #1f1f21;
+  border-color: #2563eb;
 }
 
 .attachment-preview {
@@ -94,7 +94,7 @@
 }
 
 .attachment-preview:hover {
-  background-color: #f9fafb;
+  background-color: #f1f5f9;
 }
 
 .remove-attachment-btn {
@@ -107,6 +107,6 @@
 }
 
 .file-upload-container.drag-active {
-  border-color: #1f1f21;
-  background-color: rgba(31, 31, 33, 0.05);
-} 
+  border-color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.05);
+}

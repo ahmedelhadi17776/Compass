@@ -4,8 +4,12 @@ export interface CalendarEvent {
   description?: string;
   start: Date;
   end: Date;
-  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | 'BLOCKED' | 'CANCELLED';
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  start_date?: Date;
+  end_date?: Date;
+  location?: string;
+  status: 'To Do' | 'In Progress' | 'Completed' | 'Cancelled' | 'Blocked' | 'Under Review' | 'Deferred';
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  category?: string;
   project_id: number;
   organization_id: number;
   creator_id: number;
@@ -17,8 +21,6 @@ export interface CalendarEvent {
   parent_task_id?: number;
   estimated_hours?: number;
   actual_hours?: number;
-  location?: string;
-  category: string;
   participants?: {
     name: string;
     status: 'accepted' | 'pending' | 'rejected';

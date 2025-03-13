@@ -1,29 +1,32 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+type ViewType = 'day' | 'threeDays' | 'week' | 'month';
+
 interface ViewSelectorProps {
-  currentView: string;
-  onViewChange: (view: string) => void;
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void;
 }
 
 const ViewSelector: React.FC<ViewSelectorProps> = ({ currentView, onViewChange }) => {
-  const views = [
-    { id: 'day', label: 'Day' },
-    { id: 'threeDays', label: '3 Days' },
-    { id: 'week', label: 'Week' },
-    { id: 'month', label: 'Month' },
+  const views: { value: ViewType; label: string }[] = [
+    { value: 'day', label: 'Day' },
+    { value: 'threeDays', label: '3 Days' },
+    { value: 'week', label: 'Week' },
+    { value: 'month', label: 'Month' },
   ];
 
   return (
-    <div className="flex rounded-md bg-muted">
-      {views.map(({ id, label }) => (
+    <div className="flex rounded-md shadow-sm">
+      {views.map(({ value, label }) => (
         <button
-          key={id}
-          onClick={() => onViewChange(id)}
+          key={value}
+          onClick={() => onViewChange(value)}
           className={cn(
-            "px-3 py-1.5 text-sm font-medium first:rounded-l-md last:rounded-r-md transition-colors",
-            "text-muted-foreground hover:text-foreground",
-            currentView === id && "bg-background text-primary shadow-sm"
+            "px-3 py-1.5 text-sm font-medium first:rounded-l-md last:rounded-r-md",
+            currentView === value
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
           )}
         >
           {label}

@@ -1,23 +1,34 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import DayView from './DayView';
 import WeekView from './WeekView';
 import ThreeDayView from './ThreeDayView';
 import MonthView from './MonthView';
-import EventForm from './EventForm';
+import TaskForm from './TaskForm';
 import ViewSelector from './ViewSelector';
 import { CalendarEvent } from './types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+type ViewType = 'day' | 'threeDays' | 'week' | 'month';
 
 interface CalendarProps {
   darkMode?: boolean;
+  userId?: number;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
+const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<'day' | 'threeDays' | 'week' | 'month'>('week');
-  const [showEventForm, setShowEventForm] = useState(false);
+  const [currentView, setCurrentView] = useState<ViewType>('week');
+  const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([
     {
@@ -30,9 +41,15 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
       project_id: 1,
       organization_id: 1,
       creator_id: 1,
+      user_id: 1,
       category: 'Work'
     }
   ]);
+
+  const handleEventClick = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setShowTaskForm(true);
+  };
 
   const handlePrevious = () => {
     const newDate = new Date(currentDate);
@@ -72,6 +89,10 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
     setCurrentDate(newDate);
   };
 
+  const handleViewChange = (view: ViewType) => {
+    setCurrentView(view);
+  };
+
   const handleCreateEvent = (event: Partial<CalendarEvent>) => {
     const newEvent: CalendarEvent = {
       ...event,
@@ -81,33 +102,28 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
       project_id: 1,
       organization_id: 1,
       creator_id: 1,
+      user_id: 1,
       category: event.category || 'Default'
     } as CalendarEvent;
     
     setEvents(prev => [...prev, newEvent]);
-    setShowEventForm(false);
+    setShowTaskForm(false);
   };
 
   const handleUpdateEvent = (updatedEvent: CalendarEvent) => {
     setEvents(prev => prev.map(event => 
       event.id === updatedEvent.id ? updatedEvent : event
     ));
-    setShowEventForm(false);
+    setShowTaskForm(false);
   };
 
   const handleDeleteEvent = (eventId: string) => {
     setEvents(prev => prev.filter(event => event.id !== eventId));
-    setShowEventForm(false);
-  };
-
-  const handleEventClick = (event: CalendarEvent) => {
-    setEditingEvent(event);
-    setShowEventForm(true);
+    setShowTaskForm(false);
   };
 
   const renderView = () => {
     const commonProps = {
-      events,
       date: currentDate,
       onEventClick: handleEventClick,
       darkMode
@@ -150,7 +166,7 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
         <div className="flex items-center gap-2">
           <ViewSelector
             currentView={currentView}
-            onViewChange={(view: 'day' | 'threeDays' | 'week' | 'month') => setCurrentView(view)}
+            onViewChange={handleViewChange}
           />
           <button
             onClick={() => setCurrentDate(new Date())}
@@ -161,25 +177,32 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false }) => {
           >
             Today
           </button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2"
+            onClick={() => setShowTaskForm(true)}
+          >
+            <Plus className="h-4 w-4" />
+            New Task
+          </Button>
         </div>
       </div>
+      
+      {showTaskForm && (
+        <TaskForm
+          task={editingEvent}
+          onClose={() => {
+            setShowTaskForm(false);
+            setEditingEvent(null);
+          }}
+          userId={userId}
+        />
+      )}
       
       <div className="flex-1 min-h-0">
         {renderView()}
       </div>
-
-      {showEventForm && (
-        <EventForm
-          event={editingEvent}
-          onClose={() => {
-            setShowEventForm(false);
-            setEditingEvent(null);
-          }}
-          onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
-          onDelete={handleDeleteEvent}
-          darkMode={darkMode}
-        />
-      )}
     </div>
   );
 };

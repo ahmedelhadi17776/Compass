@@ -109,10 +109,11 @@ export const tasksApi = {
   createTask: async (task: Partial<CalendarEvent>, user_id: number = 1) => {
     const { data } = await axiosInstance.post(`/tasks`, {
       ...task,
-      user_id,
       project_id: task.project_id || 1,
       organization_id: task.organization_id || 1,
       creator_id: task.creator_id || user_id,
+    }, {
+      params: { user_id }
     });
     return data;
   },
