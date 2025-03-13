@@ -107,8 +107,22 @@ export const tasksApi = {
   },
 
   createTask: async (task: Partial<CalendarEvent>, user_id: number = 1) => {
+    const formatDate = (date: Date | string | undefined) => {
+      if (!date) return undefined;
+      const d = date instanceof Date ? date : new Date(date);
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0') + 'T' +
+        String(d.getHours()).padStart(2, '0') + ':' +
+        String(d.getMinutes()).padStart(2, '0') + ':' +
+        String(d.getSeconds()).padStart(2, '0') + '.' +
+        String(d.getMilliseconds()).padStart(3, '0');
+    };
+
     const { data } = await axiosInstance.post(`/tasks`, {
       ...task,
+      start_date: formatDate(task.start_date || task.start),
+      end_date: formatDate(task.end_date || task.end),
       project_id: task.project_id || 1,
       organization_id: task.organization_id || 1,
       creator_id: task.creator_id || user_id,
@@ -119,7 +133,25 @@ export const tasksApi = {
   },
 
   updateTask: async (taskId: string, task: Partial<CalendarEvent>, user_id: number = 1) => {
-    const { data } = await axiosInstance.put(`/tasks/${taskId}`, task, {
+    const formatDate = (date: Date | string | undefined) => {
+      if (!date) return undefined;
+      const d = date instanceof Date ? date : new Date(date);
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0') + 'T' +
+        String(d.getHours()).padStart(2, '0') + ':' +
+        String(d.getMinutes()).padStart(2, '0') + ':' +
+        String(d.getSeconds()).padStart(2, '0') + '.' +
+        String(d.getMilliseconds()).padStart(3, '0');
+    };
+
+    const { data } = await axiosInstance.put(`/tasks/${taskId}`, {
+      ...task,
+      start_date: formatDate(task.start_date || task.start),
+      end_date: formatDate(task.end_date || task.end),
+      // Don't send status if it hasn't changed to avoid invalid transition error
+      status: task.status === 'To Do' ? undefined : task.status,
+    }, {
       params: { user_id }
     });
     return data;
