@@ -9,6 +9,7 @@ export interface CalendarEvent {
   project_id: number;
   organization_id: number;
   creator_id: number;
+  user_id: number;
   assignee_id?: number;
   reviewer_id?: number;
   category_id?: number;

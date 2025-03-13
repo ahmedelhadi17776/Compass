@@ -34,6 +34,7 @@ export const tasksApi = {
     creator_id,
     due_date_start,
     due_date_end,
+    user_id = 1, // TODO: Get from auth context
   }: {
     skip?: number;
     limit?: number;
@@ -44,6 +45,7 @@ export const tasksApi = {
     creator_id?: number;
     due_date_start?: Date | string;
     due_date_end?: Date | string;
+    user_id?: number;
   }) => {
     try {
       const formatDateWithoutTimezone = (date: Date | string | undefined) => {
@@ -64,6 +66,7 @@ export const tasksApi = {
       const params: Record<string, any> = {
         skip,
         limit,
+        user_id,
       };
 
       if (status) params.status = status;
@@ -80,7 +83,13 @@ export const tasksApi = {
         return response.data.map(task => ({
           ...task,
           start: task.start_date ? new Date(task.start_date) : null,
-          end: task.end_date ? new Date(task.end_date) : null
+          end: task.end_date ? new Date(task.end_date) : null,
+          // Map additional fields from backend to frontend model
+          project_id: task.project_id || 1,
+          organization_id: task.organization_id || 1,
+          creator_id: task.creator_id || user_id,
+          status: task.status || 'TODO',
+          priority: task.priority || 'MEDIUM',
         }));
       }
       return []
@@ -90,22 +99,34 @@ export const tasksApi = {
     }
   },
 
-  getTaskById: async (taskId: string) => {
-    const { data } = await axiosInstance.get(`/tasks/by_id/${taskId}`);
+  getTaskById: async (taskId: string, user_id: number = 1) => {
+    const { data } = await axiosInstance.get(`/tasks/by_id/${taskId}`, {
+      params: { user_id }
+    });
     return data;
   },
 
-  createTask: async (task: Partial<CalendarEvent>) => {
-    const { data } = await axiosInstance.post(`/tasks`, task);
+  createTask: async (task: Partial<CalendarEvent>, user_id: number = 1) => {
+    const { data } = await axiosInstance.post(`/tasks`, {
+      ...task,
+      user_id,
+      project_id: task.project_id || 1,
+      organization_id: task.organization_id || 1,
+      creator_id: task.creator_id || user_id,
+    });
     return data;
   },
 
-  updateTask: async (taskId: string, task: Partial<CalendarEvent>) => {
-    const { data } = await axiosInstance.put(`/tasks/${taskId}`, task);
+  updateTask: async (taskId: string, task: Partial<CalendarEvent>, user_id: number = 1) => {
+    const { data } = await axiosInstance.put(`/tasks/${taskId}`, task, {
+      params: { user_id }
+    });
     return data;
   },
 
-  deleteTask: async (taskId: string) => {
-    await axiosInstance.delete(`/tasks/${taskId}`);
+  deleteTask: async (taskId: string, user_id: number = 1) => {
+    await axiosInstance.delete(`/tasks/${taskId}`, {
+      params: { user_id }
+    });
   },
 };
