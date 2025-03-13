@@ -24,12 +24,15 @@ const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
+  const formatTimeRange = (start: Date, end: Date) => {
+    const startTime = format(new Date(start), 'h:mm a');
+    const endTime = format(new Date(end), 'h:mm a');
+    return `${startTime} - ${endTime}`;
+  };
+
   return (
     <div 
-      className={cn(
-        "event-card",
-        `priority-${event.priority}`
-      )}
+      className="event-card"
       draggable={!!onDragStart}
       onDragStart={handleDragStart}
       onClick={() => onClick(event)}
@@ -39,11 +42,11 @@ const EventCard: React.FC<EventCardProps> = ({
         {event.title || 'Untitled'}
       </div>
       <div className="event-time">
-        {format(new Date(event.start), 'h:mm a')}
+        {formatTimeRange(event.start, event.end)}
         {event.location && ` • ${event.location}`}
       </div>
     </div>
   );
 };
 
-export default EventCard; 
+export default EventCard;
