@@ -11,6 +11,7 @@ class RecurrenceType(enum.Enum):
     WEEKLY = "Weekly"
     MONTHLY = "Monthly"
     YEARLY = "Yearly"
+    CUSTOM = "Custom"
 
 
 class CalendarEvent(Base):

@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum as SQLAlchemyEnum, Text, Index, Float, JSON
+from sqlalchemy.dialects import postgresql
+
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
 from typing import List
@@ -57,6 +59,7 @@ class Task(Base):
     due_date = Column(DateTime, nullable=True)
     recurrence = Column(SQLAlchemyEnum(RecurrenceType),
                         default=RecurrenceType.NONE, nullable=False)
+    recurrence_custom_days = Column(postgresql.ARRAY(String), nullable=True)
     recurrence_end_date = Column(DateTime, nullable=True)  # When recurrence stops
     status_updated_at = Column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
