@@ -35,6 +35,7 @@ export const tasksApi = {
     due_date_start,
     due_date_end,
     user_id = 1, // TODO: Get from auth context
+    expand_recurring = true, // New parameter for the calendar endpoint
   }: {
     skip?: number;
     limit?: number;
@@ -46,6 +47,7 @@ export const tasksApi = {
     due_date_start?: Date | string;
     due_date_end?: Date | string;
     user_id?: number;
+    expand_recurring?: boolean;
   }) => {
     try {
       const formatDateWithoutTimezone = (date: Date | string | undefined) => {
@@ -63,33 +65,47 @@ export const tasksApi = {
       const formattedStartDate = formatDateWithoutTimezone(due_date_start);
       const formattedEndDate = formatDateWithoutTimezone(due_date_end);
 
+      let endpoint = '/tasks/';
       const params: Record<string, any> = {
-        skip,
-        limit,
         user_id,
       };
 
-      if (status) params.status = status;
-      if (priority) params.priority = priority;
-      if (project_id) params.project_id = project_id;
-      if (assignee_id) params.assignee_id = assignee_id;
-      if (creator_id) params.creator_id = creator_id;
-      if (due_date_start) params.start_date = formattedStartDate;
-      if (due_date_end) params.end_date = formattedEndDate;
+      if (due_date_start && due_date_end) {
+        endpoint = '/tasks/calendar';
+        params.start_date = formattedStartDate;
+        params.end_date = formattedEndDate;
+        params.expand_recurring = expand_recurring;
+        if (project_id) params.project_id = project_id;
+      } else {
+        params.skip = skip;
+        params.limit = limit;
+        if (status) params.status = status;
+        if (priority) params.priority = priority;
+        if (project_id) params.project_id = project_id;
+        if (assignee_id) params.assignee_id = assignee_id;
+        if (creator_id) params.creator_id = creator_id;
+        if (due_date_start) params.start_date = formattedStartDate;
+        if (due_date_end) params.end_date = formattedEndDate;
+      }
 
-      const response = await axiosInstance.get('/tasks/', { params });
+      const response = await axiosInstance.get(endpoint, { params });
 
       if (Array.isArray(response.data)) {
         return response.data.map(task => ({
           ...task,
+          id: String(task.id),
           start: task.start_date ? new Date(task.start_date) : null,
-          end: task.end_date ? new Date(task.end_date) : null,
+          end: task.due_date ? new Date(task.due_date) : null,
           // Map additional fields from backend to frontend model
           project_id: task.project_id || 1,
           organization_id: task.organization_id || 1,
           creator_id: task.creator_id || user_id,
           status: task.status || 'TODO',
           priority: task.priority || 'MEDIUM',
+          is_recurring: task.is_recurring || false,
+          is_original: task.is_original,
+          original_id: task.original_id,
+          occurrence_num: task.occurrence_num
         }));
       }
       return []
@@ -119,13 +135,60 @@ export const tasksApi = {
         String(d.getMilliseconds()).padStart(3, '0');
     };
 
+    const mapStatusForBackend = (status: string | undefined) => {
+      if (!status) return undefined;
+
+      if (['To Do', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
+        return status;
+      }
+
+      const statusMap: Record<string, string> = {
+        'TODO': 'To Do',
+        'IN_PROGRESS': 'In Progress',
+        'COMPLETED': 'Completed',
+        'CANCELLED': 'Cancelled',
+        'BLOCKED': 'Blocked',
+        'UNDER_REVIEW': 'Under Review',
+        'DEFERRED': 'Deferred'
+      };
+
+      return statusMap[status] || status;
+    };
+
+    const mapPriorityForBackend = (priority: string | undefined) => {
+      if (!priority) return undefined;
+
+      if (['Low', 'Medium', 'High', 'Urgent'].includes(priority)) {
+        return priority;
+      }
+
+      const priorityMap: Record<string, string> = {
+        'LOW': 'Low',
+        'MEDIUM': 'Medium',
+        'HIGH': 'High',
+        'URGENT': 'Urgent'
+      };
+
+      return priorityMap[priority] || priority;
+    };
+
+    // Calculate duration if start and end dates are provided
+    let duration = undefined;
+    if (task.start && task.end) {
+      // Duration in hours
+      duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
+    }
+
     const { data } = await axiosInstance.post(`/tasks`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
-      end_date: formatDate(task.end_date || task.end),
+      due_date: formatDate(task.due_date || task.end || task.end_date), // Ensure end_date is mapped to due_date
+      duration: duration,
       project_id: task.project_id || 1,
       organization_id: task.organization_id || 1,
       creator_id: task.creator_id || user_id,
+      status: mapStatusForBackend(task.status),
+      priority: mapPriorityForBackend(task.priority),
     }, {
       params: { user_id }
     });
@@ -145,12 +208,59 @@ export const tasksApi = {
         String(d.getMilliseconds()).padStart(3, '0');
     };
 
-    const { data } = await axiosInstance.put(`/tasks/${taskId}`, {
+    const mapStatusForBackend = (status: string | undefined) => {
+      if (!status) return undefined;
+
+      if (['To Do', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
+        return status;
+      }
+
+      const statusMap: Record<string, string> = {
+        'TODO': 'To Do',
+        'IN_PROGRESS': 'In Progress',
+        'COMPLETED': 'Completed',
+        'CANCELLED': 'Cancelled',
+        'BLOCKED': 'Blocked',
+        'UNDER_REVIEW': 'Under Review',
+        'DEFERRED': 'Deferred'
+      };
+
+      return statusMap[status] || status;
+    };
+
+    const mapPriorityForBackend = (priority: string | undefined) => {
+      if (!priority) return undefined;
+
+      if (['Low', 'Medium', 'High', 'Urgent'].includes(priority)) {
+        return priority;
+      }
+
+      const priorityMap: Record<string, string> = {
+        'LOW': 'Low',
+        'MEDIUM': 'Medium',
+        'HIGH': 'High',
+        'URGENT': 'Urgent'
+      };
+
+      return priorityMap[priority] || priority;
+    };
+
+    // Calculate duration if start and end dates are provided
+    let duration = undefined;
+    if (task.start && task.end) {
+      // Duration in hours
+      duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
+    }
+
+    const originalId = taskId.split('_')[0];
+
+    const { data } = await axiosInstance.put(`/tasks/${originalId}`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
-      end_date: formatDate(task.end_date || task.end),
-      // Don't send status if it hasn't changed to avoid invalid transition error
-      status: task.status === 'To Do' ? undefined : task.status,
+      due_date: formatDate(task.due_date || task.end || task.end_date), // Ensure end_date is mapped to due_date
+      duration: duration,
+      status: mapStatusForBackend(task.status),
+      priority: mapPriorityForBackend(task.priority),
     }, {
       params: { user_id }
     });
@@ -158,7 +268,9 @@ export const tasksApi = {
   },
 
   deleteTask: async (taskId: string, user_id: number = 1) => {
-    await axiosInstance.delete(`/tasks/${taskId}`, {
+    const originalId = taskId.split('_')[0];
+
+    await axiosInstance.delete(`/tasks/${originalId}`, {
       params: { user_id }
     });
   },

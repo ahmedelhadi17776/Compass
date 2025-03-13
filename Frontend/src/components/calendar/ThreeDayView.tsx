@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import './ThreeDayView.css';
 import EventCard from './EventCard';
 import { CalendarEvent } from './types';
-import { useWeekTasks, useUpdateTask } from '@/hooks/useTasks';
+import { useThreeDayTasks, useUpdateTask } from '@/hooks/useTasks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ThreeDayViewProps {
@@ -23,9 +23,9 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     isError,
     error,
     refetch 
-  } = useWeekTasks(date);
+  } = useThreeDayTasks(date, 1, { expand_recurring: true });
   
-  const updateTaskMutation = useUpdateTask();
+  const updateTaskMutation = useUpdateTask(1);
 
   React.useEffect(() => {
     const timer = setInterval(() => {

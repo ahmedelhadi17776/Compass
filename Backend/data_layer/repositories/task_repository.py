@@ -27,26 +27,26 @@ class TaskRepository(BaseRepository[Task]):
     async def create(self, start_date: datetime, duration: Optional[float] = None, **task_data) -> Task:
         """Create a new task."""
 
-
         required_fields = {
-            'title', 
+            'title',
             'project_id',
             'organization_id',
             'creator_id',
             'status',
             'priority'
         }
-    
+
         missing = required_fields - task_data.keys()
         if missing:
             raise ValueError(f"Missing required fields: {missing}")
 
         valid_columns = {c.name for c in Task.__table__.columns}
-        filtered_data = {k: v for k, v in task_data.items() if k in valid_columns}
-        
+        filtered_data = {k: v for k,
+                         v in task_data.items() if k in valid_columns}
+
         new_task = Task(
             start_date=start_date,
-            duration=duration,  
+            duration=duration,
             **filtered_data
         )
         self.db.add(new_task)
@@ -133,11 +133,10 @@ class TaskRepository(BaseRepository[Task]):
             task.start_date = new_start
             task.duration = new_duration
 
-
         if "recurrence_end_date" in task_data:
             if task_data["recurrence_end_date"] and task_data["recurrence_end_date"] < task.start_date:
-                raise ValueError("Recurrence end date cannot be before start date")
-
+                raise ValueError(
+                    "Recurrence end date cannot be before start date")
 
         # Update task fields
         for key, value in task_data.items():
@@ -159,9 +158,11 @@ class TaskRepository(BaseRepository[Task]):
         start_date: Optional[datetime] = None,
         due_date: Optional[datetime] = None,
         duration: Optional[float] = None,
-        recurrence: Optional[RecurrenceType] = None
+        recurrence: Optional[RecurrenceType] = None,
+        end_date: Optional[datetime] = None,
+        include_recurring: bool = True
     ) -> List[Task]:
-        """Get tasks by project with optional filters."""
+        """Get tasks by project with optional filters and calendar support."""
         query = select(Task).where(Task.project_id == project_id)
 
         # Apply filters
@@ -174,21 +175,74 @@ class TaskRepository(BaseRepository[Task]):
         if creator_id:
             query = query.where(Task.creator_id == creator_id)
 
-        if start_date and duration:
+        # Calendar-specific filters
+        if start_date and end_date:
+            if include_recurring:
+                # Include tasks that:
+                # 1. Start within the range (non-recurring or first occurrence)
+                # 2. End within the range
+                # 3. Span across the range
+                # 4. Are recurring and have occurrences that overlap with the range
+                query = query.where(
+                    or_(
+                        # Non-recurring tasks within the range
+                        and_(
+                            Task.start_date >= start_date,
+                            Task.start_date <= end_date,
+                            Task.recurrence == RecurrenceType.NONE
+                        ),
+                        # Tasks ending within the range
+                        and_(
+                            Task.due_date >= start_date,
+                            Task.due_date <= end_date
+                        ),
+                        # Tasks spanning across the range
+                        and_(
+                            Task.start_date <= start_date,
+                            Task.due_date >= end_date
+                        ),
+                        # Recurring tasks that overlap with the range
+                        and_(
+                            Task.recurrence != RecurrenceType.NONE,
+                            # Task starts before the end of the range
+                            Task.start_date <= end_date,
+                            # Either no end date or ends after the start of the range
+                            or_(
+                                Task.recurrence_end_date.is_(None),
+                                Task.recurrence_end_date >= start_date
+                            )
+                        )
+                    )
+                )
+            else:
+                # Only include non-recurring tasks within the range
+                query = query.where(
+                    and_(
+                        Task.start_date >= start_date,
+                        Task.start_date <= end_date,
+                        Task.recurrence == RecurrenceType.NONE
+                    )
+                )
+        elif start_date and duration:
+            # Use SQL expressions for date calculations
             query = query.where(
                 and_(
                     Task.start_date >= start_date,
-                    (Task.start_date + timedelta(hours=Task.duration)
-                     ) <= start_date + timedelta(hours=duration)
+                    Task.start_date <= start_date + timedelta(hours=duration)
                 )
             )
-
+        elif start_date:
+            query = query.where(Task.start_date >= start_date)
+        elif end_date:
+            query = query.where(Task.start_date <= end_date)
 
         if due_date:
             query = query.where(Task.due_date == due_date)
 
+        if recurrence:
+            query = query.where(Task.recurrence == recurrence)
 
-                # Apply pagination
+        # Apply pagination
         query = query.offset(skip).limit(limit)
 
         result = await self.db.execute(query)
@@ -205,9 +259,32 @@ class TaskRepository(BaseRepository[Task]):
         start_date: Optional[datetime] = None,
         due_date: Optional[datetime] = None,
         duration: Optional[float] = None,
-        recurrence: Optional[RecurrenceType] = None
+        recurrence: Optional[RecurrenceType] = None,
+        end_date: Optional[datetime] = None,
+        include_recurring: bool = True
     ) -> List[Task]:
-        """Get all tasks with optional filters."""
+        """Get all tasks with optional filters and calendar support.
+
+        This method supports calendar view by filtering tasks based on date ranges
+        and handling recurring tasks appropriately.
+
+        Args:
+            skip: Number of records to skip (pagination)
+            limit: Maximum number of records to return (pagination)
+            status: Filter by task status
+            priority: Filter by task priority
+            assignee_id: Filter by assignee
+            creator_id: Filter by creator
+            start_date: Filter tasks starting on or after this date
+            due_date: Filter tasks due on this date
+            duration: Filter tasks with this duration
+            recurrence: Filter tasks with this recurrence pattern
+            end_date: Filter tasks ending before this date (for calendar range)
+            include_recurring: Whether to include recurring tasks in results
+
+        Returns:
+            List of Task objects matching the criteria
+        """
         query = select(Task)
 
         # Apply filters
@@ -220,18 +297,62 @@ class TaskRepository(BaseRepository[Task]):
         if creator_id:
             query = query.where(Task.creator_id == creator_id)
 
-        if start_date and duration:
-            query = query.where(
-                and_(
-                    Task.start_date >= start_date,
-                    (Task.start_date + timedelta(hours=Task.duration)
-                     ) <= start_date + timedelta(hours=duration)
+        # Calendar-specific filters
+        if start_date and end_date:
+            if include_recurring:
+                # Include tasks that:
+                # 1. Start within the range (non-recurring or first occurrence)
+                # 2. End within the range
+                # 3. Span across the range
+                # 4. Are recurring and have occurrences that overlap with the range
+                query = query.where(
+                    or_(
+                        # Non-recurring tasks within the range
+                        and_(
+                            Task.start_date >= start_date,
+                            Task.start_date <= end_date,
+                            Task.recurrence == RecurrenceType.NONE
+                        ),
+                        # Tasks ending within the range
+                        and_(
+                            Task.due_date >= start_date,
+                            Task.due_date <= end_date
+                        ),
+                        # Tasks spanning across the range
+                        and_(
+                            Task.start_date <= start_date,
+                            Task.due_date >= end_date
+                        ),
+                        # Recurring tasks that overlap with the range
+                        and_(
+                            Task.recurrence != RecurrenceType.NONE,
+                            # Task starts before the end of the range
+                            Task.start_date <= end_date,
+                            # Either no end date or ends after the start of the range
+                            or_(
+                                Task.recurrence_end_date.is_(None),
+                                Task.recurrence_end_date >= start_date
+                            )
+                        )
+                    )
                 )
-            )
+            else:
+                # Only include non-recurring tasks within the range
+                query = query.where(
+                    and_(
+                        Task.start_date >= start_date,
+                        Task.start_date <= end_date,
+                        Task.recurrence == RecurrenceType.NONE
+                    )
+                )
+        elif start_date:
+            query = query.where(Task.start_date >= start_date)
+        elif end_date:
+            query = query.where(Task.start_date <= end_date)
 
         if due_date:
             query = query.where(Task.due_date == due_date)
-            
+
         if recurrence:
             query = query.where(Task.recurrence == recurrence)
 
@@ -370,12 +491,12 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.rollback()
             logger.error(f"Error tracking AI optimization: {str(e)}")
             raise
-            
+
     # Task Comment Methods
     async def create_comment(self, task_id: int, user_id: int, content: str, parent_id: Optional[int] = None) -> "TaskComment":
         """Create a new comment for a task."""
         from Backend.data_layer.database.models.task_comment import TaskComment
-        
+
         comment = TaskComment(
             task_id=task_id,
             user_id=user_id,
@@ -385,12 +506,12 @@ class TaskRepository(BaseRepository[Task]):
         self.db.add(comment)
         await self.db.flush()
         return comment
-    
+
     async def get_task_comments(self, task_id: int, skip: int = 0, limit: int = 50) -> List["TaskComment"]:
         """Get all comments for a task."""
         from Backend.data_layer.database.models.task_comment import TaskComment
         from sqlalchemy import select
-        
+
         query = (
             select(TaskComment)
             .where(TaskComment.task_id == task_id)
@@ -400,16 +521,16 @@ class TaskRepository(BaseRepository[Task]):
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
-    
+
     async def get_comment(self, comment_id: int) -> Optional["TaskComment"]:
         """Get a comment by ID."""
         from Backend.data_layer.database.models.task_comment import TaskComment
         from sqlalchemy import select
-        
+
         query = select(TaskComment).where(TaskComment.id == comment_id)
         result = await self.db.execute(query)
         return result.scalars().first()
-    
+
     async def update_comment(self, comment_id: int, user_id: int, content: str) -> Optional["TaskComment"]:
         """Update a comment."""
         comment = await self.get_comment(comment_id)
@@ -419,7 +540,7 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.flush()
             return comment
         return None
-    
+
     async def delete_comment(self, comment_id: int, user_id: int) -> bool:
         """Delete a comment."""
         comment = await self.get_comment(comment_id)
@@ -428,14 +549,14 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.flush()
             return True
         return False
-    
+
     # Task Category Methods
-    async def create_category(self, name: str, organization_id: int, description: Optional[str] = None, 
-                             color_code: Optional[str] = None, icon: Optional[str] = None, 
-                             parent_id: Optional[int] = None) -> "TaskCategory":
+    async def create_category(self, name: str, organization_id: int, description: Optional[str] = None,
+                              color_code: Optional[str] = None, icon: Optional[str] = None,
+                              parent_id: Optional[int] = None) -> "TaskCategory":
         """Create a new task category."""
         from Backend.data_layer.database.models.task_category import TaskCategory
-        
+
         category = TaskCategory(
             name=name,
             description=description,
@@ -447,25 +568,26 @@ class TaskRepository(BaseRepository[Task]):
         self.db.add(category)
         await self.db.flush()
         return category
-    
+
     async def get_categories(self, organization_id: int) -> List["TaskCategory"]:
         """Get all categories for an organization."""
         from Backend.data_layer.database.models.task_category import TaskCategory
         from sqlalchemy import select
-        
-        query = select(TaskCategory).where(TaskCategory.organization_id == organization_id)
+
+        query = select(TaskCategory).where(
+            TaskCategory.organization_id == organization_id)
         result = await self.db.execute(query)
         return list(result.scalars().all())
-    
+
     async def get_category(self, category_id: int) -> Optional["TaskCategory"]:
         """Get a category by ID."""
         from Backend.data_layer.database.models.task_category import TaskCategory
         from sqlalchemy import select
-        
+
         query = select(TaskCategory).where(TaskCategory.id == category_id)
         result = await self.db.execute(query)
         return result.scalars().first()
-    
+
     async def update_category(self, category_id: int, **update_data) -> Optional["TaskCategory"]:
         """Update a category."""
         category = await self.get_category(category_id)
@@ -476,7 +598,7 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.flush()
             return category
         return None
-    
+
     async def delete_category(self, category_id: int) -> bool:
         """Delete a category."""
         category = await self.get_category(category_id)
@@ -485,14 +607,14 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.flush()
             return True
         return False
-    
+
     # Task Attachment Methods
-    async def create_attachment(self, task_id: int, file_name: str, file_path: str, 
-                               uploaded_by: int, file_type: Optional[str] = None, 
-                               file_size: Optional[int] = None) -> "TaskAttachment":
+    async def create_attachment(self, task_id: int, file_name: str, file_path: str,
+                                uploaded_by: int, file_type: Optional[str] = None,
+                                file_size: Optional[int] = None) -> "TaskAttachment":
         """Create a new attachment for a task."""
         from Backend.data_layer.database.models.task_attachment import TaskAttachment
-        
+
         attachment = TaskAttachment(
             task_id=task_id,
             file_name=file_name,
@@ -504,25 +626,26 @@ class TaskRepository(BaseRepository[Task]):
         self.db.add(attachment)
         await self.db.flush()
         return attachment
-    
+
     async def get_task_attachments(self, task_id: int) -> List["TaskAttachment"]:
         """Get all attachments for a task."""
         from Backend.data_layer.database.models.task_attachment import TaskAttachment
         from sqlalchemy import select
-        
+
         query = select(TaskAttachment).where(TaskAttachment.task_id == task_id)
         result = await self.db.execute(query)
         return list(result.scalars().all())
-    
+
     async def get_attachment(self, attachment_id: int) -> Optional["TaskAttachment"]:
         """Get an attachment by ID."""
         from Backend.data_layer.database.models.task_attachment import TaskAttachment
         from sqlalchemy import select
-        
-        query = select(TaskAttachment).where(TaskAttachment.id == attachment_id)
+
+        query = select(TaskAttachment).where(
+            TaskAttachment.id == attachment_id)
         result = await self.db.execute(query)
         return result.scalars().first()
-    
+
     async def delete_attachment(self, attachment_id: int, user_id: int) -> bool:
         """Delete an attachment."""
         attachment = await self.get_attachment(attachment_id)

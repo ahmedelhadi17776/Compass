@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 from Backend.data_layer.database.connection import get_db
 from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority, Task
@@ -26,12 +27,12 @@ from Backend.orchestration.crew_orchestrator import CrewOrchestrator
 router = APIRouter()
 
 
-@router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TaskResponse, status_code=http_status.HTTP_201_CREATED)
 async def create_task(
     task: TaskCreate,
-    user_id:int,
+    user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Create a new task."""
     try:
@@ -42,23 +43,23 @@ async def create_task(
         # Validate duration
         if task_data.get("duration") and task_data["duration"] < 0:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="Duration must be positive"
             )
-        
+
         # Validate recurrence end date
         if task_data.get("recurrence_end_date") and task_data["recurrence_end_date"] < task_data["start_date"]:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="Recurrence end date cannot be before start date"
             )
-        
+
         result = await service.create_task(**task_data)
         return result
-    
+
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating task: {str(e)}"
         )
 
@@ -70,7 +71,7 @@ async def get_task(
     include_metrics: bool = Query(
         False, description="Include task metrics in response"),
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get task details with optional metrics."""
     try:
@@ -79,7 +80,7 @@ async def get_task(
         task = await service.get_task_with_details(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Task with ID {task_id} not found"
             )
         return task
@@ -87,7 +88,7 @@ async def get_task(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving task: {str(e)}"
         )
 
@@ -105,29 +106,39 @@ async def get_tasks(
     duration: Optional[float] = None,
     due_date: Optional[datetime] = None,
     recurrence: Optional[RecurrenceType] = None,
+    end_date: Optional[datetime] = None,
+    include_recurring: bool = True,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
-    """Get tasks with optional filtering."""
-    repo = TaskRepository(db)
-    service = TaskService(repo)
+    """Get tasks with optional filtering and calendar support."""
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
 
-    # Use service layer's cached method instead of repository
-    tasks = await service.get_tasks(
-        skip=skip,
-        limit=limit,
-        status=status,
-        priority=priority,
-        project_id=project_id,
-        assignee_id=assignee_id,
-        creator_id=creator_id,
-        start_date=start_date,
-        duration=duration,
-        due_date=due_date,
-        recurrence=recurrence
-    )
+        # Use service layer's cached method instead of repository
+        tasks = await service.get_tasks(
+            skip=skip,
+            limit=limit,
+            status=status,
+            priority=priority,
+            project_id=project_id,
+            assignee_id=assignee_id,
+            creator_id=creator_id,
+            start_date=start_date,
+            duration=duration,
+            due_date=due_date,
+            recurrence=recurrence,
+            end_date=end_date,
+            include_recurring=include_recurring
+        )
 
-    return tasks
+        return tasks
+    except Exception as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving tasks: {str(e)}"
+        )
 
 
 @router.put("/{task_id}", response_model=TaskResponse)
@@ -136,7 +147,7 @@ async def update_task(
     user_id: int,
     task_update: TaskUpdate,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ) -> TaskResponse:
     """Update an existing task with status transition validation."""
     try:
@@ -147,7 +158,7 @@ async def update_task(
         existing_task = await service.get_task(task_id)
         if not existing_task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Task {task_id} not found"
             )
 
@@ -161,14 +172,14 @@ async def update_task(
                     task_id,
                     new_status,
                     user_id
-                    #current_user.id
+                    # current_user.id
                 )
                 await service.update_task(task_id, {"status_updated_at": datetime.utcnow()})
                 # Remove status from task_data as it's already updated
                 task_data.pop('status')
             except Exception as e:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
                     detail=str(e)
                 )
 
@@ -181,17 +192,17 @@ async def update_task(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating task: {str(e)}"
         )
 
 
-@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{task_id}", status_code=http_status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Delete a task."""
     repo = TaskRepository(db)
@@ -210,7 +221,7 @@ async def get_task_history(
     skip: int = 0,
     limit: int = 50,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get task history entries."""
     repo = TaskRepository(db)
@@ -223,7 +234,7 @@ async def get_task_metrics(
     task_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get task metrics and analytics."""
     repo = TaskRepository(db)
@@ -240,7 +251,7 @@ async def process_task_with_ai(
     task_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Process a task using AI agents via CrewOrchestrator.
 
@@ -262,7 +273,7 @@ async def process_task_with_ai(
 
         if "error" in results:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=results["error"]
             )
 
@@ -271,7 +282,7 @@ async def process_task_with_ai(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing task with AI: {str(e)}"
         )
 
@@ -284,7 +295,7 @@ async def create_task_comment(
     content: str,
     parent_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Create a new comment for a task."""
     try:
@@ -301,7 +312,7 @@ async def create_task_comment(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating comment: {str(e)}"
         )
 
@@ -313,7 +324,7 @@ async def get_task_comments(
     skip: int = 0,
     limit: int = 50,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get all comments for a task."""
     try:
@@ -325,7 +336,7 @@ async def get_task_comments(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving comments: {str(e)}"
         )
 
@@ -336,7 +347,7 @@ async def update_task_comment(
     user_id: int,
     content: str,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Update a task comment."""
     try:
@@ -345,7 +356,7 @@ async def update_task_comment(
         comment = await service.update_comment(comment_id, user_id, content)
         if not comment:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Comment not found or you don't have permission to update it"
             )
         return comment
@@ -353,17 +364,17 @@ async def update_task_comment(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating comment: {str(e)}"
         )
 
 
-@router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/comments/{comment_id}", status_code=http_status.HTTP_204_NO_CONTENT)
 async def delete_task_comment(
     comment_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Delete a task comment."""
     try:
@@ -372,7 +383,7 @@ async def delete_task_comment(
         success = await service.delete_comment(comment_id, user_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Comment not found or you don't have permission to delete it"
             )
         return {"message": "Comment deleted successfully"}
@@ -380,7 +391,7 @@ async def delete_task_comment(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting comment: {str(e)}"
         )
 
@@ -396,7 +407,7 @@ async def create_task_category(
     icon: Optional[str] = None,
     parent_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Create a new task category."""
     try:
@@ -413,7 +424,7 @@ async def create_task_category(
         return {"id": category.id, "name": category.name, "message": "Category created successfully"}
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating category: {str(e)}"
         )
 
@@ -423,7 +434,7 @@ async def get_task_categories(
     organization_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get all task categories for an organization."""
     try:
@@ -440,7 +451,7 @@ async def get_task_categories(
         } for cat in categories]
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving categories: {str(e)}"
         )
 
@@ -450,7 +461,7 @@ async def get_task_category(
     category_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get a task category by ID."""
     try:
@@ -459,7 +470,7 @@ async def get_task_category(
         category = await service.get_category(category_id)
         if not category:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Category with ID {category_id} not found"
             )
         return {
@@ -475,7 +486,7 @@ async def get_task_category(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving category: {str(e)}"
         )
 
@@ -490,7 +501,7 @@ async def update_task_category(
     icon: Optional[str] = None,
     parent_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Update a task category."""
     try:
@@ -507,11 +518,11 @@ async def update_task_category(
             update_data["icon"] = icon
         if parent_id is not None:
             update_data["parent_id"] = parent_id
-            
+
         category = await service.update_category(category_id, **update_data)
         if not category:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Category with ID {category_id} not found"
             )
         return {
@@ -523,17 +534,17 @@ async def update_task_category(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating category: {str(e)}"
         )
 
 
-@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/categories/{category_id}", status_code=http_status.HTTP_204_NO_CONTENT)
 async def delete_task_category(
     category_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Delete a task category."""
     try:
@@ -542,7 +553,7 @@ async def delete_task_category(
         success = await service.delete_category(category_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Category with ID {category_id} not found"
             )
         return {"message": "Category deleted successfully"}
@@ -550,7 +561,7 @@ async def delete_task_category(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting category: {str(e)}"
         )
 
@@ -565,7 +576,7 @@ async def create_task_attachment(
     file_type: Optional[str] = None,
     file_size: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Create a new attachment for a task."""
     try:
@@ -584,7 +595,7 @@ async def create_task_attachment(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating attachment: {str(e)}"
         )
 
@@ -594,7 +605,7 @@ async def get_task_attachments(
     task_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Get all attachments for a task."""
     try:
@@ -606,17 +617,17 @@ async def get_task_attachments(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving attachments: {str(e)}"
         )
 
 
-@router.delete("/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/attachments/{attachment_id}", status_code=http_status.HTTP_204_NO_CONTENT)
 async def delete_task_attachment(
     attachment_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db)
-    #current_user=Depends(get_current_user)
+    # current_user=Depends(get_current_user)
 ):
     """Delete a task attachment."""
     try:
@@ -625,7 +636,7 @@ async def delete_task_attachment(
         success = await service.delete_attachment(attachment_id, user_id)
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Attachment not found or you don't have permission to delete it"
             )
         return {"message": "Attachment deleted successfully"}
@@ -633,6 +644,75 @@ async def delete_task_attachment(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting attachment: {str(e)}"
+        )
+
+
+@router.get("/calendar", response_model=List[Dict])
+async def get_calendar_tasks(
+    start_date: datetime,
+    end_date: datetime,
+    user_id: int,
+    project_id: Optional[int] = None,
+    expand_recurring: bool = Query(
+        True, description="Whether to expand recurring tasks into individual occurrences"),
+    db: AsyncSession = Depends(get_db)
+    # current_user=Depends(get_current_user)
+):
+    """Get tasks formatted for calendar view with expanded recurring tasks.
+
+    This endpoint retrieves tasks for a calendar view and expands recurring tasks
+    into individual occurrences based on their recurrence pattern.
+
+    Args:
+        start_date: Start of the calendar range
+        end_date: End of the calendar range
+        user_id: User ID for filtering
+        project_id: Optional project filter
+        expand_recurring: Whether to expand recurring tasks into occurrences
+
+    Returns:
+        List of task dictionaries formatted for calendar display
+    """
+    try:
+        repo = TaskRepository(db)
+        service = TaskService(repo)
+
+        # Ensure timezone-naive datetime objects
+        if start_date.tzinfo:
+            start_date = start_date.replace(tzinfo=None)
+        if end_date.tzinfo:
+            end_date = end_date.replace(tzinfo=None)
+
+        # Validate date range
+        if start_date > end_date:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="Start date must be before end date"
+            )
+
+        # Limit range to prevent performance issues (e.g., max 3 months)
+        max_range = timedelta(days=90)
+        if end_date - start_date > max_range:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Date range too large. Maximum range is {max_range.days} days"
+            )
+
+        calendar_tasks = await service.get_calendar_tasks(
+            start_date=start_date,
+            end_date=end_date,
+            project_id=project_id,
+            user_id=user_id,
+            expand_recurring=expand_recurring
+        )
+
+        return calendar_tasks
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving calendar tasks: {str(e)}"
         )
