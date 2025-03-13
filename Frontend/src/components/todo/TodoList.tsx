@@ -709,35 +709,36 @@ const TodoList: React.FC = () => {
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">Tasks</h2>
         </div>
-        <Dialog open={showTodoForm} onOpenChange={setShowTodoForm}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowTodoForm(true)}>
-              <Plus className="h-4 w-4" />
-              New Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-card">
-            <DialogHeader>
-              <DialogTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DialogTitle>
-            </DialogHeader>
-            <div className="pt-4">
-              <TodoForm
-                onClose={() => {
-                  setShowTodoForm(false);
-                  setEditingTask(null);
-                }}
-                user={user}
-                todo={editingTask || undefined}
-                onSubmit={handleTodoFormSubmit}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-2" 
+          onClick={() => {
+            setEditingTask(null);
+            setShowTodoForm(true);
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          New Task
+        </Button>
       </div>
       {renderTodoColumn('log', 'Log')}
       {renderTodoColumn('thisWeek', 'This Week')}
       {renderTodoColumn('today', 'Today')}
       {renderTodoColumn('done', 'Done')}
+
+      {showTodoForm && (
+        <TodoForm
+          onClose={() => {
+            setShowTodoForm(false);
+            setEditingTask(null);
+          }}
+          user={user}
+          todo={editingTask || undefined}
+          onSubmit={handleTodoFormSubmit}
+          onDelete={handleDeleteTodo}
+        />
+      )}
     </div>
   );
 };
