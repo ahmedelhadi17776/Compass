@@ -35,6 +35,13 @@ export interface CalendarEvent {
   blockers?: string[];
   health_score?: number;
   risk_factors?: Record<string, any>;
+
+  // New fields for recurring events
+  is_recurring?: boolean;
+  is_original?: boolean;
+  original_id?: string;
+  occurrence_num?: number;
+  due_date?: Date; // Used by calendar endpoint
 }
 
 export interface CalendarViewProps {

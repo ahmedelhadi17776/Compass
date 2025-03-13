@@ -1,3 +1,8 @@
+from sqlalchemy import text
+from alembic import context
+from sqlalchemy import engine_from_config, pool, JSON, Text, DateTime, Boolean
+from logging.config import fileConfig
+from Backend.data_layer.database.models.base import Base
 from Backend.data_layer.database.models import (
     User, Role, UserRole, UserPreferences,
     Organization, Project, ProjectMember,
@@ -15,18 +20,13 @@ from Backend.data_layer.database.models import (
     TodoPriority, TodoStatus, WorkflowStepExecution, DailyHabit,
     WorkflowAgentInteraction
 )
-from Backend.data_layer.database.models.base import Base
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, JSON, Text, DateTime, Boolean
-from alembic import context
 import os
 import sys
 from pathlib import Path
-from sqlalchemy import text
 
 # Add the parent directory of Backend to the Python path
 backend_dir = str(Path(__file__).resolve().parents[3])
-sys.path.insert(0, backend_dir)
+sys.path.insert(0, str(Path(backend_dir).parent))
 
 
 # Load Alembic configuration
@@ -65,11 +65,31 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        def compare_type(context, inspected_column,
+                         metadata_column, inspected_type, metadata_type):
+            # Skip JSON type comparison
+            if hasattr(metadata_type, 'json_type') or (
+                    hasattr(inspected_type, 'json_type')):
+                return False
+            if str(metadata_type) == 'JSON' or str(inspected_type) == 'JSON':
+                return False
+            return None
+
+        def compare_server_default(context, inspected_column,
+                                   metadata_column, inspected_default, metadata_default,
+                                   rendered_metadata_default):
+            if hasattr(metadata_column.type, 'json_type') or (
+                    hasattr(inspected_column.type, 'json_type')):
+                return False
+            if str(metadata_column.type) == 'JSON' or str(inspected_column.type) == 'JSON':
+                return False
+            return None
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_type=True,  # Compare column types
-            compare_server_default=True,  # Compare default values
+            compare_type=compare_type,
+            compare_server_default=compare_server_default,
         )
 
         with context.begin_transaction():

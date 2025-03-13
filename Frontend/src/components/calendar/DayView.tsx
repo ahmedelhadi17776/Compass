@@ -4,7 +4,7 @@ import './DayView.css';
 import { cn } from '@/lib/utils';
 import EventCard from './EventCard';
 import { CalendarEvent } from './types';
-import { useWeekTasks, useUpdateTask } from '@/hooks/useTasks';
+import { useDayTasks, useUpdateTask } from '@/hooks/useTasks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface DayViewProps {
@@ -24,9 +24,9 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     isError,
     error,
     refetch 
-  } = useWeekTasks(date);
+  } = useDayTasks(date, 1, { expand_recurring: true });
   
-  const updateTaskMutation = useUpdateTask();
+  const updateTaskMutation = useUpdateTask(1);
 
   useEffect(() => {
     const updateTimeIndicator = () => {

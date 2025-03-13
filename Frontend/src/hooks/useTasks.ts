@@ -1,18 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '@/api/tasks';
 import { CalendarEvent } from '@/components/calendar/types';
-import { startOfWeek, endOfWeek } from 'date-fns';
+import { startOfWeek, endOfWeek, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth } from 'date-fns';
 
-export const useWeekTasks = (date: Date, userId: number = 1) => {
-  const startDate = startOfWeek(date);
-  const endDate = endOfWeek(date);
-
+export const useCalendarTasks = (
+  startDate: Date,
+  endDate: Date,
+  userId: number = 1,
+  options?: {
+    expand_recurring?: boolean;
+    project_id?: number;
+  }
+) => {
   return useQuery({
-    queryKey: ['tasks', 'week', startDate.toISOString(), endDate.toISOString(), userId],
+    queryKey: [
+      'tasks',
+      'calendar',
+      startDate.toISOString(),
+      endDate.toISOString(),
+      userId,
+      options?.expand_recurring,
+      options?.project_id
+    ],
     queryFn: () => tasksApi.getTasks({
-      start_date: startDate,
-      end_date: endDate,
+      due_date_start: startDate,
+      due_date_end: endDate,
       user_id: userId,
+      project_id: options?.project_id,
     }),
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
@@ -20,6 +34,30 @@ export const useWeekTasks = (date: Date, userId: number = 1) => {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
+};
+
+export const useWeekTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+  const startDate = startOfWeek(date);
+  const endDate = endOfWeek(date);
+  return useCalendarTasks(startDate, endDate, userId, options);
+};
+
+export const useDayTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+  const startDate = startOfDay(date);
+  const endDate = endOfDay(date);
+  return useCalendarTasks(startDate, endDate, userId, options);
+};
+
+export const useThreeDayTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+  const startDate = startOfDay(date);
+  const endDate = endOfDay(addDays(date, 2));
+  return useCalendarTasks(startDate, endDate, userId, options);
+};
+
+export const useMonthTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+  const startDate = startOfMonth(date);
+  const endDate = endOfMonth(date);
+  return useCalendarTasks(startDate, endDate, userId, options);
 };
 
 export const useCreateTask = (userId: number) => {
@@ -37,7 +75,7 @@ export const useUpdateTask = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ taskId, task }: { taskId: string; task: Partial<CalendarEvent> }) => 
+    mutationFn: ({ taskId, task }: { taskId: string; task: Partial<CalendarEvent> }) =>
       tasksApi.updateTask(taskId, task, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
