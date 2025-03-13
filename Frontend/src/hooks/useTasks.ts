@@ -3,17 +3,16 @@ import { tasksApi } from '@/api/tasks';
 import { CalendarEvent } from '@/components/calendar/types';
 import { startOfWeek, endOfWeek } from 'date-fns';
 
-export const useWeekTasks = (date: Date, user_id: number = 1) => {
+export const useWeekTasks = (date: Date, userId: number = 1) => {
   const startDate = startOfWeek(date);
   const endDate = endOfWeek(date);
 
   return useQuery({
-    queryKey: ['tasks', 'week', startDate.toISOString(), user_id],
+    queryKey: ['tasks', 'week', startDate.toISOString(), endDate.toISOString(), userId],
     queryFn: () => tasksApi.getTasks({
-      due_date_start: startDate,
-      due_date_end: endDate,
-      limit: 100,
-      user_id
+      start_date: startDate,
+      end_date: endDate,
+      user_id: userId,
     }),
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
@@ -23,34 +22,34 @@ export const useWeekTasks = (date: Date, user_id: number = 1) => {
   });
 };
 
-export const useCreateTask = (user_id: number = 1) => {
+export const useCreateTask = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (task: Partial<CalendarEvent>) => tasksApi.createTask(task, user_id),
+    mutationFn: (task: Partial<CalendarEvent>) => tasksApi.createTask(task, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 };
 
-export const useUpdateTask = (user_id: number = 1) => {
+export const useUpdateTask = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ taskId, task }: { taskId: string; task: Partial<CalendarEvent> }) => 
-      tasksApi.updateTask(taskId, task, user_id),
+      tasksApi.updateTask(taskId, task, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 };
 
-export const useDeleteTask = (user_id: number = 1) => {
+export const useDeleteTask = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (taskId: string) => tasksApi.deleteTask(taskId, user_id),
+    mutationFn: (taskId: string) => tasksApi.deleteTask(taskId, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
