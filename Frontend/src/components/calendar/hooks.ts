@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tasksApi } from '@/api/tasks';
-import { CalendarEvent } from '@/components/calendar/types';
+import { tasksApi } from './api';
+import { CalendarEvent } from './types';
 import { startOfWeek, endOfWeek, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth } from 'date-fns';
 
 export const useCalendarTasks = (

@@ -5,7 +5,7 @@ import HealthDashboard from './components/health/HealthDashboard';
 import Home from './components/home/Home';
 import Workflow from './components/workflow/Workflow';
 import { Tasks } from './components/tasks/Tasks';
-import Calendar from './components/calendar/Calendar';
+import Calendar from './components/calendar/components/Calendar';
 import AIAssistant from './components/ai/AIAssistant';
 import FocusMode from './components/productivity/FocusMode';
 import FileManager from './components/files/FileManager';

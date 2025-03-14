@@ -2,7 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import './EventCard.css';
-import { CalendarEvent } from './types';
+import { CalendarEvent } from '../types';
 
 interface EventCardProps {
   event: CalendarEvent;

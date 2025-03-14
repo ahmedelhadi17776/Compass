@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import { X } from 'lucide-react';
-import { useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks';
-import { CalendarEvent } from './types';
+import { useCreateTask, useUpdateTask, useDeleteTask } from '@/components/calendar/hooks';
+import { CalendarEvent } from '../types';
 import { Button } from '@/components/ui/button';
 import "react-datepicker/dist/react-datepicker.css";
 import './TaskForm.css';

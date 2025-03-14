@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CalendarEvent } from '@/components/calendar/types';
+import { CalendarEvent } from './types';
 
 const API_BASE_URL = 'http://localhost:8000';
 

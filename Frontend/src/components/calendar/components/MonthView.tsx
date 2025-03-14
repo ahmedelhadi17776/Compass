@@ -2,8 +2,8 @@ import React from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
 import './MonthView.css';
-import { CalendarEvent } from './types';
-import { useMonthTasks } from '@/hooks/useTasks';
+import { CalendarEvent } from '../types';
+import { useMonthTasks } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface MonthViewProps {

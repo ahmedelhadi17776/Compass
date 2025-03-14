@@ -8,7 +8,7 @@ import ThreeDayView from './ThreeDayView';
 import MonthView from './MonthView';
 import TaskForm from './TaskForm';
 import ViewSelector from './ViewSelector';
-import { CalendarEvent } from './types';
+import { CalendarEvent } from '../types';
 import { Button } from "@/components/ui/button";
 
 type ViewType = 'day' | 'threeDays' | 'week' | 'month';
