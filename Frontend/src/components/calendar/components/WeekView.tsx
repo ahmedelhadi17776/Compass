@@ -1,19 +1,21 @@
 import React from 'react';
-import { format, isSameDay, addDays } from 'date-fns';
+import { format, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-import './ThreeDayView.css';
+import './WeekView.css';
 import EventCard from './EventCard';
-import { CalendarEvent } from './types';
-import { useThreeDayTasks, useUpdateTask } from '@/hooks/useTasks';
+import { CalendarEvent } from '../types';
+import { useWeekTasks, useUpdateTask } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
-interface ThreeDayViewProps {
+interface WeekViewProps {
   date: Date;
   onEventClick: (event: CalendarEvent) => void;
   darkMode?: boolean;
 }
 
-const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMode }) => {
+const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
 
@@ -22,10 +24,11 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     isLoading, 
     isError,
     error,
-    refetch 
-  } = useThreeDayTasks(date, 1, { expand_recurring: true });
+    refetch,
+    isFetching 
+  } = useWeekTasks(date);
   
-  const updateTaskMutation = useUpdateTask(1);
+  const updateTaskMutation = useUpdateTask();
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -35,22 +38,9 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     return () => clearInterval(timer);
   }, []);
 
-  const getCurrentTimePosition = () => {
-    const hours = currentTime.getHours();
-    const minutes = currentTime.getMinutes();
-    return (hours * 60) + minutes;
-  };
-
-  const threeDayEvents = events.filter(event => {
-    const eventStart = new Date(event.start);
-    const startOfRange = new Date(date);
-    startOfRange.setHours(0, 0, 0, 0);
-    
-    const endOfRange = addDays(startOfRange, 2);
-    endOfRange.setHours(23, 59, 59, 999);
-    
-    return eventStart >= startOfRange && eventStart <= endOfRange;
-  });
+  const weekStart = startOfWeek(date);
+  const days = [0, 1, 2, 3, 4, 5, 6].map(offset => addDays(weekStart, offset));
+  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
     setDraggingEvent(event);
@@ -63,7 +53,7 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
   const handleDrop = async (hour: number, e: React.DragEvent) => {
     e.preventDefault();
     if (!draggingEvent) return;
-    
+
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
@@ -91,14 +81,48 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
   };
 
   const getDurationInMinutes = (start: Date, end: Date): number => {
-    return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60);
+    return (end.getTime() - start.getTime()) / (1000 * 60);
   };
 
-  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
-  const days = [date, addDays(date, 1), addDays(date, 2)];
-
   if (isLoading) {
-    return <div className="three-day-view"><Skeleton className="w-full h-full" /></div>;
+    return (
+      <div className="week-view">
+        <div className="week-container">
+          <div className="days-header">
+            <div className="time-label-header"></div>
+            {Array(7).fill(null).map((_, i) => (
+              <div key={i} className="day-header">
+                <Skeleton className="h-6 w-20" />
+              </div>
+            ))}
+          </div>
+          <div className="time-slots">
+            {Array(24).fill(null).map((_, hour) => (
+              <div key={hour} className="time-row">
+                <div className="time-label">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="days-content">
+                  {Array(7).fill(null).map((_, i) => (
+                    <div key={i} className="day-column">
+                      {Math.random() > 0.8 && (
+                        <Skeleton 
+                          className="absolute w-[calc(100%-8px)] rounded-md" 
+                          style={{
+                            height: `${Math.floor(Math.random() * 100 + 30)}px`,
+                            top: `${Math.floor(Math.random() * 45)}px`
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (isError) {
@@ -110,22 +134,23 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
         )}>
           {error instanceof Error ? error.message : 'Failed to load events'}
         </div>
-        <button
+        <Button
           onClick={() => refetch()}
-          className={cn(
-            "px-4 py-2 rounded-md",
-            darkMode ? "bg-gray-800 text-white hover:bg-gray-700" : "bg-white text-gray-900 hover:bg-gray-50"
-          )}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          disabled={isFetching}
         >
-          Retry
-        </button>
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          {isFetching ? 'Retrying...' : 'Try Again'}
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="three-day-view">
-      <div className="three-day-container">
+    <div className={cn("week-view", darkMode && "dark")}>
+      <div className="week-container">
         <div className="days-header">
           <div className="time-label-header"></div>
           {days.map(day => (
@@ -136,18 +161,18 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
                 isSameDay(day, new Date()) && "current-day"
               )}
             >
-              <div className="day-name">{format(day, 'EEEE')}</div>
-              <div className="day-date">{format(day, 'd MMMM')}</div>
+              <div className="day-name">{format(day, 'EEE')}</div>
+              <div className="day-date">{format(day, 'MMM d')}</div>
             </div>
           ))}
         </div>
         <div className="time-slots">
           {timeSlots.map(hour => (
-            <div key={hour} className="time-slot">
+            <div key={hour} className="time-row">
               <div className="time-label">
                 {format(new Date().setHours(hour, 0), 'h:mm a')}
               </div>
-              <div className="time-content">
+              <div className="days-content">
                 {days.map(day => (
                   <div
                     key={day.toISOString()}
@@ -157,11 +182,6 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
                     )}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(hour, e)}
-                    style={
-                      isSameDay(day, currentTime) && hour === currentTime.getHours() 
-                        ? { '--current-time-top': currentTime.getMinutes() } as React.CSSProperties 
-                        : undefined
-                    }
                   >
                     {isSameDay(day, currentTime) && hour === currentTime.getHours() && (
                       <div 
@@ -171,20 +191,19 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
                         }}
                       />
                     )}
-                    {threeDayEvents
-                      .filter(event => {
+                    {events
+                      .filter((event: CalendarEvent) => {
                         const eventStart = new Date(event.start);
-                        const eventHour = eventStart.getHours();
-                        return eventHour === hour && isSameDay(eventStart, day);
+                        return eventStart.getHours() === hour && isSameDay(eventStart, day);
                       })
-                      .map(event => (
+                      .map((event: CalendarEvent) => (
                         <EventCard
                           key={event.id}
                           event={event}
                           onClick={onEventClick}
                           onDragStart={handleDragStart}
                           style={{
-                            height: `${getDurationInMinutes(event.start, event.end)}px`,
+                            height: `${getDurationInMinutes(new Date(event.start), new Date(event.end))}px`,
                             top: `${new Date(event.start).getMinutes()}px`
                           }}
                         />
@@ -200,4 +219,4 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
   );
 };
 
-export default ThreeDayView;
+export default WeekView;

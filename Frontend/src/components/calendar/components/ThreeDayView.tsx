@@ -1,21 +1,19 @@
 import React from 'react';
-import { format, isSameDay, startOfWeek, addDays } from 'date-fns';
+import { format, isSameDay, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-import './WeekView.css';
+import './ThreeDayView.css';
 import EventCard from './EventCard';
-import { CalendarEvent } from './types';
-import { useWeekTasks, useUpdateTask } from '@/hooks/useTasks';
+import { CalendarEvent } from '../types';
+import { useThreeDayTasks, useUpdateTask } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
 
-interface WeekViewProps {
+interface ThreeDayViewProps {
   date: Date;
   onEventClick: (event: CalendarEvent) => void;
   darkMode?: boolean;
 }
 
-const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => {
+const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
 
@@ -24,11 +22,10 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
     isLoading, 
     isError,
     error,
-    refetch,
-    isFetching 
-  } = useWeekTasks(date);
+    refetch 
+  } = useThreeDayTasks(date, 1, { expand_recurring: true });
   
-  const updateTaskMutation = useUpdateTask();
+  const updateTaskMutation = useUpdateTask(1);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -38,9 +35,22 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
     return () => clearInterval(timer);
   }, []);
 
-  const weekStart = startOfWeek(date);
-  const days = [0, 1, 2, 3, 4, 5, 6].map(offset => addDays(weekStart, offset));
-  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
+  const getCurrentTimePosition = () => {
+    const hours = currentTime.getHours();
+    const minutes = currentTime.getMinutes();
+    return (hours * 60) + minutes;
+  };
+
+  const threeDayEvents = events.filter(event => {
+    const eventStart = new Date(event.start);
+    const startOfRange = new Date(date);
+    startOfRange.setHours(0, 0, 0, 0);
+    
+    const endOfRange = addDays(startOfRange, 2);
+    endOfRange.setHours(23, 59, 59, 999);
+    
+    return eventStart >= startOfRange && eventStart <= endOfRange;
+  });
 
   const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
     setDraggingEvent(event);
@@ -53,7 +63,7 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
   const handleDrop = async (hour: number, e: React.DragEvent) => {
     e.preventDefault();
     if (!draggingEvent) return;
-
+    
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
@@ -81,48 +91,14 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
   };
 
   const getDurationInMinutes = (start: Date, end: Date): number => {
-    return (end.getTime() - start.getTime()) / (1000 * 60);
+    return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60);
   };
 
+  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
+  const days = [date, addDays(date, 1), addDays(date, 2)];
+
   if (isLoading) {
-    return (
-      <div className="week-view">
-        <div className="week-container">
-          <div className="days-header">
-            <div className="time-label-header"></div>
-            {Array(7).fill(null).map((_, i) => (
-              <div key={i} className="day-header">
-                <Skeleton className="h-6 w-20" />
-              </div>
-            ))}
-          </div>
-          <div className="time-slots">
-            {Array(24).fill(null).map((_, hour) => (
-              <div key={hour} className="time-row">
-                <div className="time-label">
-                  <Skeleton className="h-4 w-16" />
-                </div>
-                <div className="days-content">
-                  {Array(7).fill(null).map((_, i) => (
-                    <div key={i} className="day-column">
-                      {Math.random() > 0.8 && (
-                        <Skeleton 
-                          className="absolute w-[calc(100%-8px)] rounded-md" 
-                          style={{
-                            height: `${Math.floor(Math.random() * 100 + 30)}px`,
-                            top: `${Math.floor(Math.random() * 45)}px`
-                          }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="three-day-view"><Skeleton className="w-full h-full" /></div>;
   }
 
   if (isError) {
@@ -134,23 +110,22 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
         )}>
           {error instanceof Error ? error.message : 'Failed to load events'}
         </div>
-        <Button
+        <button
           onClick={() => refetch()}
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          disabled={isFetching}
+          className={cn(
+            "px-4 py-2 rounded-md",
+            darkMode ? "bg-gray-800 text-white hover:bg-gray-700" : "bg-white text-gray-900 hover:bg-gray-50"
+          )}
         >
-          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-          {isFetching ? 'Retrying...' : 'Try Again'}
-        </Button>
+          Retry
+        </button>
       </div>
     );
   }
 
   return (
-    <div className={cn("week-view", darkMode && "dark")}>
-      <div className="week-container">
+    <div className="three-day-view">
+      <div className="three-day-container">
         <div className="days-header">
           <div className="time-label-header"></div>
           {days.map(day => (
@@ -161,18 +136,18 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
                 isSameDay(day, new Date()) && "current-day"
               )}
             >
-              <div className="day-name">{format(day, 'EEE')}</div>
-              <div className="day-date">{format(day, 'MMM d')}</div>
+              <div className="day-name">{format(day, 'EEEE')}</div>
+              <div className="day-date">{format(day, 'd MMMM')}</div>
             </div>
           ))}
         </div>
         <div className="time-slots">
           {timeSlots.map(hour => (
-            <div key={hour} className="time-row">
+            <div key={hour} className="time-slot">
               <div className="time-label">
                 {format(new Date().setHours(hour, 0), 'h:mm a')}
               </div>
-              <div className="days-content">
+              <div className="time-content">
                 {days.map(day => (
                   <div
                     key={day.toISOString()}
@@ -182,6 +157,11 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
                     )}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(hour, e)}
+                    style={
+                      isSameDay(day, currentTime) && hour === currentTime.getHours() 
+                        ? { '--current-time-top': currentTime.getMinutes() } as React.CSSProperties 
+                        : undefined
+                    }
                   >
                     {isSameDay(day, currentTime) && hour === currentTime.getHours() && (
                       <div 
@@ -191,19 +171,20 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
                         }}
                       />
                     )}
-                    {events
-                      .filter((event: CalendarEvent) => {
+                    {threeDayEvents
+                      .filter(event => {
                         const eventStart = new Date(event.start);
-                        return eventStart.getHours() === hour && isSameDay(eventStart, day);
+                        const eventHour = eventStart.getHours();
+                        return eventHour === hour && isSameDay(eventStart, day);
                       })
-                      .map((event: CalendarEvent) => (
+                      .map(event => (
                         <EventCard
                           key={event.id}
                           event={event}
                           onClick={onEventClick}
                           onDragStart={handleDragStart}
                           style={{
-                            height: `${getDurationInMinutes(new Date(event.start), new Date(event.end))}px`,
+                            height: `${getDurationInMinutes(event.start, event.end)}px`,
                             top: `${new Date(event.start).getMinutes()}px`
                           }}
                         />
@@ -219,4 +200,4 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
   );
 };
 
-export default WeekView;
+export default ThreeDayView;

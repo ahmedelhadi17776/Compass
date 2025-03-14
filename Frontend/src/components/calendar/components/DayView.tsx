@@ -3,8 +3,8 @@ import { format, isSameDay } from 'date-fns';
 import './DayView.css';
 import { cn } from '@/lib/utils';
 import EventCard from './EventCard';
-import { CalendarEvent } from './types';
-import { useDayTasks, useUpdateTask } from '@/hooks/useTasks';
+import { CalendarEvent } from '../types';
+import { useDayTasks, useUpdateTask } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface DayViewProps {
