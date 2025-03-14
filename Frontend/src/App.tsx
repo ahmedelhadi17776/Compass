@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Dashboard from './components/dashboard/Dashboard';
 import HealthDashboard from './components/health/HealthDashboard';
-import Home from './components/home/Home';
 import Workflow from './components/workflow/Workflow';
 import { Tasks } from './components/tasks/Tasks';
 import Calendar from './components/calendar/components/Calendar';
@@ -20,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useQueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
+import Chatbot from './components/chatbot/Chatbot';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -57,6 +57,7 @@ function App() {
                           <Route path="workflow" element={<Workflow />} />
                         </Routes>
                       </main>
+                      <Chatbot />
                     </SidebarInset>
                   </SidebarProvider>
                 </ProtectedRoute>
