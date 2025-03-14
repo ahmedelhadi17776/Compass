@@ -9,13 +9,6 @@ import MonthView from './MonthView';
 import TaskForm from './TaskForm';
 import ViewSelector from './ViewSelector';
 import { CalendarEvent } from './types';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 type ViewType = 'day' | 'threeDays' | 'week' | 'month';
@@ -30,21 +23,6 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
   const [currentView, setCurrentView] = useState<ViewType>('week');
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [events, setEvents] = useState<CalendarEvent[]>([
-    {
-      id: '1',
-      title: 'Sample Event',
-      start: new Date(),
-      end: new Date(new Date().setHours(new Date().getHours() + 1)),
-      status: 'TODO',
-      priority: 'MEDIUM',
-      project_id: 1,
-      organization_id: 1,
-      creator_id: 1,
-      user_id: 1,
-      category: 'Work'
-    }
-  ]);
 
   const handleEventClick = (event: CalendarEvent) => {
     setEditingEvent(event);
@@ -91,35 +69,6 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
 
   const handleViewChange = (view: ViewType) => {
     setCurrentView(view);
-  };
-
-  const handleCreateEvent = (event: Partial<CalendarEvent>) => {
-    const newEvent: CalendarEvent = {
-      ...event,
-      id: Date.now().toString(),
-      status: 'TODO',
-      priority: 'MEDIUM',
-      project_id: 1,
-      organization_id: 1,
-      creator_id: 1,
-      user_id: 1,
-      category: event.category || 'Default'
-    } as CalendarEvent;
-    
-    setEvents(prev => [...prev, newEvent]);
-    setShowTaskForm(false);
-  };
-
-  const handleUpdateEvent = (updatedEvent: CalendarEvent) => {
-    setEvents(prev => prev.map(event => 
-      event.id === updatedEvent.id ? updatedEvent : event
-    ));
-    setShowTaskForm(false);
-  };
-
-  const handleDeleteEvent = (eventId: string) => {
-    setEvents(prev => prev.filter(event => event.id !== eventId));
-    setShowTaskForm(false);
   };
 
   const renderView = () => {
