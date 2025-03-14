@@ -55,7 +55,6 @@ const Chatbot: React.FC = () => {
       // Start opening animation
       setIsOpening(true);
       setIsChatOpen(true);
-      setIsFullPage(false);
       // Reset opening state after animation completes
       setTimeout(() => {
         setIsOpening(false);
@@ -63,6 +62,7 @@ const Chatbot: React.FC = () => {
     }
   };
 
+  // This function is kept for compatibility but will be replaced by navigation to AI Assistant
   const toggleFullPage = () => {
     setIsFullPage(!isFullPage);
   };
@@ -83,6 +83,7 @@ const Chatbot: React.FC = () => {
           setPosition={setPosition}
           isClosing={isClosing}
           isOpening={isOpening}
+          onClose={toggleChat}
         />
       )}
     </>

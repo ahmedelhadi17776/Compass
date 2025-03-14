@@ -15,15 +15,13 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    if (isHovered) {
+    if (isHovered && !isChatOpen) {
       timeoutId = setTimeout(() => setShowTooltip(true), 500);
     } else {
       setShowTooltip(false);
     }
     return () => clearTimeout(timeoutId);
-  }, [isHovered]);
-
-  if (isChatOpen) return null;
+  }, [isHovered, isChatOpen]);
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -31,7 +29,7 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
         onClick={toggleChat}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="w-12 h-12 bg-[#2a2a2a] text-[#e5e5e5] rounded-full shadow-md hover:shadow-lg hover:bg-[#3b3b3b] transition-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#8b5cf6] border-b-[2px] border-[#E7E7E7]"
+        className="w-12 h-12 bg-[#2a2a2a] text-[#e5e5e5] rounded-full shadow-md hover:shadow-lg hover:bg-[#3b3b3b] transition-all flex items-center justify-center focus:outline-none border-b-[2px] border-[#E7E7E7]"
         aria-label="Open chat"
         tabIndex={0}
       >

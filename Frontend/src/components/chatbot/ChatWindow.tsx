@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Message, Position } from './types';
 import { useTheme } from '@/contexts/theme-provider';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatWindowProps {
   messages: Message[];
@@ -14,6 +15,7 @@ interface ChatWindowProps {
   setPosition: React.Dispatch<React.SetStateAction<Position>>;
   isClosing: boolean;
   isOpening: boolean;
+  onClose: () => void;
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -28,12 +30,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   setPosition,
   isClosing,
   isOpening,
+  onClose
 }) => {
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   const isDarkTheme = theme === 'dark';
   const [hasInitializedAnimation, setHasInitializedAnimation] = useState(false);
+  const navigate = useNavigate();
 
   // Initialize animation state
   useEffect(() => {
@@ -109,6 +113,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const { opacity, scale } = getAnimationStyles();
 
+  // Handle navigation to AI Assistant page
+  const handleExpandToAIAssistant = () => {
+    // Close the chat window
+    onClose();
+    // Navigate to the AI Assistant page
+    navigate('/ai', { 
+      state: { 
+        fromChatWindow: true,
+        chatHistory: messages 
+      } 
+    });
+  };
+
   return (
     <div
       ref={chatWindowRef}
@@ -125,7 +142,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           : `translate(${position.x}px, ${position.y}px) scale(${scale})`,
         borderRadius: isFullPage ? '0' : '12px',
         overflow: 'hidden',
-        zIndex: 40,
+        zIndex: 60,
         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         transition: 'width 0.2s ease, height 0.2s ease, border-radius 0.2s ease, opacity 0.3s ease, transform 0.3s ease',
         opacity: opacity,
@@ -143,42 +160,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         <h1 className={`text-lg font-medium ${isDarkTheme ? 'text-[#e5e5e5]' : 'text-gray-800'}`}>AI Assistant</h1>
         <div className="flex space-x-2">
           <button
-            onClick={toggleFullPage}
+            onClick={handleExpandToAIAssistant}
             className={`p-1.5 rounded-md ${isDarkTheme ? 'hover:bg-[#3b3b3b]' : 'hover:bg-gray-100'} transition-colors`}
-            aria-label={isFullPage ? "Minimize chat" : "Expand chat"}
+            aria-label="Open full AI Assistant"
             tabIndex={0}
           >
-            {isFullPage ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 text-[#E7E7E7]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
-                />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 text-[#E7E7E7]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
-                />
-              </svg>
-            )}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-[#E7E7E7]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
           </button>
           <button
             onClick={toggleChat}
@@ -216,7 +216,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             <div
               className={`max-w-[70%] rounded-lg p-2.5 ${
                 message.sender === 'user'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-white-500 text-white'
                   : isDarkTheme 
                     ? 'bg-[#3b3b3b] text-[#e5e5e5]' 
                     : 'bg-gray-100 text-gray-800'
@@ -243,8 +243,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             placeholder="Type your message..."
             className={`flex-1 p-2 text-sm border ${
               isDarkTheme 
-                ? 'bg-[#262626] border-[#3b3b3b] text-white placeholder-gray-500 focus:border-blue-400' 
-                : 'bg-white border-gray-300 text-gray-800 focus:border-blue-500'
+                ? 'bg-[#262626] border-[#3b3b3b] text-white placeholder-gray-500 focus:border-white-400' 
+                : 'bg-white border-gray-300 text-gray-800 focus:border-white-500'
             } rounded-[15px] focus:outline-none`}
             aria-label="Message input"
             tabIndex={0}
