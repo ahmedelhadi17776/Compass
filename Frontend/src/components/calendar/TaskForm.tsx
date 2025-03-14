@@ -44,7 +44,20 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     { value: 'other', label: 'Other' }
   ];
 
-  const [formData, setFormData] = useState<Partial<CalendarEvent>>({
+  type RecurrenceType = NonNullable<CalendarEvent['recurrence']>;
+
+  const recurrenceTypes: { value: RecurrenceType; label: string }[] = [
+    { value: 'None', label: 'None' },
+    { value: 'Daily', label: 'Daily' },
+    { value: 'Weekly', label: 'Weekly' },
+    { value: 'Biweekly', label: 'Bi-Weekly' },
+    { value: 'Monthly', label: 'Monthly' },
+    { value: 'Yearly', label: 'Yearly' },
+    { value: 'Weekdays', label: 'Weekdays (Mon-Fri)' },
+    { value: 'Custom', label: 'Custom' }
+  ];
+
+  const [formData, setFormData] = useState<Partial<CalendarEvent> & { recurrence: RecurrenceType }>({
     title: task?.title || '',
     description: task?.description || '',
     category: task?.category || 'work',
@@ -57,6 +70,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     organization_id: task?.organization_id || 1,
     creator_id: userId,
     user_id: userId,
+    recurrence: (task?.recurrence || 'None') as RecurrenceType,
+    recurrence_end_date: task?.recurrence_end_date || (task?.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
   });
 
   useEffect(() => {
@@ -66,6 +81,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
         start_date: task.start,
         end_date: task.end,
         user_id: userId,
+        recurrence: (task.recurrence || 'None') as RecurrenceType,
+        recurrence_end_date: task.recurrence_end_date || (task.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
       });
     }
   }, [task, userId]);
@@ -83,6 +100,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
             start: formData.start_date,
             end: formData.end_date,
             due_date: formData.end_date,
+            is_recurring: formData.recurrence !== 'None',
+            recurrence: formData.recurrence,
+            recurrence_end_date: formData.recurrence !== 'None' ? formData.recurrence_end_date : undefined,
           }
         });
       } else {
@@ -91,6 +111,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
           start: formData.start_date,
           end: formData.end_date,
           due_date: formData.end_date,
+          is_recurring: formData.recurrence !== 'None',
+          recurrence: formData.recurrence,
+          recurrence_end_date: formData.recurrence !== 'None' ? formData.recurrence_end_date : undefined,
         });
       }
       setTimeout(onClose, 300);
@@ -116,6 +139,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     setIsClosing(true);
     setTimeout(onClose, 300);
   };
+
+  // Show recurrence end date only if recurrence is not None
+  const showRecurrenceEndDate = formData.recurrence !== 'None';
 
   return (
     <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 
@@ -239,6 +265,36 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
                 minDate={formData.start_date}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300">Recurrence</label>
+              <select
+                value={formData.recurrence}
+                onChange={(e) => setFormData({ ...formData, recurrence: e.target.value as RecurrenceType })}
+                className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
+              >
+                {recurrenceTypes.map(type => (
+                  <option key={type.value} value={type.value} className="bg-gray-800">
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {showRecurrenceEndDate && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300">Recurrence End Date</label>
+                <DatePicker
+                  selected={formData.recurrence_end_date}
+                  onChange={(date: Date) => setFormData({ ...formData, recurrence_end_date: date })}
+                  dateFormat="MMMM d, yyyy"
+                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
+                  minDate={formData.start_date}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-between gap-3 mt-6">

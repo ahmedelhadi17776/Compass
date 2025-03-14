@@ -91,22 +91,35 @@ export const tasksApi = {
       const response = await axiosInstance.get(endpoint, { params });
 
       if (Array.isArray(response.data)) {
-        return response.data.map(task => ({
-          ...task,
-          id: String(task.id),
-          start: task.start_date ? new Date(task.start_date) : null,
-          end: task.due_date ? new Date(task.due_date) : null,
-          // Map additional fields from backend to frontend model
-          project_id: task.project_id || 1,
-          organization_id: task.organization_id || 1,
-          creator_id: task.creator_id || user_id,
-          status: task.status || 'TODO',
-          priority: task.priority || 'MEDIUM',
-          is_recurring: task.is_recurring || false,
-          is_original: task.is_original,
-          original_id: task.original_id,
-          occurrence_num: task.occurrence_num
-        }));
+        return response.data.map(task => {
+          // Create date objects without timezone information
+          const startDate = task.start_date ? new Date(task.start_date) : null;
+          const endDate = task.due_date ? new Date(task.due_date) : null;
+          const recurrenceEndDate = task.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined;
+          
+          // For recurring tasks, if this is an occurrence (has original_id), 
+          // we need to fetch the original task to get recurrence details
+          const isRecurringOccurrence = task.is_recurring && task.original_id && !task.is_original;
+          
+          return {
+            ...task,
+            id: String(task.id),
+            start: startDate,
+            end: endDate,
+            // Map additional fields from backend to frontend model
+            project_id: task.project_id || 1,
+            organization_id: task.organization_id || 1,
+            creator_id: task.creator_id || user_id,
+            status: task.status || 'TODO',
+            priority: task.priority || 'MEDIUM',
+            is_recurring: task.is_recurring || false,
+            recurrence: task.recurrence || 'None',
+            recurrence_end_date: recurrenceEndDate,
+            is_original: task.is_original,
+            original_id: task.original_id,
+            occurrence_num: task.occurrence_num
+          };
+        });
       }
       return []
     } catch (error) {
@@ -116,9 +129,30 @@ export const tasksApi = {
   },
 
   getTaskById: async (taskId: string, user_id: number = 1) => {
-    const { data } = await axiosInstance.get(`/tasks/by_id/${taskId}`, {
+    // If it's a recurring task occurrence, extract the original ID
+    const originalId = taskId.includes('_') ? taskId.split('_')[0] : taskId;
+    
+    const { data } = await axiosInstance.get(`/tasks/by_id/${originalId}`, {
       params: { user_id }
     });
+    
+    // Format dates properly
+    if (data) {
+      // Create date objects without timezone information
+      const startDate = data.start_date ? new Date(data.start_date) : null;
+      const endDate = data.due_date ? new Date(data.due_date) : null;
+      const recurrenceEndDate = data.recurrence_end_date ? new Date(data.recurrence_end_date) : undefined;
+      
+      return {
+        ...data,
+        start: startDate,
+        end: endDate,
+        recurrence_end_date: recurrenceEndDate,
+        is_recurring: data.recurrence !== 'None',
+        recurrence: data.recurrence || 'None', // Ensure recurrence is always set
+      };
+    }
+    
     return data;
   },
 
@@ -184,6 +218,9 @@ export const tasksApi = {
                    task.end ? formatDate(task.end) : 
                    task.end_date ? formatDate(task.end_date) : undefined;
 
+    // Format recurrence_end_date without timezone information
+    const recurrenceEndDate = task.recurrence_end_date ? formatDate(task.recurrence_end_date) : undefined;
+
     const { data } = await axiosInstance.post(`/tasks`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
@@ -194,6 +231,7 @@ export const tasksApi = {
       creator_id: task.creator_id || user_id,
       status: mapStatusForBackend(task.status),
       priority: mapPriorityForBackend(task.priority),
+      recurrence_end_date: recurrenceEndDate,
     }, {
       params: { user_id }
     });
@@ -264,6 +302,9 @@ export const tasksApi = {
                    task.end ? formatDate(task.end) : 
                    task.end_date ? formatDate(task.end_date) : undefined;
 
+    // Format recurrence_end_date without timezone information
+    const recurrenceEndDate = task.recurrence_end_date ? formatDate(task.recurrence_end_date) : undefined;
+
     const { data } = await axiosInstance.put(`/tasks/${originalId}`, {
       ...task,
       start_date: formatDate(task.start_date || task.start),
@@ -271,6 +312,7 @@ export const tasksApi = {
       duration: duration,
       status: mapStatusForBackend(task.status),
       priority: mapPriorityForBackend(task.priority),
+      recurrence_end_date: recurrenceEndDate,
     }, {
       params: { user_id }
     });
