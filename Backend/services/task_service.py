@@ -701,7 +701,11 @@ class TaskService:
                     "due_date": task.due_date if hasattr(task, 'due_date') else None,
                     "duration": task.duration if hasattr(task, 'duration') else None,
                     "is_recurring": False,
-                    "is_original": True
+                    "is_original": True,
+                    "status": task.status.value if hasattr(task.status, 'value') else task.status,
+                    "priority": task.priority.value if hasattr(task.priority, 'value') else task.priority,
+                    "recurrence": task.recurrence,
+                    "recurrence_end_date": task.recurrence_end_date
                 }]
 
             occurrences = []
@@ -758,7 +762,11 @@ class TaskService:
                         "duration": task.duration if hasattr(task, 'duration') else None,
                         "is_recurring": True,
                         "is_original": occurrence_num == 0,
-                        "occurrence_num": occurrence_num
+                        "occurrence_num": occurrence_num,
+                        "status": task.status.value if hasattr(task.status, 'value') else task.status,
+                        "priority": task.priority.value if hasattr(task.priority, 'value') else task.priority,
+                        "recurrence": task.recurrence,
+                        "recurrence_end_date": task.recurrence_end_date
                     })
 
                 # Move to the next occurrence
@@ -777,6 +785,10 @@ class TaskService:
                 "duration": task.duration if hasattr(task, 'duration') else None,
                 "is_recurring": False,
                 "is_original": True,
+                "status": task.status.value if hasattr(task.status, 'value') else task.status,
+                "priority": task.priority.value if hasattr(task.priority, 'value') else task.priority,
+                "recurrence": task.recurrence,
+                "recurrence_end_date": task.recurrence_end_date,
                 "error": str(e)
             }]
 
