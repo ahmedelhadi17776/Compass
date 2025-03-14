@@ -43,7 +43,7 @@
 }
 
 .week-view .day-header.current-day {
-  color: #8b5cf6;
+  color: rgb(231, 231, 231);
 }
 
 .week-view .day-header.current-day::after {
@@ -53,7 +53,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background-color: #8b5cf6;
+  background-color: rgb(231, 231, 231);
 }
 
 .week-view .day-name {

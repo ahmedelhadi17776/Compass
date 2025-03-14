@@ -4,7 +4,7 @@
   right: 4px;
   background: #2a2a2a;
   border-radius: 6px;
-  border-left: 4px solid #8b5cf6; /* Default purple accent line */
+  border-left: 3px solid rgb(231, 231, 231); /* Default purple accent line */
   padding: 6px 8px;
   font-size: 0.875rem;
   overflow: hidden;
