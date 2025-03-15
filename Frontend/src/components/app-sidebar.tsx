@@ -130,10 +130,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: "Calendar View",
             url: "/calendar",
           },
-          {
-            title: "Meeting Preparation",
-            url: "/calendar/meetings",
-          },
         ],
       },
       {
@@ -144,33 +140,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           {
             title: "Chatbot",
             url: "/ai",
-          },
-          {
-            title: "Reports & Insights",
-            url: "/ai/reports",
-          },
-          {
-            title: "Agent Management",
-            url: "/ai/agents",
-          },
-        ],
-      },
-      {
-        title: "Email",
-        url: "/email",
-        icon: Mail,
-        items: [
-          {
-            title: "Inbox Management",
-            url: "/email/inbox",
-          },
-          {
-            title: "Email Automation",
-            url: "/email/automation",
-          },
-          {
-            title: "Communication Insights",
-            url: "/email/insights",
           },
         ],
       },
@@ -183,14 +152,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: "Focus Mode",
             url: "/focus",
           },
-          {
-            title: "Metrics",
-            url: "/productivity/metrics",
-          },
-          {
-            title: "Wellness",
-            url: "/productivity/wellness",
-          },
         ],
       },
       {
@@ -201,14 +162,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           {
             title: "Search & Retrieval",
             url: "/files",
-          },
-          {
-            title: "Clipboard History",
-            url: "/files/clipboard",
-          },
-          {
-            title: "Research Agent",
-            url: "/knowledge/research",
           },
         ],
       },

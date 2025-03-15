@@ -1,3 +1,13 @@
+declare global {
+  interface Window {
+    electron: {
+      close: () => void;
+      minimize: () => void;
+      maximize: () => void;
+    };
+  }
+}
+
 import React from 'react';
 import { X, Minus, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -41,7 +51,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ darkMode = false }) => {
 
   return (
     <header className={cn(
-      "h-8 flex items-center justify-between select-none bg-[#1C1C1C] drag-region"
+      "h-8 flex items-center justify-between select-none bg-[#1A1A1A] drag-region"
     )}>
       <div className="flex items-center gap-2 px-2 drag-region">
         <div className="relative top-[8px] left-1 no-drag">
@@ -72,7 +82,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ darkMode = false }) => {
       </div>
 
       <div className={cn(
-        "flex items-center no-drag space-x-2 px-4 #1C1C1C ",
+        "flex items-center no-drag space-x-2 px-4 #1A1A1A ",
         "fixed top-0 right-0 h-11",
       )}>
         <button

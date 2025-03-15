@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, X, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -25,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import authApi, { User } from '@/api/auth';
 import axios from 'axios';
 import { Habit } from '@/types/habit';
-import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/types/todo';
+import { Todo, TodoFormData, TodoStatus } from '@/types/todo';
 
 const API_BASE_URL = 'http://localhost:8000';
 
