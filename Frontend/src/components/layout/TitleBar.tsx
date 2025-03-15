@@ -53,14 +53,14 @@ const TitleBar: React.FC<TitleBarProps> = ({ darkMode = false }) => {
     <header className={cn(
       "h-8 flex items-center justify-between select-none bg-[#1A1A1A] drag-region"
     )}>
-      <div className="flex items-center gap-2 px-2 drag-region">
-        <div className="relative top-[8px] left-1 no-drag">
-          <SidebarTrigger className="-ml-1" />
+      <div className="flex items-center gap-2 px-2 drag-region translate-y-[8px]">
+        <div className="flex items-center h-8 left-1 no-drag">
+          <SidebarTrigger/>
         </div>
-        <div className="relative top-[8px] drag-region">
-          <Separator orientation="vertical" className="mx-1 h-4" />
+        <div className="flex items-center h-8 drag-region">
+          <Separator orientation="vertical" className="h-4 mr-1" />
         </div>
-        <Breadcrumb className="relative top-[8px] no-drag">
+        <Breadcrumb className="flex items-center h-8 no-drag">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
