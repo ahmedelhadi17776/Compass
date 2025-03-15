@@ -32,7 +32,7 @@ import {
 import { useNavigate } from "react-router-dom"
 import { useAuth } from '@/hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
-import { SettingsForm } from "@/components/settings-form"
+import SettingsForm from "@/components/settings-form"
 import { useState } from "react"
 
 interface NavUserProps {
@@ -63,10 +63,15 @@ export function NavUser({ user, onLogout }: NavUserProps) {
 
   // Use the authenticated user data if available
   const displayUser = authUser ? {
-    name: `${authUser.first_name} ${authUser.last_name}`,
-    email: authUser.email,
+    name: `${authUser.first_name || ''} ${authUser.last_name || ''}`.trim(),
+    email: authUser.email || '',
     avatar: user.avatar // Keep the existing avatar
   } : user;
+
+  const getInitials = () => {
+    if (!authUser?.first_name || !authUser?.last_name) return 'AD';
+    return `${authUser.first_name[0]}${authUser.last_name[0]}`;
+  };
 
   return (
     <SidebarMenu>
@@ -81,7 +86,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
                 <Avatar className="h-full w-full rounded-lg">
                   <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
                   <AvatarFallback className="rounded-lg">
-                    {authUser ? `${authUser.first_name[0]}${authUser.last_name[0]}` : 'AD'}
+                    {getInitials()}
                   </AvatarFallback>
                 </Avatar>
               </div>
@@ -104,7 +109,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
                   <Avatar className="h-full w-full rounded-lg">
                     <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
                     <AvatarFallback className="rounded-lg">
-                      {authUser ? `${authUser.first_name[0]}${authUser.last_name[0]}` : 'AD'}
+                      {getInitials()}
                     </AvatarFallback>
                   </Avatar>
                 </div>
@@ -144,7 +149,7 @@ export function NavUser({ user, onLogout }: NavUserProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
-      <SettingsForm open={showSettings} onOpenChange={setShowSettings} />
+      {showSettings && <SettingsForm onClose={() => setShowSettings(false)} />}
     </SidebarMenu>
   )
 }
