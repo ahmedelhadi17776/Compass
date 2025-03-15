@@ -1,46 +1,49 @@
 .three-day-view {
     height: 100%;
     overflow-y: auto;
-    background: hsl(var(--background));
+    background: #1a1a1a;
     padding: 1rem;
+    color: #e5e5e5;
   }
   
   .three-day-container {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    background: hsl(var(--muted));
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
+    background: #2a2a2a;
+    border: 1px solid #333;
+    border-radius: 12px;
     overflow: hidden;
   }
   
   .three-day-view .days-header {
     display: grid;
-    grid-template-columns: 80px repeat(3, 1fr);
-    border-bottom: 1px solid hsl(var(--border));
+    grid-template-columns: 70px repeat(3, 1fr);
+    background: #1a1a1a;
     position: sticky;
     top: 0;
-    background: hsl(var(--background));
     z-index: 20;
   }
   
   .three-day-view .time-label-header {
-    width: 80px;
-    border-right: 1px solid hsl(var(--border));
+    width: 70px;
+    border-right: 1px solid #333;
+    background: #1a1a1a;
   }
   
   .three-day-view .day-header {
-    padding: 12px;
+    padding: 12px 8px;
     text-align: center;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    border-right: 1px solid hsl(var(--border));
+    font-weight: 500;
+    color: #e5e5e5;
+    border-right: 1px solid #333;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
     position: relative;
   }
   
   .three-day-view .day-header.current-day {
-    color: hsl(var(--primary));
+    color: rgb(231, 231, 231);
   }
   
   .three-day-view .day-header.current-day::after {
@@ -50,7 +53,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background-color: hsl(var(--primary));
+    background-color: rgb(231, 231, 231);
   }
   
   .three-day-view .day-name {
@@ -60,46 +63,43 @@
   
   .three-day-view .day-date {
     font-size: 0.8rem;
-    color: hsl(var(--muted-foreground));
+    color: #a0a0a0;
   }
   
   .three-day-view .time-slots {
     display: flex;
     flex-direction: column;
-    background: hsl(var(--background));
+    background: #1a1a1a;
   }
   
   .three-day-view .time-slot {
     display: grid;
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: 70px 1fr;
     min-height: 60px;
     height: 60px;
-    border-bottom: 1px solid hsl(var(--border));
-    position: relative;
+    border-bottom: 1px solid #333;
   }
   
   .three-day-view .time-label {
     padding: 8px;
-    color: hsl(var(--muted-foreground));
-    font-size: 0.875rem;
+    color: #a0a0a0;
+    font-size: 0.75rem;
     text-align: right;
-    border-right: 1px solid hsl(var(--border));
+    border-right: 1px solid #333;
+    background: #1a1a1a;
   }
   
   .three-day-view .time-content {
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    position: relative;
+    min-height: 1440px;
   }
   
   .three-day-view .day-column {
     position: relative;
-    flex: 1;
-    min-height: 60px;
-    height: 60px;
-    border-right: 1px solid hsl(var(--border));
-    background: hsl(var(--background));
-    padding: 0 2px;
-    overflow: visible;
+    height: 100%;
+    border-right: 1px solid #333;
   }
   
   .three-day-view .day-column:last-child {
@@ -111,8 +111,8 @@
     left: 0;
     right: 0;
     height: 2px;
-    background-color: hsl(var(--primary));
-    z-index: 5;
+    background-color: #ef4444;
+    z-index: 10;
   }
   
   .three-day-view .current-time-indicator::before {
@@ -122,22 +122,8 @@
     top: -4px;
     width: 10px;
     height: 10px;
-    background-color: hsl(var(--primary));
+    background-color: #ef4444;
     border-radius: 50%;
-  }
-  
-  .three-day-view .day-column::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -4px;
-    right: -4px;
-    height: 2px;
-    background-color: rgba(220, 38, 38, 0.2);
-    z-index: 9;
-    transform: translateY(-1px);
-    opacity: 0;
-    transition: opacity 0.2s;
   }
   
   .three-day-view .day-column.has-current-time::after {
