@@ -6,7 +6,7 @@ from Backend.app.schemas.agent_schemas import (
     AgentActionCreate, AgentActionResponse, AgentFeedbackCreate,
     AgentFeedbackResponse, AgentInteractionCreate, AgentInteractionResponse
 )
-from Backend.core.rbac import get_current_user
+from Backend.api.auth import get_current_user
 from typing import Dict, List, Optional
 from datetime import datetime
 
