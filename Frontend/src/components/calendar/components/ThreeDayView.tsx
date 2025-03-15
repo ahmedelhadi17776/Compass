@@ -98,7 +98,44 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
   const days = [date, addDays(date, 1), addDays(date, 2)];
 
   if (isLoading) {
-    return <div className="three-day-view"><Skeleton className="w-full h-full" /></div>;
+    return (
+      <div className="three-day-view">
+        <div className="three-day-container">
+          <div className="days-header">
+            <div className="time-label-header"></div>
+            {Array(3).fill(null).map((_, i) => (
+              <div key={i} className="day-header">
+                <Skeleton className="h-6 w-20" />
+              </div>
+            ))}
+          </div>
+          <div className="time-slots">
+            {Array(24).fill(null).map((_, hour) => (
+              <div key={hour} className="time-slot">
+                <div className="time-label">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="time-content">
+                  {Array(3).fill(null).map((_, i) => (
+                    <div key={i} className="day-column">
+                      {Math.random() > 0.8 && (
+                        <Skeleton 
+                          className="absolute w-[calc(100%-8px)] rounded-md" 
+                          style={{
+                            height: `${Math.floor(Math.random() * 100 + 30)}px`,
+                            top: `${Math.floor(Math.random() * 45)}px`
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (isError) {

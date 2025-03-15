@@ -65,7 +65,7 @@ function App() {
             />
           </Routes>
           <Toaster />
-          <ReactQueryDevtools initialIsOpen={false} />
+          
         </div>
       </QueryClientProvider>
     </ThemeProvider>
