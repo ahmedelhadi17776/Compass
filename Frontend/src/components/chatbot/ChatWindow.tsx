@@ -1,13 +1,15 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Message, Position } from './types';
 import { useTheme } from '@/contexts/theme-provider';
 import { useNavigate } from 'react-router-dom';
+import { llmService } from '@/services/llmService';
 
 interface ChatWindowProps {
   messages: Message[];
   inputText: string;
   setInputText: React.Dispatch<React.SetStateAction<string>>;
   handleSendMessage: () => void;
+  addMessage?: (message: Message) => void;
   toggleChat: () => void;
   isFullPage: boolean;
   toggleFullPage: () => void;
@@ -22,7 +24,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   messages,
   inputText,
   setInputText,
-  handleSendMessage,
+  handleSendMessage: parentHandleSendMessage,
+  addMessage,
   toggleChat,
   isFullPage,
   toggleFullPage,
@@ -38,6 +41,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const isDarkTheme = theme === 'dark';
   const [hasInitializedAnimation, setHasInitializedAnimation] = useState(false);
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  // Local messages state to ensure UI updates
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+
+  // Initialize local messages from props
+  useEffect(() => {
+    setLocalMessages(messages);
+  }, [messages]);
 
   // Initialize animation state
   useEffect(() => {
@@ -53,7 +65,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   // Scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [localMessages, streamingText]);
 
   // Simple drag functionality
   const [isDragging, setIsDragging] = React.useState(false);
@@ -125,6 +137,119 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       } 
     });
   };
+
+  const handleSendMessage = useCallback(async () => {
+    if (!inputText.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      text: inputText.trim(),
+      sender: 'user',
+      timestamp: new Date()
+    };
+
+    setIsLoading(true);
+    setInputText('');
+
+    try {
+      // Add user message immediately to local state
+      setLocalMessages(prev => [...prev, userMessage]);
+      
+      // Also call parent handler to sync state
+      parentHandleSendMessage();
+
+      // Start streaming response
+      let fullResponse = '';
+      let errorOccurred = false;
+      let lastChunkEndsWithSpace = false;
+      
+      try {
+        console.log('Starting to stream response...');
+        for await (const chunk of llmService.streamResponse(userMessage.text)) {
+          // Check if the chunk is an error message (JSON object)
+          try {
+            const jsonChunk = JSON.parse(chunk);
+            if (jsonChunk.error) {
+              errorOccurred = true;
+              fullResponse = `Sorry, an error occurred: ${jsonChunk.error}`;
+              setStreamingText(fullResponse);
+              console.error('Error from LLM service:', jsonChunk.error);
+              break;
+            }
+          } catch (e) {
+            // Not JSON, treat as normal text chunk
+            console.log('Received chunk:', chunk);
+            
+            // Add a space between chunks if needed
+            if (fullResponse && !lastChunkEndsWithSpace && !chunk.startsWith(' ')) {
+              fullResponse += ' ';
+            }
+            
+            fullResponse += chunk;
+            lastChunkEndsWithSpace = chunk.endsWith(' ');
+            
+            setStreamingText(fullResponse);
+          }
+        }
+        console.log('Finished streaming, final response:', fullResponse);
+      } catch (streamError: any) {
+        console.error('Error in streaming:', streamError);
+        errorOccurred = true;
+        fullResponse = `Sorry, an error occurred while streaming the response: ${streamError.message || 'Unknown error'}`;
+        setStreamingText(fullResponse);
+      }
+
+      // Clean up the response - replace multiple spaces with a single space
+      fullResponse = fullResponse.replace(/\s+/g, ' ').trim();
+
+      // Clear streaming text and add final message
+      setStreamingText('');
+      
+      // Only add the assistant message if we have a response
+      if (fullResponse) {
+        const assistantMessage: Message = {
+          text: fullResponse,
+          sender: 'assistant',
+          timestamp: new Date()
+        };
+
+        // Update local messages state
+        setLocalMessages(prev => [...prev, assistantMessage]);
+        
+        // Update parent component's state using the addMessage function if available
+        if (addMessage) {
+          addMessage(assistantMessage);
+        } else {
+          // Fallback to the old method
+          if (typeof parentHandleSendMessage === 'function') {
+            parentHandleSendMessage();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Add error message
+      const errorMessage: Message = {
+        text: "Sorry, I encountered an error while processing your request. Please try again later.",
+        sender: 'assistant',
+        timestamp: new Date()
+      };
+      
+      // Update local messages state
+      setLocalMessages(prev => [...prev, errorMessage]);
+      
+      // Update parent component's state using the addMessage function if available
+      if (addMessage) {
+        addMessage(errorMessage);
+      } else {
+        // Fallback to the old method
+        if (typeof parentHandleSendMessage === 'function') {
+          parentHandleSendMessage();
+        }
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [inputText, isLoading, parentHandleSendMessage, addMessage]);
 
   return (
     <div
@@ -206,7 +331,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Messages container */}
       <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${isDarkTheme ? 'bg-[#202020]' : 'bg-white'}`}>
-        {messages.map((message, index) => (
+        {localMessages.map((message, index) => (
           <div
             key={index}
             className={`flex ${
@@ -229,6 +354,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
           </div>
         ))}
+        
+        {/* Streaming message */}
+        {streamingText && (
+          <div className="flex justify-start">
+            <div className={`max-w-[70%] rounded-lg p-2.5 ${
+              isDarkTheme 
+                ? 'bg-[#3b3b3b] text-[#e5e5e5]' 
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              <p className="text-sm">{streamingText}</p>
+            </div>
+          </div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -239,23 +378,32 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder="Type your message..."
+            onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()}
+            placeholder={isLoading ? "AI is thinking..." : "Type your message..."}
+            disabled={isLoading}
             className={`flex-1 p-2 text-sm border ${
               isDarkTheme 
                 ? 'bg-[#262626] border-[#3b3b3b] text-white placeholder-gray-500 focus:border-white-400' 
                 : 'bg-white border-gray-300 text-gray-800 focus:border-white-500'
-            } rounded-[15px] focus:outline-none`}
+            } rounded-[15px] focus:outline-none ${isLoading ? 'opacity-50' : ''}`}
             aria-label="Message input"
             tabIndex={0}
           />
           <button
             onClick={handleSendMessage}
-            className="px-3 py-2 bg-white-500 text-white text-sm rounded-md hover:bg-white-600 transition-colors focus:outline-none focus:ring-2 focus:ring-white-300"
+            disabled={isLoading}
+            className={`px-3 py-2 bg-white-500 text-white text-sm rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-white-300 ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white-600'
+            }`}
             aria-label="Send message"
             tabIndex={0} 
           >
-            Send
+            {isLoading ? (
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : 'Send'}
           </button>
         </div>
       </div>
