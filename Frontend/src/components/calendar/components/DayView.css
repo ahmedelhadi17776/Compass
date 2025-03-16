@@ -1,11 +1,9 @@
 .day-view {
   height: 100%;
+  overflow-y: auto;
   background: #1a1a1a;
   padding: 1rem;
-  padding-bottom: 2rem;
   color: #e5e5e5;
-  display: flex;
-  flex-direction: column;
 }
 
 .day-container {
@@ -16,9 +14,6 @@
   border: 1px solid #333;
   border-radius: 12px;
   overflow: hidden;
-  flex: 1;
-  min-height: 0;
-  margin-bottom: 1rem;
 }
 
 .day-view .day-header {
@@ -75,17 +70,6 @@
   display: flex;
   flex-direction: column;
   background: #1a1a1a;
-  overflow-y: auto;
-  flex: 1;
-  position: relative;
-  height: 100%;
-  
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }
 
 .day-view .time-slot {
@@ -109,9 +93,7 @@
   display: grid;
   grid-template-columns: repeat(1, 1fr);
   position: relative;
-  top: 0;
-  left: 0;
-  right: 0;
+  min-height: 1440px;
 }
 
 .day-view .day-column {
@@ -133,7 +115,7 @@
   right: 0;
   height: 2px;
   background-color: #ef4444;
-  z-index: 20;
+  z-index: 10;
 }
 
 .day-view .current-time-indicator::before {

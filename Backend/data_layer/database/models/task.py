@@ -29,7 +29,7 @@ class TaskPriority(enum.Enum):
     MEDIUM = "Medium"
     HIGH = "High"
     URGENT = "Urgent"
-    
+
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -60,10 +60,10 @@ class Task(Base):
     recurrence = Column(SQLAlchemyEnum(RecurrenceType),
                         default=RecurrenceType.NONE, nullable=False)
     recurrence_custom_days = Column(postgresql.ARRAY(String), nullable=True)
-    recurrence_end_date = Column(DateTime, nullable=True)  # When recurrence stops
+    recurrence_end_date = Column(
+        DateTime, nullable=True)  # When recurrence stops
     status_updated_at = Column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-
 
     organization_id = Column(Integer, ForeignKey(
         "organizations.id"), nullable=False)
@@ -97,7 +97,8 @@ class Task(Base):
     history = relationship(
         "TaskHistory", back_populates="task", cascade="all, delete-orphan")
     linked_todos = relationship("Todo", back_populates="linked_task")
-    calendar_event = relationship("CalendarEvent", back_populates="task", uselist=False)
+    calendar_event = relationship(
+        "CalendarEvent", back_populates="task", uselist=False)
 
     # Task Management
     current_workflow_step_id = Column(Integer, ForeignKey("workflow_steps.id"))
@@ -147,6 +148,8 @@ class Task(Base):
     # Add to existing relationships
     agent_interactions = relationship(
         "TaskAgentInteraction", back_populates="task", cascade="all, delete-orphan")
+    occurrences = relationship(
+        "TaskOccurrence", back_populates="task", cascade="all, delete-orphan")
     __table_args__ = (
         Index("ix_task_status", "status"),
         Index("ix_task_creator_id", "creator_id"),

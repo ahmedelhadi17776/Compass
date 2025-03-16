@@ -18,8 +18,7 @@ const Chatbot: React.FC = () => {
   const [isFullPage, setIsFullPage] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
 
-  // Handle sending a user message
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
     const userMessage: Message = {
@@ -30,11 +29,17 @@ const Chatbot: React.FC = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setInputText('');
-  };
 
-  // Add a new message to the chat (can be used by child components)
-  const addMessage = (message: Message) => {
-    setMessages((prev) => [...prev, message]);
+    // TODO: Integrate with a chatbot API
+    const botMessage: Message = {
+      text: 'I understand your message. This is a placeholder response.',
+      sender: 'bot',
+      timestamp: new Date(),
+    };
+
+    setTimeout(() => {
+      setMessages((prev) => [...prev, botMessage]);
+    }, 1000);
   };
 
   const toggleChat = () => {
@@ -71,7 +76,6 @@ const Chatbot: React.FC = () => {
           inputText={inputText}
           setInputText={setInputText}
           handleSendMessage={handleSendMessage}
-          addMessage={addMessage}
           toggleChat={toggleChat}
           isFullPage={isFullPage}
           toggleFullPage={toggleFullPage}

@@ -9,6 +9,7 @@ class RecurrenceType(enum.Enum):
     NONE = "None"
     DAILY = "Daily"
     WEEKLY = "Weekly"
+    BIWEEKLY = "Biweekly"
     MONTHLY = "Monthly"
     YEARLY = "Yearly"
     CUSTOM = "Custom"

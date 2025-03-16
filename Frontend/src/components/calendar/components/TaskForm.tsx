@@ -64,7 +64,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     priority: task?.priority || 'Medium',
     location: task?.location || '',
     start_date: task?.start || new Date(),
-    end_date: task?.end || new Date(Date.now() + 60 * 60000),
+    end_date: task?.end || new Date(Date.now() + 30 * 60000),
     status: task?.status || 'To Do',
     project_id: task?.project_id || 1,
     organization_id: task?.organization_id || 1,

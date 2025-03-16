@@ -53,6 +53,50 @@ class TaskRepository(BaseRepository[Task]):
         await self.db.flush()
         return new_task
 
+    async def create_task_occurrence(self, occurrence_data: dict) -> None:
+        """Create a task occurrence for a recurring task.
+
+        Args:
+            occurrence_data: Dictionary containing the occurrence data
+        """
+        from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+
+        # Create a copy of the data to avoid modifying the original
+        occurrence_data = occurrence_data.copy()
+
+        # Handle enum values for status and priority
+        if 'status' in occurrence_data:
+            if isinstance(occurrence_data['status'], str):
+                try:
+                    occurrence_data['status'] = TaskStatus(
+                        occurrence_data['status'])
+                except ValueError:
+                    logger.warning(
+                        f"Invalid status value: {occurrence_data['status']}")
+                    del occurrence_data['status']
+            elif not isinstance(occurrence_data['status'], TaskStatus):
+                logger.warning(
+                    f"Invalid status type: {type(occurrence_data['status'])}")
+                del occurrence_data['status']
+
+        if 'priority' in occurrence_data:
+            if isinstance(occurrence_data['priority'], str):
+                try:
+                    occurrence_data['priority'] = TaskPriority(
+                        occurrence_data['priority'])
+                except ValueError:
+                    logger.warning(
+                        f"Invalid priority value: {occurrence_data['priority']}")
+                    del occurrence_data['priority']
+            elif not isinstance(occurrence_data['priority'], TaskPriority):
+                logger.warning(
+                    f"Invalid priority type: {type(occurrence_data['priority'])}")
+                del occurrence_data['priority']
+
+        occurrence = TaskOccurrence(**occurrence_data)
+        self.db.add(occurrence)
+        await self.db.flush()
+
     async def get_by_id(self, task_id: int, user_id: Optional[int] = None) -> Optional[Task]:
         """Get a task by ID with optional user ID check."""
         query = select(Task).where(Task.id == task_id)
@@ -133,6 +177,9 @@ class TaskRepository(BaseRepository[Task]):
             task.start_date = new_start
             task.duration = new_duration
 
+        if "due_date" in task_data:
+            task.due_date = task_data["due_date"]
+
         if "recurrence_end_date" in task_data:
             if task_data["recurrence_end_date"] and task_data["recurrence_end_date"] < task.start_date:
                 raise ValueError(
@@ -140,7 +187,8 @@ class TaskRepository(BaseRepository[Task]):
 
         # Update task fields
         for key, value in task_data.items():
-            if hasattr(task, key):
+            # Skip date fields as they're handled separately above
+            if key not in ["start_date", "due_date", "duration"] and hasattr(task, key):
                 setattr(task, key, value)
 
         await self.db.flush()
@@ -162,8 +210,31 @@ class TaskRepository(BaseRepository[Task]):
         end_date: Optional[datetime] = None,
         include_recurring: bool = True
     ) -> List[Task]:
-        """Get tasks by project with optional filters and calendar support."""
-        query = select(Task).where(Task.project_id == project_id)
+        """Get tasks by project with optional filters and calendar support.
+
+        This method supports calendar view by filtering tasks based on date ranges
+        and handling recurring tasks appropriately.
+
+        Args:
+            project_id: ID of the project to get tasks for
+            skip: Number of records to skip (pagination)
+            limit: Maximum number of records to return (pagination)
+            status: Filter by task status
+            priority: Filter by task priority
+            assignee_id: Filter by assignee
+            creator_id: Filter by creator
+            start_date: Filter tasks starting on or after this date
+            due_date: Filter tasks due on this date
+            duration: Filter tasks with this duration
+            recurrence: Filter tasks with this recurrence pattern
+            end_date: Filter tasks ending before this date (for calendar range)
+            include_recurring: Whether to include recurring tasks in results
+
+        Returns:
+            List of Task objects matching the criteria
+        """
+        query = select(Task).outerjoin(Task.occurrences).where(
+            Task.project_id == project_id)
 
         # Apply filters
         if status:
@@ -183,6 +254,7 @@ class TaskRepository(BaseRepository[Task]):
                 # 2. End within the range
                 # 3. Span across the range
                 # 4. Are recurring and have occurrences that overlap with the range
+                # 5. Have modified occurrences within the range
                 query = query.where(
                     or_(
                         # Non-recurring tasks within the range
@@ -211,16 +283,36 @@ class TaskRepository(BaseRepository[Task]):
                                 Task.recurrence_end_date.is_(None),
                                 Task.recurrence_end_date >= start_date
                             )
+                        ),
+                        # Tasks with modified occurrences in the range
+                        exists().where(
+                            and_(
+                                TaskOccurrence.task_id == Task.id,
+                                TaskOccurrence.start_date >= start_date,
+                                TaskOccurrence.start_date <= end_date
+                            )
                         )
                     )
                 )
+                # Join with occurrences to get modified instances
+                query = query.outerjoin(TaskOccurrence)
+                query = query.options(contains_eager(Task.occurrences))
             else:
-                # Only include non-recurring tasks within the range
+                # Only include non-recurring tasks and first occurrences of recurring tasks
                 query = query.where(
-                    and_(
-                        Task.start_date >= start_date,
-                        Task.start_date <= end_date,
-                        Task.recurrence == RecurrenceType.NONE
+                    or_(
+                        # Non-recurring tasks within the range
+                        and_(
+                            Task.start_date >= start_date,
+                            Task.start_date <= end_date,
+                            Task.recurrence == RecurrenceType.NONE
+                        ),
+                        # First occurrences of recurring tasks within the range
+                        and_(
+                            Task.start_date >= start_date,
+                            Task.start_date <= end_date,
+                            Task.recurrence != RecurrenceType.NONE
+                        )
                     )
                 )
         elif start_date and duration:
@@ -263,6 +355,7 @@ class TaskRepository(BaseRepository[Task]):
         end_date: Optional[datetime] = None,
         include_recurring: bool = True
     ) -> List[Task]:
+        
         """Get all tasks with optional filters and calendar support.
 
         This method supports calendar view by filtering tasks based on date ranges
@@ -285,7 +378,7 @@ class TaskRepository(BaseRepository[Task]):
         Returns:
             List of Task objects matching the criteria
         """
-        query = select(Task)
+        query = select(Task).outerjoin(Task.occurrences)
 
         # Apply filters
         if status:
@@ -305,6 +398,7 @@ class TaskRepository(BaseRepository[Task]):
                 # 2. End within the range
                 # 3. Span across the range
                 # 4. Are recurring and have occurrences that overlap with the range
+                # 5. Have modified occurrences within the range
                 query = query.where(
                     or_(
                         # Non-recurring tasks within the range
@@ -336,6 +430,8 @@ class TaskRepository(BaseRepository[Task]):
                         )
                     )
                 )
+                # Load task occurrences
+                query = query.options(joinedload(Task.occurrences))
             else:
                 # Only include non-recurring tasks within the range
                 query = query.where(
@@ -360,7 +456,9 @@ class TaskRepository(BaseRepository[Task]):
         query = query.offset(skip).limit(limit)
 
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        tasks = list(result.unique().scalars().all())
+
+        return tasks
 
     async def add_task_history(self, task_id: int, user_id: int, field_name: str, old_value: str, new_value: str, action: str = "update") -> TaskHistory:
         """Add a task history entry."""
@@ -654,3 +752,59 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.flush()
             return True
         return False
+
+    # Task Occurrence Methods
+    async def get_task_occurrence(self, task_id: int, occurrence_num: int) -> Optional["TaskOccurrence"]:
+        """Get a specific occurrence of a recurring task."""
+        from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+        from sqlalchemy import select
+
+        query = select(TaskOccurrence).where(
+            TaskOccurrence.task_id == task_id,
+            TaskOccurrence.occurrence_num == occurrence_num
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
+
+    async def update_task_occurrence(self, occurrence_id: int, occurrence_data: dict) -> Optional["TaskOccurrence"]:
+        """Update a task occurrence record."""
+        from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+        from sqlalchemy import select
+
+        query = select(TaskOccurrence).where(
+            TaskOccurrence.id == occurrence_id)
+        result = await self.db.execute(query)
+        occurrence = result.scalars().first()
+
+        if occurrence:
+            for key, value in occurrence_data.items():
+                if hasattr(occurrence, key):
+                    setattr(occurrence, key, value)
+            await self.db.flush()
+            return occurrence
+        return None
+
+    async def delete_task_occurrence(self, occurrence_id: int) -> bool:
+        """Delete a task occurrence record."""
+        from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+        from sqlalchemy import select
+
+        query = select(TaskOccurrence).where(
+            TaskOccurrence.id == occurrence_id)
+        result = await self.db.execute(query)
+        occurrence = result.scalars().first()
+
+        if occurrence:
+            await self.db.delete(occurrence)
+            await self.db.flush()
+            return True
+        return False
+
+    async def get_task_occurrences(self, task_id: int) -> List["TaskOccurrence"]:
+        """Get all occurrences for a task."""
+        from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+        from sqlalchemy import select
+
+        query = select(TaskOccurrence).where(TaskOccurrence.task_id == task_id)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
