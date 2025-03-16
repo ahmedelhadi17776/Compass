@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict, List, Optional
+from datetime import datetime
+from pydantic import BaseModel
+
 from Backend.data_layer.database.connection import get_db
 from Backend.services.workflow_service import WorkflowService
 from Backend.data_layer.repositories.workflow_repository import WorkflowRepository
@@ -7,9 +11,7 @@ from Backend.app.schemas.workflow import (
     WorkflowCreate, WorkflowUpdate, WorkflowResponse, 
     WorkflowDetail, WorkflowMetrics
 )
-from Backend.core.rbac import get_current_user
-from typing import Dict, List, Optional
-from datetime import datetime
+from Backend.api.auth import get_current_user
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
