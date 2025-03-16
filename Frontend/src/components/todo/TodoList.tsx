@@ -327,8 +327,8 @@ const TodoList: React.FC = () => {
                     {todo.tags?.map((tag) => (
                       <Badge
                         key={tag}
-                        variant="secondary"
-                        className="text-xs"
+                        variant="default"
+                        className="text-xs text-black hover:bg-white/100 transition-colors"
                       >
                         {tag}
                       </Badge>
