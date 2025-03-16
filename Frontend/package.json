@@ -42,7 +42,7 @@
     "framer-motion": "^11.18.0",
     "gsap": "^3.12.7",
     "i18next": "^24.2.1",
-    "lucide-react": "^0.344.0",
+    "lucide-react": "^0.482.0",
     "react": "^18.3.1",
     "react-beautiful-dnd": "^13.1.1",
     "react-big-calendar": "^1.11.1",

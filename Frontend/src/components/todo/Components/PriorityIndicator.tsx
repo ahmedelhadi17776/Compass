@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronUp, ChevronDown, Minus } from 'lucide-react';
 import cn from 'classnames';
-import { TodoPriority } from '@/types/todo';
+import { TodoPriority } from '@/components/todo/types-todo';
 
 interface PriorityIndicatorProps {
   priority: string;

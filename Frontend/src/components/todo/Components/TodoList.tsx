@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
-import { Plus, X, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
+import { Plus, X, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft, CalendarSync } from 'lucide-react';
 import PriorityIndicator from './PriorityIndicator';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Progress } from "../ui/progress";
-import Checkbox from "../ui/checkbox";
+} from "../../ui/dropdown-menu";
+import { Button } from "../../ui/button";
+import { Input } from "../../ui/input";
+import { Progress } from "../../ui/progress";
+import Checkbox from "../../ui/checkbox";
 import TodoForm from './TodoForm';
-import { Badge } from "../ui/badge";
+import { Badge } from "../../ui/badge";
 import cn from 'classnames';
 import { useTheme } from '@/contexts/theme-provider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import authApi, { User } from '@/api/auth';
 import axios from 'axios';
-import { Habit } from '@/types/habit';
-import { Todo, TodoFormData, TodoStatus } from '@/types/todo';
-import { TodoPriority } from '@/types/todo';
+import { Habit } from '@/components/todo/types-habit';
+import { Todo, TodoFormData, TodoStatus } from '@/components/todo/types-todo';
+import { TodoPriority } from '@/components/todo/types-todo';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -528,7 +528,7 @@ const TodoList: React.FC = () => {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-2">
-                        <Repeat className="h-4 w-4 text-muted-foreground" />
+                        <CalendarSync className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-medium">Daily Habits</h3>
                       </div>
                       <span className="text-sm text-muted-foreground">{habits.filter(h => h.is_completed).length}/{habits.length} Done</span>
