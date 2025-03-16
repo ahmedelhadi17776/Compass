@@ -1125,6 +1125,7 @@ class TaskService:
                                     'status': modified_occurrence.status or task.status,
                                     'priority': modified_occurrence.priority or task.priority,
                                     'recurrence': task.recurrence,
+                                    'recurrence_end_date': task.recurrence_end_date,
                                     'occurrence_num': occurrence_num,
                                     'is_modified': True
                                 })
@@ -1137,6 +1138,7 @@ class TaskService:
                                     'status': task.status,
                                     'priority': task.priority,
                                     'recurrence': task.recurrence,
+                                    'recurrence_end_date': task.recurrence_end_date,
                                     'occurrence_num': occurrence_num,
                                     'is_modified': False
                                 })
@@ -1173,7 +1175,8 @@ class TaskService:
                         'end': task.due_date or (task.start_date + timedelta(hours=task.duration) if task.duration else None),
                         'status': task.status,
                         'priority': task.priority,
-                        'recurrence': task.recurrence
+                        'recurrence': task.recurrence,
+                        'recurrence_end_date': task.recurrence_end_date
                     })
 
             return calendar_tasks
