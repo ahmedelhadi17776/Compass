@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { Button } from "../ui/button";
@@ -228,12 +228,15 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
                   variant={formData.priority === p ? 'default' : 'outline'}
                   onClick={() => setFormData(prev => ({ ...prev, priority: p }))}
                   className={cn(
-                    'capitalize',
+                    'capitalize flex items-center gap-2',
                     formData.priority === p && p === TodoPriority.HIGH && 'bg-red-500/20 hover:bg-red-500/30 text-red-500',
                     formData.priority === p && p === TodoPriority.MEDIUM && 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500',
                     formData.priority === p && p === TodoPriority.LOW && 'bg-green-500/20 hover:bg-green-500/30 text-green-500'
                   )}
                 >
+                  {p === TodoPriority.HIGH && <ArrowUp className="h-4 w-4" />}
+                  {p === TodoPriority.MEDIUM && <Minus className="h-4 w-4" />}
+                  {p === TodoPriority.LOW && <ArrowDown className="h-4 w-4" />}
                   {p}
                 </Button>
               ))}

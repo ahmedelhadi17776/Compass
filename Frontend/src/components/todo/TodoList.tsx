@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, X, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft } from 'lucide-react';
+import PriorityIndicator from './PriorityIndicator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ import authApi, { User } from '@/api/auth';
 import axios from 'axios';
 import { Habit } from '@/types/habit';
 import { Todo, TodoFormData, TodoStatus } from '@/types/todo';
+import { TodoPriority } from '@/types/todo';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -309,16 +311,19 @@ const TodoList: React.FC = () => {
                   checked={todo.status === TodoStatus.COMPLETED}
                   onChange={() => handleToggleTodo(todo)}
                   darkMode={isDarkMode}
-                  className="mt-1"
+                  className="mt-0.5"
                 />
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center">
                     <span className={cn(
                       "text-sm font-medium",
                       todo.status === TodoStatus.COMPLETED && "line-through text-muted-foreground"
                     )}>
                       {todo.title}
                     </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
                     {todo.tags?.map((tag) => (
                       <Badge
                         key={tag}
@@ -597,23 +602,23 @@ const TodoList: React.FC = () => {
                             checked={habit.is_completed}
                             onChange={() => toggleHabit(habit.id, habit.is_completed)}
                             darkMode={isDarkMode}
-                            className="mt-1"
+                            className="mt-0.5"
                           />
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center">
                               <span className={cn(
                                 "text-sm font-medium",
                                 habit.is_completed && "line-through text-muted-foreground"
                               )}>
                                 {habit.habit_name}
                               </span>
-                              {habit.current_streak > 0 && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Repeat className="w-3 h-3" />
-                                  <span>{habit.current_streak} day streak</span>
-                                </div>
-                              )}
                             </div>
+                            {habit.current_streak > 0 && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Repeat className="w-3 h-3" />
+                                <span>{habit.current_streak} day streak</span>
+                              </div>
+                            )}
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
