@@ -18,7 +18,7 @@ from Backend.data_layer.database.models import (
     ProductivityMetrics, EmotionalIntelligence,
     UserWorkspaceSettings, Todo, TodoHistory,
     TodoPriority, TodoStatus, WorkflowStepExecution, DailyHabit,
-    WorkflowAgentInteraction
+    WorkflowAgentInteraction, TaskOccurrence
 )
 import os
 import sys
