@@ -13,10 +13,7 @@ const axiosInstance = axios.create({
 
 // Add response transformation
 axiosInstance.interceptors.response.use(
-  (response) => {
-    // Transform the response data if needed
-    return response;
-  },
+  (response) => response,
   (error) => {
     console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
@@ -88,40 +85,8 @@ export const tasksApi = {
         if (due_date_end) params.end_date = formattedEndDate;
       }
 
-      const response = await axiosInstance.get(endpoint, { params });
-
-      if (Array.isArray(response.data)) {
-        return response.data.map(task => {
-          // Create date objects without timezone information
-          const startDate = task.start_date ? new Date(task.start_date) : null;
-          const endDate = task.due_date ? new Date(task.due_date) : null;
-          const recurrenceEndDate = task.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined;
-          
-          // For recurring tasks, if this is an occurrence (has original_id), 
-          // we need to fetch the original task to get recurrence details
-          const isRecurringOccurrence = task.is_recurring && task.original_id && !task.is_original;
-          
-          return {
-            ...task,
-            id: String(task.id),
-            start: startDate,
-            end: endDate,
-            // Map additional fields from backend to frontend model
-            project_id: task.project_id || 1,
-            organization_id: task.organization_id || 1,
-            creator_id: task.creator_id || user_id,
-            status: task.status || 'TODO',
-            priority: task.priority || 'MEDIUM',
-            is_recurring: task.is_recurring || false,
-            recurrence: task.recurrence || 'None',
-            recurrence_end_date: recurrenceEndDate,
-            is_original: task.is_original,
-            original_id: task.original_id,
-            occurrence_num: task.occurrence_num
-          };
-        });
-      }
-      return []
+      const { data } = await axiosInstance.get(endpoint, { params });
+      return data;
     } catch (error) {
       console.error('Error fetching tasks:', error);
       return [];
@@ -131,7 +96,6 @@ export const tasksApi = {
   getTaskById: async (taskId: string, user_id: number = 1) => {
     // If it's a recurring task occurrence, extract the original ID
     const originalId = taskId.includes('_') ? taskId.split('_')[0] : taskId;
-    
     const { data } = await axiosInstance.get(`/tasks/by_id/${originalId}`, {
       params: { user_id }
     });
@@ -171,11 +135,9 @@ export const tasksApi = {
 
     const mapStatusForBackend = (status: string | undefined) => {
       if (!status) return undefined;
-
       if (['To Do', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
         return status;
       }
-
       const statusMap: Record<string, string> = {
         'TODO': 'To Do',
         'IN_PROGRESS': 'In Progress',
@@ -185,24 +147,20 @@ export const tasksApi = {
         'UNDER_REVIEW': 'Under Review',
         'DEFERRED': 'Deferred'
       };
-
       return statusMap[status] || status;
     };
 
     const mapPriorityForBackend = (priority: string | undefined) => {
       if (!priority) return undefined;
-
       if (['Low', 'Medium', 'High', 'Urgent'].includes(priority)) {
         return priority;
       }
-
       const priorityMap: Record<string, string> = {
         'LOW': 'Low',
         'MEDIUM': 'Medium',
         'HIGH': 'High',
         'URGENT': 'Urgent'
       };
-
       return priorityMap[priority] || priority;
     };
 
@@ -253,11 +211,9 @@ export const tasksApi = {
 
     const mapStatusForBackend = (status: string | undefined) => {
       if (!status) return undefined;
-
       if (['To Do', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
         return status;
       }
-
       const statusMap: Record<string, string> = {
         'TODO': 'To Do',
         'IN_PROGRESS': 'In Progress',
@@ -267,24 +223,20 @@ export const tasksApi = {
         'UNDER_REVIEW': 'Under Review',
         'DEFERRED': 'Deferred'
       };
-
       return statusMap[status] || status;
     };
 
     const mapPriorityForBackend = (priority: string | undefined) => {
       if (!priority) return undefined;
-
       if (['Low', 'Medium', 'High', 'Urgent'].includes(priority)) {
         return priority;
       }
-
       const priorityMap: Record<string, string> = {
         'LOW': 'Low',
         'MEDIUM': 'Medium',
         'HIGH': 'High',
         'URGENT': 'Urgent'
       };
-
       return priorityMap[priority] || priority;
     };
 
@@ -321,7 +273,6 @@ export const tasksApi = {
 
   deleteTask: async (taskId: string, user_id: number = 1) => {
     const originalId = taskId.split('_')[0];
-
     await axiosInstance.delete(`/tasks/${originalId}`, {
       params: { user_id }
     });

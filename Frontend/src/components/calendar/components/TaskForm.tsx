@@ -78,11 +78,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     if (task) {
       setFormData({
         ...task,
-        start_date: task.start,
-        end_date: task.end,
+        start_date: new Date(task.start),
+        end_date: new Date(task.end),
         user_id: userId,
         recurrence: (task.recurrence || 'None') as RecurrenceType,
-        recurrence_end_date: task.recurrence_end_date || (task.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
+        recurrence_end_date: task.recurrence_end_date ? new Date(task.recurrence_end_date) : (task.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
       });
     }
   }, [task, userId]);
@@ -92,29 +92,22 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     setIsClosing(true);
 
     try {
+      const taskData = {
+        ...formData,
+        start: formData.start_date,
+        end: formData.end_date,
+        is_recurring: formData.recurrence !== 'None',
+        recurrence: formData.recurrence,
+        recurrence_end_date: formData.recurrence !== 'None' && formData.recurrence_end_date ? new Date(formData.recurrence_end_date) : undefined,
+      };
+
       if (task?.id) {
         await updateTask.mutateAsync({
           taskId: task.id,
-          task: {
-            ...formData,
-            start: formData.start_date,
-            end: formData.end_date,
-            due_date: formData.end_date,
-            is_recurring: formData.recurrence !== 'None',
-            recurrence: formData.recurrence,
-            recurrence_end_date: formData.recurrence !== 'None' ? formData.recurrence_end_date : undefined,
-          }
+          task: taskData
         });
       } else {
-        await createTask.mutateAsync({
-          ...formData,
-          start: formData.start_date,
-          end: formData.end_date,
-          due_date: formData.end_date,
-          is_recurring: formData.recurrence !== 'None',
-          recurrence: formData.recurrence,
-          recurrence_end_date: formData.recurrence !== 'None' ? formData.recurrence_end_date : undefined,
-        });
+        await createTask.mutateAsync(taskData);
       }
       setTimeout(onClose, 300);
     } catch (error) {
