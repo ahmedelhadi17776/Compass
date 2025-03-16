@@ -146,6 +146,8 @@ async def update_task(
     task_id: int,
     user_id: int,
     task_update: TaskUpdate,
+    update_all_occurrences: bool = Query(
+        True, description="Whether to update all occurrences of a recurring task or just this one"),
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ) -> TaskResponse:
@@ -185,7 +187,7 @@ async def update_task(
 
         # Update remaining fields if any
         if task_data:
-            updated_task = await service.update_task(task_id, task_data)
+            updated_task = await service.update_task(task_id, task_data, update_all_occurrences)
 
         return TaskResponse.from_orm(updated_task)
     except HTTPException:
@@ -655,8 +657,8 @@ async def get_calendar_tasks(
     end_date: datetime,
     user_id: int,
     project_id: Optional[int] = None,
-    expand_recurring: bool = Query(
-        True, description="Whether to expand recurring tasks into individual occurrences"),
+    include_recurring: bool = Query(
+        True, description="Whether to include recurring tasks and their occurrences"),
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ):
@@ -705,7 +707,7 @@ async def get_calendar_tasks(
             end_date=end_date,
             project_id=project_id,
             user_id=user_id,
-            expand_recurring=expand_recurring
+            include_recurring=include_recurring
         )
 
         return calendar_tasks
