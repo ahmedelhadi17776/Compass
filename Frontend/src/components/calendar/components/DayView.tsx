@@ -185,7 +185,7 @@ const DayViewSkeleton = () => {
         <div className="day-header">
           <div className="time-label-header"></div>
           <div className="date-header">
-            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-11 w-32" />
           </div>
         </div>
         <div className="time-slots">

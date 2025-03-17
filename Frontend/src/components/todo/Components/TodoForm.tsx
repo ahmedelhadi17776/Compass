@@ -8,13 +8,11 @@ import { Textarea } from "../../ui/textarea";
 import { Badge } from "../../ui/badge";
 import { Label } from "../../ui/label";
 import { cn } from "@/lib/utils";
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
-import authApi, { User } from '@/api/auth';
-import { Todo, TodoFormData, TodoPriority } from '@/components/todo/types-todo';
+import { useQueryClient } from '@tanstack/react-query';
+import { User } from '@/api/auth';
+import { Todo, TodoFormData, TodoPriority, TodoStatus } from '@/components/todo/types-todo';
+import { useCreateTodo, useDeleteTodo } from '../hooks';
 import './TodoForm.css';
-
-const API_BASE_URL = 'http://localhost:8000';
 
 interface TodoFormProps {
   onClose: () => void;
@@ -52,50 +50,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
     }
   }, [todo]);
 
-  const mutation = useMutation({
-    mutationFn: async (data: Required<TodoFormData>) => {
-      const token = localStorage.getItem('token');
-      return axios.post<TodoFormData>(`${API_BASE_URL}/todos`, {
-        ...data,
-        user_id: user.id,
-        due_date: data.due_date.toISOString(),
-        reminder_time: data.reminder_time?.toISOString(),
-        tags: data.tags || [],
-        checklist: [],
-        recurrence_pattern: {},
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-      handleClose();
-    },
-    onError: (error) => {
-      console.error("Failed to create todo:", error);
-      setIsClosing(false);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (todoId: number) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('No token found or user not authenticated');
-      
-      await axios.delete(
-        `${API_BASE_URL}/todos/${todoId}?user_id=${user.id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-      handleClose();
-    },
-    onError: (error) => {
-      console.error("Failed to delete todo:", error);
-      setIsClosing(false);
-    },
-  });
+  const createTodoMutation = useCreateTodo();
+  const deleteTodoMutation = useDeleteTodo();
 
   const [newTag, setNewTag] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
@@ -108,7 +64,28 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
       onSubmit(formData);
       setTimeout(onClose, 300);
     } else {
-      mutation.mutate(formData);
+      const newTodo = {
+        user_id: user.id,
+        title: formData.title,
+        description: formData.description,
+        status: TodoStatus.PENDING,
+        priority: formData.priority,
+        is_recurring: formData.is_recurring,
+        due_date: formData.due_date.toISOString(),
+        reminder_time: formData.reminder_time?.toISOString(),
+        tags: formData.tags || [],
+        checklist: [],
+      };
+      
+      createTodoMutation.mutate(newTodo, {
+        onSuccess: () => {
+          handleClose();
+        },
+        onError: (error) => {
+          console.error("Failed to create todo:", error);
+          setIsClosing(false);
+        }
+      });
     }
   };
 
@@ -125,7 +102,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
       onDelete(todo.id);
       setTimeout(onClose, 300);
     } else {
-      deleteMutation.mutate(todo.id);
+      deleteTodoMutation.mutate(todo.id);
     }
   };
 
@@ -298,17 +275,17 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
                 onClick={handleDelete}
                 variant="destructive"
                 className="px-4 py-2"
-                disabled={deleteMutation.isPending}
+                disabled={deleteTodoMutation.isPending}
               >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete Todo'}
+                {deleteTodoMutation.isPending ? 'Deleting...' : 'Delete Todo'}
               </Button>
             )}
             <div className={`flex gap-3 ${todo ? 'ml-auto' : 'w-full justify-end'}`}>
               <Button type="button" variant="outline" onClick={handleClose} className="px-4 py-2">
                 Cancel
               </Button>
-              <Button type="submit" className="px-4 py-2" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Saving...' : todo ? 'Update Todo' : 'Create Todo'}
+              <Button type="submit" className="px-4 py-2" disabled={createTodoMutation.isPending}>
+                {createTodoMutation.isPending ? 'Saving...' : todo ? 'Update Todo' : 'Create Todo'}
               </Button>
             </div>
           </div>
