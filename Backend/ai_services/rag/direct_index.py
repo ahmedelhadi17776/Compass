@@ -12,6 +12,7 @@ from Backend.utils.logging_utils import get_logger
 from Backend.data_layer.database.models.todo import Todo
 from Backend.ai_services.embedding.embedding_service import EmbeddingService
 import chromadb
+from Backend.data_layer.vector_db.chroma_client import chroma_client
 
 logger = get_logger(__name__)
 
@@ -116,35 +117,9 @@ async def direct_index_todo(todo: Union[Todo, Dict]) -> bool:
         # Initialize embedding service
         embedding_service = EmbeddingService()
         
-        # Initialize ChromaDB client directly with matching settings
-        try:
-            from chromadb.config import Settings
-            client = chromadb.PersistentClient(
-                path=settings.CHROMA_PERSIST_DIRECTORY,
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
-            )
-        except Exception as e:
-            logger.warning(f"Error initializing ChromaDB client with settings: {str(e)}")
-            # Fall back to simpler initialization
-            client = chromadb.PersistentClient(
-                path=settings.CHROMA_PERSIST_DIRECTORY
-            )
-        
-        # Get collection (don't try to create it)
-        try:
-            collection = client.get_collection(
-                name=settings.CHROMA_COLLECTION_NAME
-            )
-        except Exception as e:
-            logger.warning(f"Collection does not exist, creating it: {str(e)}")
-            # Only create if it doesn't exist
-            collection = client.create_collection(
-                name=settings.CHROMA_COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"}
-            )
+        # Use the global ChromaDB client instead of creating a new one
+        client = chroma_client.client
+        collection = chroma_client.collection
         
         # Get todo ID (handle both Todo object and dict)
         if isinstance(todo, Dict):
@@ -196,31 +171,9 @@ async def direct_index_todo(todo: Union[Todo, Dict]) -> bool:
 async def direct_remove_todo(todo_id: int) -> bool:
     """Directly remove a todo from ChromaDB."""
     try:
-        # Initialize ChromaDB client directly with matching settings
-        try:
-            from chromadb.config import Settings
-            client = chromadb.PersistentClient(
-                path=settings.CHROMA_PERSIST_DIRECTORY,
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
-            )
-        except Exception as e:
-            logger.warning(f"Error initializing ChromaDB client with settings: {str(e)}")
-            # Fall back to simpler initialization
-            client = chromadb.PersistentClient(
-                path=settings.CHROMA_PERSIST_DIRECTORY
-            )
-        
-        # Get collection (don't try to create it)
-        try:
-            collection = client.get_collection(
-                name=settings.CHROMA_COLLECTION_NAME
-            )
-        except Exception as e:
-            logger.warning(f"Collection does not exist, cannot remove todo: {str(e)}")
-            return False
+        # Use the global ChromaDB client instead of creating a new one
+        client = chroma_client.client
+        collection = chroma_client.collection
         
         # Create document ID
         doc_id = f"todo_{todo_id}"
