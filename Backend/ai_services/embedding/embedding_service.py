@@ -8,40 +8,17 @@ from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_res
 logger = get_logger(__name__)
 
 class EmbeddingService(AIServiceBase):
-    # Class variable to hold the single instance
-    _instance = None
-    _is_initialized = False
-    
-    def __new__(cls, model_name: str = 'all-MiniLM-L6-v2'):
-        """Implement singleton pattern to ensure model is loaded only once."""
-        if cls._instance is None:
-            logger.info("Creating new EmbeddingService singleton instance")
-            cls._instance = super(EmbeddingService, cls).__new__(cls)
-        return cls._instance
-    
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
-        """Initialize the model only once."""
-        # Skip initialization if already done
-        if not self._is_initialized:
-            logger.info(f"Initializing EmbeddingService with model: {model_name}")
-            super().__init__("embedding")
-            self.model_name = model_name
-            self.model_version = "1.0.0"
-            self.model = None
-            self.dimension = None
-            self._initialize_model()
-            # Mark as initialized
-            self.__class__._is_initialized = True
-        else:
-            logger.debug("Reusing existing EmbeddingService instance")
+        super().__init__("embedding")
+        self.model_name = model_name
+        self.model_version = "1.0.0"
+        self._initialize_model()
 
     def _initialize_model(self) -> None:
         """Initialize the embedding model with error handling."""
         try:
-            logger.info(f"Loading SentenceTransformer model: {self.model_name}")
             self.model = SentenceTransformer(self.model_name)
             self.dimension = self.model.get_sentence_embedding_dimension()
-            logger.info(f"Model loaded successfully with dimension: {self.dimension}")
         except Exception as e:
             logger.error(f"Failed to initialize embedding model: {str(e)}")
             raise

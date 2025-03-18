@@ -1,23 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from Backend.services.todo_service import TodoService
 from Backend.data_layer.repositories.todo_repository import TodoRepository
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.database.connection import get_db
 # Import the Pydantic models
-from Backend.app.schemas.todo_schemas import (
-    TodoCreate, TodoUpdate, Todo, 
-    TodoSearchResult, TodoSearchResponse,
-    TodoSuggestion, TodoAnalytics
-)
-from typing import List, Optional, Dict, Any
+from Backend.app.schemas.todo_schemas import TodoCreate, TodoUpdate, Todo
+from typing import List, Optional
 from Backend.data_layer.database.models.todo import TodoStatus
 from sqlalchemy.ext.asyncio import AsyncSession
 from Backend.services.task_service import TaskService
-import logging
 
 router = APIRouter()
-
-logger = logging.getLogger(__name__)
 
 
 @router.post("/", response_model=Todo, status_code=201)
@@ -25,31 +18,7 @@ async def create_todo(todo: TodoCreate, db: AsyncSession = Depends(get_db)):
     """Create a new todo."""
     # Pass the repository with session
     todo_service = TodoService(repository=TodoRepository(db))
-    created_todo = await todo_service.create_todo(**todo.dict())
-    
-    # Directly index the todo in ChromaDB
-    try:
-        from Backend.ai_services.rag.direct_index import direct_index_todo
-        
-        # Make sure we have the todo in the right format (either Todo object or dict with id)
-        if isinstance(created_todo, dict) and "id" in created_todo:
-            todo_to_index = created_todo
-        elif hasattr(created_todo, "id"):
-            todo_to_index = created_todo
-        else:
-            logger.error(f"Cannot index todo: invalid format or missing ID")
-            return created_todo
-            
-        indexing_success = await direct_index_todo(todo_to_index)
-        if indexing_success:
-            logger.info(f"Successfully indexed todo {todo_to_index.id if hasattr(todo_to_index, 'id') else todo_to_index.get('id')} in vector store using direct method")
-        else:
-            logger.warning(f"Failed to index todo in vector store using direct method")
-    except Exception as e:
-        logger.error(f"Error using direct indexing for todo: {str(e)}")
-        # Continue even if direct indexing fails
-    
-    return created_todo
+    return await todo_service.create_todo(**todo.dict())
 
 
 @router.get("/{todo_id}", response_model=Todo)
@@ -87,29 +56,6 @@ async def update_todo(todo_id: int, todo: TodoUpdate, user_id: int, db: AsyncSes
     )
     if not updated_todo:
         raise HTTPException(status_code=404, detail="Todo not found")
-    
-    # Directly index the updated todo in ChromaDB
-    try:
-        from Backend.ai_services.rag.direct_index import direct_index_todo
-        
-        # Make sure we have the todo in the right format (either Todo object or dict with id)
-        if isinstance(updated_todo, dict) and "id" in updated_todo:
-            todo_to_index = updated_todo
-        elif hasattr(updated_todo, "id"):
-            todo_to_index = updated_todo
-        else:
-            logger.error(f"Cannot index updated todo: invalid format or missing ID")
-            return updated_todo
-            
-        indexing_success = await direct_index_todo(todo_to_index)
-        if indexing_success:
-            logger.info(f"Successfully indexed updated todo {todo_to_index.id if hasattr(todo_to_index, 'id') else todo_to_index.get('id')} in vector store using direct method")
-        else:
-            logger.warning(f"Failed to index updated todo in vector store using direct method")
-    except Exception as e:
-        logger.error(f"Error using direct indexing for updated todo: {str(e)}")
-        # Continue even if direct indexing fails
-    
     return updated_todo
 
 
@@ -121,19 +67,6 @@ async def delete_todo(todo_id: int, user_id: int, db: AsyncSession = Depends(get
     success = await todo_service.delete_todo(todo_id, user_id)
     if not success:
         raise HTTPException(status_code=404, detail="Todo not found")
-    
-    # Directly remove the todo from ChromaDB
-    try:
-        from Backend.ai_services.rag.direct_index import direct_remove_todo
-        removal_success = await direct_remove_todo(todo_id)
-        if removal_success:
-            logger.info(f"Successfully removed todo {todo_id} from vector store using direct method")
-        else:
-            logger.warning(f"Failed to remove todo {todo_id} from vector store using direct method")
-    except Exception as e:
-        logger.error(f"Error using direct removal for todo: {str(e)}")
-        # Continue even if direct removal fails
-    
     return {"success": True}
 
 
@@ -146,98 +79,4 @@ async def convert_task_to_todo(task_id: int, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail="Task not found")
 
     todo_service = TodoService(repository=TodoRepository(db))
-    converted_todo = await todo_service.convert_task_to_todo(task)
-    
-    # Directly index the converted todo in ChromaDB
-    try:
-        from Backend.ai_services.rag.direct_index import direct_index_todo
-        
-        # Make sure we have the todo in the right format (either Todo object or dict with id)
-        if isinstance(converted_todo, dict) and "id" in converted_todo:
-            todo_to_index = converted_todo
-        elif hasattr(converted_todo, "id"):
-            todo_to_index = converted_todo
-        else:
-            logger.error(f"Cannot index converted todo: invalid format or missing ID")
-            return converted_todo
-            
-        indexing_success = await direct_index_todo(todo_to_index)
-        if indexing_success:
-            logger.info(f"Successfully indexed converted todo {todo_to_index.id if hasattr(todo_to_index, 'id') else todo_to_index.get('id')} in vector store using direct method")
-        else:
-            logger.warning(f"Failed to index converted todo in vector store using direct method")
-    except Exception as e:
-        logger.error(f"Error using direct indexing for converted todo: {str(e)}")
-        # Continue even if direct indexing fails
-    
-    return converted_todo
-
-
-@router.get("/search/{user_id}", response_model=TodoSearchResponse)
-async def search_todos(
-    user_id: int,
-    query: str,
-    limit: int = Query(5, ge=1, le=20),
-    db: AsyncSession = Depends(get_db)
-):
-    """Search todos semantically by query.
-    
-    This endpoint uses vector similarity search to find todos similar to the query.
-    """
-    todo_service = TodoService(repository=TodoRepository(db))
-    results = await todo_service.semantic_search_todos(query, user_id, limit)
-    
-    # Handle potential errors
-    if "error" in results:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error searching todos: {results.get('error', 'Unknown error')}"
-        )
-        
-    return results
-
-
-@router.get("/similar/{user_id}", response_model=List[TodoSearchResult])
-async def find_similar_todos(
-    user_id: int,
-    query: str,
-    limit: int = Query(5, ge=1, le=20),
-    db: AsyncSession = Depends(get_db)
-):
-    """Find todos similar to the query.
-    
-    This endpoint uses vector similarity to find similar todos.
-    """
-    todo_service = TodoService(repository=TodoRepository(db))
-    return await todo_service.find_similar_todos(query, user_id, limit)
-
-
-@router.get("/suggestions/{user_id}", response_model=List[TodoSuggestion])
-async def get_todo_suggestions(
-    user_id: int,
-    count: int = Query(3, ge=1, le=10),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get AI-generated todo suggestions for a user."""
-    todo_service = TodoService(repository=TodoRepository(db))
-    return await todo_service.get_todo_suggestions(user_id, count)
-
-
-@router.get("/analytics/{user_id}", response_model=TodoAnalytics)
-async def get_todo_analytics(
-    user_id: int,
-    time_period: str = Query("week", pattern="^(day|week|month)$"),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get analytics for a user's todos."""
-    todo_service = TodoService(repository=TodoRepository(db))
-    analytics = await todo_service.get_todo_analytics(user_id, time_period)
-    
-    # Handle potential errors
-    if "error" in analytics:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error getting analytics: {analytics.get('error', 'Unknown error')}"
-        )
-        
-    return analytics
+    return await todo_service.convert_task_to_todo(task)

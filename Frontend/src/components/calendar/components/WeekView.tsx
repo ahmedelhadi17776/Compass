@@ -92,7 +92,7 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
             <div className="time-label-header"></div>
             {Array(7).fill(null).map((_, i) => (
               <div key={i} className="day-header">
-                <Skeleton className="h-11 w-20" />
+                <Skeleton className="h-6 w-20" />
               </div>
             ))}
           </div>
