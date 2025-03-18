@@ -12,12 +12,16 @@ from datetime import datetime, timedelta
 import json
 from Backend.data_layer.repositories.base_repository import BaseRepository
 from Backend.data_layer.database.models.todo import Todo
+from Backend.ai_services.rag.todo_ai_service import TodoAIService
+from Backend.utils.logging_utils import get_logger
 
+logger = get_logger(__name__)
 
 class TodoService:
     def __init__(self, repository: BaseRepository):
         self.repository = repository
         self.cache_ttl = 3600  # 1 hour cache
+        self.ai_service = TodoAIService()
 
     async def create_todo(self, **todo_data) -> Optional[Todo]:
         todo = await create_todo_task(todo_data)
@@ -195,3 +199,99 @@ class TodoService:
                         await self._invalidate_cache(user_id)
                 return new_todo
         return None
+        
+    async def find_similar_todos(self, query: str, user_id: int, limit: int = 5) -> List[Dict]:
+        """Find todos similar to the provided query.
+        
+        Args:
+            query: The search query
+            user_id: User ID to filter results by
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of similar todos with metadata and similarity scores
+        """
+        try:
+            return await self.ai_service.find_similar_todos(
+                todo=query,
+                limit=limit,
+                user_id=user_id
+            )
+        except Exception as e:
+            logger.error(f"Error finding similar todos: {str(e)}")
+            return []
+        
+    async def semantic_search_todos(self, query: str, user_id: int, limit: int = 5) -> Dict[str, Any]:
+        """Search todos by semantic similarity.
+        
+        Args:
+            query: The search query
+            user_id: User ID to filter results by
+            limit: Maximum number of results to return
+            
+        Returns:
+            Dictionary with search results and metadata
+        """
+        try:
+            return await self.ai_service.search_todos(
+                query=query,
+                user_id=user_id,
+                limit=limit
+            )
+        except Exception as e:
+            logger.error(f"Error searching todos: {str(e)}")
+            return {
+                "results": [],
+                "count": 0,
+                "query": query,
+                "error": str(e)
+            }
+        
+    async def get_todo_suggestions(self, user_id: int, count: int = 3) -> List[Dict]:
+        """Get AI-generated todo suggestions for a user.
+        
+        Args:
+            user_id: User ID to generate suggestions for
+            count: Number of suggestions to generate
+            
+        Returns:
+            List of todo suggestions
+        """
+        try:
+            return await self.ai_service.generate_todo_suggestions(
+                user_id=user_id,
+                count=count
+            )
+        except Exception as e:
+            logger.error(f"Error generating todo suggestions: {str(e)}")
+            return []
+        
+    async def get_todo_analytics(self, user_id: int, time_period: str = "week") -> Dict[str, Any]:
+        """Get analytics for a user's todos.
+        
+        Args:
+            user_id: User ID to analyze
+            time_period: Time period to analyze ("day", "week", "month")
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        try:
+            return await self.ai_service.analyze_todo_completion(
+                user_id=user_id,
+                time_period=time_period
+            )
+        except Exception as e:
+            logger.error(f"Error getting todo analytics: {str(e)}")
+            return {
+                "metrics": {
+                    "completion_rate": 0,
+                    "total_completed": 0,
+                    "total_pending": 0,
+                    "completion_by_priority": {}
+                },
+                "insights": [],
+                "recommendations": [],
+                "productivity_score": 0,
+                "error": str(e)
+            }
