@@ -71,41 +71,11 @@ class TaskUpdate(BaseModel):
     status_updated_at: Optional[datetime] = None
 
 
-class TaskResponse(BaseModel):
+class TaskResponse(TaskBase):
     id: int
-    title: str
-    description: Optional[str] = None
-    status: TaskStatus
-    priority: TaskPriority
     created_at: datetime
     updated_at: datetime
-    creator_id: int
-    assignee_id: Optional[int] = None
-    reviewer_id: Optional[int] = None
-    category_id: Optional[int] = None
-    parent_task_id: Optional[int] = None
-    estimated_hours: Optional[float] = None
-    actual_hours: Optional[float] = None
-    confidence_score: Optional[float] = None
-    completed_at: Optional[datetime] = None
-    start_date: datetime
-    duration: Optional[float] = None
-    due_date: Optional[datetime] = None
-    recurrence: RecurrenceType
-    recurrence_end_date: Optional[datetime] = None
-    project_id: int
-    organization_id: int
-    workflow_id: Optional[int] = None
-    dependencies: Optional[List[int]] = None
-    health_score: Optional[float] = None
-    
-    # Fields for recurring task occurrences
-    is_occurrence: Optional[bool] = False
-    occurrence_num: Optional[int] = None
-    original_task_id: Optional[int] = None
-    occurrence_id: Optional[int] = None
-    
-    # status_updated_at: datetime
+    status_updated_at: datetime
     completed_at: Optional[datetime] = None
     actual_hours: Optional[float] = None
     confidence_score: Optional[float] = None
