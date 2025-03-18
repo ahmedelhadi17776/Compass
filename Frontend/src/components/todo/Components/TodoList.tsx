@@ -1,12 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, X, MoreVertical, Clock, Eye, Repeat, Check, ArrowLeft, CalendarSync } from 'lucide-react';
+import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock } from 'lucide-react';
 import PriorityIndicator from './PriorityIndicator';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../../ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Progress } from "../../ui/progress";
@@ -15,17 +10,13 @@ import TodoForm from './TodoForm';
 import { Badge } from "../../ui/badge";
 import cn from 'classnames';
 import { useTheme } from '@/contexts/theme-provider';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import authApi, { User } from '@/api/auth';
-import axios from 'axios';
 import { Habit } from '@/components/todo/types-habit';
-import { Todo, TodoFormData, TodoStatus } from '@/components/todo/types-todo';
-import { TodoPriority } from '@/components/todo/types-todo';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/components/todo/types-todo';
+import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit } from '../hooks';
 
 const TodoList: React.FC = () => {
-  const queryClient = useQueryClient();
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   const [editingTask, setEditingTask] = useState<Todo | null>(null);
@@ -47,192 +38,17 @@ const TodoList: React.FC = () => {
     },
   });
 
-  // Todos query
-  const { data: todoList, isLoading } = useQuery<Todo[]>({
-    queryKey: ['todos', user?.id],
-    queryFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-      
-      const response = await axios.get<Todo[]>(`${API_BASE_URL}/todos/user/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      console.log('Raw API Response:', response);
-      console.log('API Data:', response.data);
-      
-      // Ensure we're returning an array
-      if (!Array.isArray(response.data)) {
-        console.error('API did not return an array:', response.data);
-        return [];
-      }
-
-      return response.data;
-    },
-    enabled: !!user?.id,
-    initialData: [], // Provide initial data as empty array
-    staleTime: 0, // Consider data fresh for 5 seconds
-  });
-
-  // Create todo mutation
-  const createTodoMutation = useMutation({
-    mutationFn: async (newTodo: Omit<Todo, 'id' | 'created_at' | 'updated_at' | 'completion_date'>) => {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-      
-      const response = await axios.post<Todo>(
-        `${API_BASE_URL}/todos`,
-        newTodo,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
-  });
-
-  // Update todo mutation
-  const updateTodoMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: number; updates: Partial<Todo> }) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('No token found or user not authenticated');
-      
-      const response = await axios.put<Todo>(
-        `${API_BASE_URL}/todos/${id}?user_id=${user.id}`,
-        updates,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
-  });
-
-  // Delete todo mutation
-  const deleteTodoMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('No token found or user not authenticated');
-      
-      await axios.delete(
-        `${API_BASE_URL}/todos/${id}?user_id=${user.id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
-  });
-
-  // Habits query
-  const { data: habits = [] } = useQuery<Habit[]>({
-    queryKey: ['habits', user?.id],
-    queryFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-      
-      const response = await axios.get<Habit[]>(`${API_BASE_URL}/daily-habits/user/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      return response.data;
-    },
-    enabled: !!user?.id,
-    initialData: [],
-    staleTime: 0,
-  });
-
-  // Create habit mutation
-  const createHabitMutation = useMutation({
-    mutationFn: async (habit_name: string) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-      
-      return axios.post(`${API_BASE_URL}/daily-habits`, {
-        habit_name,
-        user_id: user.id,
-        start_day: new Date().toISOString().split('T')[0],
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-      setNewHabit('');
-      setShowHabitInput(false);
-    },
-  });
-
-  // Toggle habit completion mutation
-  const toggleHabitMutation = useMutation({
-    mutationFn: async (habitId: number) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-      
-      return axios.post(`${API_BASE_URL}/daily-habits/${habitId}/complete`, null, {
-        params: { user_id: user.id },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-    },
-  });
-
-  const unmarkHabitMutation = useMutation({
-    mutationFn: async (habitId: number) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-
-      return axios.post(`${API_BASE_URL}/daily-habits/${habitId}/uncomplete`, null, {
-        params: { user_id: user.id },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-    },
-  });
-
-  // Delete habit mutation
-  const deleteHabitMutation = useMutation({
-    mutationFn: async (habitId: number) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-      
-      return axios.delete(`${API_BASE_URL}/daily-habits/${habitId}`, {
-        params: { user_id: user.id },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-    },
-  });
-
-  // Edit habit mutation
-  const editHabitMutation = useMutation({
-    mutationFn: async ({ habitId, habit_name }: { habitId: number; habit_name: string }) => {
-      const token = localStorage.getItem('token');
-      if (!token || !user?.id) throw new Error('Authentication required');
-      
-      return axios.put(
-        `${API_BASE_URL}/daily-habits/${habitId}`,
-        { habit_name },
-        {
-          params: { user_id: user.id },
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-      setNewHabit('');
-      setShowHabitInput(false);
-      setEditingHabit(null);
-    },
-  });
+  // Use the custom hooks
+  const { data: todoList, isLoading } = useTodos(user);
+  const { data: habits = [] } = useHabits(user);
+  const createTodoMutation = useCreateTodo();
+  const updateTodoMutation = useUpdateTodo();
+  const deleteTodoMutation = useDeleteTodo();
+  const toggleTodoStatus = useToggleTodoStatus();
+  const createHabitMutation = useCreateHabit();
+  const toggleHabitMutation = useToggleHabit();
+  const deleteHabitMutation = useDeleteHabit();
+  const updateHabitMutation = useUpdateHabit();
 
   const handleEditHabit = (habit: Habit) => {
     setEditingHabit(habit);
@@ -275,14 +91,7 @@ const TodoList: React.FC = () => {
   };
 
   const handleToggleTodo = (todo: Todo) => {
-    const newStatus = todo.status === TodoStatus.COMPLETED ? TodoStatus.PENDING : TodoStatus.COMPLETED;
-    updateTodoMutation.mutate({
-      id: todo.id,
-      updates: {
-        status: newStatus,
-        completion_date: newStatus === TodoStatus.COMPLETED ? new Date().toISOString() : undefined
-      }
-    });
+    toggleTodoStatus(todo);
   };
 
   const handleDeleteTodo = (id: number) => {
@@ -381,7 +190,7 @@ const TodoList: React.FC = () => {
     if (!newHabit.trim()) return;
 
     if (editingHabit) {
-      editHabitMutation.mutate({
+      updateHabitMutation.mutate({
         habitId: editingHabit.id,
         habit_name: newHabit.trim()
       });
@@ -391,11 +200,7 @@ const TodoList: React.FC = () => {
   };
 
   const toggleHabit = (id: number, isCompleted: boolean) => {
-    if (isCompleted) {
-      unmarkHabitMutation.mutate(id);
-    } else {
-      toggleHabitMutation.mutate(id);
-    }
+    toggleHabitMutation.mutate({ habitId: id, isCompleted });
   };
 
   const deleteHabit = (id: number) => {
@@ -491,7 +296,7 @@ const TodoList: React.FC = () => {
             <div className="absolute inset-0 w-full h-full rounded-lg border bg-card p-4 flex flex-col [backface-visibility:hidden]">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <CalendarFold className="h-4 w-4 text-muted-foreground" />
                   <h3 className="font-medium">Log</h3>
                 </div>
                 <div className="flex gap-2">
@@ -654,9 +459,9 @@ const TodoList: React.FC = () => {
       <div className="h-[calc(100vh-190px)] w-full rounded-lg border bg-card p-4 -mt-4 flex flex-col">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {type === 'log' && <Clock className="h-4 w-4 text-muted-foreground" />}
-            {type === 'thisWeek' && <Eye className="h-4 w-4 text-muted-foreground" />}
-            {type === 'today' && <Repeat className="h-4 w-4 text-muted-foreground" />}
+            {type === 'log' && <CalendarFold className="h-4 w-4 text-muted-foreground" />}
+            {type === 'thisWeek' && <CalendarClock className="h-4 w-4 text-muted-foreground" />}
+            {type === 'today' && <CalendarCheck className="h-4 w-4 text-muted-foreground" />}
             {type === 'done' && <Check className="h-4 w-4 text-muted-foreground" />}
             <h3 className="font-medium">{title}</h3>
           </div>

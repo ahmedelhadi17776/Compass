@@ -58,3 +58,41 @@ class Todo(TodoBase):
 
     class Config:
         orm_mode = True
+
+
+class TodoSearchResult(BaseModel):
+    todo_id: int
+    title: str
+    status: Optional[TodoStatus] = None
+    priority: Optional[TodoPriority] = None
+    similarity_score: float
+    metadata: Optional[Dict] = None
+
+    class Config:
+        orm_mode = True
+
+
+class TodoSearchResponse(BaseModel):
+    results: List[TodoSearchResult]
+    count: int
+    query: str
+
+
+class TodoSuggestion(BaseModel):
+    title: str
+    description: Optional[str] = None
+    priority: TodoPriority
+    ai_generated: bool = True
+
+    class Config:
+        orm_mode = True
+
+
+class TodoAnalytics(BaseModel):
+    metrics: Dict
+    insights: List[str]
+    recommendations: List[str]
+    productivity_score: float
+
+    class Config:
+        orm_mode = True
