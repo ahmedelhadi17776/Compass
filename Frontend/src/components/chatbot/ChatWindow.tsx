@@ -4,6 +4,37 @@ import { useTheme } from '@/contexts/theme-provider';
 import { useNavigate } from 'react-router-dom';
 import { llmService } from '@/services/llmService';
 
+// Patterns for recognizing todo-related queries
+const TODO_PATTERNS = [
+  // Summary/analytics patterns
+  /summarize my todos?/i, 
+  /todo summary/i,
+  /how am i doing with my todos?/i,
+  /todo analytics/i,
+  /todo stats/i,
+  /todo progress/i,
+  
+  // Suggestions patterns
+  /suggest (some )?todos?/i,
+  /recommend (some )?todos?/i,
+  /todo ideas/i,
+  /what should i do/i,
+  /help me plan/i,
+  
+  // Similar todos patterns
+  /similar todos?/i,
+  /todos? like/i,
+  /todos? related to/i,
+  /find todos? about/i,
+  
+  // General todo queries
+  /my todos?/i,
+  /show me my todos?/i,
+  /list my todos?/i,
+  /find todos?/i,
+  /search todos?/i
+];
+
 interface ChatWindowProps {
   messages: Message[];
   inputText: string;
@@ -138,6 +169,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     });
   };
 
+  // Function to check if a query is todo-related
+  const isTodoQuery = useCallback((text: string): boolean => {
+    return TODO_PATTERNS.some(pattern => pattern.test(text));
+  }, []);
+
+  // Handle sending a message with todo RAG if applicable
   const handleSendMessage = useCallback(async () => {
     if (!inputText.trim() || isLoading) return;
 
@@ -157,14 +194,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       // Also call parent handler to sync state
       parentHandleSendMessage();
 
+      // Determine if this is a todo-related query
+      const isTodoRelated = isTodoQuery(userMessage.text);
+      
       // Start streaming response
       let fullResponse = '';
       let errorOccurred = false;
       let lastChunkEndsWithSpace = false;
       
       try {
-        console.log('Starting to stream response...');
-        for await (const chunk of llmService.streamResponse(userMessage.text)) {
+        console.log(`Starting to stream ${isTodoRelated ? 'Todo RAG' : 'standard'} response...`);
+        
+        // Use todo RAG service if it's a todo-related query
+        const streamSource = isTodoRelated 
+          ? llmService.streamTodoQuery(userMessage.text)
+          : llmService.streamResponse(userMessage.text);
+          
+        for await (const chunk of streamSource) {
           // Check if the chunk is an error message (JSON object)
           try {
             const jsonChunk = JSON.parse(chunk);
@@ -172,7 +218,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               errorOccurred = true;
               fullResponse = `Sorry, an error occurred: ${jsonChunk.error}`;
               setStreamingText(fullResponse);
-              console.error('Error from LLM service:', jsonChunk.error);
+              console.error('Error from service:', jsonChunk.error);
               break;
             }
           } catch (e) {
@@ -249,7 +295,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [inputText, isLoading, parentHandleSendMessage, addMessage]);
+  }, [inputText, isLoading, parentHandleSendMessage, addMessage, isTodoQuery]);
 
   return (
     <div

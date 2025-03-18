@@ -15,6 +15,7 @@ from Backend.api.auth import get_current_user
 from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.data_layer.database.models.user import User
+from Backend.ai_services.rag.todo_ai_service import TodoAIService
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ router = APIRouter(prefix="/ai", tags=["AI Services"])
 # Initialize centralized AI service
 ai_service = AIService()
 llm_service = LLMService()
+
+# Add TodoAIService instance
+todo_ai_service = TodoAIService()
 
 @router.post("/analyze/task")
 async def analyze_task(
@@ -314,3 +318,266 @@ async def summarize_meeting(
     except Exception as e:
         logger.error(f"Error summarizing meeting: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/llm/todo-rag")
+async def process_todo_rag_query(
+    request: LLMRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Process natural language queries about todos using RAG."""
+    try:
+        logger.info(f"Processing Todo RAG query for user {current_user.id}")
+        
+        # Extract user_id and query
+        user_id = current_user.id
+        query = request.prompt
+        
+        # Process the query to determine intent
+        if "summary" in query.lower() or "summarize" in query.lower():
+            # Get todo analytics for summary
+            time_period = "week"  # default
+            if "day" in query.lower():
+                time_period = "day"
+            elif "month" in query.lower():
+                time_period = "month"
+                
+            analytics = await todo_ai_service.analyze_todo_completion(
+                user_id=user_id,
+                time_period=time_period
+            )
+            
+            # Now use the LLM to generate a natural language response
+            context = {
+                "system_message": """You are a helpful AI assistant specialized in productivity and task management.
+                Summarize the todo analytics data in a helpful, conversational way and provide actionable insights.""",
+                "analytics": analytics
+            }
+            
+            response = await llm_service.generate_response(
+                prompt=f"Please summarize my todo list analytics for the {time_period}.",
+                context=context
+            )
+            
+            return response
+            
+        elif "suggest" in query.lower() or "recommend" in query.lower() or "idea" in query.lower():
+            # Generate todo suggestions
+            count = 3  # default
+            if "more" in query.lower():
+                count = 5
+                
+            suggestions = await todo_ai_service.generate_todo_suggestions(
+                user_id=user_id,
+                count=count
+            )
+            
+            # Now use the LLM to present the suggestions in a natural way
+            context = {
+                "system_message": """You are a helpful AI assistant specialized in productivity and task management.
+                Present the todo suggestions in a conversational way, explaining why each might be useful.""",
+                "suggestions": suggestions
+            }
+            
+            response = await llm_service.generate_response(
+                prompt=f"Please suggest {count} todo items for me to consider.",
+                context=context
+            )
+            
+            return response
+            
+        elif "similar" in query.lower() or "like" in query.lower() or "related" in query.lower():
+            # Search for similar todos
+            # Extract the search subject from the query
+            search_terms = query.lower().split("similar to ")[1] if "similar to " in query.lower() else query
+            
+            similar_todos = await todo_ai_service.find_similar_todos(
+                todo=search_terms,
+                limit=5,
+                user_id=user_id
+            )
+            
+            # Now use the LLM to present the similar todos in a natural way
+            context = {
+                "system_message": """You are a helpful AI assistant specialized in productivity and task management.
+                Present the similar todos in a conversational way, explaining how they relate to the search query.""",
+                "similar_todos": similar_todos,
+                "search_query": search_terms
+            }
+            
+            response = await llm_service.generate_response(
+                prompt=f"Please find todos similar to: {search_terms}",
+                context=context
+            )
+            
+            return response
+            
+        else:
+            # For general todo queries, use semantic search 
+            search_results = await todo_ai_service.search_todos(
+                query=query,
+                user_id=user_id,
+                limit=5
+            )
+            
+            # Use the LLM to generate a response based on the search results
+            context = {
+                "system_message": """You are a helpful AI assistant specialized in productivity and task management.
+                Respond to the user's query about their todos in a helpful, conversational way.""",
+                "search_results": search_results
+            }
+            
+            response = await llm_service.generate_response(
+                prompt=query,
+                context=context
+            )
+            
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error processing Todo RAG query: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/llm/todo-rag/stream")
+async def process_todo_rag_query_stream(
+    request: LLMRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Process natural language queries about todos using RAG with streaming response."""
+    if not current_user:
+        logger.error("Authentication required for streaming endpoint")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+
+    try:
+        logger.info(f"Processing streaming Todo RAG query for user {current_user.id}")
+        
+        # Extract user_id and query
+        user_id = current_user.id
+        query = request.prompt
+        
+        # Prepare a context based on the query type
+        context = ""
+        system_message = """You are a helpful AI assistant specialized in productivity and task management.
+        Respond to the user's query about their todos in a helpful, conversational way."""
+        
+        if "summary" in query.lower() or "summarize" in query.lower():
+            # Get todo analytics for summary
+            time_period = "week"  # default
+            if "day" in query.lower():
+                time_period = "day"
+            elif "month" in query.lower():
+                time_period = "month"
+                
+            analytics = await todo_ai_service.analyze_todo_completion(
+                user_id=user_id,
+                time_period=time_period
+            )
+            
+            context = f"Todo analytics for {time_period}: {analytics}"
+            
+        elif "suggest" in query.lower() or "recommend" in query.lower() or "idea" in query.lower():
+            # Generate todo suggestions
+            count = 3  # default
+            if "more" in query.lower():
+                count = 5
+                
+            suggestions = await todo_ai_service.generate_todo_suggestions(
+                user_id=user_id,
+                count=count
+            )
+            
+            context = f"Todo suggestions: {suggestions}"
+            
+        elif "similar" in query.lower() or "like" in query.lower() or "related" in query.lower():
+            # Search for similar todos
+            search_terms = query.lower().split("similar to ")[1] if "similar to " in query.lower() else query
+            
+            similar_todos = await todo_ai_service.find_similar_todos(
+                todo=search_terms,
+                limit=5,
+                user_id=user_id
+            )
+            
+            context = f"Similar todos to '{search_terms}': {similar_todos}"
+            
+        else:
+            # For general todo queries, use semantic search 
+            search_results = await todo_ai_service.search_todos(
+                query=query,
+                user_id=user_id,
+                limit=5
+            )
+            
+            context = f"Todo search results for '{query}': {search_results}"
+        
+        # Configure the OpenAI client directly
+        github_token = os.environ.get("GITHUB_TOKEN", "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")
+        base_url = "https://models.inference.ai.azure.com"
+        model_name = "gpt-4o-mini"
+        
+        client = OpenAI(
+            api_key=github_token,
+            base_url=base_url
+        )
+        
+        # Prepare messages
+        messages = [
+            {"role": "system", "content": system_message + "\n\nHere is information about the user's todos:\n" + context},
+            {"role": "user", "content": query}
+        ]
+        
+        # Prepare parameters
+        params = {
+            "temperature": 1.0,
+            "max_tokens": 4096,
+            "top_p": 1.0
+        }
+        
+        if request.model_parameters:
+            params.update(request.model_parameters)
+        
+        async def generate():
+            try:
+                # Create a direct streaming response
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True,
+                    **params
+                )
+                
+                # Stream the response
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        yield f"data: {content}\n\n"
+                
+                # Send a final empty data message to signal the end of the stream
+                yield "data: [DONE]\n\n"
+                
+            except Exception as e:
+                logger.error(f"Error in stream generator: {str(e)}")
+                error_msg = str(e).replace('"', '\\"')  # Escape quotes
+                yield f"data: {{\"error\": \"{error_msg}\" }}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in stream response: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
