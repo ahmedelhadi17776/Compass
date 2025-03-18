@@ -1,0 +1,346 @@
+[2025-03-17 20:59:44,657] INFO [__main__:16] Connected to collection: compass_collection
+[2025-03-17 20:59:44,669] INFO [__main__:20] Total documents in collection: 0
+[2025-03-17 20:59:44,692] INFO [__main__:24] Found 0 todos in ChromaDB
+[2025-03-17 20:59:44,693] INFO [__main__:27] Todo IDs: []
+[2025-03-17 21:00:49,133] INFO [__main__:17] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:00:49,133] INFO [__main__:21] Directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:00:49,134] INFO [__main__:25] Directory contents: ['b173aaf3-d90f-465a-82a9-b5b166657eed', 'chroma.sqlite3']
+[2025-03-17 21:00:49,134] INFO [__main__:29] ChromaDB SQLite database file found
+[2025-03-17 21:00:49,135] WARNING [__main__:36] ChromaDB index directory not found
+[2025-03-17 21:00:49,135] INFO [__main__:52] Successfully wrote test file: D:\grad\Graduation_project\data\chromadb\test_write.txt
+[2025-03-17 21:00:49,136] INFO [__main__:56] Successfully removed test file: D:\grad\Graduation_project\data\chromadb\test_write.txt
+[2025-03-17 21:00:49,136] INFO [__main__:62] ChromaDB collection name: compass_collection
+[2025-03-17 21:01:24,036] INFO [__main__:23] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:01:24,037] INFO [__main__:24] ChromaDB collection name: compass_collection
+[2025-03-17 21:01:24,037] INFO [__main__:28] Ensured directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:01:24,038] INFO [__main__:31] Creating a fresh ChromaDB client
+[2025-03-17 21:01:24,046] ERROR [__main__:88] Error resetting ChromaDB: An instance of Chroma already exists for D:\grad\Graduation_project\data\chromadb with different settings
+[2025-03-17 21:01:57,387] INFO [__main__:23] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:01:57,388] INFO [__main__:24] ChromaDB collection name: compass_collection
+[2025-03-17 21:01:57,388] INFO [__main__:28] Ensured directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:01:57,389] INFO [__main__:37] Removing existing ChromaDB directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:01:57,390] ERROR [__main__:44] Error removing ChromaDB directory: [WinError 32] The process cannot access the file because it is being used by another process: 'D:\\grad\\Graduation_project\\data\\chromadb\\chroma.sqlite3'
+[2025-03-17 21:04:03,138] INFO [__main__:23] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:03,138] INFO [__main__:24] ChromaDB collection name: compass_collection
+[2025-03-17 21:04:03,139] INFO [__main__:28] Ensured directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:03,139] INFO [__main__:37] Removing existing ChromaDB directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:03,140] ERROR [__main__:44] Error removing ChromaDB directory: [WinError 32] The process cannot access the file because it is being used by another process: 'D:\\grad\\Graduation_project\\data\\chromadb\\chroma.sqlite3'
+[2025-03-17 21:04:22,475] INFO [__main__:23] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:22,475] INFO [__main__:24] ChromaDB collection name: compass_collection
+[2025-03-17 21:04:22,475] INFO [__main__:28] Ensured directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:22,476] INFO [__main__:37] Removing existing ChromaDB directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:22,477] INFO [__main__:42] Created fresh ChromaDB directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:04:22,478] INFO [__main__:48] Creating a fresh ChromaDB client
+[2025-03-17 21:04:22,909] INFO [__main__:61] Created new collection: compass_collection
+[2025-03-17 21:04:24,686] INFO [__main__:68] Generated test embedding with dimension: 384
+[2025-03-17 21:04:24,716] INFO [__main__:77] Successfully added test document to ChromaDB
+[2025-03-17 21:05:19,142] INFO [__main__:86] Successfully queried test document: ['test_doc_1']
+[2025-03-17 21:05:19,142] INFO [__main__:90] ChromaDB reset and test complete
+[2025-03-17 21:05:19,143] INFO [__main__:91] 
+
+IMPORTANT: You need to restart your FastAPI server now to use the new ChromaDB instance!
+
+
+[2025-03-17 21:07:32,377] INFO [__main__:17] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:07:32,377] INFO [__main__:21] Directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:07:32,378] INFO [__main__:25] Directory contents: ['9839b474-15a4-48fa-b556-1842a0e3dd5c', 'chroma.sqlite3']
+[2025-03-17 21:07:32,378] INFO [__main__:29] ChromaDB SQLite database file found
+[2025-03-17 21:07:32,378] WARNING [__main__:36] ChromaDB index directory not found
+[2025-03-17 21:07:32,379] INFO [__main__:52] Successfully wrote test file: D:\grad\Graduation_project\data\chromadb\test_write.txt
+[2025-03-17 21:07:32,380] INFO [__main__:56] Successfully removed test file: D:\grad\Graduation_project\data\chromadb\test_write.txt
+[2025-03-17 21:07:32,380] INFO [__main__:62] ChromaDB collection name: compass_collection
+[2025-03-17 21:07:42,348] INFO [__main__:17] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:07:42,348] INFO [__main__:21] Directory exists: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:07:42,348] INFO [__main__:25] Directory contents: ['9839b474-15a4-48fa-b556-1842a0e3dd5c', 'chroma.sqlite3']
+[2025-03-17 21:07:42,349] INFO [__main__:29] ChromaDB SQLite database file found
+[2025-03-17 21:07:42,349] WARNING [__main__:36] ChromaDB index directory not found
+[2025-03-17 21:07:42,349] INFO [__main__:52] Successfully wrote test file: D:\grad\Graduation_project\data\chromadb\test_write.txt
+[2025-03-17 21:07:42,350] INFO [__main__:56] Successfully removed test file: D:\grad\Graduation_project\data\chromadb\test_write.txt
+[2025-03-17 21:07:42,350] INFO [__main__:62] ChromaDB collection name: compass_collection
+[2025-03-17 21:10:07,876] INFO [__main__:16] Connected to collection: compass_collection
+[2025-03-17 21:10:07,888] INFO [__main__:20] Total documents in collection: 1
+[2025-03-17 21:10:07,907] INFO [__main__:24] Found 0 todos in ChromaDB
+[2025-03-17 21:10:07,907] INFO [__main__:27] Todo IDs: []
+[2025-03-17 21:11:50,648] INFO [__main__:21] Connected to collection: compass_collection
+[2025-03-17 21:11:50,662] INFO [__main__:25] Total documents in collection: 1
+[2025-03-17 21:11:50,684] INFO [__main__:29] Found 1 documents in total
+[2025-03-17 21:11:50,685] INFO [__main__:30] Document IDs: ['test_doc_1']
+[2025-03-17 21:11:50,685] INFO [__main__:34] First document metadata: {
+  "document_type": "test",
+  "type": "test"
+}
+[2025-03-17 21:11:50,685] INFO [__main__:35] First document content: This is a test document for ChromaDB
+[2025-03-17 21:11:50,688] INFO [__main__:39] Found 0 todos in ChromaDB
+[2025-03-17 21:11:50,689] INFO [__main__:42] Todo IDs: []
+[2025-03-17 21:12:18,412] INFO [__main__:22] Connected to collection: compass_collection
+[2025-03-17 21:12:18,446] INFO [__main__:26] Total documents: 1
+[2025-03-17 21:12:18,446] INFO [__main__:27] Document IDs: ['test_doc_1']
+[2025-03-17 21:12:18,446] INFO [__main__:31] Document 1: ID=test_doc_1, Metadata={'document_type': 'test', 'type': 'test'}
+[2025-03-17 21:12:18,448] INFO [__main__:41] Approach 1: Found 0 todos using document_type='todo'
+[2025-03-17 21:12:18,448] INFO [__main__:42] Todo IDs: []
+[2025-03-17 21:12:18,451] INFO [__main__:49] Approach 2: Found 0 todos using document_type=$eq:todo
+[2025-03-17 21:12:18,451] INFO [__main__:50] Todo IDs: []
+[2025-03-17 21:12:18,452] INFO [__main__:57] Approach 3: Found 0 todos by checking ID prefix 'todo_'
+[2025-03-17 21:12:18,452] INFO [__main__:58] Todo IDs: []
+[2025-03-17 21:12:18,454] WARNING [__main__:73] Could not find todo_11 by direct ID lookup
+[2025-03-17 21:12:54,175] INFO [__main__:26] ChromaDB persistence directory: D:\grad\Graduation_project\data\chromadb
+[2025-03-17 21:12:54,175] INFO [__main__:27] ChromaDB collection name: compass_collection
+[2025-03-17 21:12:54,436] INFO [__main__:40] Connected to collection: compass_collection
+[2025-03-17 21:12:54,452] INFO [__main__:44] Current document count: 1
+[2025-03-17 21:12:55,825] INFO [__main__:59] Generated embedding with dimension: 384
+[2025-03-17 21:12:55,863] INFO [__main__:64] Deleted existing test document: test_todo_color_123
+[2025-03-17 21:12:55,889] INFO [__main__:75] Added test document: test_todo_color_123
+[2025-03-17 21:12:55,912] INFO [__main__:80] Retrieved test document: {'ids': ['test_todo_color_123'], 'embeddings': None, 'documents': ['This is a test todo about finding colors'], 'uris': None, 'data': None, 'metadatas': [{'document_type': 'todo', 'status': 'PENDING', 'title': 'Test color todo', 'todo_id': 123, 'user_id': 1}], 'included': [<IncludeEnum.documents: 'documents'>, <IncludeEnum.metadatas: 'metadatas'>]}
+[2025-03-17 21:12:56,251] INFO [__main__:92] Search found 1 documents
+[2025-03-17 21:12:56,252] INFO [__main__:93] Search result IDs: ['test_todo_color_123']
+[2025-03-17 21:12:56,253] INFO [__main__:94] Search result metadata: [
+  {
+    "document_type": "todo",
+    "status": "PENDING",
+    "title": "Test color todo",
+    "todo_id": 123,
+    "user_id": 1
+  }
+]
+[2025-03-17 21:13:42,846] INFO [__main__:92] Connected to collection: compass_collection
+[2025-03-17 21:13:42,859] INFO [__main__:93] Current document count: 2
+[2025-03-17 21:13:43,160] INFO [__main__:31] Found 9 todos in database
+[2025-03-17 21:13:43,160] INFO [__main__:103] Processing 9 todos
+[2025-03-17 21:13:44,583] INFO [__main__:123] Deleted existing todo: todo_8
+[2025-03-17 21:13:44,633] INFO [__main__:138] Successfully indexed todo 8
+[2025-03-17 21:13:44,721] INFO [__main__:123] Deleted existing todo: todo_13
+[2025-03-17 21:13:44,730] INFO [__main__:138] Successfully indexed todo 13
+[2025-03-17 21:13:44,819] INFO [__main__:123] Deleted existing todo: todo_4
+[2025-03-17 21:13:44,828] INFO [__main__:138] Successfully indexed todo 4
+[2025-03-17 21:13:44,912] INFO [__main__:123] Deleted existing todo: todo_11
+[2025-03-17 21:13:44,921] INFO [__main__:138] Successfully indexed todo 11
+[2025-03-17 21:13:45,008] INFO [__main__:123] Deleted existing todo: todo_12
+[2025-03-17 21:13:45,016] INFO [__main__:138] Successfully indexed todo 12
+[2025-03-17 21:13:45,109] INFO [__main__:123] Deleted existing todo: todo_9
+[2025-03-17 21:13:45,117] INFO [__main__:138] Successfully indexed todo 9
+[2025-03-17 21:13:45,215] INFO [__main__:123] Deleted existing todo: todo_10
+[2025-03-17 21:13:45,224] INFO [__main__:138] Successfully indexed todo 10
+[2025-03-17 21:13:45,311] INFO [__main__:123] Deleted existing todo: todo_15
+[2025-03-17 21:13:45,320] INFO [__main__:138] Successfully indexed todo 15
+[2025-03-17 21:13:45,414] INFO [__main__:123] Deleted existing todo: todo_14
+[2025-03-17 21:13:45,422] INFO [__main__:138] Successfully indexed todo 14
+[2025-03-17 21:13:45,422] INFO [__main__:148] Reindexing complete: 9 successful, 0 failed
+[2025-03-17 21:13:45,790] INFO [__main__:158] Test search found 5 documents
+[2025-03-17 21:13:45,795] INFO [__main__:159] Search result IDs: ['todo_12', 'todo_13', 'todo_8', 'todo_14', 'todo_4']
+[2025-03-17 21:16:22,424] INFO [__main__:21] Testing todo_semantic_search...
+[2025-03-17 21:16:23,717] INFO [__main__:28] Semantic search results: {
+  "results": [
+    {
+      "todo_id": 11,
+      "title": "Find a nice color schema",
+      "status": "TodoStatus.PENDING",
+      "priority": "TodoPriority.HIGH",
+      "tags": [],
+      "similarity_score": 0.3626102795009718,
+      "metadata": {
+        "ai_generated": false,
+        "created_at": "2025-03-15T03:16:41.270978",
+        "document_type": "todo",
+        "due_date": "2025-03-14T15:16:35.910000",
+        "is_recurring": false,
+        "priority": "TodoPriority.HIGH",
+        "status": "TodoStatus.PENDING",
+        "title": "Find a nice color schema",
+        "todo_id": 11,
+        "updated_at": "2025-03-16T21:49:04.912427",
+        "user_id": 1
+      }
+    },
+    {
+      "todo_id": 4,
+      "title": "Calendar Types",
+      "status": "TodoStatus.COMPLETED",
+      "priority": "TodoPriority.MEDIUM",
+      "tags": [
+        "Compass"
+      ],
+      "similarity_score": 0.10941485263516915,
+      "metadata": {
+        "ai_generated": false,
+        "created_at": "2025-03-13T14:36:40.168458",
+        "document_type": "todo",
+        "due_date": "2025-03-13T12:36:16.189000",
+        "is_recurring": false,
+        "priority": "TodoPriority.MEDIUM",
+        "status": "TodoStatus.COMPLETED",
+        "title": "Calendar Types",
+        "todo_id": 4,
+        "updated_at": "2025-03-17T15:43:48.503919",
+        "user_id": 1
+      }
+    },
+    {
+      "todo_id": 13,
+      "title": "Unify Todo, Calendar",
+      "status": "TodoStatus.PENDING",
+      "priority": "TodoPriority.MEDIUM",
+      "tags": [],
+      "similarity_score": 0.09402606411707737,
+      "metadata": {
+        "ai_generated": false,
+        "created_at": "2025-03-15T03:17:31.301483",
+        "document_type": "todo",
+        "due_date": "2025-03-14T17:17:16.132000",
+        "is_recurring": false,
+        "priority": "TodoPriority.MEDIUM",
+        "status": "TodoStatus.PENDING",
+        "title": "Unify Todo, Calendar",
+        "todo_id": 13,
+        "updated_at": "2025-03-17T15:43:33.460261",
+        "user_id": 1
+      }
+    },
+    {
+      "todo_id": 10,
+      "title": "Add the ability to change the user's username and profile picture through settings",
+      "status": "TodoStatus.PENDING",
+      "priority": "TodoPriority.MEDIUM",
+      "tags": [],
+      "similarity_score": 0.08870388999357015,
+      "metadata": {
+        "ai_generated": false,
+        "created_at": "2025-03-15T03:16:29.127224",
+        "document_type": "todo",
+        "due_date": "2025-03-15T01:15:58.063000",
+        "is_recurring": false,
+        "priority": "TodoPriority.MEDIUM",
+        "status": "TodoStatus.PENDING",
+        "title": "Add the ability to change the user's username and profile picture through settings",
+        "todo_id": 10,
+        "updated_at": "2025-03-16T22:19:05.324633",
+        "user_id": 1
+      }
+    }
+  ],
+  "count": 4,
+  "query": "color"
+}
+[2025-03-17 21:16:23,718] INFO [__main__:31] Testing find_similar_todos...
+[2025-03-17 21:16:23,728] INFO [__main__:38] Similar todos results: [
+  {
+    "todo_id": 11,
+    "title": "Find a nice color schema",
+    "status": "TodoStatus.PENDING",
+    "priority": "TodoPriority.HIGH",
+    "tags": [],
+    "similarity_score": 0.3626102795009718,
+    "metadata": {
+      "ai_generated": false,
+      "created_at": "2025-03-15T03:16:41.270978",
+      "document_type": "todo",
+      "due_date": "2025-03-14T15:16:35.910000",
+      "is_recurring": false,
+      "priority": "TodoPriority.HIGH",
+      "status": "TodoStatus.PENDING",
+      "title": "Find a nice color schema",
+      "todo_id": 11,
+      "updated_at": "2025-03-16T21:49:04.912427",
+      "user_id": 1
+    }
+  },
+  {
+    "todo_id": 4,
+    "title": "Calendar Types",
+    "status": "TodoStatus.COMPLETED",
+    "priority": "TodoPriority.MEDIUM",
+    "tags": [
+      "Compass"
+    ],
+    "similarity_score": 0.10941485263516915,
+    "metadata": {
+      "ai_generated": false,
+      "created_at": "2025-03-13T14:36:40.168458",
+      "document_type": "todo",
+      "due_date": "2025-03-13T12:36:16.189000",
+      "is_recurring": false,
+      "priority": "TodoPriority.MEDIUM",
+      "status": "TodoStatus.COMPLETED",
+      "title": "Calendar Types",
+      "todo_id": 4,
+      "updated_at": "2025-03-17T15:43:48.503919",
+      "user_id": 1
+    }
+  },
+  {
+    "todo_id": 13,
+    "title": "Unify Todo, Calendar",
+    "status": "TodoStatus.PENDING",
+    "priority": "TodoPriority.MEDIUM",
+    "tags": [],
+    "similarity_score": 0.09402606411707737,
+    "metadata": {
+      "ai_generated": false,
+      "created_at": "2025-03-15T03:17:31.301483",
+      "document_type": "todo",
+      "due_date": "2025-03-14T17:17:16.132000",
+      "is_recurring": false,
+      "priority": "TodoPriority.MEDIUM",
+      "status": "TodoStatus.PENDING",
+      "title": "Unify Todo, Calendar",
+      "todo_id": 13,
+      "updated_at": "2025-03-17T15:43:33.460261",
+      "user_id": 1
+    }
+  },
+  {
+    "todo_id": 10,
+    "title": "Add the ability to change the user's username and profile picture through settings",
+    "status": "TodoStatus.PENDING",
+    "priority": "TodoPriority.MEDIUM",
+    "tags": [],
+    "similarity_score": 0.08870388999357015,
+    "metadata": {
+      "ai_generated": false,
+      "created_at": "2025-03-15T03:16:29.127224",
+      "document_type": "todo",
+      "due_date": "2025-03-15T01:15:58.063000",
+      "is_recurring": false,
+      "priority": "TodoPriority.MEDIUM",
+      "status": "TodoStatus.PENDING",
+      "title": "Add the ability to change the user's username and profile picture through settings",
+      "todo_id": 10,
+      "updated_at": "2025-03-16T22:19:05.324633",
+      "user_id": 1
+    }
+  }
+]
+[2025-03-17 21:44:28,199] INFO [__main__:92] Connected to collection: compass_collection
+[2025-03-17 21:44:28,212] INFO [__main__:93] Current document count: 11
+[2025-03-17 21:44:28,486] INFO [__main__:31] Found 14 todos in database
+[2025-03-17 21:44:28,486] INFO [__main__:103] Processing 14 todos
+[2025-03-17 21:44:29,769] INFO [__main__:123] Deleted existing todo: todo_8
+[2025-03-17 21:44:29,810] INFO [__main__:138] Successfully indexed todo 8
+[2025-03-17 21:44:29,886] INFO [__main__:123] Deleted existing todo: todo_4
+[2025-03-17 21:44:29,893] INFO [__main__:138] Successfully indexed todo 4
+[2025-03-17 21:44:29,968] INFO [__main__:123] Deleted existing todo: todo_11
+[2025-03-17 21:44:29,976] INFO [__main__:138] Successfully indexed todo 11
+[2025-03-17 21:44:30,052] INFO [__main__:123] Deleted existing todo: todo_13
+[2025-03-17 21:44:30,059] INFO [__main__:138] Successfully indexed todo 13
+[2025-03-17 21:44:30,144] INFO [__main__:123] Deleted existing todo: todo_21
+[2025-03-17 21:44:30,144] ERROR [__main__:145] Error indexing todo 21: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:44:30,165] INFO [__main__:123] Deleted existing todo: todo_22
+[2025-03-17 21:44:30,166] ERROR [__main__:145] Error indexing todo 22: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:44:30,245] INFO [__main__:123] Deleted existing todo: todo_23
+[2025-03-17 21:44:30,252] INFO [__main__:138] Successfully indexed todo 23
+[2025-03-17 21:44:30,328] INFO [__main__:123] Deleted existing todo: todo_24
+[2025-03-17 21:44:30,336] INFO [__main__:138] Successfully indexed todo 24
+[2025-03-17 21:44:30,411] INFO [__main__:123] Deleted existing todo: todo_25
+[2025-03-17 21:44:30,418] INFO [__main__:138] Successfully indexed todo 25
+[2025-03-17 21:44:30,494] INFO [__main__:123] Deleted existing todo: todo_12
+[2025-03-17 21:44:30,501] INFO [__main__:138] Successfully indexed todo 12
+[2025-03-17 21:44:30,578] INFO [__main__:123] Deleted existing todo: todo_9
+[2025-03-17 21:44:30,585] INFO [__main__:138] Successfully indexed todo 9
+[2025-03-17 21:44:30,660] INFO [__main__:123] Deleted existing todo: todo_10
+[2025-03-17 21:44:30,667] INFO [__main__:138] Successfully indexed todo 10
+[2025-03-17 21:44:30,744] INFO [__main__:123] Deleted existing todo: todo_15
+[2025-03-17 21:44:30,751] INFO [__main__:138] Successfully indexed todo 15
+[2025-03-17 21:44:30,831] INFO [__main__:123] Deleted existing todo: todo_14
+[2025-03-17 21:44:30,839] INFO [__main__:138] Successfully indexed todo 14
+[2025-03-17 21:44:30,839] INFO [__main__:148] Reindexing complete: 12 successful, 2 failed
+[2025-03-17 21:44:31,197] INFO [__main__:158] Test search found 5 documents
+[2025-03-17 21:44:31,197] INFO [__main__:159] Search result IDs: ['todo_12', 'todo_24', 'todo_13', 'todo_8', 'todo_25']

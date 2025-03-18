@@ -1,0 +1,23 @@
+[2025-03-17 21:48:13,574] INFO [__main__:33] Created mock todo: 999999 - Test Todo for Direct Indexing
+[2025-03-17 21:48:16,387] ERROR [__main__:75] Direct indexing failed
+[2025-03-17 21:48:45,596] INFO [__main__:33] Created mock todo: 999999 - Test Todo for Direct Indexing
+[2025-03-17 21:48:48,234] INFO [__main__:38] Direct indexing successful
+[2025-03-17 21:48:48,640] INFO [__main__:55] Found 5 matching documents
+[2025-03-17 21:48:48,641] INFO [__main__:56] Document IDs: ['todo_999999', 'test_todo_color_123', 'todo_23', 'todo_11', 'test_doc_1']
+[2025-03-17 21:48:48,643] INFO [__main__:61] Successfully found our test todo with ID todo_999999
+[2025-03-17 21:48:48,720] INFO [__main__:71] Successfully removed test todo 999999
+[2025-03-17 22:00:26,274] INFO [__main__:22] Testing direct indexing with Todo object
+[2025-03-17 22:00:26,460] INFO [__main__:35] Testing direct indexing with dict
+[2025-03-17 22:00:26,460] INFO [__main__:48] Indexing Todo object with ID: 999998
+[2025-03-17 22:00:29,155] INFO [__main__:52] Indexing Dict with ID: 999997
+[2025-03-17 22:00:29,374] INFO [__main__:57] Both indexing operations were successful
+[2025-03-17 22:00:29,408] INFO [__main__:90] Successfully verified Todo object with ID todo_999998 is in ChromaDB
+[2025-03-17 22:00:29,408] INFO [__main__:95] Successfully verified Todo dict with ID todo_999997 is in ChromaDB
+[2025-03-17 22:00:29,409] INFO [__main__:100] Testing search for the indexed todos
+[2025-03-17 22:00:29,891] INFO [__main__:107] Found 5 matching documents
+[2025-03-17 22:00:29,891] INFO [__main__:108] Document IDs: ['todo_999997', 'todo_999998', 'todo_12', 'todo_13', 'test_todo_color_123']
+[2025-03-17 22:00:29,892] INFO [__main__:112] Found Todo object with ID todo_999998 in search results
+[2025-03-17 22:00:29,893] INFO [__main__:117] Found Todo dict with ID todo_999997 in search results
+[2025-03-17 22:00:29,893] INFO [__main__:124] Cleaning up test todos from ChromaDB
+[2025-03-17 22:00:29,986] INFO [__main__:129] Successfully removed Todo object with ID 999998
+[2025-03-17 22:00:29,986] INFO [__main__:134] Successfully removed Todo dict with ID 999997

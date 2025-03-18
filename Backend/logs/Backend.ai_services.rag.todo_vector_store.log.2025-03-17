@@ -1,0 +1,249 @@
+[2025-03-17 20:39:19,523] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:39:21,487] ERROR [Backend.ai_services.rag.todo_vector_store:419] Error in Todo semantic search: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:39:41,934] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:39:42,429] ERROR [Backend.ai_services.rag.todo_vector_store:309] Error finding similar Todos: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:39:48,212] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:39:58,366] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:39:58,851] ERROR [Backend.ai_services.rag.todo_vector_store:309] Error finding similar Todos: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:40:05,344] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:40:05,820] ERROR [Backend.ai_services.rag.todo_vector_store:309] Error finding similar Todos: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:40:08,069] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:40:11,308] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:40:19,494] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:40:19,989] ERROR [Backend.ai_services.rag.todo_vector_store:419] Error in Todo semantic search: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:42:48,809] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:42:59,525] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:44:22,038] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:44:28,108] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:45:35,876] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:45:37,617] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:45:38,624] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:46:16,596] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:47:35,629] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:47:42,569] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:48:04,511] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:48:13,567] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:48:15,400] ERROR [Backend.ai_services.rag.todo_vector_store:419] Error in Todo semantic search: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:48:46,394] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:48:46,822] ERROR [Backend.ai_services.rag.todo_vector_store:309] Error finding similar Todos: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:50:33,462] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:50:33,836] ERROR [Backend.ai_services.rag.todo_vector_store:419] Error in Todo semantic search: Expected where to have exactly one operator, got {'document_type': 'todo', 'user_id': 1} in query.
+[2025-03-17 20:52:06,922] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:52:08,534] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:52:28,445] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:52:36,421] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:52:36,809] INFO [Backend.ai_services.rag.todo_vector_store:281] Similar todos using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:53:26,518] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:53:54,345] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:53:56,035] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:54:04,339] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:54:04,724] INFO [Backend.ai_services.rag.todo_vector_store:281] Similar todos using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:54:17,444] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:54:28,715] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:54:29,294] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:54:32,962] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:54:51,611] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:54:51,983] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:55:02,200] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:55:02,571] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:56:35,208] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:56:35,592] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:57:03,795] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:57:05,323] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 20:58:14,043] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:59:31,663] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:02:26,219] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:04:12,911] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:07:09,528] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:07:11,193] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:07:17,820] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:07:18,197] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:07:29,089] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:08:35,745] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:08:58,338] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:09:00,016] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:09:04,988] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:09:05,359] INFO [Backend.ai_services.rag.todo_vector_store:388] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:09:08,416] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:09:30,746] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:11:38,456] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:11:40,400] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 8 embedding in ChromaDB
+[2025-03-17 21:11:40,527] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 21:11:40,805] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 4 embedding in ChromaDB
+[2025-03-17 21:11:40,870] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 11 embedding in ChromaDB
+[2025-03-17 21:11:40,936] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 12 embedding in ChromaDB
+[2025-03-17 21:11:41,007] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 9 embedding in ChromaDB
+[2025-03-17 21:11:41,072] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 10 embedding in ChromaDB
+[2025-03-17 21:11:41,137] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 15 embedding in ChromaDB
+[2025-03-17 21:11:41,202] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 14 embedding in ChromaDB
+[2025-03-17 21:14:16,509] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:14:18,325] INFO [Backend.ai_services.rag.todo_vector_store:406] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:14:18,651] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:14:57,692] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:14:59,744] INFO [Backend.ai_services.rag.todo_vector_store:406] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:15:14,834] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:15:22,798] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:16:22,424] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:16:23,659] INFO [Backend.ai_services.rag.todo_vector_store:406] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:16:23,720] INFO [Backend.ai_services.rag.todo_vector_store:299] Similar todos using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:17:21,753] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:18:05,453] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:18:07,343] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:23:59,595] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:24:01,462] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:24:01,958] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 21:24:02,082] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:24:04,379] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:24:04,777] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 21:24:04,891] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:26:37,141] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:26:56,307] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:26:58,059] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:26:58,223] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:26:58,625] INFO [Backend.ai_services.rag.todo_vector_store:299] Similar todos using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:27:00,273] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:27:00,749] INFO [Backend.ai_services.rag.todo_vector_store:299] Similar todos using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:27:30,012] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:27:30,804] ERROR [Backend.ai_services.rag.todo_vector_store:226] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in update.
+[2025-03-17 21:27:30,805] INFO [Backend.ai_services.rag.todo_vector_store:148] Adding todo 21 to ChromaDB with metadata: {'todo_id': 21, 'user_id': 1, 'title': 'Test search functionality with blue colors', 'status': 'pending', 'priority': 'medium', 'due_date': None, 'tags_json': '["test", "search", "blue"]', 'is_recurring': False, 'ai_generated': False, 'created_at': '2025-03-17T19:27:30.708193', 'updated_at': '2025-03-17T19:27:30.708193', 'document_type': 'todo'}
+[2025-03-17 21:27:30,806] INFO [Backend.ai_services.rag.todo_vector_store:152] Generated embedding for todo 21 with dimension 384
+[2025-03-17 21:27:30,832] INFO [Backend.ai_services.rag.todo_vector_store:160] Deleted existing todo 21 from ChromaDB
+[2025-03-17 21:27:30,833] ERROR [Backend.ai_services.rag.todo_vector_store:184] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:27:38,001] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:27:38,456] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:27:40,619] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:27:41,012] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:28:46,110] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:28:46,543] ERROR [Backend.ai_services.rag.todo_vector_store:226] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in update.
+[2025-03-17 21:28:46,544] INFO [Backend.ai_services.rag.todo_vector_store:148] Adding todo 22 to ChromaDB with metadata: {'todo_id': 22, 'user_id': 1, 'title': 'Test search functionality with blue colors', 'status': 'pending', 'priority': 'medium', 'due_date': None, 'tags_json': '["test", "search", "blue"]', 'is_recurring': False, 'ai_generated': False, 'created_at': '2025-03-17T19:28:46.458626', 'updated_at': '2025-03-17T19:28:46.458626', 'document_type': 'todo'}
+[2025-03-17 21:28:46,546] INFO [Backend.ai_services.rag.todo_vector_store:152] Generated embedding for todo 22 with dimension 384
+[2025-03-17 21:28:46,584] INFO [Backend.ai_services.rag.todo_vector_store:160] Deleted existing todo 22 from ChromaDB
+[2025-03-17 21:28:46,584] ERROR [Backend.ai_services.rag.todo_vector_store:184] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:28:58,748] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:29:06,262] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:29:18,791] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:29:36,326] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:29:51,855] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:29:55,322] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:29:58,837] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:30:01,357] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:30:08,869] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:30:21,364] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:30:38,914] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:30:50,225] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:30:54,937] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:31:01,467] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:31:22,650] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:31:26,251] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:31:56,908] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:32:26,816] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:32:37,745] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:32:38,199] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 21:32:38,314] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:33:43,219] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:33:57,662] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:36:19,223] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:38:23,282] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:38:25,060] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:39:17,441] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:39:24,887] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:39:25,406] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 24 embedding in ChromaDB
+[2025-03-17 21:39:25,574] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:39:33,976] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:39:34,365] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:39:54,011] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:40:00,054] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:40:00,459] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:40:12,396] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:40:56,073] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:29,361] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:31,089] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:43:38,848] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:45,336] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:45,787] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:46,197] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 25 embedding in ChromaDB
+[2025-03-17 21:43:46,272] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 25 embedding in ChromaDB
+[2025-03-17 21:43:46,376] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:56,483] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:43:56,871] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:44:11,535] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:44:18,122] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:44:45,591] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:44:47,785] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:45:09,639] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:45:11,233] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:45:34,211] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:52:24,255] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:54:07,570] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:55:56,640] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:55:58,524] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:56:13,174] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:56:27,346] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:56:27,802] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:56:28,202] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 26 embedding in ChromaDB
+[2025-03-17 21:56:28,267] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 26 embedding in ChromaDB
+[2025-03-17 21:56:28,460] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:56:37,193] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:56:37,595] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 21:56:48,483] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:00,369] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:04,633] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:07,357] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:12,155] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:13,676] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:14,663] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:27,939] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:28,345] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:57:28,889] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 27 embedding in ChromaDB
+[2025-03-17 21:57:28,971] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 27 embedding in ChromaDB
+[2025-03-17 21:57:29,184] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:00:57,264] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:00:58,957] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:03,156] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:15,218] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:15,661] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:17,533] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 28 embedding in ChromaDB
+[2025-03-17 22:04:17,602] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 28 embedding in ChromaDB
+[2025-03-17 22:04:18,006] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:29,449] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:39,287] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:04:39,706] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 22:08:36,861] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:48:28,427] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:58:58,729] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:59:14,293] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:59:14,766] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:59:16,752] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 29 embedding in ChromaDB
+[2025-03-17 22:59:16,828] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 29 embedding in ChromaDB
+[2025-03-17 22:59:17,183] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:59:27,870] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 22:59:28,242] INFO [Backend.ai_services.rag.todo_vector_store:416] Using where filter: {'$and': [{'user_id': {'$eq': 1}}, {'document_type': {'$eq': 'todo'}}]}
+[2025-03-17 23:02:18,660] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:23,843] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:24,371] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:26,456] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:02:26,532] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:02:26,918] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:28,893] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:29,471] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:29,940] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:02:30,011] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:02:30,379] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:40,725] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:41,177] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:02:41,617] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:02:41,687] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:02:41,992] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:01,430] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:03,141] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:03,675] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:04,064] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:03:04,137] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 23:03:04,464] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:26,838] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:27,454] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:03:31,199] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:10:00,340] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:10:01,401] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:14:56,336] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 23:14:57,024] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection

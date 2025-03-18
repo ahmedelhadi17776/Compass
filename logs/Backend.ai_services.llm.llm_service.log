@@ -1,0 +1,14 @@
+[2025-03-17 20:33:02,878] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 20:33:02,885] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-17 20:36:29,594] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 20:36:29,594] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-17 20:36:57,011] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 20:36:57,011] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-17 20:37:18,979] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 20:37:18,979] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-17 20:53:12,180] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 20:53:12,180] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-17 21:07:01,446] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 21:07:01,446] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-17 21:33:01,620] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-17 21:33:01,620] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini

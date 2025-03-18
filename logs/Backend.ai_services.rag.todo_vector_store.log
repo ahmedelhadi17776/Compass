@@ -1,0 +1,99 @@
+[2025-03-17 20:33:02,739] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:33:08,794] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:33:12,870] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:33:16,946] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:33:21,025] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:33:25,107] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in update.
+[2025-03-17 20:33:29,186] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in add.
+[2025-03-17 20:33:33,264] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:33:37,349] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:33:41,447] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:33:45,555] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:33:49,631] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:33:53,734] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:33:57,835] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:34:01,935] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:34:06,009] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in update.
+[2025-03-17 20:34:10,087] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in add.
+[2025-03-17 20:34:14,173] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:34:18,253] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:29,500] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:36:31,111] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 8 embedding in ChromaDB
+[2025-03-17 20:36:31,183] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 20:36:31,247] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 4 embedding in ChromaDB
+[2025-03-17 20:36:31,309] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 11 embedding in ChromaDB
+[2025-03-17 20:36:31,376] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 12 embedding in ChromaDB
+[2025-03-17 20:36:31,460] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 9 embedding in ChromaDB
+[2025-03-17 20:36:31,533] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 10 embedding in ChromaDB
+[2025-03-17 20:36:31,606] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 15 embedding in ChromaDB
+[2025-03-17 20:36:31,671] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 14 embedding in ChromaDB
+[2025-03-17 20:36:56,919] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:36:58,517] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,519] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:58,584] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,587] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:58,646] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in update.
+[2025-03-17 20:36:58,648] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in add.
+[2025-03-17 20:36:58,701] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,702] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:58,758] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,760] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:58,821] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,822] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:58,876] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,878] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:36:58,932] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in update.
+[2025-03-17 20:36:58,934] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got ['Compass'] which is a list in add.
+[2025-03-17 20:36:58,987] ERROR [Backend.ai_services.rag.todo_vector_store:197] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in update.
+[2025-03-17 20:36:58,988] ERROR [Backend.ai_services.rag.todo_vector_store:155] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got [] which is a list in add.
+[2025-03-17 20:37:18,888] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:37:20,639] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 8 embedding in ChromaDB
+[2025-03-17 20:37:20,703] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 20:37:20,776] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 4 embedding in ChromaDB
+[2025-03-17 20:37:20,843] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 11 embedding in ChromaDB
+[2025-03-17 20:37:20,905] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 12 embedding in ChromaDB
+[2025-03-17 20:37:20,970] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 9 embedding in ChromaDB
+[2025-03-17 20:37:21,037] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 10 embedding in ChromaDB
+[2025-03-17 20:37:21,099] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 15 embedding in ChromaDB
+[2025-03-17 20:37:21,164] INFO [Backend.ai_services.rag.todo_vector_store:201] Successfully updated Todo 14 embedding in ChromaDB
+[2025-03-17 20:53:12,092] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 20:53:13,635] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 8 embedding in ChromaDB
+[2025-03-17 20:53:13,698] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 20:53:13,753] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 4 embedding in ChromaDB
+[2025-03-17 20:53:13,808] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 11 embedding in ChromaDB
+[2025-03-17 20:53:13,873] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 12 embedding in ChromaDB
+[2025-03-17 20:53:13,930] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 9 embedding in ChromaDB
+[2025-03-17 20:53:13,993] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 10 embedding in ChromaDB
+[2025-03-17 20:53:14,057] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 15 embedding in ChromaDB
+[2025-03-17 20:53:14,123] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 14 embedding in ChromaDB
+[2025-03-17 21:07:01,352] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:07:02,956] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 8 embedding in ChromaDB
+[2025-03-17 21:07:03,025] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 21:07:03,085] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 4 embedding in ChromaDB
+[2025-03-17 21:07:03,147] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 11 embedding in ChromaDB
+[2025-03-17 21:07:03,214] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 12 embedding in ChromaDB
+[2025-03-17 21:07:03,278] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 9 embedding in ChromaDB
+[2025-03-17 21:07:03,353] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 10 embedding in ChromaDB
+[2025-03-17 21:07:03,418] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 15 embedding in ChromaDB
+[2025-03-17 21:07:03,479] INFO [Backend.ai_services.rag.todo_vector_store:205] Successfully updated Todo 14 embedding in ChromaDB
+[2025-03-17 21:33:01,520] INFO [Backend.ai_services.rag.todo_vector_store:42] Using collection: compass_collection
+[2025-03-17 21:33:03,298] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 8 embedding in ChromaDB
+[2025-03-17 21:33:03,362] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 4 embedding in ChromaDB
+[2025-03-17 21:33:03,427] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 11 embedding in ChromaDB
+[2025-03-17 21:33:03,501] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 13 embedding in ChromaDB
+[2025-03-17 21:33:03,568] ERROR [Backend.ai_services.rag.todo_vector_store:226] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in update.
+[2025-03-17 21:33:03,568] INFO [Backend.ai_services.rag.todo_vector_store:148] Adding todo 21 to ChromaDB with metadata: {'todo_id': 21, 'user_id': 1, 'title': 'Test search functionality with blue colors', 'status': 'TodoStatus.PENDING', 'priority': 'TodoPriority.MEDIUM', 'due_date': None, 'tags_json': '["test", "search", "blue"]', 'is_recurring': False, 'ai_generated': False, 'created_at': '2025-03-17T19:27:30.708193', 'updated_at': '2025-03-17T19:27:30.708193', 'document_type': 'todo'}
+[2025-03-17 21:33:03,569] INFO [Backend.ai_services.rag.todo_vector_store:152] Generated embedding for todo 21 with dimension 384
+[2025-03-17 21:33:03,598] INFO [Backend.ai_services.rag.todo_vector_store:160] Deleted existing todo 21 from ChromaDB
+[2025-03-17 21:33:03,599] ERROR [Backend.ai_services.rag.todo_vector_store:184] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:33:03,599] ERROR [Backend.ai_services.rag.todo_vector_store:226] Error updating Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in update.
+[2025-03-17 21:33:03,600] INFO [Backend.ai_services.rag.todo_vector_store:148] Adding todo 22 to ChromaDB with metadata: {'todo_id': 22, 'user_id': 1, 'title': 'Test search functionality with blue colors', 'status': 'TodoStatus.PENDING', 'priority': 'TodoPriority.MEDIUM', 'due_date': None, 'tags_json': '["test", "search", "blue"]', 'is_recurring': False, 'ai_generated': False, 'created_at': '2025-03-17T19:28:46.458626', 'updated_at': '2025-03-17T19:28:46.458626', 'document_type': 'todo'}
+[2025-03-17 21:33:03,601] INFO [Backend.ai_services.rag.todo_vector_store:152] Generated embedding for todo 22 with dimension 384
+[2025-03-17 21:33:03,631] INFO [Backend.ai_services.rag.todo_vector_store:160] Deleted existing todo 22 from ChromaDB
+[2025-03-17 21:33:03,632] ERROR [Backend.ai_services.rag.todo_vector_store:184] Error adding Todo embedding: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:33:03,703] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 23 embedding in ChromaDB
+[2025-03-17 21:33:03,781] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 12 embedding in ChromaDB
+[2025-03-17 21:33:03,851] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 9 embedding in ChromaDB
+[2025-03-17 21:33:03,916] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 10 embedding in ChromaDB
+[2025-03-17 21:33:03,981] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 15 embedding in ChromaDB
+[2025-03-17 21:33:04,045] INFO [Backend.ai_services.rag.todo_vector_store:223] Successfully updated Todo 14 embedding in ChromaDB

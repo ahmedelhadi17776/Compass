@@ -1,0 +1,60 @@
+[2025-03-14 01:07:21,963] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 3
+[2025-03-14 01:09:35,186] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 6
+[2025-03-14 01:09:45,882] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 6
+[2025-03-14 01:10:02,517] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 6
+[2025-03-14 01:10:08,718] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 6
+[2025-03-14 01:10:24,507] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 6
+[2025-03-14 01:51:44,724] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 3
+[2025-03-14 01:51:55,575] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 3
+[2025-03-14 01:52:04,545] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 3
+[2025-03-14 01:52:04,549] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002E6F24F7BC0>, 3)::[] [type: task_dependencies]
+[2025-03-14 01:58:38,744] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 3
+[2025-03-14 01:58:38,749] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002E6F256E990>, 3)::[] [type: task_dependencies]
+[2025-03-14 02:13:21,616] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002E6F23C1490>, ['tyupr\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:13:32,946] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 10
+[2025-03-14 02:14:21,540] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 10
+[2025-03-14 02:23:25,795] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002E68004D190>, ['ghhhhhh\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:23:39,855] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 11
+[2025-03-14 02:25:30,959] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002E68001C170>, ['test None\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:27:57,158] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002E680333260>, ['test\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:28:18,713] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002E680013260>, ['tewty\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:33:47,934] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD0565A360>, ['rec\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:34:03,211] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 15
+[2025-03-14 02:34:49,927] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD05F2A900>, ['erc2\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:35:38,719] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD061BDAF0>, ['finn1\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 02:57:08,370] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 17
+[2025-03-14 02:59:25,330] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD09290800>, ['testdaiy\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:03:29,164] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD06171340>, ['test23\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:03:49,791] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD092F7920>, ['tetegs\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:06:22,461] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001CD061D7410>, ['jh\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:10:52,260] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x0000014898B72540>, ['test23\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:15:56,212] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 22
+[2025-03-14 03:16:15,087] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x0000024647A92180>, ['test\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:20:54,509] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x0000026090E04F50>, ['trjtrj\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:25:06,365] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 24
+[2025-03-14 03:25:29,723] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001ACEEBF9F40>, ['ibr task recnone\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:25:51,480] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 25
+[2025-03-14 03:25:56,704] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 25
+[2025-03-14 03:25:56,709] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000001ACEF3D6F00>, 25)::[] [type: task_dependencies]
+[2025-03-14 03:26:11,226] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001ACEF40C470>, ['test rec2\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:26:19,098] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 26
+[2025-03-14 03:26:56,752] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001ACEF301CA0>, ['ikreeeer212\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:27:33,859] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 25
+[2025-03-14 03:27:33,863] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000001ACEF333F80>, 25)::[] [type: task_dependencies]
+[2025-03-14 03:27:46,134] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 25
+[2025-03-14 03:27:46,139] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000001ACEF460E90>, 25)::[] [type: task_dependencies]
+[2025-03-14 03:28:02,019] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 25
+[2025-03-14 03:28:02,023] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000001ACEEF50620>, 25)::[] [type: task_dependencies]
+[2025-03-14 03:28:28,753] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 25
+[2025-03-14 03:28:28,759] INFO [Backend.utils.cache_utils:155] Cache hit for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000001ACEEF50620>, 25)::[] [type: task_dependencies]
+[2025-03-14 03:28:54,428] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001ACEF3250A0>, ['rrrtwaq\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 03:29:05,528] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 28
+[2025-03-14 03:29:20,437] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 28
+[2025-03-14 04:46:46,647] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000001ACEF67B740>, ['test recurrent 1\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 04:47:26,012] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-14 04:47:53,202] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-14 21:36:32,263] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 7
+[2025-03-14 21:36:38,710] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 3
+[2025-03-14 21:36:38,714] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002830006F410>, 3)::[] [type: task_dependencies]
+[2025-03-14 21:37:14,245] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x00000283000DD4C0>, ['ibr2\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-14 21:37:28,575] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 30

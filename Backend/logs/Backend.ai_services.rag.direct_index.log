@@ -1,0 +1,62 @@
+[2025-03-18 04:33:16,185] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_31
+[2025-03-18 04:33:16,225] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 31
+[2025-03-18 04:36:21,382] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_32
+[2025-03-18 04:36:21,422] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 32
+[2025-03-18 04:38:15,450] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 30 from ChromaDB
+[2025-03-18 04:38:18,043] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 23 from ChromaDB
+[2025-03-18 04:38:20,595] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 31 from ChromaDB
+[2025-03-18 04:38:23,426] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 29 from ChromaDB
+[2025-03-18 04:38:26,240] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 28 from ChromaDB
+[2025-03-18 04:38:28,713] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 27 from ChromaDB
+[2025-03-18 04:38:36,702] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_33
+[2025-03-18 04:38:36,710] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 33
+[2025-03-18 04:48:37,013] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_33
+[2025-03-18 04:48:37,050] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 33
+[2025-03-18 04:48:40,695] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_33
+[2025-03-18 04:48:40,704] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 33
+[2025-03-18 04:48:45,440] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_33
+[2025-03-18 04:48:45,448] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 33
+[2025-03-18 04:49:15,523] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_34
+[2025-03-18 04:49:15,531] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 34
+[2025-03-18 04:52:15,002] INFO [Backend.ai_services.rag.direct_index:142] Deleted existing todo: todo_33
+[2025-03-18 04:52:15,043] INFO [Backend.ai_services.rag.direct_index:158] Successfully indexed todo 33
+[2025-03-18 04:52:17,182] INFO [Backend.ai_services.rag.direct_index:142] Deleted existing todo: todo_33
+[2025-03-18 04:52:17,189] INFO [Backend.ai_services.rag.direct_index:158] Successfully indexed todo 33
+[2025-03-18 04:52:22,604] INFO [Backend.ai_services.rag.direct_index:142] Deleted existing todo: todo_35
+[2025-03-18 04:52:22,615] INFO [Backend.ai_services.rag.direct_index:158] Successfully indexed todo 35
+[2025-03-18 05:49:27,756] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_34
+[2025-03-18 05:49:27,798] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 34
+[2025-03-18 05:53:55,083] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_39
+[2025-03-18 05:53:55,121] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 39
+[2025-03-18 05:54:13,145] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 24 from ChromaDB
+[2025-03-18 05:54:15,229] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 25 from ChromaDB
+[2025-03-18 05:54:17,265] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 26 from ChromaDB
+[2025-03-18 05:54:21,616] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 32 from ChromaDB
+[2025-03-18 05:54:24,259] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 35 from ChromaDB
+[2025-03-18 05:54:26,098] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 36 from ChromaDB
+[2025-03-18 05:54:28,015] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 38 from ChromaDB
+[2025-03-18 05:54:33,510] INFO [Backend.ai_services.rag.direct_index:184] Successfully removed todo 39 from ChromaDB
+[2025-03-18 05:54:44,908] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_40
+[2025-03-18 05:54:44,916] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 40
+[2025-03-18 05:59:11,729] ERROR [Backend.ai_services.rag.direct_index:168] Error directly indexing todo: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 05:59:25,809] ERROR [Backend.ai_services.rag.direct_index:168] Error directly indexing todo: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 06:06:24,716] ERROR [Backend.ai_services.rag.direct_index:168] Error directly indexing todo: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:43,514] ERROR [Backend.ai_services.rag.direct_index:168] Error directly indexing todo: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:08:59,957] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_43
+[2025-03-18 06:08:59,995] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 43
+[2025-03-18 06:09:23,091] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_13
+[2025-03-18 06:09:23,099] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 13
+[2025-03-18 06:09:25,642] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_13
+[2025-03-18 06:09:25,650] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 13
+[2025-03-18 21:40:44,399] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_44
+[2025-03-18 21:40:44,437] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 44
+[2025-03-18 21:42:17,392] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_45
+[2025-03-18 21:42:17,400] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 45
+[2025-03-18 21:59:51,889] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_44
+[2025-03-18 21:59:51,925] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 44
+[2025-03-18 22:00:40,621] INFO [Backend.ai_services.rag.direct_index:145] Deleted existing todo: todo_46
+[2025-03-18 22:00:40,628] INFO [Backend.ai_services.rag.direct_index:161] Successfully indexed todo 46

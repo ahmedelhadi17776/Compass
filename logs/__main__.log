@@ -1,0 +1,9 @@
+[2025-03-18 06:05:19,783] INFO [__main__:56] Starting embedding service test...
+[2025-03-18 06:05:19,786] INFO [__main__:20] Initializing embedding service...
+[2025-03-18 06:05:20,136] INFO [__main__:25] Generating embedding for: 'This is a test sentence to generate an embedding vector.'
+[2025-03-18 06:05:21,331] INFO [__main__:28] Single embedding generated, dimension: 1536
+[2025-03-18 06:05:21,331] INFO [__main__:36] Generating embeddings for 3 texts...
+[2025-03-18 06:05:21,865] INFO [__main__:39] Batch embeddings generated: 3 vectors
+[2025-03-18 06:05:21,866] INFO [__main__:43] Similarity between first two texts: 0.08075989220269597
+[2025-03-18 06:05:21,866] INFO [__main__:47] Model information: {'model_name': 'text-embedding-3-small', 'model_version': '1.0.0', 'embedding_dimension': 1536, 'provider': 'OpenAI', 'endpoint': 'https://models.inference.ai.azure.com'}
+[2025-03-18 06:05:21,867] INFO [__main__:49] Embedding service tests completed successfully!

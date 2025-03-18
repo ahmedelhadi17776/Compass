@@ -1,0 +1,86 @@
+[2025-03-18 04:51:59,766] INFO [Backend.ai_services.embedding.embedding_service:20] Creating new EmbeddingService instance
+[2025-03-18 04:51:59,767] INFO [Backend.ai_services.embedding.embedding_service:43] EmbeddingService initialized (model will be lazy loaded)
+[2025-03-18 04:52:13,010] INFO [Backend.ai_services.embedding.embedding_service:53] Lazy loading embedding model: all-MiniLM-L6-v2
+[2025-03-18 04:52:13,672] INFO [Backend.ai_services.embedding.embedding_service:57] Successfully loaded model with dimension: 384
+[2025-03-18 04:55:17,900] INFO [Backend.ai_services.embedding.embedding_service:20] Creating new EmbeddingService instance
+[2025-03-18 04:55:17,900] INFO [Backend.ai_services.embedding.embedding_service:43] EmbeddingService initialized (model will be lazy loaded)
+[2025-03-18 04:55:29,839] INFO [Backend.ai_services.embedding.embedding_service:53] Lazy loading embedding model: all-MiniLM-L6-v2
+[2025-03-18 04:55:30,500] INFO [Backend.ai_services.embedding.embedding_service:57] Successfully loaded model with dimension: 384
+[2025-03-18 05:53:14,807] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 05:53:14,813] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 05:53:14,822] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 05:53:15,851] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 05:53:32,359] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 05:53:32,360] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 05:53:32,360] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 05:53:33,249] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 05:58:57,241] INFO [Backend.ai_services.embedding.embedding_service:21] Creating new EmbeddingService singleton instance
+[2025-03-18 05:58:57,242] INFO [Backend.ai_services.embedding.embedding_service:29] Initializing Azure OpenAI Embedding Service
+[2025-03-18 05:58:57,242] INFO [Backend.ai_services.embedding.embedding_service:46] Initializing Azure OpenAI client for model: text-embedding-3-small
+[2025-03-18 05:58:57,274] INFO [Backend.ai_services.embedding.embedding_service:51] Azure OpenAI embedding client initialized successfully
+[2025-03-18 05:59:11,436] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 05:59:11,578] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 05:59:11,728] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 05:59:25,515] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 05:59:25,658] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 05:59:25,808] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: (unauthorized) Invalid Github auth token
+Code: unauthorized
+Message: Invalid Github auth token
+[2025-03-18 06:03:58,489] INFO [Backend.ai_services.embedding.embedding_service:20] Creating new EmbeddingService singleton instance
+[2025-03-18 06:03:58,490] INFO [Backend.ai_services.embedding.embedding_service:28] Initializing OpenAI Embedding Service
+[2025-03-18 06:03:58,490] INFO [Backend.ai_services.embedding.embedding_service:45] Initializing OpenAI client for model: text-embedding-3-small
+[2025-03-18 06:03:58,810] INFO [Backend.ai_services.embedding.embedding_service:50] OpenAI embedding client initialized successfully
+[2025-03-18 06:05:15,933] INFO [Backend.ai_services.embedding.embedding_service:20] Creating new EmbeddingService singleton instance
+[2025-03-18 06:05:15,935] INFO [Backend.ai_services.embedding.embedding_service:28] Initializing OpenAI Embedding Service
+[2025-03-18 06:05:15,935] INFO [Backend.ai_services.embedding.embedding_service:45] Initializing OpenAI client for model: text-embedding-3-small
+[2025-03-18 06:05:16,172] INFO [Backend.ai_services.embedding.embedding_service:50] OpenAI embedding client initialized successfully
+[2025-03-18 06:06:00,404] INFO [Backend.ai_services.embedding.embedding_service:20] Creating new EmbeddingService singleton instance
+[2025-03-18 06:06:00,405] INFO [Backend.ai_services.embedding.embedding_service:28] Initializing OpenAI Embedding Service
+[2025-03-18 06:06:00,405] INFO [Backend.ai_services.embedding.embedding_service:45] Initializing OpenAI client for model: text-embedding-3-small
+[2025-03-18 06:06:00,654] INFO [Backend.ai_services.embedding.embedding_service:51] OpenAI embedding client initialized successfully
+[2025-03-18 06:06:24,426] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:24,571] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:24,715] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:43,229] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:43,370] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:43,513] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:06:58,495] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:07:43,130] ERROR [Backend.ai_services.embedding.embedding_service:90] Error generating embedding: Error code: 401 - {'error': {'code': 'unauthorized', 'message': 'Bad credentials', 'details': 'Bad credentials'}}
+[2025-03-18 06:08:28,382] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 06:08:28,383] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 06:08:28,383] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 06:08:29,243] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 06:32:10,727] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 06:32:10,728] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 06:32:10,728] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 06:32:11,575] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 06:39:25,038] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 06:39:25,039] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 06:39:25,039] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 06:39:25,952] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 21:39:18,821] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 21:39:18,822] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 21:39:18,822] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 21:39:20,142] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 21:51:31,045] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 21:51:31,046] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 21:51:31,046] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 21:51:31,886] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 21:51:48,325] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 21:51:48,325] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 21:51:48,326] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 21:51:49,289] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384
+[2025-03-18 22:02:07,076] INFO [Backend.ai_services.embedding.embedding_service:18] Creating new EmbeddingService singleton instance
+[2025-03-18 22:02:07,076] INFO [Backend.ai_services.embedding.embedding_service:26] Initializing EmbeddingService with model: all-MiniLM-L6-v2
+[2025-03-18 22:02:07,077] INFO [Backend.ai_services.embedding.embedding_service:41] Loading SentenceTransformer model: all-MiniLM-L6-v2
+[2025-03-18 22:02:07,972] INFO [Backend.ai_services.embedding.embedding_service:44] Model loaded successfully with dimension: 384

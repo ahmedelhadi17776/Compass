@@ -1,0 +1,11 @@
+[2025-03-17 21:48:16,379] INFO [Backend.ai_services.rag.direct_index:117] Deleted existing todo: todo_999999
+[2025-03-17 21:48:16,380] ERROR [Backend.ai_services.rag.direct_index:140] Error directly indexing todo: Expected metadata value to be a str, int, float or bool, got None which is a NoneType in add.
+[2025-03-17 21:48:48,176] INFO [Backend.ai_services.rag.direct_index:147] Deleted existing todo: todo_999999
+[2025-03-17 21:48:48,226] INFO [Backend.ai_services.rag.direct_index:163] Successfully indexed todo 999999
+[2025-03-17 21:48:48,720] INFO [Backend.ai_services.rag.direct_index:193] Successfully removed todo 999999 from ChromaDB
+[2025-03-17 22:00:29,098] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_999998
+[2025-03-17 22:00:29,147] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 999998
+[2025-03-17 22:00:29,361] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_999997
+[2025-03-17 22:00:29,371] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 999997
+[2025-03-17 22:00:29,940] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 999998 from ChromaDB
+[2025-03-17 22:00:29,986] INFO [Backend.ai_services.rag.direct_index:231] Successfully removed todo 999997 from ChromaDB

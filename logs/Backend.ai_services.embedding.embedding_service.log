@@ -1,0 +1,4 @@
+[2025-03-18 06:05:19,787] INFO [Backend.ai_services.embedding.embedding_service:20] Creating new EmbeddingService singleton instance
+[2025-03-18 06:05:19,789] INFO [Backend.ai_services.embedding.embedding_service:28] Initializing OpenAI Embedding Service
+[2025-03-18 06:05:19,789] INFO [Backend.ai_services.embedding.embedding_service:45] Initializing OpenAI client for model: text-embedding-3-small
+[2025-03-18 06:05:20,136] INFO [Backend.ai_services.embedding.embedding_service:50] OpenAI embedding client initialized successfully

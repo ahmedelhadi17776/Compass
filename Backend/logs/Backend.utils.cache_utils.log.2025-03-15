@@ -1,0 +1,29 @@
+[2025-03-15 00:22:42,994] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-15 00:24:31,659] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-15 00:24:40,563] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-15 00:24:47,676] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-15 00:24:56,368] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-15 00:25:01,231] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 29
+[2025-03-15 03:56:56,532] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x0000012589330830>, ['tet\nsdddddddddd'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-15 03:57:03,333] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-15 03:57:07,893] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-15 05:04:04,268] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-15 05:07:46,119] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-15 05:07:50,988] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-15 05:07:54,816] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-15 21:27:30,767] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.llm.llm_service::generate_response::(<Backend.ai_services.llm.llm_service.LLMService object at 0x00000221540EBD40>,)::[('context', {'system_message': ''}), ('model_parameters', {'temperature': 1, 'max_tokens': 4096, 'top_p': 1}), ('prompt', 'test'), ('stream', True)] [type: default]
+[2025-03-15 21:27:31,571] ERROR [Backend.utils.cache_utils:181] Unexpected error in cache_response: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:28:21,077] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.llm.llm_service::generate_response::(<Backend.ai_services.llm.llm_service.LLMService object at 0x0000023E97023D40>,)::[('context', {'system_message': ''}), ('model_parameters', {'temperature': 1, 'max_tokens': 4096, 'top_p': 1}), ('prompt', 'test'), ('stream', True)] [type: default]
+[2025-03-15 21:28:21,809] ERROR [Backend.utils.cache_utils:181] Unexpected error in cache_response: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:31:11,051] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.llm.llm_service::generate_response::(<Backend.ai_services.llm.llm_service.LLMService object at 0x00000222254A3950>,)::[('context', {'system_message': ''}), ('model_parameters', {'temperature': 1, 'max_tokens': 4096, 'top_p': 1}), ('prompt', 'test'), ('stream', True)] [type: default]
+[2025-03-15 21:31:11,821] ERROR [Backend.utils.cache_utils:119] Error serializing data: Object of type async_generator is not JSON serializable
+[2025-03-15 21:31:11,821] ERROR [Backend.utils.cache_utils:181] Unexpected error in cache_response: Object of type async_generator is not JSON serializable
+[2025-03-15 21:31:40,507] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.llm.llm_service::generate_response::(<Backend.ai_services.llm.llm_service.LLMService object at 0x00000222254A3950>,)::[('context', {'system_message': ''}), ('model_parameters', {'temperature': 1, 'max_tokens': 4096, 'top_p': 1}), ('prompt', 'ibr'), ('stream', True)] [type: default]
+[2025-03-15 21:31:41,129] ERROR [Backend.utils.cache_utils:119] Error serializing data: Object of type async_generator is not JSON serializable
+[2025-03-15 21:31:41,129] ERROR [Backend.utils.cache_utils:181] Unexpected error in cache_response: Object of type async_generator is not JSON serializable
+[2025-03-15 21:34:00,801] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.llm.llm_service::generate_response::(<Backend.ai_services.llm.llm_service.LLMService object at 0x0000022223879040>,)::[('context', {'system_message': ''}), ('model_parameters', {'temperature': 1, 'max_tokens': 4096, 'top_p': 1}), ('prompt', 'hi'), ('stream', True)] [type: default]
+[2025-03-15 21:34:01,462] ERROR [Backend.utils.cache_utils:181] Unexpected error in cache_response: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:36:45,239] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.llm.llm_service::generate_response::(<Backend.ai_services.llm.llm_service.LLMService object at 0x000001FF934BD4C0>,)::[('context', {'system_message': ''}), ('model_parameters', {'temperature': 1, 'max_tokens': 4096, 'top_p': 1}), ('prompt', 'test'), ('stream', True)] [type: default]
+[2025-03-15 21:36:45,240] ERROR [Backend.utils.cache_utils:119] Error serializing data: Object of type async_generator is not JSON serializable
+[2025-03-15 21:36:45,241] ERROR [Backend.utils.cache_utils:181] Unexpected error in cache_response: Object of type async_generator is not JSON serializable
+[2025-03-15 22:17:34,368] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31

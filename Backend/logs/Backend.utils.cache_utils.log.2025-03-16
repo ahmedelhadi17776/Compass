@@ -1,0 +1,46 @@
+[2025-03-16 04:59:43,537] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-16 18:23:36,947] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166B8E2720>, ['tt3\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 18:24:56,424] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166D6C48C0>, ['string\nstring'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:31:36,134] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166D73DC70>, ['tetst44444444\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:42:28,188] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166E59B6B0>, ['test after api\nte'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:49:27,803] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 35
+[2025-03-16 20:49:34,196] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 35
+[2025-03-16 20:49:38,264] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 35
+[2025-03-16 20:49:41,216] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 35
+[2025-03-16 20:50:34,509] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166D398290>, ['ttttttttttttttt\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:50:45,047] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166D72B3B0>, ['t435tr\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:50:58,917] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166E52B890>, ['hiiiii\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:51:21,909] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 37
+[2025-03-16 20:57:47,661] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 37
+[2025-03-16 20:57:57,776] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 37
+[2025-03-16 20:58:01,840] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 37
+[2025-03-16 20:58:06,245] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 37
+[2025-03-16 20:58:14,034] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.ai_services.embedding.embedding_service::get_embedding::(<Backend.ai_services.embedding.embedding_service.EmbeddingService object at 0x000002166D7592E0>, ['ibr23\n'])::[('batch_size', 32), ('normalize', True)] [type: default]
+[2025-03-16 20:58:23,190] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:26,296] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:31,694] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:31,698] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D6B2DB0>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:34,994] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:34,998] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D723F80>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:37,654] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:37,658] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D721D60>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:42,059] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:42,064] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D74D190>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:45,055] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:45,058] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166E67F800>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:47,819] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:47,824] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D696480>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:52,541] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:52,545] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D697800>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:58:57,759] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:58:57,763] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D697CE0>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:59:09,637] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:59:09,640] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D6B2C30>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:59:13,477] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:59:13,481] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D74C3B0>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:59:20,451] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 39
+[2025-03-16 20:59:20,455] INFO [Backend.utils.cache_utils:162] Cache miss for key: Backend.services.task_service::check_dependencies::(<Backend.services.task_service.TaskService object at 0x000002166D74C9B0>, 39)::[] [type: task_dependencies]
+[2025-03-16 20:59:42,263] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 33
+[2025-03-16 22:17:34,500] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 32
+[2025-03-16 23:42:40,228] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31
+[2025-03-16 23:42:45,353] INFO [Backend.utils.cache_utils:347] Entity cache miss for task 31

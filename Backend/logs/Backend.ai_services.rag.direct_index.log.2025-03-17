@@ -1,0 +1,14 @@
+[2025-03-17 21:56:28,358] ERROR [Backend.ai_services.rag.direct_index:170] Error directly indexing todo: An instance of Chroma already exists for D:\grad\Graduation_project\data\chromadb with different settings
+[2025-03-17 21:57:29,068] ERROR [Backend.ai_services.rag.direct_index:170] Error directly indexing todo: An instance of Chroma already exists for D:\grad\Graduation_project\data\chromadb with different settings
+[2025-03-17 22:04:17,814] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_28
+[2025-03-17 22:04:17,855] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 28
+[2025-03-17 22:59:17,020] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_29
+[2025-03-17 22:59:17,061] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 29
+[2025-03-17 23:02:26,745] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_23
+[2025-03-17 23:02:26,793] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 23
+[2025-03-17 23:02:30,227] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_23
+[2025-03-17 23:02:30,238] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 23
+[2025-03-17 23:02:41,881] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_23
+[2025-03-17 23:02:41,888] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 23
+[2025-03-17 23:03:04,330] INFO [Backend.ai_services.rag.direct_index:170] Deleted existing todo: todo_23
+[2025-03-17 23:03:04,337] INFO [Backend.ai_services.rag.direct_index:186] Successfully indexed todo 23

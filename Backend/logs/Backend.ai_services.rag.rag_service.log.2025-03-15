@@ -1,0 +1,1 @@
+[2025-03-15 03:56:58,872] ERROR [Backend.ai_services.rag.rag_service:146] Error adding to knowledge base: Expected metadata value to be a str, int, float or bool, got TaskStatus.TODO which is a TaskStatus in add.

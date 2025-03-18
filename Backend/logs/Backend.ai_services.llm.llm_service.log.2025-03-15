@@ -1,0 +1,513 @@
+[2025-03-15 21:13:55,771] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:55,772] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:56,132] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:56,132] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:56,460] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:56,460] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:58,062] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:58,063] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:58,824] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:13:58,825] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:14:00,057] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:14:00,058] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:14:00,745] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:14:00,746] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:14:00,982] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:14:00,982] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:03,560] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:03,560] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:03,932] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:03,932] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:04,263] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:04,264] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:05,952] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:05,953] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:06,879] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:06,880] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:08,266] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:08,267] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:09,002] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:09,002] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:09,245] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:09,246] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:21,804] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:21,804] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:22,234] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:22,235] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:22,594] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:22,594] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:24,310] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:24,310] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:25,124] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:25,125] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:26,518] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:26,518] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:27,302] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:27,302] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:27,565] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:27,565] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:52,882] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:52,882] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:53,267] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:53,267] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:53,634] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:53,635] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:55,613] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:55,613] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:56,556] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:56,557] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:57,937] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:57,938] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:58,683] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:58,684] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:58,924] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:18:58,925] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:32,900] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:32,900] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:33,254] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:33,255] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:33,564] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:33,564] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:35,114] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:35,115] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:35,893] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:35,893] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:37,247] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:37,248] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:38,043] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:38,044] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:38,287] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:19:38,288] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:26,314] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:26,315] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:26,686] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:26,686] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:27,017] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:27,018] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:28,670] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:28,671] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:29,415] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:29,415] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:30,674] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:30,674] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:31,407] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:31,408] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:31,661] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:31,661] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:57,826] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:57,827] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:58,282] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:58,282] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:58,643] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:20:58,643] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:00,293] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:00,293] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:01,129] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:01,130] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:02,441] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:02,442] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:03,207] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:03,207] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:03,453] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:21:03,453] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:01,960] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:01,961] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:02,411] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:02,411] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:02,768] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:02,769] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:04,490] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:04,491] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:05,322] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:05,322] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:06,694] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:06,695] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:07,471] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:07,471] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:07,728] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:07,728] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:20,684] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:20,685] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:21,066] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:21,067] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:21,399] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:21,400] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:22,993] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:22,994] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:23,745] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:23,746] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:25,016] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:25,017] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:25,722] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:25,722] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:25,963] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:26:25,963] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:13,858] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:13,858] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:14,236] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:14,236] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:14,556] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:14,556] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:16,164] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:16,165] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:16,937] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:16,937] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:19,309] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:19,310] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:20,076] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:20,076] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:20,352] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:20,353] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:27:30,768] INFO [Backend.ai_services.llm.llm_service:41] Generating response for prompt: test...
+[2025-03-15 21:27:30,769] INFO [Backend.ai_services.llm.llm_service:45] Making request to LLM API with stream=True
+[2025-03-15 21:27:31,571] ERROR [Backend.ai_services.llm.llm_service:81] Error generating response: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:28:07,321] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:07,322] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:07,721] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:07,721] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:08,060] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:08,061] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:09,707] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:09,708] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:10,486] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:10,486] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:11,752] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:11,752] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:12,448] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:12,449] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:12,686] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:12,687] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:28:21,077] INFO [Backend.ai_services.llm.llm_service:41] Generating response for prompt: test...
+[2025-03-15 21:28:21,078] INFO [Backend.ai_services.llm.llm_service:45] Making request to LLM API with stream=True
+[2025-03-15 21:28:21,809] ERROR [Backend.ai_services.llm.llm_service:81] Error generating response: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:31:01,941] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:01,942] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:02,407] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:02,408] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:02,897] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:02,899] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:04,827] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:04,828] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:05,591] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:05,592] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:07,088] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:07,089] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:08,838] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:08,839] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:09,110] INFO [Backend.ai_services.llm.llm_service:21] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:09,110] INFO [Backend.ai_services.llm.llm_service:22] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:31:11,051] INFO [Backend.ai_services.llm.llm_service:46] Generating response for prompt: test...
+[2025-03-15 21:31:11,052] INFO [Backend.ai_services.llm.llm_service:50] Making request to LLM API with stream=True
+[2025-03-15 21:31:11,820] ERROR [Backend.ai_services.llm.llm_service:71] API error: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:31:40,507] INFO [Backend.ai_services.llm.llm_service:46] Generating response for prompt: ibr...
+[2025-03-15 21:31:40,508] INFO [Backend.ai_services.llm.llm_service:50] Making request to LLM API with stream=True
+[2025-03-15 21:31:41,128] ERROR [Backend.ai_services.llm.llm_service:71] API error: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:32:51,825] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:51,825] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:52,217] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:52,217] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:52,558] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:52,558] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:54,220] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:54,220] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:55,019] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:55,020] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:56,650] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:56,651] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:57,432] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:57,433] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:57,860] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:32:57,861] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:11,577] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:11,577] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:11,994] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:11,995] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:12,337] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:12,337] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:13,990] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:13,991] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:14,770] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:14,771] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:16,083] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:16,084] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:16,807] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:16,808] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:17,052] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:17,053] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:29,926] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:29,927] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:30,290] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:30,291] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:30,607] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:30,607] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:32,224] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:32,225] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:32,988] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:32,989] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:34,267] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:34,268] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:34,992] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:34,993] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:35,235] INFO [Backend.ai_services.llm.llm_service:20] Initializing LLM service with base URL: https://api.deepinfra.com/v1/inference/meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:33:35,235] INFO [Backend.ai_services.llm.llm_service:21] Using model: meta-llama/Meta-Llama-3-70B-Instruct
+[2025-03-15 21:34:00,802] INFO [Backend.ai_services.llm.llm_service:41] Generating response for prompt: hi...
+[2025-03-15 21:34:00,802] INFO [Backend.ai_services.llm.llm_service:45] Making request to LLM API with stream=True
+[2025-03-15 21:34:01,461] ERROR [Backend.ai_services.llm.llm_service:81] Error generating response: Error code: 404 - {'detail': {'error': 'Model is not available'}}
+[2025-03-15 21:36:00,846] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:00,847] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:01,227] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:01,228] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:01,564] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:01,564] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:03,579] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:03,580] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:04,414] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:04,415] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:05,767] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:05,767] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:06,509] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:06,509] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:06,758] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:06,759] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:30,180] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:30,180] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:30,551] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:30,551] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:30,870] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:30,870] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:32,451] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:32,451] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:33,206] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:33,207] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:34,458] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:34,459] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:35,169] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:35,170] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:35,410] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:36:35,410] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:36:45,239] INFO [Backend.ai_services.llm.llm_service:45] Generating response for prompt: test...
+[2025-03-15 21:36:45,240] INFO [Backend.ai_services.llm.llm_service:49] Making request to LLM API with stream=True
+[2025-03-15 21:37:42,293] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:42,293] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:42,764] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:42,765] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:43,106] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:43,107] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:44,721] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:44,722] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:45,532] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:45,532] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:46,827] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:46,829] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:47,574] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:47,575] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:37:47,830] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:37:47,831] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:00,302] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:00,303] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:00,691] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:00,691] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:01,038] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:01,038] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:02,723] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:02,723] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:03,513] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:03,514] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:04,852] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:04,853] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:05,596] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:05,597] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:38:05,849] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:38:05,850] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:27,290] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:27,291] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:27,723] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:27,724] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:28,089] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:28,089] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:30,165] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:30,165] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:30,986] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:30,986] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:32,479] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:32,479] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:33,266] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:33,266] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:33,533] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:33,534] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:50,675] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:50,676] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:51,040] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:51,040] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:51,349] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:51,350] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:52,936] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:52,936] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:53,674] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:53,675] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:54,927] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:54,928] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:55,643] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:55,644] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 21:39:55,896] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 21:39:55,896] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:31,464] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:31,465] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:31,958] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:31,959] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:32,390] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:32,390] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:34,966] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:34,967] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:36,757] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:36,759] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:39,284] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:39,285] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:41,005] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:41,006] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:07:41,436] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:07:41,437] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:13:02,943] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:13:02,943] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:09,669] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:09,669] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:10,713] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:10,714] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:11,591] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:11,592] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:12,835] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:12,836] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:13,355] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:13,355] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:14,655] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:14,655] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:16,506] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:16,506] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:17,149] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:17,149] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:16:17,695] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:16:17,696] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:08,371] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:08,371] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:21,394] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:21,394] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:26,834] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:26,834] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:34,027] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:34,028] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:34,469] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:34,470] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:35,437] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:35,438] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:43,458] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:43,458] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:44,408] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:44,408] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:45,076] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:45,076] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:45,704] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:45,705] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:46,128] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:46,128] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:48,063] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:48,063] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:49,712] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:49,713] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:17:51,108] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:17:51,108] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:18:48,153] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:18:48,154] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:18:54,375] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:18:54,376] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:19:05,540] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:19:05,540] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:19:57,323] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:19:57,324] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:05,624] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:05,624] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:15,298] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:15,299] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:23,644] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:23,645] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:26,018] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:26,018] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:27,627] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:27,628] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:37,310] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:37,311] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:37,706] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:37,707] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:43,623] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:43,623] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:43,996] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:43,996] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:50,315] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:50,315] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:53,338] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:53,339] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:20:55,307] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:20:55,308] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:01,771] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:01,772] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:06,318] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:06,320] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:06,774] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:06,774] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:10,544] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:10,544] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:27,311] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:27,312] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:33,080] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:33,081] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:38,964] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:38,964] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:46,974] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:46,976] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:21:54,829] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:21:54,830] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:22:10,211] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:22:10,212] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:22:16,828] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:22:16,829] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:22:20,760] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:22:20,760] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:22:23,700] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:22:23,700] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:22:37,125] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:22:37,125] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:23:10,076] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:23:10,076] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:23:11,655] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:23:11,656] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:23:12,080] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:23:12,080] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:23:19,616] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:23:19,616] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:23:33,230] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:23:33,231] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:24:09,374] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:24:09,374] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:24:12,702] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:24:12,704] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:24:20,242] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:24:20,242] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:24:43,292] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:24:43,293] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:25:14,728] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:25:14,728] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:26:05,834] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:26:05,835] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:26:11,247] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:26:11,247] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:26:15,814] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:26:15,814] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:26:51,252] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:26:51,253] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:26:54,600] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:26:54,600] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:26:56,130] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:26:56,132] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:27:06,825] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:27:06,825] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
+[2025-03-15 22:27:23,578] INFO [Backend.ai_services.llm.llm_service:24] Initializing LLM service with base URL: https://models.inference.ai.azure.com
+[2025-03-15 22:27:23,579] INFO [Backend.ai_services.llm.llm_service:25] Using model: gpt-4o-mini
