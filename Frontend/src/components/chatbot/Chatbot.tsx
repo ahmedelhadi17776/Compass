@@ -1,41 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import ChatbotIcon from './ChatbotIcon';
 import ChatWindow from './ChatWindow';
-import { Message, Position } from './types';
+import { Position } from './types';
+import { useChat } from '@/contexts/chat-context';
 
 const Chatbot: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      text: 'Hello! How can I help you today?',
-      sender: 'bot',
-      timestamp: new Date(),
-    },
-  ]);
+  const { messages } = useChat();
   const [inputText, setInputText] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
   const [isFullPage, setIsFullPage] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
-
-  // Handle sending a user message
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
-
-    const userMessage: Message = {
-      text: inputText,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputText('');
-  };
-
-  // Add a new message to the chat (can be used by child components)
-  const addMessage = (message: Message) => {
-    setMessages((prev) => [...prev, message]);
-  };
 
   const toggleChat = () => {
     if (isChatOpen) {
@@ -67,11 +43,8 @@ const Chatbot: React.FC = () => {
       <ChatbotIcon toggleChat={toggleChat} isChatOpen={isChatOpen} />
       {(isChatOpen || isClosing) && (
         <ChatWindow
-          messages={messages}
           inputText={inputText}
           setInputText={setInputText}
-          handleSendMessage={handleSendMessage}
-          addMessage={addMessage}
           toggleChat={toggleChat}
           isFullPage={isFullPage}
           toggleFullPage={toggleFullPage}

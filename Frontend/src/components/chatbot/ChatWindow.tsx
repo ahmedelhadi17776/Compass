@@ -1,46 +1,12 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Message, Position } from './types';
+import React, { useRef, useEffect, useState } from 'react';
+import { Position } from './types';
 import { useTheme } from '@/contexts/theme-provider';
 import { useNavigate } from 'react-router-dom';
-import { llmService } from '@/services/llmService';
-
-// Patterns for recognizing todo-related queries
-const TODO_PATTERNS = [
-  // Summary/analytics patterns
-  /summarize my todos?/i, 
-  /todo summary/i,
-  /how am i doing with my todos?/i,
-  /todo analytics/i,
-  /todo stats/i,
-  /todo progress/i,
-  
-  // Suggestions patterns
-  /suggest (some )?todos?/i,
-  /recommend (some )?todos?/i,
-  /todo ideas/i,
-  /what should i do/i,
-  /help me plan/i,
-  
-  // Similar todos patterns
-  /similar todos?/i,
-  /todos? like/i,
-  /todos? related to/i,
-  /find todos? about/i,
-  
-  // General todo queries
-  /my todos?/i,
-  /show me my todos?/i,
-  /list my todos?/i,
-  /find todos?/i,
-  /search todos?/i
-];
+import { useChat } from '@/contexts/chat-context';
 
 interface ChatWindowProps {
-  messages: Message[];
   inputText: string;
   setInputText: React.Dispatch<React.SetStateAction<string>>;
-  handleSendMessage: () => void;
-  addMessage?: (message: Message) => void;
   toggleChat: () => void;
   isFullPage: boolean;
   toggleFullPage: () => void;
@@ -52,11 +18,8 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
-  messages,
   inputText,
   setInputText,
-  handleSendMessage: parentHandleSendMessage,
-  addMessage,
   toggleChat,
   isFullPage,
   toggleFullPage,
@@ -72,15 +35,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const isDarkTheme = theme === 'dark';
   const [hasInitializedAnimation, setHasInitializedAnimation] = useState(false);
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
-  // Local messages state to ensure UI updates
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
 
-  // Initialize local messages from props
-  useEffect(() => {
-    setLocalMessages(messages);
-  }, [messages]);
+  // Using shared chat context
+  const { 
+    messages, 
+    isLoading, 
+    streamingText, 
+    sendMessage 
+  } = useChat();
 
   // Initialize animation state
   useEffect(() => {
@@ -96,7 +58,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   // Scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [localMessages, streamingText]);
+  }, [messages, streamingText]);
 
   // Simple drag functionality
   const [isDragging, setIsDragging] = React.useState(false);
@@ -161,141 +123,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     // Close the chat window
     onClose();
     // Navigate to the AI Assistant page
-    navigate('/ai', { 
-      state: { 
-        fromChatWindow: true,
-        chatHistory: messages 
-      } 
-    });
+    navigate('/ai');
   };
 
-  // Function to check if a query is todo-related
-  const isTodoQuery = useCallback((text: string): boolean => {
-    return TODO_PATTERNS.some(pattern => pattern.test(text));
-  }, []);
-
-  // Handle sending a message with todo RAG if applicable
-  const handleSendMessage = useCallback(async () => {
+  // Handle sending a message
+  const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      text: inputText.trim(),
-      sender: 'user',
-      timestamp: new Date()
-    };
-
-    setIsLoading(true);
-    setInputText('');
-
-    try {
-      // Add user message immediately to local state
-      setLocalMessages(prev => [...prev, userMessage]);
-      
-      // Also call parent handler to sync state
-      parentHandleSendMessage();
-
-      // Determine if this is a todo-related query
-      const isTodoRelated = isTodoQuery(userMessage.text);
-      
-      // Start streaming response
-      let fullResponse = '';
-      let errorOccurred = false;
-      let lastChunkEndsWithSpace = false;
-      
-      try {
-        console.log(`Starting to stream ${isTodoRelated ? 'Todo RAG' : 'standard'} response...`);
-        
-        // Use todo RAG service if it's a todo-related query
-        const streamSource = isTodoRelated 
-          ? llmService.streamTodoQuery(userMessage.text)
-          : llmService.streamResponse(userMessage.text);
-          
-        for await (const chunk of streamSource) {
-          // Check if the chunk is an error message (JSON object)
-          try {
-            const jsonChunk = JSON.parse(chunk);
-            if (jsonChunk.error) {
-              errorOccurred = true;
-              fullResponse = `Sorry, an error occurred: ${jsonChunk.error}`;
-              setStreamingText(fullResponse);
-              console.error('Error from service:', jsonChunk.error);
-              break;
-            }
-          } catch (e) {
-            // Not JSON, treat as normal text chunk
-            console.log('Received chunk:', chunk);
-            
-            // Add a space between chunks if needed
-            if (fullResponse && !lastChunkEndsWithSpace && !chunk.startsWith(' ')) {
-              fullResponse += ' ';
-            }
-            
-            fullResponse += chunk;
-            lastChunkEndsWithSpace = chunk.endsWith(' ');
-            
-            setStreamingText(fullResponse);
-          }
-        }
-        console.log('Finished streaming, final response:', fullResponse);
-      } catch (streamError: any) {
-        console.error('Error in streaming:', streamError);
-        errorOccurred = true;
-        fullResponse = `Sorry, an error occurred while streaming the response: ${streamError.message || 'Unknown error'}`;
-        setStreamingText(fullResponse);
-      }
-
-      // Clean up the response - replace multiple spaces with a single space
-      fullResponse = fullResponse.replace(/\s+/g, ' ').trim();
-
-      // Clear streaming text and add final message
-      setStreamingText('');
-      
-      // Only add the assistant message if we have a response
-      if (fullResponse) {
-        const assistantMessage: Message = {
-          text: fullResponse,
-          sender: 'assistant',
-          timestamp: new Date()
-        };
-
-        // Update local messages state
-        setLocalMessages(prev => [...prev, assistantMessage]);
-        
-        // Update parent component's state using the addMessage function if available
-        if (addMessage) {
-          addMessage(assistantMessage);
-        } else {
-          // Fallback to the old method
-          if (typeof parentHandleSendMessage === 'function') {
-            parentHandleSendMessage();
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Add error message
-      const errorMessage: Message = {
-        text: "Sorry, I encountered an error while processing your request. Please try again later.",
-        sender: 'assistant',
-        timestamp: new Date()
-      };
-      
-      // Update local messages state
-      setLocalMessages(prev => [...prev, errorMessage]);
-      
-      // Update parent component's state using the addMessage function if available
-      if (addMessage) {
-        addMessage(errorMessage);
-      } else {
-        // Fallback to the old method
-        if (typeof parentHandleSendMessage === 'function') {
-          parentHandleSendMessage();
-        }
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [inputText, isLoading, parentHandleSendMessage, addMessage, isTodoQuery]);
+    
+    const messageToSend = inputText.trim();
+    setInputText(''); // Clear input immediately for better UX
+    
+    await sendMessage(messageToSend);
+  };
 
   return (
     <div
@@ -377,9 +216,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Messages container */}
       <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${isDarkTheme ? 'bg-[#202020]' : 'bg-white'}`}>
-        {localMessages.map((message, index) => (
+        {messages.map((message) => (
           <div
-            key={index}
+            key={message.id}
             className={`flex ${
               message.sender === 'user' ? 'justify-end' : 'justify-start'
             }`}
