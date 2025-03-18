@@ -111,12 +111,16 @@ async def get_tasks(
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ):
-    """Get tasks with optional filtering and calendar support."""
+    """Get tasks with optional filtering and calendar support.
+    
+    This endpoint handles both regular tasks and recurring tasks with their occurrences.
+    For recurring tasks, it returns virtual tasks representing each occurrence.
+    """
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
 
-        # Use service layer's cached method instead of repository
+        # Use service layer's method that handles recurring tasks properly
         tasks = await service.get_tasks(
             skip=skip,
             limit=limit,
@@ -133,6 +137,8 @@ async def get_tasks(
             include_recurring=include_recurring
         )
 
+        # Convert to response model
+        # Note: You may need to update TaskResponse to handle virtual tasks
         return tasks
     except Exception as e:
         raise HTTPException(
@@ -176,7 +182,6 @@ async def update_task(
                     user_id
                     # current_user.id
                 )
-                await service.update_task(task_id, {"status_updated_at": datetime.utcnow()})
                 # Remove status from task_data as it's already updated
                 task_data.pop('status')
             except Exception as e:
