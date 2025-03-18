@@ -27,14 +27,6 @@ class TodoService:
         todo = await create_todo_task(todo_data)
         if todo:
             await self._invalidate_cache(todo_data['user_id'])
-            
-            # Index the todo in the vector store
-            try:
-                await self.ai_service.index_todo(todo)
-            except Exception as e:
-                logger.error(f"Error indexing todo in vector store: {str(e)}")
-                # Continue even if indexing fails
-                
         return todo
 
     async def get_todo_by_id(self, todo_id: int, user_id: int) -> Optional[Todo]:
@@ -115,28 +107,12 @@ class TodoService:
         todo = await update_todo_task(todo_id, user_id, update_data)
         if todo:
             await self._invalidate_cache(user_id, todo_id)
-            
-            # Update the todo in the vector store
-            try:
-                await self.ai_service.index_todo(todo)
-            except Exception as e:
-                logger.error(f"Error updating todo in vector store: {str(e)}")
-                # Continue even if indexing fails
-                
         return todo
 
     async def delete_todo(self, todo_id: int, user_id: int) -> bool:
         success = await delete_todo_task(todo_id, user_id)
         if success:
             await self._invalidate_cache(user_id, todo_id)
-            
-            # Remove the todo from the vector store
-            try:
-                await self.ai_service.remove_todo_index(todo_id)
-            except Exception as e:
-                logger.error(f"Error removing todo from vector store: {str(e)}")
-                # Continue even if removal fails
-                
         return success
 
     async def _invalidate_cache(self, user_id: int, todo_id: int = None) -> None:
@@ -221,14 +197,6 @@ class TodoService:
                     if todo_id and user_id:
                         await self.repository.update_next_occurrence(todo_id, next_date)
                         await self._invalidate_cache(user_id)
-                        
-                        # Index the new todo in the vector store
-                        try:
-                            await self.ai_service.index_todo(new_todo)
-                        except Exception as e:
-                            logger.error(f"Error indexing recurring todo in vector store: {str(e)}")
-                            # Continue even if indexing fails
-                            
                 return new_todo
         return None
         
