@@ -12,7 +12,8 @@ from Backend.data_layer.repositories.base_repository import BaseRepository
 import logging
 import json
 from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
-
+from Backend.events.event_dispatcher import dispatcher
+from Backend.events.event_registry import TASK_UPDATED
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ class TaskRepository(BaseRepository[Task]):
                 if hasattr(task, key):
                     setattr(task, key, value)
             await self.db.flush()
+            await dispatcher.dispatch(TASK_UPDATED, {"task_id": task_id, "task_data": update_data})
             return task
         return None
 
@@ -194,6 +196,8 @@ class TaskRepository(BaseRepository[Task]):
                 setattr(task, key, value)
 
         await self.db.flush()
+        await dispatcher.dispatch(TASK_UPDATED, {"task_id": task_id, "task_data": update_data})
+
         return task
 
     async def get_tasks_by_project(

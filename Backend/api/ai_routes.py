@@ -16,6 +16,8 @@ from Backend.data_layer.database.models.ai_interactions import AIAgentInteractio
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.data_layer.database.models.user import User
 from Backend.ai_services.rag.todo_ai_service import TodoAIService
+from Backend.orchestration.ai_orchestrator import AIOrchestrator
+
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -581,3 +583,10 @@ async def process_todo_rag_query_stream(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# TODO: example for what i want
+@router.post("/ai/process")
+async def process_ai_request(domain: str, prompt: str, user_id: int, db=Depends(get_db)):
+    orchestrator = AIOrchestrator(get_db)
+    return await orchestrator.process_ai_request(domain, prompt, user_id)
