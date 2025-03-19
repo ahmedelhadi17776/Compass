@@ -19,20 +19,23 @@ logger = get_logger(__name__)
 def prepare_todo_text(todo: Union[Todo, Dict]) -> str:
     """Convert a Todo object or dictionary to a text representation for embedding."""
     if isinstance(todo, Dict):
-        title = todo.get("title", "")
-        description = todo.get("description", "")
+        title = todo.get("title", "").strip()
+        description = todo.get("description", "").strip()
         tags = " ".join(todo.get("tags", [])) if todo.get("tags") else ""
-        priority = str(todo.get("priority", ""))
-        status = str(todo.get("status", ""))
+        priority = str(todo.get("priority", "")).replace("TodoPriority.", "").lower()
+        status = str(todo.get("status", "")).replace("TodoStatus.", "").lower()
     else:
-        title = todo.title
-        description = todo.description or ""
+        title = todo.title.strip()
+        description = todo.description.strip() if todo.description else ""
         tags = " ".join(todo.tags) if todo.tags else ""
-        priority = str(todo.priority)
-        status = str(todo.status)
+        priority = str(todo.priority).replace("TodoPriority.", "").lower()
+        status = str(todo.status).replace("TodoStatus.", "").lower()
     
     # Combine fields with importance weighting
-    return f"{title} {title} {description} {description} {tags} {priority} {status}"
+    # Title is most important, followed by description, then tags
+    # Priority and status are included but with less weight
+    # Repeat important fields to increase their weight in the embedding
+    return f"{title} {title} {title} {description} {description} {tags} {tags} priority:{priority} status:{status}"
 
 def prepare_todo_metadata(todo: Union[Todo, Dict]) -> dict:
     """Extract metadata from a Todo object."""

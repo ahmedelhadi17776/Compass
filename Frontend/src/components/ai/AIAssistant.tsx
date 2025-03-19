@@ -4,7 +4,7 @@ import { Brain, FileText, Users, Send, Trash, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTheme } from "@/contexts/theme-provider"
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useLocation, useNavigate } from "react-router-dom"
 import { useChat } from "@/contexts/chat-context"
@@ -77,6 +77,24 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
     
     // Process bullet points
     formattedContent = formattedContent.replace(/- (.*?)(<br\/>|$)/g, '• $1$2');
+    
+    // Process todo list items: "- [ ]" and "- [x]"
+    formattedContent = formattedContent.replace(/• \[ \] (.*?)(<br\/>|$)/g, '<div class="ai-todo-item incomplete">☐ $1</div>$2');
+    formattedContent = formattedContent.replace(/• \[x\] (.*?)(<br\/>|$)/g, '<div class="ai-todo-item complete">✓ $1</div>$2');
+    
+    // Process numbered lists (1. 2. 3. etc)
+    formattedContent = formattedContent.replace(/(\d+)\. (.*?)(<br\/>|$)/g, '<div class="ai-list-item">$1. $2</div>$3');
+    
+    // Process headings ## and ###
+    formattedContent = formattedContent.replace(/#{3} (.*?)(<br\/>|$)/g, '<h3 class="ai-heading-3">$1</h3>$2');
+    formattedContent = formattedContent.replace(/#{2} (.*?)(<br\/>|$)/g, '<h2 class="ai-heading-2">$1</h2>$2');
+    
+    // Process code blocks with ```
+    formattedContent = formattedContent.replace(/```(.*?)```/gs, '<pre class="ai-code-block">$1</pre>');
+    
+    // Highlight todo references with their titles
+    formattedContent = formattedContent.replace(/"([^"]+)"(\s+todo)?/gi, 
+      '<span class="ai-todo-reference">$1</span>');
     
     return formattedContent;
   };

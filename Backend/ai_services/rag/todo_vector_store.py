@@ -374,9 +374,23 @@ class TodoVectorStore:
             Dict containing search results and metadata
         """
         try:
+            # Create a more granular cache key
+            filters_hash = hash(str(sorted(filters.items()))) if filters else 0
+            query_complexity = len(query.split())  # Simple measure of query complexity
+            cache_key = f"todo_search:{hash(query)}:u{user_id}:f{filters_hash}:l{limit}"
+            
+            # Determine cache TTL based on query complexity and filters
+            base_ttl = 1800  # 30 minutes base
+            if query_complexity > 10:  # Complex queries cached longer
+                ttl = base_ttl * 2
+            elif filters and len(filters) > 2:  # More filters = longer cache
+                ttl = base_ttl * 1.5
+            else:
+                ttl = base_ttl
+            
             # Check cache first
-            cache_key = f"todo_search:{hash(query)}:{user_id}:{hash(str(filters))}"
             if cached_result := await get_cached_ai_result(cache_key):
+                logger.info(f"Cache hit for query: {query[:50]}...")
                 return cached_result
             
             # Ensure collection is initialized
@@ -473,8 +487,8 @@ class TodoVectorStore:
                 "query": query
             }
             
-            # Cache result
-            await cache_ai_result(cache_key, result, ttl=1800)  # 30 minutes cache
+            # Cache result with dynamic TTL
+            await cache_ai_result(cache_key, result, ttl=int(ttl))
             
             return result
         except Exception as e:
@@ -512,4 +526,70 @@ class TodoVectorStore:
             return len(results["ids"]) if results and "ids" in results else 0
         except Exception as e:
             logger.error(f"Error getting Todo count: {str(e)}")
-            return 0 
+            return 0
+    
+    async def get_todos_by_ids(self, todo_ids: List[int]) -> List[Dict[str, Any]]:
+        """Get todos by their IDs from ChromaDB.
+        
+        Args:
+            todo_ids: List of todo IDs to fetch
+            
+        Returns:
+            List of todos with their metadata
+        """
+        try:
+            # Ensure collection is initialized
+            if not self.collection:
+                logger.error("ChromaDB collection not initialized")
+                return []
+            
+            # Convert todo IDs to document IDs
+            doc_ids = [f"todo_{todo_id}" for todo_id in todo_ids]
+            
+            # Get todos from ChromaDB
+            results = self.collection.get(
+                ids=doc_ids,
+                include=["metadatas", "documents"]
+            )
+            
+            todos = []
+            if results and results.get("ids"):
+                for i, doc_id in enumerate(results["ids"]):
+                    metadata = results["metadatas"][i] if results.get("metadatas") else {}
+                    
+                    # Parse tags from JSON string
+                    tags = []
+                    if metadata.get("tags_json"):
+                        try:
+                            tags = json.loads(metadata["tags_json"])
+                        except:
+                            tags = []
+                    
+                    # Fix status string format
+                    status = metadata.get("status", "")
+                    if status.startswith("TodoStatus."):
+                        status = status.replace("TodoStatus.", "").lower()
+                    
+                    # Fix priority string format
+                    priority = metadata.get("priority", "")
+                    if priority.startswith("TodoPriority."):
+                        priority = priority.replace("TodoPriority.", "").lower()
+                    
+                    todos.append({
+                        "todo_id": metadata.get("todo_id"),
+                        "title": metadata.get("title", ""),
+                        "description": results["documents"][i] if results.get("documents") else "",
+                        "status": status,
+                        "priority": priority,
+                        "tags": tags,
+                        "due_date": metadata.get("due_date"),
+                        "is_recurring": metadata.get("is_recurring", False),
+                        "ai_generated": metadata.get("ai_generated", False),
+                        "created_at": metadata.get("created_at"),
+                        "updated_at": metadata.get("updated_at")
+                    })
+            
+            return todos
+        except Exception as e:
+            logger.error(f"Error getting todos by IDs: {str(e)}")
+            return [] 

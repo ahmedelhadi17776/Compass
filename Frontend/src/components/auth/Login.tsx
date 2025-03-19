@@ -3,14 +3,12 @@
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
 import { 
-  Eye, EyeOff, Brain, 
+  Eye, EyeOff, 
   BarChart2, Calendar, CheckSquare, 
-  Clock, Command, Cpu, 
-  Focus, GitMerge, Globe,
-  Lightbulb, MessageSquare, Target,
+  Focus, Globe,
+  Sparkles, Command,
   Compass
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import Checkbox from '../ui/checkbox';
 import {
@@ -70,7 +68,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
   const items = [
     {
       content: <FeatureCard
-        icon={Compass}
+        icon={Sparkles}
         title="AI-Powered Insights"
         description="Get intelligent recommendations and insights powered by advanced AI"
       />
