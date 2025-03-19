@@ -1,0 +1,14 @@
+{
+    "tasks": {
+        "repository": "TaskRepository",
+        "prompt_template": "Here is the task info: {context_data}. User input: {user_prompt}"
+    },
+    "todos": {
+        "repository": "TodoRepository",
+        "prompt_template": "Todo list: {context_data}. User says: {user_prompt}"
+    },
+    "default": {
+        "repository": "BaseRepository",
+        "prompt_template": "General input: {user_prompt}"
+    }
+}

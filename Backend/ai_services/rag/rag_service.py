@@ -25,7 +25,7 @@ class RAGService(AIServiceBase):
     async def query_knowledge_base(
         self,
         query: str,
-        limit: int = 5,
+        limit: int = 8,
         context_window: int = 1000,
         normalize: bool = True,
         filters: Optional[Dict[str, Any]] = None
