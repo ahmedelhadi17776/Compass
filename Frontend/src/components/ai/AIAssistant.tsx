@@ -92,12 +92,9 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
     // Process code blocks with ```
     formattedContent = formattedContent.replace(/```(.*?)```/gs, '<pre class="ai-code-block">$1</pre>');
     
-    // Highlight potential todo references
-    formattedContent = formattedContent.replace(/"([^"]+)" \((?:high|medium|low) priority\)/gi, 
-      '<span class="ai-todo-reference priority-$1">$1</span>');
-    
-    // Format timestamps
-    formattedContent = formattedContent.replace(/(\d{4}-\d{2}-\d{2})/g, '<span class="ai-date">$1</span>');
+    // Highlight todo references with their titles
+    formattedContent = formattedContent.replace(/"([^"]+)"(\s+todo)?/gi, 
+      '<span class="ai-todo-reference">$1</span>');
     
     return formattedContent;
   };

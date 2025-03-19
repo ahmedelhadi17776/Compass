@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Union, Any, cast
+from typing import List, Dict, Optional, Union, Any, cast, AsyncGenerator
 from Backend.ai_services.rag.todo_vector_store import TodoVectorStore
 from Backend.ai_services.embedding.embedding_service import EmbeddingService
 from Backend.ai_services.llm.llm_service import LLMService
@@ -7,6 +7,7 @@ from Backend.data_layer.database.models.todo import Todo, TodoStatus, TodoPriori
 from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
 from datetime import datetime, timedelta
 import json
+from Backend.core.config import settings
 
 logger = get_logger(__name__)
 
@@ -370,4 +371,101 @@ class TodoAIService:
             description = todo.get("description", "")
             tags = " ".join(todo.get("tags", [])) if todo.get("tags") else ""
         
-        return f"{title} {description} {tags}" 
+        return f"{title} {description} {tags}"
+
+    async def _enhance_prompt_with_context(
+        self,
+        prompt: str,
+        previous_query: Optional[str] = None,
+        relevant_todo_ids: Optional[List[int]] = None,
+        conversation_mode: Optional[str] = None
+    ) -> str:
+        """Enhance the prompt with conversation context and relevant todos."""
+        enhanced_prompt = prompt
+        
+        # If this is a follow-up question, add context
+        if conversation_mode == "follow_up" and previous_query:
+            enhanced_prompt = f"Previous question: {previous_query}\nCurrent question: {prompt}\n\nConsider the previous question for context when answering the current question."
+        
+        # If we have relevant todo IDs, fetch their details
+        if relevant_todo_ids:
+            try:
+                # Search for these specific todos
+                todos = await self.todo_vector_store.get_todos_by_ids(relevant_todo_ids)
+                if todos:
+                    todo_context = "\n".join([
+                        f"- {todo['title']}: {todo.get('description', 'No description')} "
+                        f"(Priority: {todo.get('priority', 'None')}, "
+                        f"Status: {todo.get('status', 'None')})"
+                        for todo in todos
+                    ])
+                    enhanced_prompt = f"{enhanced_prompt}\n\nRelevant todos:\n{todo_context}"
+            except Exception as e:
+                logger.error(f"Error fetching relevant todos: {str(e)}")
+        
+        return enhanced_prompt
+
+    async def stream_todo_response(
+        self,
+        prompt: str,
+        user_id: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None
+    ) -> AsyncGenerator[str, None]:
+        """Stream a response about todos using RAG."""
+        try:
+            # Extract context parameters
+            previous_query = context.get("previous_query") if context else None
+            relevant_todo_ids = context.get("relevant_todo_ids") if context else None
+            conversation_mode = context.get("conversation_mode") if context else None
+            
+            # Enhance the prompt with context
+            enhanced_prompt = await self._enhance_prompt_with_context(
+                prompt,
+                previous_query,
+                relevant_todo_ids,
+                conversation_mode
+            )
+            
+            # Search for relevant todos
+            search_results = await self.todo_vector_store.todo_semantic_search(
+                enhanced_prompt,
+                user_id=user_id,
+                limit=5  # Adjust based on needs
+            )
+            
+            # Prepare todo context for the LLM
+            todo_context = ""
+            if search_results and search_results.get("results"):
+                todo_context = "Here are the relevant todos I found:\n\n"
+                for idx, todo in enumerate(search_results["results"], 1):
+                    todo_context += (
+                        f"{idx}. **{todo['title']}**\n\n"
+                        f"  - **Status**: {todo['status']}\n\n"
+                        f"  - **Priority**: {todo['priority']}\n\n"
+                        f"  - **Due Date**: {todo['metadata'].get('due_date', 'Not set')}\n\n"
+                        f"  - **Tags**: {', '.join(todo.get('tags', []))}\n\n"
+                    )
+            
+            # Prepare the final prompt
+            final_prompt = f"""Based on the user's question: "{enhanced_prompt}"
+
+{todo_context}
+
+Please provide a helpful response that:
+1. Directly answers the user's question
+2. References specific todos when relevant
+3. Provides actionable insights or next steps
+4. Maintains context from any previous conversation
+
+Response:"""
+
+            # Stream the response
+            async for chunk in self.llm_service.stream_response(
+                final_prompt,
+                system_message=context.get("system_message") if context else None
+            ):
+                yield chunk
+                
+        except Exception as e:
+            logger.error(f"Error in todo response streaming: {str(e)}")
+            yield f"Error: {str(e)}" 

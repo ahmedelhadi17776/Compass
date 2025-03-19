@@ -77,6 +77,11 @@ export interface TodoAnalytics {
   productivity_score: number;
 }
 
+export interface TodoQueryContext {
+  previousQuery?: string;
+  relevantTodoIds?: number[];
+}
+
 // LLM Service
 export const llmService = {
   // Generate a response from the LLM
@@ -253,23 +258,21 @@ export const llmService = {
     return response.data;
   },
 
-  streamTodoQuery: async function* (prompt: string) {
-    const token = localStorage.getItem('token');
-    if (!token) throw new Error('Authentication required');
-
+  async *streamTodoQuery(prompt: string, context?: TodoQueryContext): AsyncGenerator<string> {
     try {
-      console.log('Starting Todo RAG stream request with prompt:', prompt);
-      
       const response = await fetch(`${API_URL}/ai/llm/todo-rag/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           prompt,
           context: {
-            system_message: "You are a helpful AI assistant specialized in productivity and task management."
+            system_message: "You are a helpful AI assistant specialized in productivity and task management.",
+            previous_query: context?.previousQuery,
+            relevant_todo_ids: context?.relevantTodoIds,
+            conversation_mode: "follow_up"
           },
           model_parameters: {
             temperature: 1,
@@ -280,70 +283,36 @@ export const llmService = {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Todo RAG API Error:', errorText);
-        yield JSON.stringify({ error: `Stream request failed: ${response.status} ${response.statusText}` });
-        return;
+        throw new Error('Network response was not ok');
       }
 
-      // Get the reader from the response body
       const reader = response.body?.getReader();
       if (!reader) {
-        yield JSON.stringify({ error: 'Response body is not readable' });
-        return;
+        throw new Error('Failed to get response reader');
       }
 
       const decoder = new TextDecoder();
-      
-      // Read chunks from the stream
+      let buffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
-        // Decode the chunk and split by SSE format
-        const chunk = decoder.decode(value, { stream: true });
-        console.log('Raw chunk received:', chunk);
-        const lines = chunk.split('\n\n');
-        
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.substring(6).trim();
-            console.log('Parsed data:', data);
-            
-            // Check if this is the end of the stream
-            if (data === '[DONE]') {
-              console.log('Stream complete');
-              break;
-            }
-            
-            // Check if this is an error message
-            if (data.startsWith('Error:') || data.includes('"error"')) {
-              console.error('Stream error:', data);
-              
-              // Try to parse as JSON if it looks like JSON
-              if (data.includes('{') && data.includes('}')) {
-                try {
-                  const jsonData = JSON.parse(data);
-                  yield JSON.stringify({ error: jsonData.error || 'Unknown error' });
-                } catch (e) {
-                  yield JSON.stringify({ error: data });
-                }
-              } else {
-                yield JSON.stringify({ error: data });
-              }
-              return;
-            }
-            
-            // Yield the data if it's not empty
-            if (data) {
-              yield data;
-            }
-          }
+          if (line.trim() === '') continue;
+          if (line.trim() === 'data: [DONE]') return;
+
+          const message = line.replace(/^data: /, '');
+          yield message;
         }
       }
     } catch (error) {
-      console.error('Error in Todo RAG stream:', error);
-      yield JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' });
+      console.error('Error in streamTodoQuery:', error);
+      throw error;
     }
   },
 };
