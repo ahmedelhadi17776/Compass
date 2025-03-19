@@ -11,5 +11,5 @@ class ContextBuilder:
         repository = repository_class(self.db)
 
         # Fetch and build context dynamically
-        context_data = await repository.get_context(user_id)
+        context_data = await repository.get_context(user_id) # TODO: Implement get_context method in repositories
         return context_data
