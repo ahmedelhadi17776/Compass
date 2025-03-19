@@ -5,7 +5,7 @@ from Backend.data_layer.repositories.base_repository import BaseRepository
 
 # TODO enhance template with more features
 with open("Backend/core/config/domain_config.json") as f:
-    CONFIG = json.load(f)
+    DOMAIN_CONFIG = json.load(f)
 
 REPO_MAPPING = {
     "TaskRepository": TaskRepository,
@@ -17,4 +17,4 @@ REPO_MAPPING = {
 class AIOrc:
     def __init__(self):
         self.repo_mapping = REPO_MAPPING
-        self.config = CONFIG
+        self.config = DOMAIN_CONFIG

@@ -2,7 +2,6 @@ from typing import Dict, Any
 from Backend.orchestration.context_builder import ContextBuilder
 from Backend.ai_services.rag.rag_service import RAGService
 from Backend.ai_services.llm.llm_service import LLMService
-from Backend.orchestration.ai_registry import DOMAIN_CONFIG
 
 
 class AIOrchestrator:
