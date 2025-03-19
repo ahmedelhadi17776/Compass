@@ -1,0 +1,5 @@
+TASK_UPDATED = "task.updated"
+TODO_UPDATED = "todo.updated"
+HABIT_UPDATED = "habit.updated"
+
+EVENT_TYPES = [TASK_UPDATED, TODO_UPDATED, HABIT_UPDATED]

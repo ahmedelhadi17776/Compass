@@ -7,6 +7,8 @@ from openai._streaming import Stream
 from Backend.core.config import settings
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
+from Backend.data_layer.cache.ai_cache import cache_ai_result
+
 import os
 
 logger = get_logger(__name__)
@@ -33,7 +35,6 @@ class LLMService:
         self.conversation_history: List[ChatCompletionMessageParam] = []
         self.max_history_length = 10
 
-    @cache_response(ttl=1800)
     async def generate_response(
         self,
         prompt: str,
@@ -45,7 +46,7 @@ class LLMService:
             logger.info(f"Generating response for prompt: {prompt[:50]}...")
             messages = self._prepare_messages(prompt, context)
             params = self._prepare_model_parameters(model_parameters)
-
+            cache_key = f"rag_prompt_result:{hash(prompt)}"
             logger.info(f"Making request to LLM API with stream={stream}")
             
             if stream:
@@ -62,6 +63,19 @@ class LLMService:
                         for chunk in response:
                             if chunk.choices and chunk.choices[0].delta.content:
                                 yield chunk.choices[0].delta.content
+                        
+                        result = {
+                                "text": response.choices[0].message.content,
+                                "usage": {
+                                    "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                                    "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                                    "total_tokens": response.usage.total_tokens if response.usage else 0
+                                }
+                            }
+                        await cache_ai_result(cache_key, {prompt : result})
+
+                        await self.log_training_data(prompt, result)
+
                     except Exception as e:
                         logger.error(f"Error in stream generator: {str(e)}")
                         yield f"Error: {str(e)}"
@@ -86,6 +100,10 @@ class LLMService:
                         "total_tokens": response.usage.total_tokens if response.usage else 0
                     }
                 }
+                
+                await cache_ai_result(cache_key, {prompt : result})
+                await self.log_training_data(prompt, result)
+
                 self._update_conversation_history(prompt, result["text"])
                 return result
 
@@ -99,6 +117,10 @@ class LLMService:
                     yield f"Error: {str(e)}"
                 return error_generator()
             raise
+    
+    async def log_training_data(self, prompt: str, response: str):
+        with open("training_data.jsonl", "a") as f:
+            f.write(f'{{"prompt": "{prompt}", "completion": "{response}"}}\n')
 
     async def _make_request(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the LLM API."""
