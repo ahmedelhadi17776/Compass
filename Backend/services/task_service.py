@@ -314,36 +314,31 @@ class TaskService:
             task_data['_dependencies_list'] = json.dumps(deps)
             task_data['dependencies'] = deps
 
-        # Check if this is a recurring task
+        # Check if this is a recurring task occurrence
         is_recurring = existing_task.recurrence != RecurrenceType.NONE
 
-        # Extract the occurrence information from the task_id if it's a virtual ID
-        occurrence_num = 0
-        original_task_id = task_id
-        is_virtual_id = False
-
-        # Check if this is a virtual occurrence ID (e.g., "123_2" for the 3rd occurrence of task 123)
-        task_id_str = str(task_id)
-        if '_' in task_id_str:
-            parts = task_id_str.split('_')
-            original_task_id = int(parts[0])
-            occurrence_num = int(parts[1])
-            is_virtual_id = True
-
-            # If it's a virtual ID, we need to get the actual task
-            if original_task_id != task_id:
-                existing_task = await self.repo.get_task(original_task_id)
-                if not existing_task:
-                    raise TaskNotFoundError(
-                        f"Original task {original_task_id} not found")
-
         # If this is a recurring task and we're not updating all occurrences,
-        # or if this is a virtual ID (which always refers to a specific occurrence)
-        if (is_recurring and not update_all_occurrences) or is_virtual_id:
+        # we need to handle it differently by creating/updating a task occurrence record
+        if is_recurring and not update_all_occurrences:
             # For single occurrence updates, we don't modify the original task
             # Instead, we create or update a TaskOccurrence record
 
+            # Extract the occurrence information from the task_id
+            # Format is either original_id or original_id_occurrence_num
+            occurrence_num = 0
+            original_task_id = task_id
+
+            # Check if this is a virtual occurrence ID (e.g., "123_2" for the 3rd occurrence of task 123)
+            task_id_str = str(task_id)
+            if '_' in task_id_str:
+                parts = task_id_str.split('_')
+                original_task_id = int(parts[0])
+                occurrence_num = int(parts[1])
+
             # Get or create the occurrence record
+            from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+
+            # Check if an occurrence record already exists
             occurrence = await self.repo.get_task_occurrence(original_task_id, occurrence_num)
 
             # Prepare occurrence data
@@ -363,8 +358,33 @@ class TaskService:
             # If we don't have start_date in the update data but we need it for a new occurrence
             if 'start_date' not in occurrence_data and not occurrence:
                 # Calculate the start date for this occurrence based on the recurrence pattern
-                occurrence_data['start_date'] = self._calculate_occurrence_start_date(
-                    existing_task, occurrence_num)
+                base_start = existing_task.start_date
+                if existing_task.recurrence == RecurrenceType.DAILY:
+                    occurrence_data['start_date'] = base_start + \
+                        datetime.timedelta(days=occurrence_num)
+                elif existing_task.recurrence == RecurrenceType.WEEKLY:
+                    occurrence_data['start_date'] = base_start + \
+                        datetime.timedelta(weeks=occurrence_num)
+                elif existing_task.recurrence == RecurrenceType.MONTHLY:
+                    # Add months using relative delta to handle month boundaries correctly
+                    occurrence_data['start_date'] = base_start + \
+                        relativedelta(months=occurrence_num)
+                elif existing_task.recurrence == RecurrenceType.YEARLY:
+                    occurrence_data['start_date'] = base_start + \
+                        relativedelta(years=occurrence_num)
+                elif existing_task.recurrence == RecurrenceType.CUSTOM and existing_task.recurrence_custom_days:
+                    # For custom recurrence, calculate based on the custom days pattern
+                    custom_days = [int(d)
+                                   for d in existing_task.recurrence_custom_days]
+                    if custom_days:
+                        total_days = sum(
+                            custom_days[:occurrence_num % len(custom_days)])
+                        occurrence_data['start_date'] = base_start + \
+                            datetime.timedelta(days=total_days)
+                    else:
+                        occurrence_data['start_date'] = base_start
+                else:
+                    occurrence_data['start_date'] = base_start
 
             # Create or update the occurrence
             if occurrence:
@@ -372,12 +392,10 @@ class TaskService:
             else:
                 updated_occurrence = await self.repo.create_task_occurrence(occurrence_data)
 
-            # Return the original task (not modified)
+            # Don't update the original task
             return existing_task
         else:
             # Normal update behavior for non-recurring tasks or when updating all occurrences
-
-            # Validate date fields
             if "start_date" in task_data or "duration" in task_data:
                 new_start = task_data.get(
                     "start_date", existing_task.start_date)
@@ -390,91 +408,25 @@ class TaskService:
                 task_data["start_date"] = new_start
                 task_data["duration"] = new_duration
 
-            # Validate recurrence end date
-            if "recurrence_end_date" in task_data and task_data["recurrence_end_date"]:
-                start_date = task_data.get(
-                    "start_date", existing_task.start_date)
-                if task_data["recurrence_end_date"] < start_date:
-                    raise TaskUpdateError(
-                        "Recurrence end date cannot be before start date")
+        if "status" in task_data and task_data["status"] != existing_task.status:
+            task_data["status_updated_at"] = datetime.utcnow()
 
-            # Update status_updated_at if status is changing
-            if "status" in task_data and task_data["status"] != existing_task.status:
-                task_data["status_updated_at"] = datetime.utcnow()
+        # Handle foreign key IDs - if they're 0, set them to None to avoid foreign key violations
+        if 'category_id' in task_data and task_data['category_id'] == 0:
+            task_data['category_id'] = None
 
-            # Handle foreign key IDs - if they're 0, set them to None to avoid foreign key violations
-            for field in ['category_id', 'workflow_id', 'parent_task_id', 'assignee_id', 'reviewer_id']:
-                if field in task_data and task_data[field] == 0:
-                    task_data[field] = None
+        if 'workflow_id' in task_data and task_data['workflow_id'] == 0:
+            task_data['workflow_id'] = None
 
-            # Update the task
-            updated_task = await self.repo.update_task(original_task_id, task_data)
+        if 'parent_task_id' in task_data and task_data['parent_task_id'] == 0:
+            task_data['parent_task_id'] = None
 
-            # If this is a recurring task and we're updating all occurrences,
-            # we should also update any existing occurrence records to match the new base task
-            if is_recurring and update_all_occurrences:
-                # Get all occurrences for this task
-                occurrences = await self.repo.get_task_occurrences(original_task_id)
+        task = await self.repo.update_task(task_id, task_data)
 
-                # For each occurrence, update the fields that weren't specifically modified for that occurrence
-                for occurrence in occurrences:
-                    # Only update fields that weren't specifically overridden for this occurrence
-                    occurrence_update = {}
+        # Invalidate cache for this task
+        invalidate_cache('task', task_id)
 
-                    # Fields to potentially update in occurrences when the base task changes
-                    # Only update fields that aren't specifically set in the occurrence
-                    for field in ['title', 'description', 'priority', 'category_id']:
-                        if field in task_data and getattr(occurrence, field) is None:
-                            occurrence_update[field] = task_data[field]
-
-                    if occurrence_update:
-                        await self.repo.update_task_occurrence(occurrence.id, occurrence_update)
-
-            # Invalidate cache for this task
-            invalidate_cache('task', original_task_id)
-
-            return updated_task
-
-    def _calculate_occurrence_start_date(self, task: Task, occurrence_num: int) -> datetime:
-        """Calculate the start date for a specific occurrence of a recurring task."""
-        base_start = task.start_date
-
-        if task.recurrence == RecurrenceType.DAILY:
-            return base_start + timedelta(days=occurrence_num)
-        elif task.recurrence == RecurrenceType.WEEKLY:
-            return base_start + timedelta(weeks=occurrence_num)
-        elif task.recurrence == RecurrenceType.MONTHLY:
-            # Add months using relative delta to handle month boundaries correctly
-            return base_start + relativedelta(months=occurrence_num)
-        elif task.recurrence == RecurrenceType.YEARLY:
-            return base_start + relativedelta(years=occurrence_num)
-        elif task.recurrence == RecurrenceType.CUSTOM and task.recurrence_custom_days:
-            # For custom recurrence, calculate based on the custom days pattern
-            custom_days = task.recurrence_custom_days
-            if custom_days:
-                # Convert string array to integers if needed
-                if isinstance(custom_days[0], str):
-                    custom_days = [int(d) for d in custom_days]
-
-                # Calculate total days based on the pattern
-                if len(custom_days) > 0:
-                    # Calculate how many complete cycles and remaining days
-                    complete_cycles = occurrence_num // len(custom_days)
-                    remaining_idx = occurrence_num % len(custom_days)
-
-                    # Calculate days from complete cycles
-                    total_days = sum(custom_days) * complete_cycles
-
-                    # Add days from the remaining partial cycle
-                    total_days += sum(custom_days[:remaining_idx])
-
-                    return base_start + timedelta(days=total_days)
-
-            # Default fallback
-            return base_start
-        else:
-            return base_start
-
+        return task
 
     @cache_entity(entity_type='task')
     async def get_task(self, task_id: int) -> Optional[Task]:
