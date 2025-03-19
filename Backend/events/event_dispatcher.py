@@ -23,3 +23,6 @@ class EventDispatcher:
                     await listener(payload)
                 except Exception as e:
                     logger.error(f"Error processing {event_type}: {e}")
+
+# Create a singleton instance
+dispatcher = EventDispatcher()
