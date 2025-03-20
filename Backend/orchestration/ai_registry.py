@@ -64,10 +64,42 @@ class AIRegistry:
         return self.repo_mapping[repo_name]
 
     def get_prompt_template(self, domain: str, variant: str = "default") -> str:
-        """Get prompt template for a domain."""
+        """Get prompt template for a domain and intent variant.
+        
+        Args:
+            domain: The domain to get a template for (e.g., 'tasks', 'todos')
+            variant: The template variant, usually matching the intent 
+                    (e.g., 'retrieve', 'analyze', 'plan', 'summarize')
+        
+        Returns:
+            A template string that can be rendered with context data
+        """
         config = self.domain_config.get(domain, self.domain_config['default'])
         templates = config.get('prompt_templates', {})
-        return templates.get(variant, templates.get("default"))
+        
+        # First try to get the specific variant
+        if variant in templates:
+            return templates[variant]
+        
+        # If not found, try to get a default template
+        if "default" in templates:
+            return templates["default"]
+        
+        # Fallback to a hardcoded generic template if nothing is found
+        return """
+        User Input: {{ user_prompt }}
+        Intent: {{ intent }} on {{ target }}
+        Context: {{ context_data }}
+        
+        Task:
+        - If 'retrieve', extract the requested information.
+        - If 'analyze', provide deep insights and trends.
+        - If 'plan', organize and propose an actionable plan.
+        - If 'summarize', provide a concise summary.
+        
+        Additional Knowledge (if available):
+        {{ rag_data }}
+        """
 
     def get_handler(self, domain: str, db_session) -> Any:
         """Get domain-specific handler if registered."""
