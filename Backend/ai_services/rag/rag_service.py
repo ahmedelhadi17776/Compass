@@ -6,8 +6,12 @@ from Backend.utils.logging_utils import get_logger
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.ai_services.embedding.embedding_service import EmbeddingService
 from Backend.ai_services.base.ai_service_base import AIServiceBase
-from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
+from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result, invalidate_rag_cache
 from Backend.data_layer.vector_db.chroma_client import ChromaClient
+from Backend.orchestration.ai_registry import ai_registry
+
+import hashlib
+import json
 
 logger = get_logger(__name__)
 
@@ -22,9 +26,19 @@ class RAGService(AIServiceBase):
         self.llm_service = LLMService()
         self.embedding_service = EmbeddingService()
 
+    def _generate_cache_key(self, query: str, context: Dict[str, Any], filters: Optional[Dict[str, Any]]=None) -> str:
+        """
+        Generates a cache key based on the query and context.
+        """
+        cache_input = json.dumps({"query": query, "context": context, "filters":filters}, sort_keys=True)
+        return f"rag_query:{hashlib.sha256(cache_input.encode()).hexdigest()}"
+    
     async def query_knowledge_base(
         self,
         query: str,
+        context: Dict[str, Any] = {},
+        intent: Optional[str] = None,
+        user_id: int = 1,
         limit: int = 8,
         context_window: int = 1000,
         normalize: bool = True,
@@ -32,70 +46,86 @@ class RAGService(AIServiceBase):
     ) -> Dict[str, Any]:
         """Query knowledge base with enhanced filtering and caching."""
         try:
-            # Check cache first
-            cache_key = f"rag_query:{hash(query)}"
+            # Step 1: Cache Check
+            cache_key = self._generate_cache_key(query, context, filters)
+            cache_config = ai_registry.get_cache_config()
+            intent_ttl = cache_config["ttl_per_intent"].get(
+                intent, cache_config["default_ttl"])
+            
             if cached_result := await get_cached_ai_result(cache_key):
                 return cached_result
 
-            # Ensure collection is initialized
+            # Step 2: Ensure collection is initialized
             if not self.collection:
                 logger.error("ChromaDB collection not initialized")
                 return {
-                    "answer": "Unable to query knowledge base: database not initialized",
+                    "answer": "Error: Knowledge base not initialized.",
                     "sources": [],
                     "confidence": 0.0,
                     "error": "ChromaDB collection not initialized"
                 }
 
-            query_embedding = await self.embedding_service.get_embedding(
-                query,
-                normalize=normalize
-            )
+            # Step 3: Generate embedding for the query
+            query_embedding = await self.embedding_service.get_embedding(query, normalize=normalize)
 
+            # Step 4: Perform semantic search
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=limit,
-                where=filters
+                where=filters,
             )
 
-            # Handle empty results
-            if not results or not results.get("documents") or len(results.get("documents", [])) == 0 or len(results.get("documents", [[]])[0]) == 0:
+            # Step 5: Handle empty results
+            if not results or not results.get("documents") or len(results["documents"][0]) == 0:
                 return {
                     "answer": "No relevant information found in the knowledge base.",
                     "sources": [],
                     "confidence": 0.0
                 }
+                
+            
 
-            context = "\n".join([doc for doc in results["documents"][0]])
+            # Step 6: Prepare context for AI response
+            documents = results["documents"][0]
+            sources = results["metadatas"][0] if results.get(
+                "metadatas") else []
+            combined_context = "\n".join(documents)
+            truncated_context = combined_context[:context_window]
+            
 
-            response = await self.llm_service.generate_response(
-                prompt=query,
-                context={"reference_docs": context[:context_window]}
-            )
+            # Step 7: Enhance AI Prompt with Multi-Domain Context
+            ai_prompt = f"""
+            User Query: {query}
 
-            # Safely extract metadatas
-            sources = []
-            if results.get("metadatas") and len(results["metadatas"]) > 0:
-                sources = results["metadatas"][0]
+            Knowledge Base Context:
+            {truncated_context}
+
+            Additional Context:
+            {json.dumps(context, indent=2)}
+            """
+
+            # Step 8: Generate AI response
+            response = await self.llm_service.generate_response(prompt=ai_prompt)
 
             result = {
-                "answer": response.get("text", ""),
+                "answer": response.get("text", "No answer generated."),
                 "sources": sources,
                 "confidence": response.get("confidence", 0.0),
-                "embedding_dimension": len(query_embedding)
+                "embedding_dimension": len(query_embedding),
             }
 
-            # Cache the result
-            await cache_ai_result(cache_key, result)
+            # Step 9: Cache the result
+            await cache_ai_result(cache_key, result, ttl=intent_ttl)
+
             return result
 
         except Exception as e:
             logger.error(f"RAG query error: {str(e)}")
             return {
-                "answer": "Error querying knowledge base",
+                "answer": "Error querying the knowledge base.",
                 "sources": [],
                 "confidence": 0.0,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def add_to_knowledge_base(
@@ -124,24 +154,18 @@ class RAGService(AIServiceBase):
                 batch_size=batch_size
             )
 
-            # Generate IDs if not provided in metadata
-            ids = []
-            for i, meta in enumerate(metadata):
-                if isinstance(meta, Dict) and meta.get("id"):
-                    ids.append(str(meta["id"]))
-                else:
-                    ids.append(f"doc_{i}_{hash(content[i])}")
-
-            # Ensure metadata is a list of dictionaries
-            metadata_list = cast(List[Dict[str, Any]], metadata)
-
+            # Generate unique IDs if missing
+            ids = [
+                metadata.get("id", f"doc_{i}_{hash(content[i])}") for i, meta in enumerate(metadata)
+            ]            
             self.collection.add(
                 embeddings=embeddings,
                 documents=content,
-                metadatas=metadata_list,
-                ids=ids
+                metadatas=metadata,
+                ids=ids,
             )
             return True
+        
         except Exception as e:
             logger.error(f"Error adding to knowledge base: {str(e)}")
             return False
@@ -220,3 +244,9 @@ class RAGService(AIServiceBase):
                 "name": settings.CHROMA_COLLECTION_NAME,
                 "error": str(e)
             }
+            
+    async def invalidate_rag_cache(self, domain: str) -> None:
+        """
+        Invalidate cache for a specific domain after knowledge base updates.
+        """
+        await invalidate_rag_cache(domain)

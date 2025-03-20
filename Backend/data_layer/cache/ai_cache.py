@@ -1,4 +1,4 @@
-from Backend.data_layer.cache.redis_client import get_cached_value, set_cached_value
+from Backend.data_layer.cache.redis_client import get_cached_value, set_cached_value, delete_cached_value
 from typing import Optional, Dict
 import json
 
@@ -10,3 +10,11 @@ async def get_cached_ai_result(key: str) -> Optional[Dict]:
     """Retrieve cached AI analysis results."""
     cached = await get_cached_value(f"ai_result:{key}")
     return json.loads(cached) if cached else None
+
+
+async def invalidate_rag_cache(domain: str) -> None:
+    """
+    Invalidate RAG-related cache entries for a domain (e.g., tasks, meetings).
+    """
+    pattern = f"rag_cache:*{domain}*"
+    await delete_cached_value(pattern)
