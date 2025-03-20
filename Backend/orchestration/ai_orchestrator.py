@@ -32,6 +32,141 @@ class AIOrchestrator:
             return hashlib.sha256(cache_input.encode()).hexdigest()
         return None
 
+    def _format_context_data(self, data: Any, intent: str) -> str:
+        """
+        Format context data into a structured, human-readable format based on intent type.
+        
+        Args:
+            data: The raw context data from a specific domain
+            intent: The detected user intent (retrieve, analyze, summarize, plan)
+            
+        Returns:
+            A formatted string representation of the context data
+        """
+        if not data:
+            return "No data available"
+            
+        # Handle different data types
+        if isinstance(data, dict):
+            if not data:
+                return "Empty context"
+                
+            # Format dictionary data
+            formatted = []
+            for key, value in data.items():
+                # Skip private or internal keys
+                if key.startswith('_'):
+                    continue
+                    
+                # Format based on value type
+                if isinstance(value, list):
+                    formatted.append(f"{key.capitalize()}:")
+                    for i, item in enumerate(value, 1):
+                        if isinstance(item, dict):
+                            formatted.append(f"  {i}. " + self._format_dict_item(item, intent))
+                        else:
+                            formatted.append(f"  {i}. {item}")
+                else:
+                    formatted.append(f"{key.capitalize()}: {value}")
+            
+            return "\n".join(formatted)
+            
+        elif isinstance(data, list):
+            if not data:
+                return "Empty list"
+                
+            # For analyze and summarize intents, include more details
+            include_details = intent in ["analyze", "summarize"]
+            
+            formatted = []
+            for i, item in enumerate(data, 1):
+                if isinstance(item, dict):
+                    formatted.append(f"{i}. " + self._format_dict_item(item, intent, include_details))
+                else:
+                    formatted.append(f"{i}. {item}")
+            
+            return "\n".join(formatted)
+            
+        # Default fallback for other data types
+        return str(data)
+    
+    def _format_dict_item(self, item: Dict[str, Any], intent: str, include_details: bool = True) -> str:
+        """
+        Format a dictionary item into a structured string representation.
+        
+        Args:
+            item: Dictionary item to format
+            intent: Current intent for context-aware formatting
+            include_details: Whether to include detailed attributes
+            
+        Returns:
+            Formatted string representation of the item
+        """
+        # Extract the most important attributes first
+        title = item.get('title', item.get('name', 'Untitled'))
+        description = item.get('description', '')
+        status = item.get('status', '')
+        due_date = item.get('due_date', item.get('deadline', ''))
+        priority = item.get('priority', '')
+        
+        # Base representation includes title and status if available
+        result = f"{title}"
+        
+        if status:
+            result += f" ({status})"
+            
+        # For retrieve intent, keep it brief
+        if intent == "retrieve" and not include_details:
+            return result
+            
+        # For other intents, include more details if available
+        details = []
+        if due_date:
+            details.append(f"due: {due_date}")
+        if priority:
+            details.append(f"priority: {priority}")
+        if description and len(description) > 50:
+            details.append(f"description: {description[:50]}...")
+        elif description:
+            details.append(f"description: {description}")
+            
+        if details:
+            result += f" - {', '.join(details)}"
+            
+        return result
+    
+    def _prepare_rag_context(self, rag_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare and format the RAG context for template rendering.
+        
+        Args:
+            rag_result: The raw RAG result from RAGService
+            
+        Returns:
+            Formatted RAG context with answer and sources
+        """
+        if not rag_result:
+            return {"answer": "", "sources": []}
+            
+        answer = rag_result.get("answer", "")
+        sources = rag_result.get("sources", [])
+        
+        # Format sources if available
+        formatted_sources = []
+        if sources:
+            for i, source in enumerate(sources, 1):
+                if isinstance(source, dict):
+                    source_info = source.get("title", source.get("source", f"Source {i}"))
+                    formatted_sources.append(f"{i}. {source_info}")
+                else:
+                    formatted_sources.append(f"{i}. {source}")
+        
+        return {
+            "answer": answer,
+            "sources": formatted_sources,
+            "has_sources": bool(formatted_sources)
+        }
+
     async def process_request(self, user_input: str, user_id: int) -> Dict[str, Any]:
         """
         Processes user input by detecting intent, retrieving data, and generating AI responses.
@@ -67,15 +202,26 @@ class AIOrchestrator:
         template_variant = intent if intent in ["retrieve", "analyze", "plan", "summarize"] else "default"
         prompt_template = ai_registry.get_prompt_template(target, template_variant)
         
+        # Format domain-specific context data
+        target_context = context.get(target, {})
+        formatted_context = self._format_context_data(target_context, intent)
+        
+        # Prepare RAG context with formatted sources
+        formatted_rag = self._prepare_rag_context(rag_context)
+        
         # Prepare template context with all necessary data
         template_context = {
             "user_prompt": user_input,
             "intent": intent,
             "target": target,
-            "context_data": context.get(target, {}),
-            "rag_data": rag_context.get('answer', ''),
+            "context_data": formatted_context,
+            "raw_context": target_context,
+            "rag_data": formatted_rag["answer"],
+            "rag_sources": formatted_rag["sources"],
+            "has_rag_sources": formatted_rag["has_sources"],
             "all_context": context,
-            "description": description
+            "description": description,
+            "user_id": user_id
         }
         
         # Render the template with the provided context
