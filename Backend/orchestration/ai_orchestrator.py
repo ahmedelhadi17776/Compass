@@ -193,9 +193,19 @@ class AIOrchestrator:
         enable_rag_for_intent = domain_rag_settings.get(
             "intent_rag_usage", {}).get(intent, False)
 
+        # Initialize RAG context
         rag_context = {}
         if enable_rag_for_intent:
             rag_context = await self.rag_service.query_knowledge_base(user_input, context=context)
+            # Prepare RAG context with formatted sources
+            formatted_rag = self._prepare_rag_context(rag_context)
+        else:
+            # When RAG is disabled, use an empty formatted RAG context with all required keys
+            formatted_rag = {
+                "answer": "",
+                "sources": [],
+                "has_sources": False
+            }
 
         # Step 5: Formulate the AI query using dynamic templates
         # Get the appropriate template based on domain and intent
@@ -205,9 +215,6 @@ class AIOrchestrator:
         # Format domain-specific context data
         target_context = context.get(target, {})
         formatted_context = self._format_context_data(target_context, intent)
-        
-        # Prepare RAG context with formatted sources
-        formatted_rag = self._prepare_rag_context(rag_context)
         
         # Prepare template context with all necessary data
         template_context = {
