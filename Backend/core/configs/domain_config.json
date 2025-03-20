@@ -15,8 +15,10 @@
         },
         "prompt_templates": {
             "default": "Here are your tasks: {{ context_data }}. User input: {{ user_prompt }}",
-            "detailed": "Task Info: {{ context_data }}. You said: {{ user_prompt }}",
-            "summary": "Summarize the following tasks: {{ context_data }}"
+            "retrieve": "User has requested task information: \"{{ user_prompt }}\"\n\nAvailable tasks: {{ context_data }}\n\nPlease provide a clear, direct response focusing on the specific tasks requested. Be factual and concise. Include relevant deadlines, priorities, and task details.",
+            "analyze": "User has requested analysis: \"{{ user_prompt }}\"\n\nTask data to analyze: {{ context_data }}\n\nAdditional knowledge: {{ rag_data }}\n\nProvide a detailed analysis of these tasks, including patterns, workload distribution, and key insights. Suggest potential improvements or efficiencies.",
+            "summarize": "User wants a summary: \"{{ user_prompt }}\"\n\nTasks to summarize: {{ context_data }}\n\nCreate a clear, concise summary of these tasks. Group by priority or deadline if appropriate. Highlight the most important or urgent items.",
+            "plan": "User requires planning assistance: \"{{ user_prompt }}\"\n\nAvailable tasks: {{ context_data }}\n\nExternal knowledge: {{ rag_data }}\n\nCreate an actionable plan based on these tasks. Consider deadlines, dependencies, and effort required. Organize into a logical sequence or priority order."
         },
         "permissions": ["admin", "user"],
         "cache": {
@@ -43,7 +45,11 @@
             }
         },
         "prompt_templates": {
-            "default": "Here is your todo list: {{ context_data }}. User says: {{ user_prompt }}"
+            "default": "Here is your todo list: {{ context_data }}. User says: {{ user_prompt }}",
+            "retrieve": "User has requested todo information: \"{{ user_prompt }}\"\n\nAvailable todos: {{ context_data }}\n\nProvide the specific todo information requested. Be direct and concise.",
+            "analyze": "User has requested analysis: \"{{ user_prompt }}\"\n\nTodo data: {{ context_data }}\n\nAnalyze these todos to provide insights on completion rates, patterns, and suggestions for better todo management.",
+            "summarize": "User wants a summary: \"{{ user_prompt }}\"\n\nTodos to summarize: {{ context_data }}\n\nCreate a concise summary of the todo items, possibly grouping by status, priority, or due date.",
+            "plan": "User wants to plan: \"{{ user_prompt }}\"\n\nTodo items: {{ context_data }}\n\nAdditional knowledge: {{ rag_data }}\n\nCreate an organized plan based on these todos. Consider urgency, importance, and estimated effort."
         },
         "permissions": ["user"],
         "cache": {
@@ -69,7 +75,11 @@
             }
         },
         "prompt_templates": {
-            "default": "General input: {{ user_prompt }}"
+            "default": "User input: {{ user_prompt }}\n\nAvailable context: {{ context_data }}\n\nAdditional knowledge: {{ rag_data }}\n\nPlease respond appropriately to the user's request.",
+            "retrieve": "User is requesting information: \"{{ user_prompt }}\"\n\nAvailable data: {{ context_data }}\n\nProvide the specific information requested in a clear, direct manner.",
+            "analyze": "User wants analysis: \"{{ user_prompt }}\"\n\nData to analyze: {{ context_data }}\n\nKnowledge base info: {{ rag_data }}\n\nProvide a thoughtful analysis based on this information.",
+            "summarize": "User wants a summary: \"{{ user_prompt }}\"\n\nContent to summarize: {{ context_data }}\n\nCreate a concise, informative summary.",
+            "plan": "User wants planning help: \"{{ user_prompt }}\"\n\nRelevant data: {{ context_data }}\n\nExternal knowledge: {{ rag_data }}\n\nDevelop an organized, actionable plan."
         },
         "permissions": ["guest", "user", "admin"],
         "cache": {

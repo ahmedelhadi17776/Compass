@@ -62,21 +62,26 @@ class AIOrchestrator:
         if enable_rag_for_intent:
             rag_context = await self.rag_service.query_knowledge_base(user_input, context=context)
 
-        # Step 5: Formulate the AI query
-        prompt = f"""
-        User Input: {user_input}
-        Intent: {intent} on {target}
-        Context: {context.get(target)}
-
-        Task:
-        - If 'retrieve', extract the requested information.
-        - If 'analyze', provide deep insights and trends.
-        - If 'plan', organize and propose an actionable plan.
-        - If 'summarize', provide a concise summary.
-
-        Additional Knowledge (if available):
-        {rag_context.get('answer', '')}
-        """
+        # Step 5: Formulate the AI query using dynamic templates
+        # Get the appropriate template based on domain and intent
+        template_variant = intent if intent in ["retrieve", "analyze", "plan", "summarize"] else "default"
+        prompt_template = ai_registry.get_prompt_template(target, template_variant)
+        
+        # Prepare template context with all necessary data
+        template_context = {
+            "user_prompt": user_input,
+            "intent": intent,
+            "target": target,
+            "context_data": context.get(target, {}),
+            "rag_data": rag_context.get('answer', ''),
+            "all_context": context,
+            "description": description
+        }
+        
+        # Render the template with the provided context
+        prompt = render_template(prompt_template, template_context)
+        
+        self.logger.debug(f"Generated prompt using template variant '{template_variant}' for domain '{target}'")
 
         # Step 6: Generate the AI response
         ai_response = await self.llm_service.generate_response(prompt)
