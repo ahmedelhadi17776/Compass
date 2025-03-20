@@ -1,27 +1,27 @@
 from typing import Dict, Any, Optional
 from Backend.orchestration.ai_registry import ai_registry
 
+
 class ContextBuilder:
     def __init__(self, db_session):
         self.db = db_session
 
-    async def get_context(self, domain: str, user_id: int) -> Dict[str, Any]:
+    async def get_full_context(self, user_id: int) -> Dict[str, Any]:
         """
-        Build context for a specific domain and user
+        Retrieve and merge data from all registered domains.
         """
-        # Get repository for domain
-        repository_class = ai_registry.get_repository(domain)
-        repository = repository_class(self.db)
+        context = {}
+        for domain in ai_registry.handler_mapping.keys():
+            repository_class = ai_registry.get_repository(domain)
+            repository = repository_class(self.db)
 
-        # Get base context from repository
-        context = await repository.get_context(user_id)
-        
-        # Get domain handler if exists
-        handler = ai_registry.get_handler(domain)
-        if handler:
-            # Allow domain-specific context enrichment
-            context = await handler.enrich_context(context)
+            # Fetch and enrich context
+            domain_context = await repository.get_context(user_id)
+            handler = ai_registry.get_handler(domain, self.db)
+            if handler:
+                domain_context = await handler.enrich_context(domain_context)
 
+            context[domain] = domain_context
         return context
 
     async def get_user_profile(self, user_id: int) -> Dict[str, Any]:
@@ -31,7 +31,8 @@ class ContextBuilder:
 
     async def merge_contexts(self, contexts: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Merge multiple domain contexts into a single context
+        Merge multiple domain contexts into a single context.
+        This could be enhanced with ranking or filtering based on relevance.
         """
         merged = {}
         for domain, context in contexts.items():

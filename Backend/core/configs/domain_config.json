@@ -1,14 +1,83 @@
 {
     "tasks": {
         "repository": "TaskRepository",
-        "prompt_template": "Here is the task info: {context_data}. User input: {user_prompt}"
+        "handler": "TaskHandler",
+        "enable_rag": true,
+        "rag_settings": {
+            "limit": 10,
+            "context_window": 1500,
+            "intent_rag_usage": {
+                "retrieve": true,
+                "analyze": true,
+                "summarize": false,
+                "plan": true
+            }
+        },
+        "prompt_templates": {
+            "default": "Here are your tasks: {{ context_data }}. User input: {{ user_prompt }}",
+            "detailed": "Task Info: {{ context_data }}. You said: {{ user_prompt }}",
+            "summary": "Summarize the following tasks: {{ context_data }}"
+        },
+        "permissions": ["admin", "user"],
+        "cache": {
+            "enabled": true,
+            "ttl": 3600
+        },
+        "logging": {
+            "enabled": true,
+            "level": "info"
+        }
     },
     "todos": {
         "repository": "TodoRepository",
-        "prompt_template": "Todo list: {context_data}. User says: {user_prompt}"
+        "handler": "TodoHandler",
+        "enable_rag": true,
+        "rag_settings": {
+            "limit": 5,
+            "context_window": 1200,
+            "intent_rag_usage": {
+                "retrieve": true,
+                "analyze": false,
+                "summarize": true,
+                "plan": true
+            }
+        },
+        "prompt_templates": {
+            "default": "Here is your todo list: {{ context_data }}. User says: {{ user_prompt }}"
+        },
+        "permissions": ["user"],
+        "cache": {
+            "enabled": true,
+            "ttl": 1800
+        },
+        "logging": {
+            "enabled": false
+        }
     },
     "default": {
         "repository": "BaseRepository",
-        "prompt_template": "General input: {user_prompt}"
+        "handler": null,
+        "enable_rag": true,
+        "rag_settings": {
+            "limit": 8,
+            "context_window": 2048,
+            "intent_rag_usage": {
+                "retrieve": true,
+                "analyze": true,
+                "summarize": true,
+                "plan": true
+            }
+        },
+        "prompt_templates": {
+            "default": "General input: {{ user_prompt }}"
+        },
+        "permissions": ["guest", "user", "admin"],
+        "cache": {
+            "enabled": false
+        },
+        "logging": {
+            "enabled": true,
+            "level": "debug"
+        }
     }
 }

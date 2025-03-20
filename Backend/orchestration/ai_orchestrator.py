@@ -1,8 +1,15 @@
 from typing import Dict, Any, List, Optional
+from Backend.app.schemas import user
 from Backend.orchestration.context_builder import ContextBuilder
 from Backend.ai_services.rag.rag_service import RAGService
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_registry import ai_registry
+from Backend.orchestration.template_engine import render_template
+from Backend.orchestration.intent_detector import IntentDetector
+from Backend.data_layer.cache.ai_cache import get_cached_ai_result, cache_ai_result
+import logging
+import hashlib
+import json
 
 
 class AIOrchestrator:
@@ -11,118 +18,86 @@ class AIOrchestrator:
         self.rag_service = RAGService()
         self.llm_service = LLMService()
         self.context_builder = ContextBuilder(db_session)
+        self.intent_detector = IntentDetector()
+        self.logger = logging.getLogger(__name__)
 
-    async def process_ai_request(
-        self, 
-        domain: str, 
-        prompt: str, 
-        user_id: int,
-        additional_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def _generate_cache_key(self, user_id: int, user_input: str, context: Dict[str, Any]) -> str:
         """
-        Process an AI request for a specific domain
+        Generate a cache key using user_id and the input.
         """
-        # Get domain configuration and repository
-        domain_config = ai_registry.get_domain_config(domain)
-        repository_class = ai_registry.get_repository(domain)
-        repository = repository_class(self.db)
+        cache_config = ai_registry.get_cache_config()
+        if cache_config.get("enabled", False):
+            cache_input = json.dumps(
+                {"user_id": user_id, "query": user_input, "context": context}, sort_keys=True)
+            return hashlib.sha256(cache_input.encode()).hexdigest()
+        return None
 
-        # Build context
-        context = await self.context_builder.get_context(domain, user_id)
-        if additional_context:
-            context.update(additional_context)
-
-        # Get domain-specific handler if exists
-        handler = ai_registry.get_handler(domain)
-        if handler:
-            context = await handler.enrich_context(context)
-
-        # Get prompt template and format it
-        template = ai_registry.get_prompt_template(domain)
-        formatted_prompt = template.format(
-            user_prompt=prompt,
-            context_data=context
-        )
-
-        # Retrieve relevant data via RAG
-        rag_result = await self.rag_service.query_knowledge_base(
-            query=prompt,
-            context=context
-        )
-
-        # Build final prompt with RAG context
-        if rag_result and rag_result.get('answer'):
-            formatted_prompt += f"\n\nAdditional Context:\n{rag_result['answer']}"
-
-        # Generate response
-        response = await self.llm_service.generate_response(
-            prompt=formatted_prompt,
-            context={
-                "user_id": user_id,
-                "domain": domain,
-                **context
-            }
-        )
-
-        return {
-            "response": response,
-            "domain": domain,
-            "context_used": context,
-            "rag_used": bool(rag_result and rag_result.get('answer'))
-        }
-
-    async def process_multi_domain_request(
-        self,
-        domains: List[str],
-        prompt: str,
-        user_id: int,
-        additional_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    async def process_request(self, user_input: str, user_id: int) -> Dict[str, Any]:
         """
-        Process an AI request across multiple domains
+        Processes user input by detecting intent, retrieving data, and generating AI responses.
         """
-        all_context = {}
+        # Step 1: Collect context from all domains
+        context = await self.context_builder.get_full_context(user_id)
         
-        # Gather context from all domains
-        for domain in domains:
-            context = await self.context_builder.get_context(domain, user_id)
-            all_context[domain] = context
+        # Step 2: Detect intent using the LLM
+        intent_data = await self.intent_detector.detect_intent(user_input, context)
+        intent, target, description = intent_data["intent"], intent_data["target"], intent_data["description"]
 
-        if additional_context:
-            all_context.update(additional_context)
+        # Step 3: Apply cache and intent-specific TTL
+        cache_key = self._generate_cache_key(user_id, user_input, context)
+        cache_config = ai_registry.get_cache_config()
+        intent_ttl = cache_config.get("ttl_per_intent", {}).get(
+            intent, cache_config["default_ttl"])
 
-        # Use RAG across all domains
-        rag_result = await self.rag_service.query_knowledge_base(
-            query=prompt,
-            context=all_context
-        )
+        if cached_response := await get_cached_ai_result(cache_key):
+            self.logger.info("Cache hit for key: %s", cache_key)
+            return {"response": cached_response["answer"], "cached": True}
 
-        # Build comprehensive prompt
-        full_prompt = f"User Query: {prompt}\n\n"
-        for domain in domains:
-            template = ai_registry.get_prompt_template(domain)
-            domain_section = template.format(
-                user_prompt=prompt,
-                context_data=all_context[domain]
-            )
-            full_prompt += f"\n{domain.upper()} CONTEXT:\n{domain_section}\n"
+        # Step 4: Decide if RAG is needed for the intent
+        domain_rag_settings = ai_registry.get_rag_settings(target)
+        enable_rag_for_intent = domain_rag_settings.get(
+            "intent_rag_usage", {}).get(intent, False)
 
-        if rag_result and rag_result.get('answer'):
-            full_prompt += f"\nADDITIONAL KNOWLEDGE:\n{rag_result['answer']}"
+        rag_context = {}
+        if enable_rag_for_intent:
+            rag_context = await self.rag_service.query_knowledge_base(user_input, context=context)
 
-        # Generate response
-        response = await self.llm_service.generate_response(
-            prompt=full_prompt,
-            context={
-                "user_id": user_id,
-                "domains": domains,
-                **all_context
-            }
-        )
+        # Step 5: Formulate the AI query
+        prompt = f"""
+        User Input: {user_input}
+        Intent: {intent} on {target}
+        Context: {context.get(target)}
+
+        Task:
+        - If 'retrieve', extract the requested information.
+        - If 'analyze', provide deep insights and trends.
+        - If 'plan', organize and propose an actionable plan.
+        - If 'summarize', provide a concise summary.
+
+        Additional Knowledge (if available):
+        {rag_context.get('answer', '')}
+        """
+
+        # Step 6: Generate the AI response
+        ai_response = await self.llm_service.generate_response(prompt)
+
+        # Step 7: Store the response in cache (if enabled)
+        cache_data = {
+            "answer": ai_response["text"],
+            "sources": rag_context.get("sources", []),
+            "confidence": ai_response.get("confidence", 0.0),
+            "context_used": context,
+            "intent": intent,
+            "target": target
+        }
+        await cache_ai_result(cache_key, cache_data, ttl=intent_ttl)
 
         return {
-            "response": response,
-            "domains": domains,
-            "context_used": all_context,
-            "rag_used": bool(rag_result and rag_result.get('answer'))
+            "response": ai_response["text"],
+            "intent": intent,
+            "target": target,
+            "description": description,
+            "rag_used": bool(rag_context),
+            "cached": False,
+            "context_used": context
         }
