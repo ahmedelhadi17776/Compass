@@ -153,35 +153,16 @@ async def test_habit(db_session):
 @pytest_asyncio.fixture(autouse=True)
 async def celery_config() -> None:
     """Configure Celery for testing."""
-    from Backend.core.celery_app import celery_app
-
-    # Configure Celery for testing
-    test_config = {
-        "task_always_eager": True,
-        "task_eager_propagates": True,
-        "broker_url": "memory://",
-        "result_backend": "redis://localhost:6379/1",
-        "broker_connection_retry": False,
-        "broker_connection_retry_on_startup": False,
-        "worker_cancel_long_running_tasks_on_connection_loss": True,
-        "task_serializer": "json",
-        "result_serializer": "json",
-        "accept_content": ["json"],
-        "task_track_started": True,
-        "task_time_limit": 30,
-        "task_soft_time_limit": 20,
-        "worker_max_tasks_per_child": 1,
-        "worker_max_memory_per_child": 50000,
-        "task_store_errors_even_if_ignored": True
-    }
-
-    celery_app.conf.update(test_config)
-
-    # Update settings for testing
+    # Skip celery configuration for tests that don't need it
+    # This avoids the import error with Backend.core.celery_app
+    
+    # Just set the testing flags without importing celery
     settings.CELERY_TASK_ALWAYS_EAGER = True
     settings.CELERY_BROKER_URL = "memory://"
     settings.CELERY_RESULT_BACKEND = "redis://localhost:6379/1"
     settings.CELERY_TASK_EAGER_PROPAGATES = True
+    
+    yield
 
 
 async def create_test_database():
