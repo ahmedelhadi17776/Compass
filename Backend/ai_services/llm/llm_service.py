@@ -8,14 +8,20 @@ from Backend.core.config import settings
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
 from Backend.data_layer.cache.ai_cache import cache_ai_result
-
+from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 import os
+import time
 
 logger = get_logger(__name__)
 
 
 class LLMService:
-    def __init__(self):
+    def __init__(self, db_session: Optional[AsyncSession] = None):
+        self.db_session = db_session
+        self.model_repository = AIModelRepository(
+            db_session) if db_session else None
+
         # Use the GitHub token from environment variables
         github_token = os.environ.get("GITHUB_TOKEN", settings.LLM_API_KEY)
 
@@ -34,6 +40,50 @@ class LLMService:
         self.model = self.model_name
         self.conversation_history: List[ChatCompletionMessageParam] = []
         self.max_history_length = 10
+        self._current_model_id: Optional[int] = None
+
+    async def _get_or_create_model(self) -> Optional[int]:
+        """Get or create AI model record in database."""
+        if not self.model_repository:
+            return None
+
+        try:
+            model = await self.model_repository.get_model_by_name_version(
+                name=self.model_name,
+                version="1.0"
+            )
+
+            if not model:
+                model = await self.model_repository.create_model({
+                    "name": self.model_name,
+                    "version": "1.0",
+                    "type": "text-generation",
+                    "provider": "OpenAI",
+                    "model_metadata": {
+                        "base_url": self.base_url,
+                        "max_history_length": self.max_history_length
+                    },
+                    "status": "active",
+                    "max_tokens": settings.LLM_MAX_TOKENS,
+                    "temperature": settings.LLM_TEMPERATURE
+                })
+
+            return model.id
+        except Exception as e:
+            logger.error(f"Error getting/creating AI model: {str(e)}")
+            return None
+
+    async def _update_model_stats(self, latency: float, success: bool = True) -> None:
+        """Update model usage statistics."""
+        if self.model_repository and self._current_model_id:
+            try:
+                await self.model_repository.update_model_stats(
+                    self._current_model_id,
+                    latency,
+                    success
+                )
+            except Exception as e:
+                logger.error(f"Error updating model stats: {str(e)}")
 
     async def generate_response(
         self,
@@ -43,6 +93,13 @@ class LLMService:
         stream: bool = True
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
         try:
+            # Get or create model record
+            if not self._current_model_id:
+                self._current_model_id = await self._get_or_create_model()
+
+            start_time = time.time()
+            success = True
+
             logger.info(f"Generating response for prompt: {prompt[:50]}...")
             messages = self._prepare_messages(prompt, context)
             params = self._prepare_model_parameters(model_parameters)
@@ -50,7 +107,6 @@ class LLMService:
             logger.info(f"Making request to LLM API with stream={stream}")
 
             if stream:
-                # Create a custom async generator for streaming
                 async def stream_generator() -> AsyncGenerator[str, None]:
                     try:
                         response: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
@@ -71,7 +127,7 @@ class LLMService:
                         complete_response = {
                             "text": "".join(full_text),
                             "usage": {
-                                "prompt_tokens": 0,  # Not available in streaming
+                                "prompt_tokens": 0,
                                 "completion_tokens": 0,
                                 "total_tokens": 0
                             }
@@ -80,8 +136,12 @@ class LLMService:
                         await self.log_training_data(prompt, complete_response["text"])
 
                     except Exception as e:
+                        success = False
                         logger.error(f"Error in stream generator: {str(e)}")
                         yield f"Error: {str(e)}"
+                    finally:
+                        latency = time.time() - start_time
+                        await self._update_model_stats(latency, success)
 
                 return stream_generator()
 
@@ -106,11 +166,18 @@ class LLMService:
                 await cache_ai_result(cache_key, {prompt: result})
                 await self.log_training_data(prompt, result["text"])
                 self._update_conversation_history(prompt, result["text"])
+
+                latency = time.time() - start_time
+                await self._update_model_stats(latency, True)
+
                 return result
 
             raise ValueError("Invalid response from LLM service")
 
         except Exception as e:
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, False)
+
             logger.error(f"Error generating response: {str(e)}")
             if stream:
                 async def error_generator() -> AsyncGenerator[str, None]:

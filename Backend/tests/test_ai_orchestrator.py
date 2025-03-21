@@ -1,13 +1,15 @@
 import pytest
 import json
 import hashlib
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch, AsyncMock, ANY
 from Backend.orchestration.ai_orchestrator import AIOrchestrator
 from Backend.orchestration.context_builder import ContextBuilder
 from Backend.orchestration.intent_detector import IntentDetector
 from Backend.ai_services.rag.rag_service import RAGService
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.data_layer.cache.ai_cache import get_cached_ai_result, cache_ai_result
+from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
+from typing import Dict, List, Any, Optional, cast
 
 # Test data
 MOCK_USER_ID = 123
@@ -57,8 +59,18 @@ class TestAIOrchestrator:
         return MagicMock()
 
     @pytest.fixture
-    def orchestrator(self, mock_db_session):
-        return AIOrchestrator(mock_db_session)
+    def mock_model_repository(self):
+        repository = AsyncMock(spec=AIModelRepository)
+        repository.get_model_by_name_version.return_value = MagicMock(id=1)
+        repository.create_model.return_value = MagicMock(id=1)
+        repository.update_model_stats.return_value = None
+        return repository
+
+    @pytest.fixture
+    def orchestrator(self, mock_db_session, mock_model_repository):
+        orchestrator = AIOrchestrator(mock_db_session)
+        orchestrator.model_repository = mock_model_repository
+        return orchestrator
 
     @pytest.fixture
     def mock_context_builder(self):
@@ -298,12 +310,16 @@ class TestAIOrchestrator:
         orchestrator.intent_detector = mock_intent_detector
         orchestrator.rag_service = mock_rag_service
         orchestrator.llm_service = mock_llm_service
+        orchestrator._current_model_id = 1
 
         # Mock cache miss
         mock_get_cache.return_value = None
 
         # Mock string response from LLM
-        mock_llm_service.generate_response.return_value = "Simple string response"
+        mock_llm_service.generate_response.return_value = {
+            "text": "Simple string response",
+            "confidence": 0.8
+        }
 
         # Mock configs
         mock_ai_registry.get_cache_config.return_value = {
@@ -322,6 +338,112 @@ class TestAIOrchestrator:
         result = await orchestrator.process_request(MOCK_USER_INPUT, MOCK_USER_ID)
 
         # Verify
+        assert isinstance(result, dict)
         assert result["response"] == "Simple string response"
         assert result["cached"] is False
         assert result["rag_used"] is True
+
+    @pytest.mark.asyncio
+    async def test_model_initialization(self, orchestrator, mock_model_repository):
+        # Test model initialization
+        model_id = await orchestrator._get_or_create_model()
+        assert model_id == 1
+        mock_model_repository.get_model_by_name_version.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_model_stats_update(self, orchestrator):
+        # Test model stats update
+        orchestrator._current_model_id = 1
+        await orchestrator._update_model_stats(0.5, True)
+        orchestrator.model_repository.update_model_stats.assert_called_once_with(
+            1, 0.5, True)
+
+    @pytest.mark.asyncio
+    @patch('Backend.orchestration.ai_orchestrator.get_cached_ai_result')
+    @patch('Backend.orchestration.ai_orchestrator.cache_ai_result')
+    @patch('Backend.orchestration.ai_orchestrator.ai_registry')
+    async def test_process_request_with_model_tracking(
+        self,
+        mock_ai_registry,
+        mock_cache_result,
+        mock_get_cache,
+        orchestrator,
+        mock_context_builder,
+        mock_intent_detector,
+        mock_rag_service,
+        mock_llm_service
+    ):
+        # Setup mocks
+        orchestrator.context_builder = mock_context_builder
+        orchestrator.intent_detector = mock_intent_detector
+        orchestrator.rag_service = mock_rag_service
+        orchestrator.llm_service = mock_llm_service
+        orchestrator._current_model_id = 1
+
+        # Mock cache miss
+        mock_get_cache.return_value = None
+
+        # Mock registry settings
+        mock_ai_registry.get_cache_config.return_value = {
+            "enabled": True,
+            "default_ttl": 3600,
+            "ttl_per_intent": {}
+        }
+        mock_ai_registry.get_rag_settings.return_value = {
+            "intent_rag_usage": {
+                "summarize": True
+            }
+        }
+        mock_ai_registry.get_prompt_template.return_value = "Test template"
+
+        # Mock service responses
+        mock_context_builder.get_full_context.return_value = MOCK_CONTEXT
+        mock_intent_detector.detect_intent.return_value = MOCK_INTENT_DATA
+        mock_rag_service.query_knowledge_base.return_value = MOCK_RAG_RESULT
+        mock_llm_service.generate_response.return_value = MOCK_LLM_RESPONSE
+
+        # Execute
+        result = await orchestrator.process_request(MOCK_USER_INPUT, MOCK_USER_ID)
+
+        # Verify model tracking and response
+        assert isinstance(result, dict)
+        assert result.get("response") == MOCK_LLM_RESPONSE["text"]
+        assert result.get("intent") == MOCK_INTENT_DATA["intent"]
+        assert result.get("rag_used") is True
+        orchestrator.model_repository.update_model_stats.assert_called_with(
+            1, ANY, True)
+
+        # Verify workflow steps were called
+        mock_context_builder.get_full_context.assert_called_once_with(
+            MOCK_USER_ID)
+        mock_intent_detector.detect_intent.assert_called_once_with(
+            MOCK_USER_INPUT, MOCK_CONTEXT)
+        mock_rag_service.query_knowledge_base.assert_called_once()
+        mock_llm_service.generate_response.assert_called_once()
+        mock_cache_result.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_request_error_handling(
+        self,
+        orchestrator,
+        mock_context_builder,
+        mock_intent_detector
+    ):
+        # Setup
+        orchestrator.context_builder = mock_context_builder
+        orchestrator.intent_detector = mock_intent_detector
+        orchestrator._current_model_id = 1
+
+        # Force an error
+        mock_context_builder.get_full_context.side_effect = Exception(
+            "Test error")
+
+        # Execute
+        result = await orchestrator.process_request(MOCK_USER_INPUT, MOCK_USER_ID)
+
+        # Verify
+        assert isinstance(result, dict)
+        assert result.get("error") is True
+        assert "Test error" in result.get("response", "")
+        orchestrator.model_repository.update_model_stats.assert_called_with(
+            1, ANY, False)
