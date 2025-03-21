@@ -1,0 +1,942 @@
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch the list of todos that are due today."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "What todos are due today?"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "You have the following todos due today:
+
+1. **chocolate** (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+2. **gdzg2** (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+3. **Watermelon** (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+4. **Beans** (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+5. **Go to the library** (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+6. **go to cairo** (pending) - due: 2025-03-18T20:10:05.578000, priority: medium"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch their todos that are due today."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "What todos are due today?"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "You have the following todos due today:
+
+1. **Chocolate**  
+   - Status: Pending  
+   - Due: 2025-03-18T03:54:40.796000  
+   - Priority: Medium  
+
+2. **Gdzg2**  
+   - Status: Pending  
+   - Due: 2025-03-18T03:59:21.931000  
+   - Priority: Medium  
+
+3. **Watermelon**  
+   - Status: Pending  
+   - Due: 2025-03-18T04:06:34.008000  
+   - Priority: Medium  
+
+4. **Beans**  
+   - Status: Pending  
+   - Due: 2025-03-18T04:08:55.634000  
+   - Priority: Medium  "}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch a list of todos that are due today."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "What todos are due today?"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "You have the following todos due today:
+
+1. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+2. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+3. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+4. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch a list of todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It seems there are no specific deadlines listed for the tasks. However, here are the tasks you currently have:
+
+1. **test2** (To Do)
+2. **string** (To Do)
+3. **tt3** (To Do)
+
+Since no due dates were provided, I cannot specify which tasks are due today. Please check if there are any deadlines assigned to these tasks."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch a list of todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It appears there are no specific deadlines provided for today's tasks. However, here are the tasks currently marked as "To Do":
+
+1. **test2**
+2. **string**
+3. **tt3**
+
+If you need more details about these tasks or their deadlines, please provide that information."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "h?"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": false}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user is likely trying to retrieve information about their tasks or todos, indicated by the input 'h?' which may suggest a query for help or information."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "h?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It seems there was an issue with the task information retrieval. However, here are the recent tasks available for user_id 1:
+
+1. **test2** - Status: To Do
+2. **string** - Status: To Do
+3. **tt3** - Status: To Do
+
+If you need more details or specific tasks, please provide additional context."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch the todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It appears that there are currently no specific tasks with deadlines due today. However, here are the recent tasks that are marked as "To Do":
+
+1. **test2**
+2. **string**
+3. **tt3**
+
+If you need further assistance or have specific deadlines for these tasks, please let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "list my task about test2 today?"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "tasks",
+    "description": "The user wants to retrieve a list of tasks related to 'test2' for today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "list my task about test2 today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "You have one task related to "test2" scheduled for today:
+
+1. **Task:** test2  
+   **Status:** To Do  
+   **Deadline:** Today  
+   **Priority:** Not specified  
+
+Let me know if you need any more information!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "list my todo about cairo"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": false}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to retrieve a list of their to-do items specifically related to Cairo."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "list my todo about cairo"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It appears that there are no specific tasks related to "Cairo" in your current to-do list. Here are your recent tasks:
+
+1. test2 (To Do)
+2. string (To Do)
+3. tt3 (To Do)
+
+If you have tasks related to Cairo that are not listed, please provide more details or check your task entries."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Database Summary: {"tasks": {"user_id": 1, "tasks": [], "error": "'<' not supported between instances of 'NoneType' and 'int'", "recent_tasks": [{"title": "test2", "status": "To Do"}, {"title": "string", "status": "To Do"}, {"title": "tt3", "status": "To Do"}]}, "todos": {"user_id": 1, "todos": [{"id": 45, "title": "Go to the library ", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T19:42:05.349000", "is_recurring": false}, {"id": 47, "title": "go to cairo", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T20:10:05.578000", "is_recurring": false}, {"id": 8, "title": "Clean up Calendar", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:22.199000", "is_recurring": false}, {"id": 49, "title": "Go to Greek", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T01:35:10.775000", "is_recurring": false}, {"id": 50, "title": "Dad's birthday party", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T01:49:01.986000", "is_recurring": false}, {"id": 4, "title": "Calendar Types", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-13T12:36:16.189000", "is_recurring": false}, {"id": 51, "title": "Swimming Class", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-19T02:37:44.984000", "is_recurring": false}, {"id": 53, "title": "Test99", "description": "", "status": "pending", "priority": "high", "due_date": "2025-03-19T20:06:10.852000", "is_recurring": false}, {"id": 55, "title": "test100000", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-20T04:33:52.638000", "is_recurring": false}, {"id": 21, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 22, "title": "Test search functionality with blue colors", "description": "This is a test todo to verify that newly created todos are properly indexed in ChromaDB and can be found via semantic search", "status": "pending", "priority": "medium", "due_date": null, "is_recurring": false}, {"id": 44, "title": "Go to the gym22", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-21T17:40:23", "is_recurring": false}, {"id": 12, "title": "work on the LLM feature", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:17:06.263000", "is_recurring": false}, {"id": 9, "title": "Make the calendar scrollable through the calendar itself", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T03:15:33.879000", "is_recurring": false}, {"id": 10, "title": "Add the ability to change the user's username and profile picture through settings", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-15T01:15:58.063000", "is_recurring": false}, {"id": 15, "title": "Make the entire calendar the same as WeekView.css", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-15T20:46:12.008000", "is_recurring": false}, {"id": 14, "title": "Record a video for the center", "description": "", "status": "pending", "priority": "low", "due_date": "2025-03-14T13:17:35.476000", "is_recurring": false}, {"id": 33, "title": "test3", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-21T00:38:30", "is_recurring": false}, {"id": 34, "title": "test4", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-22T02:49:09", "is_recurring": false}, {"id": 40, "title": "chocolate", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:54:40.796000", "is_recurring": false}, {"id": 41, "title": "gdzg2", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T03:59:21.931000", "is_recurring": false}, {"id": 37, "title": "test24", "description": "", "status": "completed", "priority": "medium", "due_date": "2025-03-27T02:55:46", "is_recurring": false}, {"id": 42, "title": "Watermelon", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:06:34.008000", "is_recurring": false}, {"id": 43, "title": "Beans", "description": "", "status": "pending", "priority": "medium", "due_date": "2025-03-18T04:08:55.634000", "is_recurring": false}, {"id": 13, "title": "Unify Todo, Calendar", "description": "in terms of where the texts and buttons are", "status": "pending", "priority": "medium", "due_date": "2025-03-14T17:17:16.132000", "is_recurring": false}], "total_count": 25, "pending_count": 0, "completed_count": 0, "high_priority_count": 0, "urgent_todos": []}, "resolved_references": {"matches": [], "total_matches": 0, "best_match": null, "has_temporal_reference": true}}
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my tasks").
+        - analyze: To generate insights (e.g., "Summarize my progress").
+        - plan: To schedule, organize.
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch their todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It appears that there are no specific due dates provided for the tasks. However, here are the tasks that are currently marked as "To Do":
+
+1. **test2**
+2. **string**
+3. **tt3**
+
+If you need more details or specific deadlines, please provide that information."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch a list of todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "There are no tasks specifically due today. However, here are your recent tasks that are currently in the "To Do" status:
+
+1. **test2**
+2. **string**
+3. **tt3** 
+
+Please let me know if you need further assistance!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch the list of todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It appears that there are no specific due dates mentioned for the tasks you provided. However, here are the tasks marked as "To Do":
+
+1. test2 (To Do)
+2. string (To Do)
+3. tt3 (To Do)
+
+If you have any specific deadlines or need further assistance, please let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch the list of todos that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What todos are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It seems there are no specific due dates provided for the tasks you listed. However, here are the tasks that are currently marked as "To Do":
+
+1. test2
+2. string
+3. tt3
+
+If you need further assistance or details about these tasks, please let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch a list of todos that are due today."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "What todos are due today?"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "Here are the todos due today:
+
+1. **chocolate**  
+   - Status: pending  
+   - Due: 2025-03-18T03:54:40.796000  
+   - Priority: medium  
+
+2. **gdzg2**  
+   - Status: pending  
+   - Due: 2025-03-18T03:59:21.931000  
+   - Priority: medium  
+
+3. **Watermelon**  
+   - Status: pending  
+   - Due: 2025-03-18T04:06:34.008000  
+   - Priority: medium  
+
+4. **Beans**  
+   - Status: pending  
+   - Due: 2025-03-18T04:08:55.634000  
+   - Priority: medium  
+
+5. **Go to the library**  
+   - Status: pending  
+   - Due: 2025-03-18T19:42:05.349000  
+   - Priority: medium  
+
+6. **go to cairo**  
+   - Status: pending  
+   - Due: 2025-03-18T20:10:05.578000  
+   - Priority: medium  "}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What tasks are due today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "tasks",
+    "description": "The user wants to fetch information about tasks that are due today."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "What tasks are due today?"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "It appears there are no tasks specifically due today. However, here are your recent tasks:
+
+1. **test2** (To Do)
+2. **string** (To Do)
+3. **tt3** (To Do)
+
+Please check if any of these tasks need immediate attention or if you need to update their deadlines."}

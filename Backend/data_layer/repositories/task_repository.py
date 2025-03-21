@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, cast, Sequence
+from typing import Dict, List, Any, Optional, cast, Sequence
 from sqlalchemy import select, and_, or_, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -908,3 +908,51 @@ class TaskRepository(BaseRepository[Task]):
             await self.db.flush()
             return True
         return False
+
+    async def get_context(self, user_id: int) -> Dict[str, Any]:
+        """Get context data for a user's tasks."""
+        try:
+            # Get all tasks for the user
+            tasks = await self.get_user_tasks(user_id)
+            
+            # Convert tasks to a dictionary format
+            task_list = []
+            for task in tasks:
+                task_dict = {
+                    "id": task.id,
+                    "title": task.title,
+                    "description": task.description,
+                    "status": task.status.value if hasattr(task.status, 'value') else task.status,
+                    "priority": task.priority.value if hasattr(task.priority, 'value') else task.priority,
+                    "start_date": task.start_date.isoformat() if task.start_date else None,
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
+                    "duration": task.duration,
+                    "assignee_id": task.assignee_id,
+                    "reviewer_id": task.reviewer_id,
+                    "project_id": task.project_id,
+                    "organization_id": task.organization_id,
+                    "category_id": task.category_id,
+                    "progress_metrics": task.progress_metrics,
+                    "health_score": task.health_score,
+                    "risk_factors": task.risk_factors,
+                    "blockers": task.blockers,
+                    "is_recurring": bool(task.recurrence and task.recurrence != RecurrenceType.NONE)
+                }
+                task_list.append(task_dict)
+            
+            # Return the context with task statistics
+            return {
+                "user_id": user_id,
+                "tasks": task_list,
+                "total_count": len(task_list),
+                "pending_count": sum(1 for t in task_list if t["status"] == "PENDING"),
+                "in_progress_count": sum(1 for t in task_list if t["status"] == "IN_PROGRESS"),
+                "completed_count": sum(1 for t in task_list if t["status"] == "COMPLETED"),
+                "high_priority_count": sum(1 for t in task_list if t["priority"] == "HIGH"),
+                "blocked_count": sum(1 for t in task_list if t.get("blockers")),
+                "at_risk_count": sum(1 for t in task_list if t.get("health_score", 100) < 70),
+                "overdue_count": sum(1 for t in task_list if t["due_date"] and datetime.fromisoformat(t["due_date"]) < datetime.utcnow())
+            }
+        except Exception as e:
+            logger.error(f"Error getting task context: {str(e)}")
+            return {"user_id": user_id, "tasks": [], "error": str(e)}

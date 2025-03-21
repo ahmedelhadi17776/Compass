@@ -219,7 +219,7 @@ class AIOrchestrator:
             "has_sources": bool(formatted_sources)
         }
 
-    async def process_request(self, user_input: str, user_id: int) -> Dict[str, Any]:
+    async def process_request(self, user_input: str, user_id: int, domain: str = None) -> Dict[str, Any]:
         try:
             if not self._current_model_id:
                 self._current_model_id = await self._get_or_create_model()
@@ -227,8 +227,13 @@ class AIOrchestrator:
             start_time = time.time()
             success = True
 
-            # Step 1: Collect context from all domains
-            context = await self.context_builder.get_full_context(user_id)
+            # Step 1: Collect context from the specified domain or all domains
+            if domain:
+                repository_class = ai_registry.get_repository(domain)
+                repository = repository_class(self.db)
+                context = {domain: await repository.get_context(user_id)}
+            else:
+                context = await self.context_builder.get_full_context(user_id)
 
             # Step 2: Resolve any references in the user input
             reference_results = await self.reference_resolver.resolve_reference(user_input, context)
@@ -243,10 +248,13 @@ class AIOrchestrator:
             # Step 5: Apply cache and intent-specific TTL
             cache_key = self._generate_cache_key(user_id, user_input, context)
             cache_config = ai_registry.get_cache_config()
+            if not cache_config:
+                cache_config = {"enabled": False, "default_ttl": 3600, "ttl_per_intent": {}}
+            
             intent_ttl = cache_config.get("ttl_per_intent", {}).get(
-                intent, cache_config["default_ttl"])
+                intent, cache_config.get("default_ttl", 3600))
 
-            if cache_key and (cached_response := await get_cached_ai_result(cache_key)):
+            if cache_key and cache_config.get("enabled", False) and (cached_response := await get_cached_ai_result(cache_key)):
                 self.logger.info("Cache hit for key: %s", cache_key)
                 return {"response": cached_response["answer"], "cached": True}
 
