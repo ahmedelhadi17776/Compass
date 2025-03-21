@@ -156,7 +156,7 @@ class RAGService(AIServiceBase):
 
             # Generate unique IDs if missing
             ids = [
-                metadata.get("id", f"doc_{i}_{hash(content[i])}") for i, meta in enumerate(metadata)
+                meta.get("id", f"doc_{i}_{hash(content[i])}") for i, meta in enumerate(metadata)
             ]            
             self.collection.add(
                 embeddings=embeddings,
