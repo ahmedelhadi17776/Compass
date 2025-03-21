@@ -8,12 +8,14 @@ from Backend.ai_services.embedding.embedding_service import EmbeddingService
 from Backend.ai_services.base.ai_service_base import AIServiceBase
 from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result, invalidate_rag_cache
 from Backend.data_layer.vector_db.chroma_client import ChromaClient
+from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
 from Backend.orchestration.ai_registry import ai_registry
+from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from functools import lru_cache
-
+import time
 import hashlib
 import json
 
@@ -21,13 +23,18 @@ logger = get_logger(__name__)
 
 
 class RAGService(AIServiceBase):
-    def __init__(self):
+    def __init__(self, db_session: Optional[AsyncSession] = None):
         super().__init__("rag")
+        self.db_session = db_session
+        self.model_repository = AIModelRepository(
+            db_session) if db_session else None
+        self._current_model_id: Optional[int] = None
+
         self.chroma_client = ChromaClient()
         self.client = self.chroma_client.client
         self.collection = self.chroma_client.collection
-        self.llm_service = LLMService()
-        self.embedding_service = EmbeddingService()
+        self.llm_service = LLMService(db_session)
+        self.embedding_service = EmbeddingService(db_session=db_session)
         self.thread_pool = ThreadPoolExecutor(max_workers=4)
         self._cache = {}
 
@@ -58,14 +65,47 @@ class RAGService(AIServiceBase):
             filters), sort_keys=True) if filters is not None else None
         return self._generate_cache_key(query, context_str, filters_str)
 
-    async def _get_embeddings_batch(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
-        """Process embeddings in batches asynchronously."""
-        embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            batch_embeddings = await self.embedding_service.get_embedding(batch, normalize=True)
-            embeddings.extend(batch_embeddings)
-        return embeddings
+    async def _get_or_create_model(self) -> Optional[int]:
+        """Get or create AI model record in database."""
+        if not self.model_repository:
+            return None
+
+        try:
+            model = await self.model_repository.get_model_by_name_version(
+                name="rag-service",
+                version="1.0"
+            )
+
+            if not model:
+                model = await self.model_repository.create_model({
+                    "name": "rag-service",
+                    "version": "1.0",
+                    "type": "rag",
+                    "provider": "hybrid",
+                    "model_metadata": {
+                        "embedding_model": self.embedding_service.model_name,
+                        "llm_model": self.llm_service.model_name,
+                        "vector_db": "chromadb"
+                    },
+                    "status": "active"
+                })
+
+            return model.id
+        except Exception as e:
+            logger.error(f"Error getting/creating AI model: {str(e)}")
+            return None
+
+    async def _update_model_stats(self, latency: float, success: bool = True) -> None:
+        """Update model usage statistics."""
+        if self.model_repository and self._current_model_id:
+            try:
+                await self.model_repository.update_model_stats(
+                    self._current_model_id,
+                    latency,
+                    success
+                )
+            except Exception as e:
+                logger.error(f"Error updating model stats: {str(e)}")
 
     async def query_knowledge_base(
         self,
@@ -80,7 +120,13 @@ class RAGService(AIServiceBase):
     ) -> Dict[str, Any]:
         """Optimized knowledge base query with parallel processing and caching."""
         try:
-            # Step 1: Cache Check with LRU caching
+            if not self._current_model_id:
+                self._current_model_id = await self._get_or_create_model()
+
+            start_time = time.time()
+            success = True
+
+            # Cache Check
             cache_key = self._get_cache_key(query, context, filters)
             cache_config = ai_registry.get_cache_config()
             intent_ttl = cache_config["ttl_per_intent"].get(
@@ -98,39 +144,29 @@ class RAGService(AIServiceBase):
             try:
                 query_embedding = await self.embedding_service.get_embedding(query, normalize=normalize)
             except Exception as e:
+                success = False
                 logger.error(f"Error generating embedding: {str(e)}")
                 return self._error_response(f"Error generating embedding: {str(e)}")
 
-            # Step 4: Perform semantic search with retries
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    results = await asyncio.get_event_loop().run_in_executor(
-                        self.thread_pool,
-                        lambda: self.collection.query(
-                            query_embeddings=[query_embedding],
-                            n_results=limit,
-                            where=filters
-                        )
-                    )
-                    break
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        logger.error(
-                            f"ChromaDB query error after {max_retries} attempts: {str(e)}")
-                        return self._error_response(f"Error performing semantic search: {str(e)}")
-                    await asyncio.sleep(0.1 * (attempt + 1))
-
-            # Step 5: Process results
-            if not results or not isinstance(results, dict) or not results.get("documents"):
-                return self._error_response("No relevant information found", error_type="no_results")
-
-            # Step 6: Prepare context efficiently
+            # Perform semantic search
             try:
+                results = await asyncio.get_event_loop().run_in_executor(
+                    self.thread_pool,
+                    lambda: self.collection.query(
+                        query_embeddings=[query_embedding],
+                        n_results=limit,
+                        where=filters
+                    ) if self.collection else None
+                )
+
+                if not results:
+                    success = False
+                    return self._error_response("No results found")
+
                 documents = results.get("documents", [[]])[0]
                 sources = results.get("metadatas", [[]])[0]
 
-                # Efficient context joining with StringBuilder pattern
+                # Process context
                 context_parts = []
                 total_length = 0
                 for doc in documents:
@@ -140,12 +176,8 @@ class RAGService(AIServiceBase):
                     else:
                         break
                 truncated_context = "\n".join(context_parts)
-            except Exception as e:
-                logger.error(f"Error processing search results: {str(e)}")
-                return self._error_response(f"Error processing search results: {str(e)}")
 
-            # Step 7: Generate AI response
-            try:
+                # Generate AI response
                 response = await self.llm_service.generate_response(
                     prompt=self._build_prompt(
                         query, truncated_context, context),
@@ -153,14 +185,23 @@ class RAGService(AIServiceBase):
                 )
 
                 result = await self._process_llm_response(response, sources, query_embedding)
+
+                latency = time.time() - start_time
+                await self._update_model_stats(latency, success)
+
                 await cache_ai_result(cache_key, result, ttl=intent_ttl)
                 return result
 
             except Exception as e:
-                logger.error(f"Error generating AI response: {str(e)}")
-                return self._error_response(f"Error generating AI response: {str(e)}")
+                success = False
+                logger.error(f"Error in search process: {str(e)}")
+                return self._error_response(str(e))
 
         except Exception as e:
+            success = False
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
+
             logger.error(f"RAG query error: {str(e)}")
             return self._error_response(str(e))
 
@@ -338,3 +379,12 @@ class RAGService(AIServiceBase):
         Invalidate cache for a specific domain after knowledge base updates.
         """
         await invalidate_rag_cache(domain)
+
+    async def _get_embeddings_batch(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
+        """Process embeddings in batches asynchronously."""
+        embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            batch_embeddings = await self.embedding_service.get_embedding(batch, normalize=True)
+            embeddings.extend(batch_embeddings)
+        return embeddings

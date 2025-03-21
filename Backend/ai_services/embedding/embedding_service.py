@@ -5,8 +5,11 @@ from Backend.ai_services.base.ai_service_base import AIServiceBase
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
 from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
+from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 from functools import lru_cache
 import hashlib
+import time
 
 logger = get_logger(__name__)
 
@@ -16,14 +19,14 @@ class EmbeddingService(AIServiceBase):
     _instance = None
     _is_initialized = False
 
-    def __new__(cls, model_name: str = 'all-MiniLM-L6-v2'):
+    def __new__(cls, model_name: str = 'all-MiniLM-L6-v2', db_session: Optional[AsyncSession] = None):
         """Implement singleton pattern to ensure model is loaded only once."""
         if cls._instance is None:
             logger.info("Creating new EmbeddingService singleton instance")
             cls._instance = super(EmbeddingService, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
+    def __init__(self, model_name: str = 'all-MiniLM-L6-v2', db_session: Optional[AsyncSession] = None):
         """Initialize the model only once."""
         # Skip initialization if already done
         if not self._is_initialized:
@@ -34,12 +37,57 @@ class EmbeddingService(AIServiceBase):
             self.model_version = "1.0.0"
             self.model = None
             self.dimension = None
+            self.db_session = db_session
+            self.model_repository = AIModelRepository(
+                db_session) if db_session else None
+            self._current_model_id: Optional[int] = None
             self._initialize_model()
             self._cache = {}
             # Mark as initialized
             self.__class__._is_initialized = True
         else:
             logger.debug("Reusing existing EmbeddingService instance")
+
+    async def _get_or_create_model(self) -> Optional[int]:
+        """Get or create AI model record in database."""
+        if not self.model_repository:
+            return None
+
+        try:
+            model = await self.model_repository.get_model_by_name_version(
+                name=self.model_name,
+                version=self.model_version
+            )
+
+            if not model:
+                model = await self.model_repository.create_model({
+                    "name": self.model_name,
+                    "version": self.model_version,
+                    "type": "embedding",
+                    "provider": "sentence-transformers",
+                    "model_metadata": {
+                        "dimension": self.dimension,
+                        "max_sequence_length": self.model.max_seq_length if self.model else None
+                    },
+                    "status": "active"
+                })
+
+            return model.id
+        except Exception as e:
+            logger.error(f"Error getting/creating AI model: {str(e)}")
+            return None
+
+    async def _update_model_stats(self, latency: float, success: bool = True) -> None:
+        """Update model usage statistics."""
+        if self.model_repository and self._current_model_id:
+            try:
+                await self.model_repository.update_model_stats(
+                    self._current_model_id,
+                    latency,
+                    success
+                )
+            except Exception as e:
+                logger.error(f"Error updating model stats: {str(e)}")
 
     def _initialize_model(self) -> None:
         """Initialize the embedding model with error handling."""
@@ -70,11 +118,20 @@ class EmbeddingService(AIServiceBase):
     ) -> Union[List[float], List[List[float]]]:
         """Generate embeddings with batching and normalization."""
         try:
+            if not self._current_model_id:
+                self._current_model_id = await self._get_or_create_model()
+
+            start_time = time.time()
+            success = True
+
             if self.model is None:
                 raise RuntimeError("Embedding model not initialized")
 
             if isinstance(text, list):
-                return await self._batch_encode(text, batch_size, normalize)
+                result = await self._batch_encode(text, batch_size, normalize)
+                latency = time.time() - start_time
+                await self._update_model_stats(latency, success)
+                return result
 
             # Check cache for single text
             cache_key = self._generate_cache_key(text)
@@ -91,9 +148,15 @@ class EmbeddingService(AIServiceBase):
             # Convert to list and cache
             embedding_list = embedding.tolist()
             self._cache[cache_key] = embedding_list
+
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
             return embedding_list
 
         except Exception as e:
+            success = False
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
             logger.error(f"Error generating embedding: {str(e)}")
             raise
 

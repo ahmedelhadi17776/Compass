@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, JSON, ForeignKey, DateTime, Index
+from sqlalchemy import Column, Integer, String, Text, JSON, ForeignKey, DateTime, Index, Float
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
 import datetime
@@ -56,6 +56,15 @@ class AIModel(Base):
     storage_path = Column(String(255))
     model_metadata = Column(JSON)
     status = Column(String(50))
+    provider = Column(String(100))  # e.g., "OpenAI", "Anthropic", "Local"
+    # Reference to encrypted key storage TODO: Implement this
+    api_key_reference = Column(String(255))
+    max_tokens = Column(Integer)
+    temperature = Column(Float)
+    last_used = Column(DateTime)
+    total_requests = Column(Integer, default=0)
+    average_latency = Column(Float)
+    cost_per_request = Column(Float)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
