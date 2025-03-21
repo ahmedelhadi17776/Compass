@@ -1,7 +1,7 @@
-from typing import Dict, Any, Optional, List, Union, AsyncGenerator
+from typing import Dict, Any, Optional, List, Union, AsyncGenerator, cast
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
-from openai.types.chat.chat_completion import ChatCompletion
+from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai._streaming import Stream
 from Backend.core.config import settings
@@ -18,14 +18,14 @@ class LLMService:
     def __init__(self):
         # Use the GitHub token from environment variables
         github_token = os.environ.get("GITHUB_TOKEN", settings.LLM_API_KEY)
-        
+
         # Force the correct base URL and model from settings
         self.base_url = "https://models.inference.ai.azure.com"
         self.model_name = "gpt-4o-mini"
-        
+
         logger.info(f"Initializing LLM service with base URL: {self.base_url}")
         logger.info(f"Using model: {self.model_name}")
-        
+
         # Configure the OpenAI client with GitHub API settings
         self.client = OpenAI(
             api_key=github_token,
@@ -40,7 +40,7 @@ class LLMService:
         prompt: str,
         context: Optional[Dict] = None,
         model_parameters: Optional[Dict] = None,
-        stream: bool = False
+        stream: bool = True
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
         try:
             logger.info(f"Generating response for prompt: {prompt[:50]}...")
@@ -48,41 +48,43 @@ class LLMService:
             params = self._prepare_model_parameters(model_parameters)
             cache_key = f"rag_prompt_result:{hash(prompt)}"
             logger.info(f"Making request to LLM API with stream={stream}")
-            
+
             if stream:
                 # Create a custom async generator for streaming
-                async def stream_generator():
+                async def stream_generator() -> AsyncGenerator[str, None]:
                     try:
-                        response = self.client.chat.completions.create(
+                        response: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
                             model=self.model,
                             messages=messages,
                             stream=True,
                             **params
                         )
-                        
-                        for chunk in response:
-                            if chunk.choices and chunk.choices[0].delta.content:
-                                yield chunk.choices[0].delta.content
-                        
-                        result = {
-                                "text": response.choices[0].message.content,
-                                "usage": {
-                                    "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-                                    "completion_tokens": response.usage.completion_tokens if response.usage else 0,
-                                    "total_tokens": response.usage.total_tokens if response.usage else 0
-                                }
-                            }
-                        await cache_ai_result(cache_key, {prompt : result})
 
-                        await self.log_training_data(prompt, result)
+                        full_text = []
+                        async for chunk in response:
+                            if chunk.choices and chunk.choices[0].delta.content:
+                                content = chunk.choices[0].delta.content
+                                full_text.append(content)
+                                yield content
+
+                        # Cache the complete response
+                        complete_response = {
+                            "text": "".join(full_text),
+                            "usage": {
+                                "prompt_tokens": 0,  # Not available in streaming
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            }
+                        }
+                        await cache_ai_result(cache_key, {prompt: complete_response})
+                        await self.log_training_data(prompt, complete_response["text"])
 
                     except Exception as e:
                         logger.error(f"Error in stream generator: {str(e)}")
                         yield f"Error: {str(e)}"
-                
-                # Return the generator function directly, not calling it
+
                 return stream_generator()
-            
+
             # Non-streaming response
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -100,10 +102,9 @@ class LLMService:
                         "total_tokens": response.usage.total_tokens if response.usage else 0
                     }
                 }
-                
-                await cache_ai_result(cache_key, {prompt : result})
-                await self.log_training_data(prompt, result)
 
+                await cache_ai_result(cache_key, {prompt: result})
+                await self.log_training_data(prompt, result["text"])
                 self._update_conversation_history(prompt, result["text"])
                 return result
 
@@ -112,12 +113,11 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             if stream:
-                # If streaming, return an error generator
-                async def error_generator():
+                async def error_generator() -> AsyncGenerator[str, None]:
                     yield f"Error: {str(e)}"
                 return error_generator()
             raise
-    
+
     async def log_training_data(self, prompt: str, response: str):
         with open("training_data.jsonl", "a") as f:
             f.write(f'{{"prompt": "{prompt}", "completion": "{response}"}}\n')

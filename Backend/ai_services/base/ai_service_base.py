@@ -6,11 +6,13 @@ from Backend.utils.cache_utils import cache_response
 
 logger = get_logger(__name__)
 
+
 class AIServiceBase:
     def __init__(self, service_name: str):
         self.service_name = service_name
         self.api_key = getattr(settings, f"{service_name.upper()}_API_KEY")
-        self.base_url = getattr(settings, f"{service_name.upper()}_API_BASE_URL")
+        self.base_url = getattr(
+            settings, f"{service_name.upper()}_API_BASE_URL")
         self.session = None
         self.retry_count = 3
         self.timeout = 30
@@ -46,10 +48,15 @@ class AIServiceBase:
                     response.raise_for_status()
                     return await response.json()
             except Exception as e:
-                logger.error(f"{self.service_name} request failed (attempt {attempt + 1}): {str(e)}")
+                logger.error(
+                    f"{self.service_name} request failed (attempt {attempt + 1}): {str(e)}")
                 if attempt == self.retry_count - 1:
-                    raise
-                
+                    raise RuntimeError(
+                        f"Failed after {self.retry_count} attempts: {str(e)}")
+                continue
+
+        # This should never be reached due to the raise in the loop
+        raise RuntimeError("Unexpected error in request handling")
 
     async def close(self):
         """Close the aiohttp session."""

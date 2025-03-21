@@ -25,6 +25,7 @@ from httpx import AsyncClient
 import redis.asyncio as redis
 import sys
 from unittest.mock import MagicMock, patch
+from sqlalchemy import text
 
 # Add the parent directory to sys.path
 sys.path.insert(0, os.path.abspath(
@@ -155,13 +156,13 @@ async def celery_config() -> None:
     """Configure Celery for testing."""
     # Skip celery configuration for tests that don't need it
     # This avoids the import error with Backend.core.celery_app
-    
+
     # Just set the testing flags without importing celery
     settings.CELERY_TASK_ALWAYS_EAGER = True
     settings.CELERY_BROKER_URL = "memory://"
     settings.CELERY_RESULT_BACKEND = "redis://localhost:6379/1"
     settings.CELERY_TASK_EAGER_PROPAGATES = True
-    
+
     yield
 
 
@@ -207,13 +208,41 @@ def event_loop():
 async def setup_database():
     """Create tables before each test and drop them after."""
     async with test_engine.begin() as conn:
+        # Drop tables first
         await conn.run_sync(Base.metadata.drop_all)
+
+        # Drop enum types
+        await conn.execute(text("DROP TYPE IF EXISTS projectstatus"))
+        await conn.execute(text("DROP TYPE IF EXISTS taskstatus"))
+        await conn.execute(text("DROP TYPE IF EXISTS workflowstatus"))
+
+        # Create enum types
+        await conn.execute(text("""
+            CREATE TYPE projectstatus AS ENUM (
+                'ACTIVE', 'COMPLETED', 'ARCHIVED', 'ON_HOLD'
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TYPE taskstatus AS ENUM (
+                'TODO', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED'
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TYPE workflowstatus AS ENUM (
+                'ACTIVE', 'COMPLETED', 'FAILED', 'PENDING'
+            )
+        """))
+
+        # Create tables
         await conn.run_sync(Base.metadata.create_all)
 
     yield
 
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP TYPE IF EXISTS projectstatus"))
+        await conn.execute(text("DROP TYPE IF EXISTS taskstatus"))
+        await conn.execute(text("DROP TYPE IF EXISTS workflowstatus"))
 
 
 @pytest_asyncio.fixture
