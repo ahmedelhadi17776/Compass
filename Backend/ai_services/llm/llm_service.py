@@ -12,6 +12,7 @@ from Backend.data_layer.repositories.ai_model_repository import AIModelRepositor
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 import time
+import json
 
 logger = get_logger(__name__)
 
@@ -90,7 +91,7 @@ class LLMService:
         prompt: str,
         context: Optional[Dict] = None,
         model_parameters: Optional[Dict] = None,
-        stream: bool = True
+        stream: bool = False
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
         try:
             # Get or create model record
@@ -102,7 +103,9 @@ class LLMService:
 
             logger.info(f"Generating response for prompt: {prompt[:50]}...")
             messages = self._prepare_messages(prompt, context)
+            logger.info(f"Prepared messages: {json.dumps(messages, indent=2)}")
             params = self._prepare_model_parameters(model_parameters)
+            logger.info(f"Model parameters: {json.dumps(params, indent=2)}")
             cache_key = f"rag_prompt_result:{hash(prompt)}"
             logger.info(f"Making request to LLM API with stream={stream}")
 
@@ -146,12 +149,14 @@ class LLMService:
                 return stream_generator()
 
             # Non-streaming response
+            logger.info("Making non-streaming request to LLM API")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 stream=False,
                 **params
             )
+            logger.info(f"Raw LLM response: {response}")
 
             if isinstance(response, ChatCompletion) and response.choices:
                 result = {
@@ -162,6 +167,7 @@ class LLMService:
                         "total_tokens": response.usage.total_tokens if response.usage else 0
                     }
                 }
+                logger.info(f"Processed LLM response: {json.dumps(result, indent=2)}")
 
                 await cache_ai_result(cache_key, {prompt: result})
                 await self.log_training_data(prompt, result["text"])

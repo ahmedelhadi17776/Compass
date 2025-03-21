@@ -28,6 +28,12 @@ REPO_MAPPING = {
     "base": BaseRepository
 }
 
+REPO_NAME_MAPPING = {
+    "TaskRepository": "tasks",
+    "TodoRepository": "todos",
+    "BaseRepository": "base"
+}
+
 HANDLER_MAPPING = {
     "tasks": TaskHandler,
     "todos": TodoHandler
@@ -61,7 +67,9 @@ class AIRegistry:
         """Get repository class for a domain."""
         config = self.domain_config.get(domain, self.domain_config['default'])
         repo_name = config['repository']
-        return self.repo_mapping[repo_name]
+        # Map repository name to domain name
+        domain_key = REPO_NAME_MAPPING.get(repo_name, "base")
+        return self.repo_mapping[domain_key]
 
     def get_prompt_template(self, domain: str, variant: str = "default") -> str:
         """Get prompt template for a domain and intent variant.

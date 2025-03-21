@@ -231,3 +231,36 @@ class TodoRepository(TodoBaseRepository[T]):
             logger.error(f"Error updating next occurrence: {str(e)}")
             await self.db.rollback()
             return False
+
+    async def get_context(self, user_id: int) -> Dict[str, Any]:
+        """Get context data for a user's todos."""
+        try:
+            # Get all todos for the user
+            todos = await self.get_user_todos(user_id)
+            
+            # Convert todos to a dictionary format
+            todo_list = []
+            for todo in todos:
+                todo_dict = {
+                    "id": todo.id,
+                    "title": todo.title,
+                    "description": todo.description,
+                    "status": todo.status.value if hasattr(todo.status, 'value') else todo.status,
+                    "priority": todo.priority.value if hasattr(todo.priority, 'value') else todo.priority,
+                    "due_date": todo.due_date.isoformat() if todo.due_date else None,
+                    "is_recurring": todo.is_recurring
+                }
+                todo_list.append(todo_dict)
+            
+            # Return the context
+            return {
+                "user_id": user_id,
+                "todos": todo_list,
+                "total_count": len(todo_list),
+                "pending_count": sum(1 for t in todo_list if t["status"] == "PENDING"),
+                "completed_count": sum(1 for t in todo_list if t["status"] == "COMPLETED"),
+                "high_priority_count": sum(1 for t in todo_list if t["priority"] == "HIGH")
+            }
+        except Exception as e:
+            logger.error(f"Error getting todo context: {str(e)}")
+            return {"user_id": user_id, "todos": [], "error": str(e)}
