@@ -1,35 +1,41 @@
-from typing import List, Union, Dict, Optional
+from typing import List, Union, Dict, Optional, Any
 from sentence_transformers import SentenceTransformer
+import numpy as np
 from Backend.ai_services.base.ai_service_base import AIServiceBase
 from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
 from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result
+from functools import lru_cache
+import hashlib
 
 logger = get_logger(__name__)
+
 
 class EmbeddingService(AIServiceBase):
     # Class variable to hold the single instance
     _instance = None
     _is_initialized = False
-    
+
     def __new__(cls, model_name: str = 'all-MiniLM-L6-v2'):
         """Implement singleton pattern to ensure model is loaded only once."""
         if cls._instance is None:
             logger.info("Creating new EmbeddingService singleton instance")
             cls._instance = super(EmbeddingService, cls).__new__(cls)
         return cls._instance
-    
+
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
         """Initialize the model only once."""
         # Skip initialization if already done
         if not self._is_initialized:
-            logger.info(f"Initializing EmbeddingService with model: {model_name}")
+            logger.info(
+                f"Initializing EmbeddingService with model: {model_name}")
             super().__init__("embedding")
             self.model_name = model_name
             self.model_version = "1.0.0"
             self.model = None
             self.dimension = None
             self._initialize_model()
+            self._cache = {}
             # Mark as initialized
             self.__class__._is_initialized = True
         else:
@@ -38,13 +44,22 @@ class EmbeddingService(AIServiceBase):
     def _initialize_model(self) -> None:
         """Initialize the embedding model with error handling."""
         try:
-            logger.info(f"Loading SentenceTransformer model: {self.model_name}")
+            logger.info(
+                f"Loading SentenceTransformer model: {self.model_name}")
             self.model = SentenceTransformer(self.model_name)
             self.dimension = self.model.get_sentence_embedding_dimension()
-            logger.info(f"Model loaded successfully with dimension: {self.dimension}")
+            logger.info(
+                f"Model loaded successfully with dimension: {self.dimension}")
         except Exception as e:
             logger.error(f"Failed to initialize embedding model: {str(e)}")
+            self.model = None
+            self.dimension = None
             raise
+
+    @lru_cache(maxsize=1000)
+    def _generate_cache_key(self, text: str) -> str:
+        """Generate cache key for embeddings."""
+        return f"embedding:{hashlib.sha256(text.encode()).hexdigest()}"
 
     @cache_response(ttl=3600)
     async def get_embedding(
@@ -55,16 +70,29 @@ class EmbeddingService(AIServiceBase):
     ) -> Union[List[float], List[List[float]]]:
         """Generate embeddings with batching and normalization."""
         try:
+            if self.model is None:
+                raise RuntimeError("Embedding model not initialized")
+
             if isinstance(text, list):
                 return await self._batch_encode(text, batch_size, normalize)
-            
-            embeddings = self.model.encode(
+
+            # Check cache for single text
+            cache_key = self._generate_cache_key(text)
+            if cached_embedding := self._cache.get(cache_key):
+                return cached_embedding
+
+            # Generate new embedding
+            embedding = self.model.encode(
                 text,
                 normalize_embeddings=normalize,
-                convert_to_tensor=True,
-                batch_size=batch_size
+                convert_to_tensor=False  # Return numpy array
             )
-            return embeddings.tolist()
+
+            # Convert to list and cache
+            embedding_list = embedding.tolist()
+            self._cache[cache_key] = embedding_list
+            return embedding_list
+
         except Exception as e:
             logger.error(f"Error generating embedding: {str(e)}")
             raise
@@ -75,16 +103,42 @@ class EmbeddingService(AIServiceBase):
         batch_size: int,
         normalize: bool
     ) -> List[List[float]]:
-        """Process texts in batches for better memory management."""
+        """Process texts in batches with caching."""
+        if self.model is None:
+            raise RuntimeError("Embedding model not initialized")
+
         all_embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            embeddings = self.model.encode(
-                batch,
-                normalize_embeddings=normalize,
-                convert_to_tensor=True
-            )
-            all_embeddings.extend(embeddings.tolist())
+        batch_texts = []
+        cached_indices = {}
+
+        # Check cache and collect texts needing embedding
+        for i, text in enumerate(texts):
+            cache_key = self._generate_cache_key(text)
+            if cached_embedding := self._cache.get(cache_key):
+                all_embeddings.append(cached_embedding)
+            else:
+                batch_texts.append(text)
+                cached_indices[len(batch_texts) - 1] = i
+
+        # Process uncached texts in batches
+        if batch_texts:
+            for i in range(0, len(batch_texts), batch_size):
+                batch = batch_texts[i:i + batch_size]
+                embeddings = self.model.encode(
+                    batch,
+                    normalize_embeddings=normalize,
+                    convert_to_tensor=False  # Return numpy array
+                )
+
+                # Convert to list and cache
+                for j, embedding in enumerate(embeddings):
+                    embedding_list = embedding.tolist()
+                    text_idx = i + j
+                    original_idx = cached_indices[text_idx]
+                    cache_key = self._generate_cache_key(batch_texts[text_idx])
+                    self._cache[cache_key] = embedding_list
+                    all_embeddings.insert(original_idx, embedding_list)
+
         return all_embeddings
 
     async def compare_embeddings(
@@ -92,15 +146,34 @@ class EmbeddingService(AIServiceBase):
         embedding1: List[float],
         embedding2: List[float]
     ) -> float:
-        """Compare two embeddings using cosine similarity."""
-        return self.model.similarity(embedding1, embedding2)
+        """Compare embeddings using cosine similarity."""
+        if self.model is None:
+            raise RuntimeError("Embedding model not initialized")
 
-    def get_model_info(self) -> Dict:
+        # Convert to numpy arrays for efficient computation
+        vec1 = np.array(embedding1)
+        vec2 = np.array(embedding2)
+
+        # Compute cosine similarity
+        similarity = np.dot(vec1, vec2) / \
+            (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+        return float(similarity)
+
+    def get_model_info(self) -> Dict[str, Any]:
         """Get model information and configuration."""
+        if self.model is None:
+            raise RuntimeError("Embedding model not initialized")
+
         return {
             "model_name": self.model_name,
             "model_version": self.model_version,
             "embedding_dimension": self.dimension,
             "max_sequence_length": self.model.max_seq_length,
-            "model_type": self.model.get_sentence_embedding_dimension_info()
+            "model_type": "sentence-transformer",
+            "cache_size": len(self._cache)
         }
+
+    def clear_cache(self) -> None:
+        """Clear the embedding cache."""
+        self._cache.clear()
+        self._generate_cache_key.cache_clear()
