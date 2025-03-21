@@ -940,3 +940,1536 @@ Instructions:
 3. **tt3** (To Do)
 
 Please check if any of these tasks need immediate attention or if you need to update their deadlines."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What todos are due today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to fetch the list of todos that are due today."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "What todos are due today?"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "Here are the todos due today:
+
+1. **Chocolate** (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+2. **Gdzg2** (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+3. **Watermelon** (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+4. **Beans** (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+5. **Go to the library** (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+6. **Go to Cairo** (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+
+Total todos due today: 6"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "Plan my todos for today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "plan",
+    "target": "todos",
+    "description": "The user wants to organize and schedule their tasks for the day."
+}
+```"}
+{"prompt": "You are a todo planning assistant. The user needs help organizing their todos.
+
+User Query: "Plan my todos for today?"
+
+Todo Items:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+
+Instructions:
+- Create an organized plan based on these todos
+- Consider urgency, importance, and estimated effort
+- Suggest a logical order or grouping
+- Include specific timeframes where possible
+- Format your plan with clear sections and steps
+- End with success criteria or completion indicators", "completion": "Here's a structured plan for organizing your todos for today, focusing on urgency, importance, and estimated effort.
+
+### Today's Todo Plan
+
+#### **1. High-Priority Tasks**
+   - **Dad's Birthday Party**
+     - **Due:** 2025-03-19T01:49:01.986000
+     - **Priority:** High
+     - **Estimated Time:** 2 hours
+     - **Timeframe:** 5:00 PM - 7:00 PM
+
+   - **Test99**
+     - **Due:** 2025-03-19T20:06:10.852000
+     - **Priority:** High
+     - **Estimated Time:** 1 hour
+     - **Timeframe:** 7:30 PM - 8:30 PM
+
+#### **2. Medium-Priority Tasks**
+   - **Go to the Library**
+     - **Due:** 2025-03-18T19:42:05.349000
+     - **Priority:** Medium
+     - **Estimated Time:** 1 hour
+     - **Timeframe:** 3:00 PM - 4:00 PM
+
+   - **Go to Cairo**
+     - **Due:** 2025-03-18T20:10:05.578000
+     - **Priority:** Medium
+     - **Estimated Time:** 1 hour
+     - **Timeframe:** 4:15 PM - 5:15 PM
+
+   - **Clean Up Calendar**
+     - **Status:** Completed
+     - **Timeframe:** 1 hour (if you want to revisit)
+     - **Timeframe:** 2:00 PM - 3:00 PM
+
+   - **Chocolate**
+     - **Due:** 2025-03-18T03:54:40.796000
+     - **Priority:** Medium
+     - **Estimated Time:** 30 minutes
+     - **Timeframe:** 1:00 PM - 1:30 PM
+
+   - **Gdzg2**
+     - **Due:** 2025-03-18T03:59:21.931000
+     - **Priority:** Medium
+     - **Estimated Time:** 30 minutes
+     - **Timeframe:** 1:30 PM - 2:00 PM
+
+   - **Watermelon**
+     - **Due:** 2025-03-18T04:06:34.008000
+     - **Priority:** Medium
+     - **Estimated Time:** 30 minutes
+     - **Timeframe:** 2:00 PM - 2:30 PM
+
+   - **Beans**
+     - **Due:** 2025-03-18T04:08:55.634000
+     - **Priority:** Medium
+     - **Estimated Time:** 30 minutes
+     - **Timeframe:** 2:30 PM - 3:00 PM
+
+   - **Unify Todo, Calendar**
+     - **Due:** 2025-03-14T17:17:16.132000
+     - **Priority:** Medium
+     - **Estimated Time:** 1 hour
+     - **Timeframe:** 8:30 PM - 9:30 PM
+
+#### **3. Low-Priority Tasks**
+   - **Record a Video for the Center**
+     - **Due:** 2025-03-14T13:17:35.476000
+     - **Priority:** Low
+     - **Estimated Time:** 1 hour
+     - **Timeframe:** 9:30 PM - 10:30 PM
+
+### **Completion Indicators**
+- All high-priority tasks are completed by their due times.
+- Medium-priority tasks are completed within the specified timeframes.
+- The low-priority task is completed if time permits after the medium-priority tasks.
+
+### **Success Criteria**
+- **All high-priority tasks are done.**
+- **At least 75% of medium-priority tasks are completed.**
+- **Low-priority task is completed if time allows.**
+
+Feel free to adjust the timeframes based on your preferences and any unforeseen circumstances!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "Plan my todos for today?"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "plan",
+    "target": "todos",
+    "description": "The user wants to organize and schedule their tasks for the day."
+}
+```"}
+{"prompt": "You are a todo planning assistant. The user needs help organizing their todos.
+
+User Query: "Plan my todos for today?"
+
+Todo Items:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+
+Instructions:
+- Create an organized plan based on these todos
+- Consider urgency, importance, and estimated effort
+- Suggest a logical order or grouping
+- Include specific timeframes where possible
+- Format your plan with clear sections and steps
+- End with success criteria or completion indicators", "completion": "### Today's Todo Plan
+
+#### Overview
+You have a mix of pending tasks, some with specific due dates and others that are more flexible. Based on their due dates, priorities, and estimated effort, here's a structured plan for your day.
+
+---
+
+### Morning (9 AM - 12 PM)
+
+1. **Watermelon**  
+   - **Due**: 2025-03-18T04:06:34  
+   - **Priority**: Medium  
+   - **Estimated Time**: 15 minutes  
+   - **Action**: Buy or prepare watermelon.
+
+2. **Beans**  
+   - **Due**: 2025-03-18T04:08:55  
+   - **Priority**: Medium  
+   - **Estimated Time**: 15 minutes  
+   - **Action**: Buy or prepare beans.
+
+3. **Chocolate**  
+   - **Due**: 2025-03-18T03:54:40  
+   - **Priority**: Medium  
+   - **Estimated Time**: 15 minutes  
+   - **Action**: Buy or prepare chocolate.
+
+4. **gdzg2**  
+   - **Due**: 2025-03-18T03:59:21  
+   - **Priority**: Medium  
+   - **Estimated Time**: 15 minutes  
+   - **Action**: Complete or review gdzg2 task.
+
+**Morning Total Time**: 1 hour
+
+---
+
+### Afternoon (12 PM - 3 PM)
+
+5. **Go to the library**  
+   - **Due**: 2025-03-18T19:42:05  
+   - **Priority**: Medium  
+   - **Estimated Time**: 1 hour  
+   - **Action**: Visit the library for any research or study needs.
+
+6. **Go to Cairo**  
+   - **Due**: 2025-03-18T20:10:05  
+   - **Priority**: Medium  
+   - **Estimated Time**: 1 hour  
+   - **Action**: Plan your visit to Cairo.
+
+**Afternoon Total Time**: 2 hours
+
+---
+
+### Late Afternoon (3 PM - 6 PM)
+
+7. **Unify Todo, Calendar**  
+   - **Due**: 2025-03-14T17:17:16  
+   - **Priority**: Medium  
+   - **Estimated Time**: 1 hour  
+   - **Action**: Work on integrating todos and calendar views.
+
+8. **Record a video for the center**  
+   - **Due**: 2025-03-14T13:17:35  
+   - **Priority**: Low  
+   - **Estimated Time**: 1 hour  
+   - **Action**: Prepare and record the video.
+
+**Late Afternoon Total Time**: 2 hours
+
+---
+
+### Evening (6 PM onwards)
+
+9. **Go to Greek**  
+   - **Due**: 2025-03-19T01:35:10  
+   - **Priority**: Medium  
+   - **Estimated Time**: 1 hour  
+   - **Action**: Plan or visit Greek.
+
+10. **Dad's birthday party**  
+    - **Due**: 2025-03-19T01:49:01  
+    - **Priority**: High  
+    - **Estimated Time**: 1 hour  
+    - **Action**: Prepare for the birthday party.
+
+**Evening Total Time**: 2 hours
+
+---
+
+### Summary of Time Allocation
+- **Morning**: 1 hour
+- **Afternoon**: 2 hours
+- **Late Afternoon**: 2 hours
+- **Evening**: 2 hours
+
+**Total Time**: 7 hours
+
+---
+
+### Success Criteria
+- **Completion Indicators**:
+  - All tasks listed above are marked as completed by the end of the day.
+  - Ensure that any tasks with specific due dates are addressed.
+  - Review and adjust the plan as needed based on progress.
+
+### Final Note
+Stay flexible and adjust your plan throughout the day if needed. Good luck with your todos!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "Plan my todos for today? then cache it"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "plan",
+    "target": "todos",
+    "description": "The user wants to organize and schedule their tasks for today."
+}
+```"}
+{"prompt": "You are a todo planning assistant. The user needs help organizing their todos.
+
+User Query: "Plan my todos for today? then cache it"
+
+Todo Items:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+
+Instructions:
+- Create an organized plan based on these todos
+- Consider urgency, importance, and estimated effort
+- Suggest a logical order or grouping
+- Include specific timeframes where possible
+- Format your plan with clear sections and steps
+- End with success criteria or completion indicators", "completion": "### Today's Todo Plan
+
+#### **Date: March 18, 2025**
+
+**Objective**: Complete as many pending tasks as possible, focusing on those with upcoming due dates and higher priorities.
+
+---
+
+### **1. Morning Tasks (8:00 AM - 12:00 PM)**
+
+- **8:00 AM - 9:00 AM**: **Go to the library**
+  - **Due**: 2025-03-18T19:42:05.349000
+  - **Priority**: Medium
+
+- **9:15 AM - 10:15 AM**: **Go to Cairo**
+  - **Due**: 2025-03-18T20:10:05.578000
+  - **Priority**: Medium
+
+- **10:30 AM - 11:00 AM**: **Chocolate**
+  - **Due**: 2025-03-18T03:54:40.796000
+  - **Priority**: Medium
+
+- **11:15 AM - 11:45 AM**: **Gdzg2**
+  - **Due**: 2025-03-18T03:59:21.931000
+  - **Priority**: Medium
+
+- **11:45 AM - 12:15 PM**: **Watermelon**
+  - **Due**: 2025-03-18T04:06:34.008000
+  - **Priority**: Medium
+
+- **12:15 PM - 12:45 PM**: **Beans**
+  - **Due**: 2025-03-18T04:08:55.634000
+  - **Priority**: Medium
+
+---
+
+### **2. Afternoon Tasks (1:00 PM - 5:00 PM)**
+
+- **1:00 PM - 2:00 PM**: **Record a video for the center**
+  - **Due**: 2025-03-14T13:17:35.476000
+  - **Priority**: Low
+
+- **2:15 PM - 3:15 PM**: **Unify Todo, Calendar**
+  - **Due**: 2025-03-14T17:17:16.132000
+  - **Priority**: Medium
+
+---
+
+### **3. Evening Tasks (6:00 PM - 9:00 PM)**
+
+- **6:00 PM - 7:00 PM**: **Clean up Calendar** (Review completed tasks and reflect)
+  - **Due**: 2025-03-15T03:15:22.199000
+  - **Priority**: Medium
+
+- **7:15 PM - 8:00 PM**: **Test search functionality with blue colors**
+  - **Due**: No specific due date
+  - **Priority**: Medium
+
+- **8:15 PM - 9:00 PM**: **Prepare for Dad's birthday party**
+  - **Due**: 2025-03-19T01:49:01.986000
+  - **Priority**: High
+
+---
+
+### **Success Criteria/Completion Indicators**
+
+- **Completion of all morning tasks** before noon.
+- **Completion of all afternoon tasks** by 5 PM.
+- **Completion of evening tasks**, with a focus on preparing for Dad's birthday party.
+- Reflection on completed tasks and assessment of progress made throughout the day.
+
+---
+
+### **Caching Plan**
+
+This plan will be saved for your reference. You can revisit it anytime throughout the day to stay on track and ensure you're completing your tasks efficiently. 
+
+---
+
+Feel free to adjust time frames based on your personal preferences or commitments!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "hi"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user is initiating a conversation, likely looking to access or inquire about their todos."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "hi"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "Hello! How can I assist you with your to-do list today?"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "hi"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user is initiating a conversation, possibly looking for information or assistance with their todos."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "hi"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "Hello! How can I assist you with your to-do list today? If you're looking for specific tasks or details, please let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "Plan my todos for today"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "plan",
+    "target": "todos",
+    "description": "The user wants to organize and schedule their tasks for the day."
+}
+```"}
+{"prompt": "You are a todo planning assistant. The user needs help organizing their todos.
+
+User Query: "Plan my todos for today"
+
+Todo Items:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+
+Instructions:
+- Create an organized plan based on these todos
+- Consider urgency, importance, and estimated effort
+- Suggest a logical order or grouping
+- Include specific timeframes where possible
+- Format your plan with clear sections and steps
+- End with success criteria or completion indicators", "completion": "### Today's Todo Plan
+
+#### Overview
+You have several pending tasks that need to be organized based on their due dates, priorities, and estimated effort. Below is a structured plan to help you tackle these todos effectively.
+
+---
+
+#### Morning Tasks (9:00 AM - 12:00 PM)
+
+1. **Watermelon**
+   - **Due:** 2025-03-18T04:06:34.008000
+   - **Priority:** Medium
+   - **Estimated Time:** 15 minutes
+   - **Notes:** Quick task to check on this.
+
+2. **Beans**
+   - **Due:** 2025-03-18T04:08:55.634000
+   - **Priority:** Medium
+   - **Estimated Time:** 15 minutes
+   - **Notes:** Another quick task to ensure completion.
+
+3. **Chocolate**
+   - **Due:** 2025-03-18T03:54:40.796000
+   - **Priority:** Medium
+   - **Estimated Time:** 15 minutes
+   - **Notes:** Ensure this is done before lunch.
+
+4. **Gdzg2**
+   - **Due:** 2025-03-18T03:59:21.931000
+   - **Priority:** Medium
+   - **Estimated Time:** 15 minutes
+   - **Notes:** Complete this after chocolate.
+
+---
+
+#### Afternoon Tasks (1:00 PM - 4:00 PM)
+
+5. **Go to the library**
+   - **Due:** 2025-03-18T19:42:05.349000
+   - **Priority:** Medium
+   - **Estimated Time:** 1 hour
+   - **Notes:** Schedule this for early afternoon, maybe around 1:00 PM.
+
+6. **Go to Cairo**
+   - **Due:** 2025-03-18T20:10:05.578000
+   - **Priority:** Medium
+   - **Estimated Time:** 1 hour
+   - **Notes:** Plan to leave the library by 2:30 PM to give yourself enough time.
+
+---
+
+#### Evening Tasks (5:00 PM - 7:00 PM)
+
+7. **Unify Todo, Calendar**
+   - **Due:** 2025-03-14T17:17:16.132000
+   - **Priority:** Medium
+   - **Estimated Time:** 1 hour
+   - **Notes:** This task requires focus; try to complete it before dinner.
+
+8. **Record a video for the center**
+   - **Due:** 2025-03-14T13:17:35.476000
+   - **Priority:** Low
+   - **Estimated Time:** 1 hour
+   - **Notes:** If time permits, work on this after the calendar task.
+
+---
+
+### Success Criteria
+- All tasks should be completed by the end of the day.
+- Regularly check off completed tasks to stay motivated.
+- Aim to finish each task within the estimated time to maintain momentum.
+
+### Completion Indicators
+- All pending tasks are marked as completed in your todo list.
+- Reflect on any remaining tasks at the end of the day and plan for the next day if needed.
+
+---
+
+Feel free to adjust the times and tasks based on your preferences and any other commitments you might have!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "when is the due date of my todo Go to the library"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to know the due date for a specific todo item, 'Go to the library'."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "when is the due date of my todo Go to the library"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "The due date for your todo "Go to the library" is **March 18, 2025, at 19:42:05**."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "What books do u suggest i get from there for my exam about algorithms and data structure "
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user is looking for book suggestions related to algorithms and data structures for their exam."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "What books do u suggest i get from there for my exam about algorithms and data structure "
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "I couldn't find any specific books related to algorithms and data structures in your todo list. However, I suggest checking out common titles such as:
+
+1. **"Introduction to Algorithms" by Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, and Clifford Stein**
+2. **"Data Structures and Algorithms Made Easy" by Narasimha Karumanchi**
+3. **"Algorithms" by Robert Sedgewick and Kevin Wayne**
+4. **"The Algorithm Design Manual" by Steven S. Skiena**
+
+If you need further assistance or a specific todo related to getting books, please let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "Plan my todos for today"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "plan",
+    "target": "todos",
+    "description": "The user wants to organize and schedule their tasks for the day."
+}
+```"}
+{"prompt": "You are a todo planning assistant. The user needs help organizing their todos.
+
+User Query: "Plan my todos for today"
+
+Todo Items:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+
+Instructions:
+- Create an organized plan based on these todos
+- Consider urgency, importance, and estimated effort
+- Suggest a logical order or grouping
+- Include specific timeframes where possible
+- Format your plan with clear sections and steps
+- End with success criteria or completion indicators", "completion": "## Todo Plan for Today
+
+### Overview
+You have several pending tasks, some of which have specific due dates approaching soon. The tasks will be organized by urgency and importance, with a focus on completing high-priority items first. 
+
+### High-Priority Tasks
+1. **Dad's Birthday Party**
+   - **Due:** March 19, 2025, 01:49 AM
+   - **Action:** Prepare any necessary items or plans for the party.
+   - **Timeframe:** 2 hours (Start by 9:00 AM)
+   
+2. **Test99**
+   - **Due:** March 19, 2025, 08:06 PM
+   - **Action:** Ensure this test is ready for review.
+   - **Timeframe:** 1 hour (Start by 11:00 AM)
+
+### Medium-Priority Tasks
+3. **Go to the Library**
+   - **Due:** March 18, 2025, 07:42 PM
+   - **Action:** Visit the library for any research or materials needed.
+   - **Timeframe:** 1.5 hours (Start by 1:00 PM)
+
+4. **Go to Cairo**
+   - **Due:** March 18, 2025, 08:10 PM
+   - **Action:** Plan for this visit, consider travel time.
+   - **Timeframe:** 1 hour (Start by 2:30 PM)
+
+5. **Clean Up Calendar** (Completed)
+   - **Action:** Confirm if any remaining calendar organization is needed.
+
+6. **Chocolate**
+   - **Due:** March 18, 2025, 03:54 AM
+   - **Action:** Purchase or prepare chocolate.
+   - **Timeframe:** 30 minutes (Start by 4:00 PM)
+
+7. **Gdzg2**
+   - **Due:** March 18, 2025, 03:59 AM
+   - **Action:** Complete any necessary tasks related to this item.
+   - **Timeframe:** 30 minutes (Start by 4:30 PM)
+
+8. **Watermelon**
+   - **Due:** March 18, 2025, 04:06 AM
+   - **Action:** Purchase or prepare watermelon.
+   - **Timeframe:** 30 minutes (Start by 5:00 PM)
+
+9. **Beans**
+   - **Due:** March 18, 2025, 04:08 AM
+   - **Action:** Prepare or purchase beans.
+   - **Timeframe:** 30 minutes (Start by 5:30 PM)
+
+10. **Record a Video for the Center**
+    - **Due:** March 14, 2025, 01:17 PM
+    - **Action:** If possible, finalize and record the video.
+    - **Timeframe:** 1 hour (Start by 6:00 PM)
+
+### Low-Priority Tasks
+11. **Unify Todo, Calendar**
+    - **Due:** March 14, 2025, 05:17 PM
+    - **Action:** Begin to unify the todo and calendar views.
+    - **Timeframe:** 1 hour (Start by 7:00 PM)
+
+### Suggested Schedule
+- **9:00 AM - 11:00 AM:** Prepare for Dad's Birthday Party
+- **11:00 AM - 12:00 PM:** Work on Test99
+- **1:00 PM - 2:30 PM:** Go to the Library
+- **2:30 PM - 3:30 PM:** Go to Cairo
+- **4:00 PM - 5:30 PM:** Complete tasks for Chocolate, Gdzg2, Watermelon, Beans
+- **6:00 PM - 7:00 PM:** Record Video for the Center
+- **7:00 PM - 8:00 PM:** Work on Unify Todo, Calendar
+
+### Success Criteria
+- All high-priority tasks are completed.
+- Medium-priority tasks are addressed, with progress made on low-priority tasks.
+- A sense of accomplishment is achieved by the end of the day with tasks marked as completed.
+
+### Completion Indicators
+- Mark each task as completed in your todo list after finishing.
+- Review your day at the end and adjust any remaining tasks for tomorrow. 
+
+Feel free to adjust the timeframes based on your pace and any unexpected events that may occur throughout the day!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "when is the cairo one due"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user is asking for the due date of a specific item related to 'cairo', which implies they want to retrieve information about their todos."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "when is the cairo one due"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "The todo "go to cairo" is due on **2025-03-18 at 20:10:05**."}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "plan my todos for today"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "plan",
+    "target": "todos",
+    "description": "The user wants to organize and schedule their tasks for the day."
+}
+```"}
+{"prompt": "You are a todo planning assistant. The user needs help organizing their todos.
+
+User Query: "plan my todos for today"
+
+Todo Items:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+
+Instructions:
+- Create an organized plan based on these todos
+- Consider urgency, importance, and estimated effort
+- Suggest a logical order or grouping
+- Include specific timeframes where possible
+- Format your plan with clear sections and steps
+- End with success criteria or completion indicators", "completion": "### Todo Plan for Today
+
+#### Overview
+Today's plan will focus on prioritizing pending tasks that are due soon, with attention to their urgency and importance. 
+
+---
+
+#### Morning Tasks (9:00 AM - 12:00 PM)
+
+1. **Go to the Library**  
+   - **Due**: March 18, 2025, 7:42 PM  
+   - **Priority**: Medium  
+   - **Timeframe**: 2 hours  
+   - **Action**: Visit the library to complete this task early in the day.  
+
+2. **Go to Cairo**  
+   - **Due**: March 18, 2025, 8:10 PM  
+   - **Priority**: Medium  
+   - **Timeframe**: 1 hour  
+   - **Action**: Schedule this visit after the library, ensuring it’s completed before the evening.  
+
+---
+
+#### Lunch Break (12:00 PM - 1:00 PM)
+
+---
+
+#### Early Afternoon Tasks (1:00 PM - 4:00 PM)
+
+3. **Chocolate**  
+   - **Due**: March 18, 2025, 3:54 PM  
+   - **Priority**: Medium  
+   - **Timeframe**: 30 minutes  
+   - **Action**: Purchase or prepare chocolate during this timeframe.  
+
+4. **Gdzg2**  
+   - **Due**: March 18, 2025, 3:59 PM  
+   - **Priority**: Medium  
+   - **Timeframe**: 30 minutes  
+   - **Action**: Complete this task right after chocolate, as it is due shortly after.  
+
+5. **Watermelon**  
+   - **Due**: March 18, 2025, 4:06 PM  
+   - **Priority**: Medium  
+   - **Timeframe**: 30 minutes  
+   - **Action**: Finalize this task by preparing or buying watermelon.  
+
+6. **Beans**  
+   - **Due**: March 18, 2025, 4:08 PM  
+   - **Priority**: Medium  
+   - **Timeframe**: 30 minutes  
+   - **Action**: Complete this task right after watermelon, as it is due shortly after.  
+
+---
+
+#### Late Afternoon Tasks (4:00 PM - 6:00 PM)
+
+7. **Record a Video for the Center**  
+   - **Due**: March 14, 2025, 1:17 PM (Past due, but low priority)  
+   - **Priority**: Low  
+   - **Timeframe**: 1 hour  
+   - **Action**: Dedicate time to this task as it is overdue but has a lower impact.  
+
+---
+
+#### Evening Tasks (6:00 PM - 8:00 PM)
+
+8. **Unify Todo, Calendar**  
+   - **Due**: March 14, 2025, 5:17 PM (Past due, medium priority)  
+   - **Timeframe**: 1 hour  
+   - **Action**: Work on unifying the Todo and Calendar as it is important for overall organization.  
+
+9. **Test Search Functionality with Blue Colors**  
+   - **Due**: No specific due date, but medium priority  
+   - **Timeframe**: 1 hour  
+   - **Action**: Conduct tests to verify the new features implemented.  
+
+---
+
+### Success Criteria
+- All tasks marked as "pending" that are due today should be completed.
+- Aim to complete at least 7 tasks by the end of the day.
+- Reflect on the day's accomplishments and ensure any overdue tasks are noted for follow-up.
+
+### Completion Indicators
+- A visual checklist where completed tasks are marked off.
+- A summary of tasks completed at the end of the day for review.
+- Ensure no pending tasks remain for tomorrow that are due today. 
+
+---
+
+Feel free to adjust the timeframes based on your personal schedule and preferences!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "when is the cairo one due"
+        Available Domains: ['tasks', 'todos', 'resolved_references']
+
+        IMPORTANT DOMAIN SELECTION RULES:
+        1. If the user's input contains the exact word "todos", use "todos" as the target
+        2. If the user's input contains the exact word "tasks", use "tasks" as the target
+        3. If no exact match, look at the context of what they're asking about
+        4. Default to "todos" if unclear
+
+        Classify the intent:
+        - summarize: Provide a summary 
+        - retrieve: To fetch information (e.g., "Show my todos")
+        - analyze: To generate insights (e.g., "Analyze my progress")
+        - plan: To schedule, organize
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "todos",
+    "description": "The user wants to know the due date of a specific item related to 'Cairo'."
+}
+```"}
+{"prompt": "You are a todo list assistant. The user is looking for specific todo information.
+
+User Query: "when is the cairo one due"
+
+Available Todos:
+User_id: 1
+Todos:
+  1. Go to the library  (pending) - due: 2025-03-18T19:42:05.349000, priority: medium
+  2. go to cairo (pending) - due: 2025-03-18T20:10:05.578000, priority: medium
+  3. Clean up Calendar (completed) - due: 2025-03-15T03:15:22.199000, priority: medium
+  4. Go to Greek (pending) - due: 2025-03-19T01:35:10.775000, priority: medium
+  5. Dad's birthday party (pending) - due: 2025-03-19T01:49:01.986000, priority: high
+  6. Calendar Types (completed) - due: 2025-03-13T12:36:16.189000, priority: medium
+  7. Swimming Class (pending) - due: 2025-03-19T02:37:44.984000, priority: medium
+  8. Test99 (pending) - due: 2025-03-19T20:06:10.852000, priority: high
+  9. test100000 (pending) - due: 2025-03-20T04:33:52.638000, priority: medium
+  10. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  11. Test search functionality with blue colors (pending) - priority: medium, description: This is a test todo to verify that newly created t...
+  12. Go to the gym22 (pending) - due: 2025-03-21T17:40:23, priority: medium
+  13. work on the LLM feature (completed) - due: 2025-03-15T03:17:06.263000, priority: medium
+  14. Make the calendar scrollable through the calendar itself (completed) - due: 2025-03-15T03:15:33.879000, priority: medium
+  15. Add the ability to change the user's username and profile picture through settings (pending) - due: 2025-03-15T01:15:58.063000, priority: medium
+  16. Make the entire calendar the same as WeekView.css (completed) - due: 2025-03-15T20:46:12.008000, priority: medium
+  17. Record a video for the center (pending) - due: 2025-03-14T13:17:35.476000, priority: low
+  18. test3 (completed) - due: 2025-03-21T00:38:30, priority: medium
+  19. test4 (completed) - due: 2025-03-22T02:49:09, priority: medium
+  20. chocolate (pending) - due: 2025-03-18T03:54:40.796000, priority: medium
+  21. gdzg2 (pending) - due: 2025-03-18T03:59:21.931000, priority: medium
+  22. test24 (completed) - due: 2025-03-27T02:55:46, priority: medium
+  23. Watermelon (pending) - due: 2025-03-18T04:06:34.008000, priority: medium
+  24. Beans (pending) - due: 2025-03-18T04:08:55.634000, priority: medium
+  25. Unify Todo, Calendar (pending) - due: 2025-03-14T17:17:16.132000, priority: medium, description: in terms of where the texts and buttons are
+Total_count: 25
+Pending_count: 0
+Completed_count: 0
+High_priority_count: 0
+Urgent_todos:
+
+Instructions:
+- Provide only the specific todo information requested
+- Be direct and concise in your response
+- Format information clearly and logically
+- If a todo cannot be found, clearly state this
+- Only include todos that directly match the query", "completion": "The todo "go to cairo" is due on **March 18, 2025, at 20:10**."}
