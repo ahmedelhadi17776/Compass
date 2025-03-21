@@ -20,7 +20,10 @@
             "summarize": "You are a task summarization assistant. The user wants a clear overview of their tasks.\n\nUser Query: \"{{ user_prompt }}\"\n\nTasks to Summarize:\n{{ context_data }}\n\nInstructions:\n- Create a concise, structured summary of the tasks\n- Group tasks by priority, deadline, or status if appropriate\n- Highlight the most important or urgent items\n- Identify overdue tasks or tasks at risk\n- Format your summary as bullet points or short paragraphs\n- Keep your response focused and action-oriented\n- Include counts and statistics where helpful (e.g., '5 high-priority tasks')",
             "plan": "You are a task planning assistant. The user needs help organizing and planning their tasks.\n\nUser Query: \"{{ user_prompt }}\"\n\nAvailable Tasks:\n{{ context_data }}\n\n{% if has_rag_sources %}External Knowledge:\n{{ rag_data }}{% endif %}\n\nInstructions:\n- Create an actionable, time-bound plan based on these tasks\n- Consider deadlines, dependencies, and effort required\n- Organize tasks into a logical sequence or priority order\n- Include specific timeframes where possible\n- Identify any potential resource constraints or bottlenecks\n- Format your plan with clear sections and steps\n- End with key success metrics or milestones"
         },
-        "permissions": ["admin", "user"],
+        "permissions": [
+            "admin",
+            "user"
+        ],
         "cache": {
             "enabled": true,
             "ttl": 3600
@@ -28,6 +31,22 @@
         "logging": {
             "enabled": true,
             "level": "info"
+        },
+        "reference_settings": {
+            "similarity_threshold": 0.7,
+            "enable_temporal_matching": true,
+            "searchable_fields": [
+                "title",
+                "description",
+                "tags",
+                "status"
+            ],
+            "temporal_fields": [
+                "created_at",
+                "updated_at",
+                "due_date",
+                "completed_at"
+            ]
         }
     },
     "todos": {
@@ -51,7 +70,9 @@
             "summarize": "You are a todo summarization assistant. The user wants an overview of their todos.\n\nUser Query: \"{{ user_prompt }}\"\n\nTodos to Summarize:\n{{ context_data }}\n\n{% if has_rag_sources %}Additional Information:\n{{ rag_data }}{% endif %}\n\nInstructions:\n- Create a concise summary of the todo items\n- Group by status, priority, or due date if appropriate\n- Highlight important or urgent todos\n- Include counts where helpful (e.g., '3 overdue items')\n- Format as bullet points or short paragraphs\n- Keep your response focused and actionable",
             "plan": "You are a todo planning assistant. The user needs help organizing their todos.\n\nUser Query: \"{{ user_prompt }}\"\n\nTodo Items:\n{{ context_data }}\n\n{% if has_rag_sources %}External Knowledge:\n{{ rag_data }}\n\nSources:\n{% for source in rag_sources %}{{ source }}\n{% endfor %}{% endif %}\n\nInstructions:\n- Create an organized plan based on these todos\n- Consider urgency, importance, and estimated effort\n- Suggest a logical order or grouping\n- Include specific timeframes where possible\n- Format your plan with clear sections and steps\n- End with success criteria or completion indicators"
         },
-        "permissions": ["user"],
+        "permissions": [
+            "user"
+        ],
         "cache": {
             "enabled": true,
             "ttl": 1800
@@ -81,13 +102,31 @@
             "summarize": "You are a summarization assistant. The user wants a concise overview.\n\nUser Query: \"{{ user_prompt }}\"\n\nContent to Summarize:\n{{ context_data }}\n\nInstructions:\n- Create a concise, informative summary\n- Highlight the most important information\n- Maintain objectivity and accuracy\n- Format your summary logically\n- Keep your response focused on key points",
             "plan": "You are a planning assistant. The user wants help organizing and planning.\n\nUser Query: \"{{ user_prompt }}\"\n\nRelevant Data:\n{{ context_data }}\n\n{% if has_rag_sources %}External Knowledge:\n{{ rag_data }}{% endif %}\n\nInstructions:\n- Develop an organized, actionable plan\n- Include specific steps and timeframes\n- Consider dependencies and resources\n- Format your plan with clear sections\n- End with success metrics or milestones"
         },
-        "permissions": ["guest", "user", "admin"],
+        "permissions": [
+            "guest",
+            "user",
+            "admin"
+        ],
         "cache": {
             "enabled": false
         },
         "logging": {
             "enabled": true,
             "level": "debug"
+        },
+        "reference_settings": {
+            "similarity_threshold": 0.6,
+            "enable_temporal_matching": true,
+            "searchable_fields": [
+                "title",
+                "description",
+                "tags"
+            ],
+            "temporal_fields": [
+                "created_at",
+                "updated_at",
+                "due_date"
+            ]
         }
     }
 }
