@@ -287,7 +287,6 @@ class TestRAGService:
                 context={"key": "value"},
                 filters={"type": "test"}
             )
-
             # Verify the result
             assert result["answer"] == "Response after retries"
             assert result["confidence"] == 0.8
@@ -337,7 +336,6 @@ class TestRAGService:
                 context={"key": "value"},
                 context_window=500  # Small context window
             )
-
             # Verify the result
             assert result["answer"] == "Response with context window"
             assert result["confidence"] == 0.8
@@ -353,7 +351,6 @@ class TestRAGService:
             {"source": "test2"},
             {"source": "test3"}
         ]
-
         # Create a success future for the add operation
         success_future = create_mock_future(None)
         rag_service_with_mocks.collection.add.return_value = success_future
