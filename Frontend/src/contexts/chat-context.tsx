@@ -56,15 +56,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     setMessages(defaultMessages);
   };
 
-  const getPreviousMessages = (count: number = 5) => {
-    // Get the most recent messages (excluding the default welcome message)
-    const recentMessages = messages.filter(m => m.id !== "1").slice(-count);
-    return recentMessages.map(msg => ({
-      sender: msg.sender,
-      text: msg.text
-    }));
-  };
-
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
@@ -79,12 +70,11 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
 
     try {
-      // Get previous messages to maintain conversation context
-      const previousMessages = getPreviousMessages();
-      
       const response = await llmService.generateResponse({
         prompt: text,
-        previous_messages: previousMessages,
+        context: {
+          messages: messages.slice(-5) // Send last 5 messages for context
+        }
       });
 
       const assistantMessage: Message = {

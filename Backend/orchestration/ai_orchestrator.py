@@ -13,7 +13,6 @@ import hashlib
 import json
 import time
 from Backend.ai_services.reference.reference_resolver import ReferenceResolver
-from openai.types.chat import ChatCompletionMessageParam
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +28,6 @@ class AIOrchestrator:
         self.logger = logging.getLogger(__name__)
         self.reference_resolver = ReferenceResolver()
         self._current_model_id: Optional[int] = None
-        # Add conversation history at orchestrator level to maintain across domains
-        self.conversation_history: Dict[int, List[ChatCompletionMessageParam]] = {}
-        self.max_history_length = 10
 
     async def _get_or_create_model(self) -> Optional[int]:
         """Get or create AI model record in database."""
@@ -223,29 +219,6 @@ class AIOrchestrator:
             "has_sources": bool(formatted_sources)
         }
 
-    def _update_conversation_history(self, user_id: int, prompt: str, response: str) -> None:
-        """
-        Update conversation history for a specific user, maintaining history across domains.
-        
-        Args:
-            user_id: The user's ID
-            prompt: The user's input
-            response: The assistant's response
-        """
-        if user_id not in self.conversation_history:
-            self.conversation_history[user_id] = []
-            
-        self.conversation_history[user_id].append({"role": "user", "content": prompt})
-        self.conversation_history[user_id].append({"role": "assistant", "content": response})
-
-        # Keep history within limits
-        if len(self.conversation_history[user_id]) > self.max_history_length * 2:
-            self.conversation_history[user_id] = self.conversation_history[user_id][-self.max_history_length * 2:]
-    
-    def _get_conversation_history(self, user_id: int) -> List[ChatCompletionMessageParam]:
-        """Get the conversation history for a specific user."""
-        return self.conversation_history.get(user_id, [])
-
     async def process_request(self, user_input: str, user_id: int, domain: str = None) -> Dict[str, Any]:
         try:
             if not self._current_model_id:
@@ -267,9 +240,6 @@ class AIOrchestrator:
 
             # Step 3: Add reference results to the context
             context['resolved_references'] = reference_results
-            
-            # Add conversation history to the context
-            context['conversation_history'] = self._get_conversation_history(user_id)
 
             # Step 4: Detect intent using the LLM
             intent_data = await self.intent_detector.detect_intent(user_input, context)
@@ -332,22 +302,12 @@ class AIOrchestrator:
                 "description": description,
                 "user_id": user_id,
                 "resolved_references": reference_results,
-                "has_references": bool(reference_results['matches']),
-                "conversation_history": self._get_conversation_history(user_id)
+                "has_references": bool(reference_results['matches'])
             }
 
             # Render the template and generate response
             prompt = render_template(prompt_template, template_context)
-            
-            # Pass conversation history to the LLM service
-            # Set the conversation history for the LLM service temporarily
-            original_history = self.llm_service.conversation_history
-            self.llm_service.conversation_history = self._get_conversation_history(user_id)
-            
             response = await self.llm_service.generate_response(prompt)
-            
-            # Reset LLM service history
-            self.llm_service.conversation_history = original_history
 
             if isinstance(response, dict):
                 response_text = response.get("text", "")
@@ -359,9 +319,6 @@ class AIOrchestrator:
                     chunks.append(chunk)
                 response_text = "".join(chunks)
                 confidence = 0.0
-
-            # Update orchestrator's conversation history
-            self._update_conversation_history(user_id, user_input, response_text)
 
             # Prepare final response
             result = {

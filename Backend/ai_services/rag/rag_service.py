@@ -18,6 +18,8 @@ from functools import lru_cache
 import time
 import hashlib
 import json
+import os
+import PyPDF2
 
 logger = get_logger(__name__)
 
@@ -388,3 +390,70 @@ class RAGService(AIServiceBase):
             batch_embeddings = await self.embedding_service.get_embedding(batch, normalize=True)
             embeddings.extend(batch_embeddings)
         return embeddings
+
+    async def add_pdf_to_knowledge_base(
+        self,
+        pdf_path: str,
+        metadata: Dict[str, Any],
+        normalize: bool = True,
+        batch_size: int = 32
+    ) -> bool:
+        """
+        Process and add PDF document to the knowledge base.
+
+        Args:
+            pdf_path: Path to the PDF file
+            metadata: Metadata for the document
+            normalize: Whether to normalize embeddings
+            batch_size: Batch size for processing
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            # Read PDF content
+            with open(pdf_path, 'rb') as pdf_file:
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                content = []
+
+                # Extract text from each page
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    page_text = page.extract_text()
+
+                    # Create page-specific metadata
+                    page_metadata = metadata.copy()
+                    page_metadata.update({
+                        "page_number": page_num + 1,
+                        "total_pages": len(pdf_reader.pages),
+                        "source_file": os.path.basename(pdf_path),
+                        "content_type": "pdf_page"
+                    })
+
+                    # Add each page as a separate document
+                    content.append(page_text)
+
+                    # Add domain info if not present
+                    if "domain" not in page_metadata:
+                        # Extract domain from filename or path
+                        filename = os.path.basename(pdf_path)
+                        if "habit" in filename.lower():
+                            page_metadata["domain"] = "habits"
+                        elif "todo" in filename.lower():
+                            page_metadata["domain"] = "todos"
+                        elif "task" in filename.lower():
+                            page_metadata["domain"] = "tasks"
+                        else:
+                            page_metadata["domain"] = "default"
+
+                    # Add to knowledge base
+                    await self.add_to_knowledge_base(
+                        content=page_text,
+                        metadata=page_metadata,
+                        normalize=normalize
+                    )
+
+            return True
+        except Exception as e:
+            logger.error(f"Error adding PDF to knowledge base: {str(e)}")
+            return False

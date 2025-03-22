@@ -64,22 +64,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
     if (isFullPage) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging || !chatWindowRef.current) return;
-
-    // Calculate new position
-    const newX = e.clientX - dragStart.x;
-    const newY = e.clientY - dragStart.y;
-
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
     setPosition({
-      x: newX,
-      y: newY,
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
     });
   };
 
@@ -89,15 +84,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
   useEffect(() => {
     if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mousemove', handleMouseMove as any);
+    } else {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove as any);
     }
-
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove as any);
     };
-  }, [isDragging, dragStart]);
+  }, [isDragging]);
 
   // Determine the current animation state
   const getAnimationStyles = () => {
@@ -157,13 +154,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         overflow: 'hidden',
         zIndex: 60,
         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        transition: isDragging 
-          ? 'width 0.2s ease, height 0.2s ease, border-radius 0.2s ease, opacity 0.3s ease'
-          : 'width 0.2s ease, height 0.2s ease, border-radius 0.2s ease, opacity 0.3s ease, transform 0.3s ease',
+        transition: 'width 0.2s ease, height 0.2s ease, border-radius 0.2s ease, opacity 0.3s ease, transform 0.3s ease',
         opacity: opacity,
-        willChange: 'transform',
-        touchAction: 'none',
-        userSelect: 'none',
       }}
       className={`${
         !isFullPage && 'bottom-6 right-6'

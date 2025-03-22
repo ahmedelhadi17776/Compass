@@ -66,6 +66,9 @@ htmlcov/
 # Documentation
 docs/_build/
 *.pdf
+!Backend/ai_service/rag/knowledge_base/
+!Backend/ai_service/rag/knowledge_base/*.pdf
+
 docs/
 
 # Jupyter Notebook
@@ -88,3 +91,15 @@ Thumbs.db
 *.md
 
 chromadb/
+
+node_modules/
+
+#*config*
+
+*.bat
+
+scripts/
+
+data/
+
+etc/
