@@ -43,22 +43,29 @@ class IntentDetector:
         User Input: "{user_input}"
         Available Domains: {list(database_summary.keys())}
 
-        IMPORTANT DOMAIN SELECTION RULES:
-        1. If the user's input contains the exact word "todos", use "todos" as the target
-        2. If the user's input contains the exact word "tasks", use "tasks" as the target
-        3. If no exact match, look at the context of what they're asking about
-        4. Default to "todos" if unclear
+        DOMAIN SELECTION RULES:
+        1. For task management: If input contains "todos" or "tasks", use respective domain
+        2. For general queries (like greetings, recommendations, or questions):
+           - Use "default" domain if available
+           - Otherwise use the most relevant domain based on context
+        3. Look at the context of what they're asking about
+        4. Default to "default" domain if unclear or for general conversation
 
         Classify the intent:
-        - summarize: Provide a summary 
-        - retrieve: To fetch information (e.g., "Show my todos")
-        - analyze: To generate insights (e.g., "Analyze my progress")
-        - plan: To schedule, organize
+        - retrieve: To fetch specific information or recommendations
+        - analyze: To generate insights or analyze patterns
+        - summarize: Provide a summary or overview
+        - plan: To schedule, organize, or create plans
+        
+        For general queries or greetings:
+        - Use "retrieve" for information requests or recommendations
+        - Use "analyze" for analytical questions
+        - Use "default" as the target domain
         
         Respond with a JSON object:
         {{
             "intent": "retrieve/analyze/summarize/plan",
-            "target": "tasks/todos/habits",
+            "target": "tasks/todos/default",
             "description": "A short explanation of the user's goal"
         }}
         """
@@ -79,6 +86,13 @@ class IntentDetector:
             if "todos" in user_input.lower():
                 logger.info("Found 'todos' in input, forcing target to 'todos'")
                 intent_data["target"] = "todos"
+            elif "tasks" in user_input.lower():
+                logger.info("Found 'tasks' in input, forcing target to 'tasks'")
+                intent_data["target"] = "tasks"
+            elif any(greeting in user_input.lower() for greeting in ["hi", "hello", "hey"]) or \
+                 any(general_query in user_input.lower() for general_query in ["recommend", "suggest", "what", "how"]):
+                logger.info("Found greeting or general query, using default domain")
+                intent_data["target"] = "default"
             
             # Validate the required fields are present
             if not all(k in intent_data for k in ["intent", "target", "description"]):
