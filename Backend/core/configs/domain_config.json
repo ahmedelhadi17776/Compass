@@ -81,6 +81,55 @@
             "enabled": false
         }
     },
+    "habits": {
+        "repository": "HabitRepository",
+        "handler": "HabitHandler",
+        "enable_rag": true,
+        "rag_settings": {
+            "limit": 5,
+            "context_window": 1500,
+            "intent_rag_usage": {
+                "retrieve": true,
+                "analyze": true,
+                "summarize": true,
+                "plan": true
+            }
+        },
+        "prompt_templates": {
+            "default": "You are a habit-building assistant. Help the user develop and maintain positive habits.\n\nUser Query: {{ user_prompt }}\n\nHabit Information:\n{{ context_data }}\n\nProvide a helpful response that addresses the user's needs regarding habits.",
+            "retrieve": "You are a habit assistant. The user is looking for specific habit information.\n\nUser Query: \"{{ user_prompt }}\"\n\nHabit Data:\n{{ context_data }}\n\n{% if has_rag_sources %}Knowledge Base:\n{{ rag_data }}\n\nSources:\n{% for source in rag_sources %}{{ source }}\n{% endfor %}{% endif %}\n\nInstructions:\n- Provide specific habit information requested\n- Include streak data, completion status, and history if relevant\n- Be direct and concise in your response\n- Format information clearly with habit names highlighted\n- If information cannot be found, suggest related habits\n- Reference the habit guide where appropriate",
+            "analyze": "You are a habit analysis assistant. The user wants insights about their habits.\n\nUser Query: \"{{ user_prompt }}\"\n\nHabit Data to Analyze:\n{{ context_data }}\n\n{% if has_rag_sources %}Additional Knowledge:\n{{ rag_data }}{% endif %}\n\nInstructions:\n- Analyze habit performance, streaks, and completion patterns\n- Identify successful habits and areas for improvement\n- Suggest optimizations based on streak data\n- Reference behavioral science concepts from the habit guide\n- Format your analysis in clear sections\n- End with 2-3 actionable recommendations",
+            "summarize": "You are a habit summarization assistant. The user wants an overview of their habits.\n\nUser Query: \"{{ user_prompt }}\"\n\nHabits to Summarize:\n{{ context_data }}\n\n{% if has_rag_sources %}Guide Information:\n{{ rag_data }}{% endif %}\n\nInstructions:\n- Create a concise summary of the user's habits\n- Group by categories, streak status, or completion rate\n- Highlight successful streaks and habits needing attention\n- Include metrics like average completion rate\n- Format as bullet points or short paragraphs\n- Keep your response focused on actionable insights",
+            "plan": "You are a habit planning assistant. The user needs help organizing their habits.\n\nUser Query: \"{{ user_prompt }}\"\n\nHabit Information:\n{{ context_data }}\n\n{% if has_rag_sources %}Habit Best Practices:\n{{ rag_data }}\n\nSources:\n{% for source in rag_sources %}{{ source }}\n{% endfor %}{% endif %}\n\nInstructions:\n- Create an organized habit plan\n- Consider habit stacking, implementation intentions\n- Suggest a logical order or grouping (morning/evening)\n- Include specific cues and rewards\n- Reference habit-building strategies from the guide\n- Format your plan with clear sections and steps\n- End with success indicators and milestone celebrations"
+        },
+        "permissions": [
+            "user"
+        ],
+        "cache": {
+            "enabled": true,
+            "ttl": 1800
+        },
+        "logging": {
+            "enabled": true,
+            "level": "info"
+        },
+        "reference_settings": {
+            "similarity_threshold": 0.75,
+            "enable_temporal_matching": true,
+            "searchable_fields": [
+                "name",
+                "description",
+                "tags",
+                "status"
+            ],
+            "temporal_fields": [
+                "created_at",
+                "updated_at",
+                "streak_start_date",
+                "last_completed_date"
+            ]
+        }
+    },
     "default": {
         "repository": "BaseRepository",
         "handler": null,
