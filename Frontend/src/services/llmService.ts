@@ -8,6 +8,7 @@ export interface LLMRequest {
   context?: Record<string, any>;
   domain?: string;
   model_parameters?: Record<string, any>;
+  previous_messages?: Array<{sender: string; text: string}>;
 }
 
 export interface LLMResponse {
@@ -39,7 +40,7 @@ export const llmService = {
   },
 
   // Stream response from the LLM
-  streamResponse: async function* (prompt: string) {
+  streamResponse: async function* (prompt: string, previousMessages?: Array<{sender: string; text: string}>) {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Authentication required');
 
@@ -50,7 +51,10 @@ export const llmService = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ 
+          prompt,
+          previous_messages: previousMessages 
+        }),
       });
 
       if (!response.ok) {
@@ -111,8 +115,8 @@ export const useGenerateLLMResponse = () => {
 // Custom hook for streaming responses
 export const useStreamingLLMResponse = () => {
   return {
-    streamResponse: (prompt: string) => {
-      return llmService.streamResponse(prompt);
+    streamResponse: (prompt: string, previousMessages?: Array<{sender: string; text: string}>) => {
+      return llmService.streamResponse(prompt, previousMessages);
     },
   };
 };

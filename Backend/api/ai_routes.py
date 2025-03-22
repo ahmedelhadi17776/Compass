@@ -25,12 +25,16 @@ logger = logging.getLogger(__name__)
 
 # Request/Response Models
 
+class PreviousMessage(BaseModel):
+    sender: str
+    text: str
 
 class AIRequest(BaseModel):
     prompt: str
     context: Optional[Dict] = None
     domain: Optional[str] = None
     model_parameters: Optional[Dict] = None
+    previous_messages: Optional[List[PreviousMessage]] = None
 
 
 class AIResponse(BaseModel):
@@ -79,6 +83,21 @@ async def process_ai_request(
     """
     try:
         orchestrator = AIOrchestrator(db)
+        
+        # If we have previous messages from the frontend, add them to the conversation history
+        if request.previous_messages:
+            for msg in request.previous_messages:
+                if msg.sender == "user":
+                    user_message = {"role": "user", "content": msg.text}
+                    if current_user.id not in orchestrator.conversation_history:
+                        orchestrator.conversation_history[current_user.id] = []
+                    orchestrator.conversation_history[current_user.id].append(user_message)
+                elif msg.sender == "assistant":
+                    assistant_message = {"role": "assistant", "content": msg.text}
+                    if current_user.id not in orchestrator.conversation_history:
+                        orchestrator.conversation_history[current_user.id] = []
+                    orchestrator.conversation_history[current_user.id].append(assistant_message)
+        
         result = await orchestrator.process_request(
             user_input=request.prompt,
             user_id=current_user.id,
@@ -111,6 +130,60 @@ async def process_ai_request(
             confidence=0.0
         )
 
+
+@router.post("/process/stream")
+async def process_ai_request_stream(
+    request: AIRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Stream AI responses for real-time interaction."""
+    try:
+        # Initialize the streaming response
+        orchestrator = AIOrchestrator(db)
+        
+        # If we have previous messages from the frontend, add them to the conversation history
+        if request.previous_messages:
+            for msg in request.previous_messages:
+                if msg.sender == "user":
+                    user_message = {"role": "user", "content": msg.text}
+                    if current_user.id not in orchestrator.conversation_history:
+                        orchestrator.conversation_history[current_user.id] = []
+                    orchestrator.conversation_history[current_user.id].append(user_message)
+                elif msg.sender == "assistant":
+                    assistant_message = {"role": "assistant", "content": msg.text}
+                    if current_user.id not in orchestrator.conversation_history:
+                        orchestrator.conversation_history[current_user.id] = []
+                    orchestrator.conversation_history[current_user.id].append(assistant_message)
+        
+        async def stream_generator():
+            try:
+                # Use the orchestrator to process in streaming mode
+                stream = await llm_service.generate_response(
+                    prompt=request.prompt,
+                    stream=True
+                )
+                
+                async for chunk in stream:
+                    yield f"data: {chunk}\n\n"
+                    
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Error in stream: {error_msg}")
+                yield f"data: Error: {error_msg}\n\n"
+        
+        return StreamingResponse(
+            stream_generator(),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error setting up stream: {error_msg}")
+        return StreamingResponse(
+            iter([f"data: Error: {error_msg}\n\n"]),
+            media_type="text/event-stream"
+        )
 
 @router.get("/context/{user_id}")
 async def get_user_context(
