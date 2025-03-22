@@ -4,9 +4,11 @@ from typing import Dict, Type, Any
 
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.repositories.todo_repository import TodoRepository
+from Backend.data_layer.repositories.daily_habits_repository import DailyHabitRepository
 from Backend.data_layer.repositories.base_repository import BaseRepository
 from Backend.orchestration.handlers.task_handler import TaskHandler
 from Backend.orchestration.handlers.todo_handler import TodoHandler
+from Backend.orchestration.handlers.habit_handler import HabitHandler
 
 
 def load_config(file_name):
@@ -25,18 +27,22 @@ LOGGING_CONFIG = load_config("logging_config.json")
 REPO_MAPPING = {
     "tasks": TaskRepository,
     "todos": TodoRepository,
+    "habits": DailyHabitRepository,
     "base": BaseRepository
 }
 
 REPO_NAME_MAPPING = {
     "TaskRepository": "tasks",
     "TodoRepository": "todos",
+    "HabitRepository": "habits",
+    "DailyHabitRepository": "habits",
     "BaseRepository": "base"
 }
 
 HANDLER_MAPPING = {
     "tasks": TaskHandler,
-    "todos": TodoHandler
+    "todos": TodoHandler,
+    "habits": HabitHandler
 }
 
 
@@ -73,26 +79,26 @@ class AIRegistry:
 
     def get_prompt_template(self, domain: str, variant: str = "default") -> str:
         """Get prompt template for a domain and intent variant.
-        
+
         Args:
             domain: The domain to get a template for (e.g., 'tasks', 'todos')
             variant: The template variant, usually matching the intent 
                     (e.g., 'retrieve', 'analyze', 'plan', 'summarize')
-        
+
         Returns:
             A template string that can be rendered with context data
         """
         config = self.domain_config.get(domain, self.domain_config['default'])
         templates = config.get('prompt_templates', {})
-        
+
         # First try to get the specific variant
         if variant in templates:
             return templates[variant]
-        
+
         # If not found, try to get a default template
         if "default" in templates:
             return templates["default"]
-        
+
         # Fallback to a hardcoded generic template if nothing is found
         return """
         User Input: {{ user_prompt }}
@@ -123,7 +129,7 @@ class AIRegistry:
 
     def get_cache_config(self):
         return self.cache_config
-    
+
     def get_rag_settings(self, domain: str):
         domain_config = self.get_domain_config(domain)
         return domain_config.get("rag_settings", {})
