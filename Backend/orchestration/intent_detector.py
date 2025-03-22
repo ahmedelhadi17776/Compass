@@ -36,6 +36,32 @@ class IntentDetector:
                 - target: The domain target (tasks, todos, etc.)
                 - description: Brief explanation of the user's goal
         """
+        # Check if we have conversation history and determine previous domain
+        previous_domain = None
+        conversation_history = database_summary.get('conversation_history', [])
+        
+        # Try to maintain domain context from previous interactions
+        if conversation_history and len(conversation_history) >= 2:
+            # Look through previous assistant responses for intent/target info
+            for i in range(len(conversation_history) - 1, 0, -2):
+                if i >= 1 and conversation_history[i].get('role') == 'assistant':
+                    content = conversation_history[i].get('content', '')
+                    # Check if this is a follow-up question about the same topic
+                    if user_input.lower().startswith(('what', 'which', 'who', 'how', 'when', 'where', 'why')) or \
+                       any(ref in user_input.lower() for ref in ['it', 'that', 'this', 'these', 'those', 'them', 'they', 'first', 'second', 'third']):
+                        logger.info("Detected likely follow-up question - maintaining previous domain context")
+                        
+                        # Check if we can extract the target domain from database_summary keys
+                        for domain_key in database_summary.keys():
+                            if domain_key in ['tasks', 'todos']:
+                                if domain_key in content.lower() or \
+                                   (domain_key == 'tasks' and 'task' in content.lower()) or \
+                                   (domain_key == 'todos' and ('todo' in content.lower() or 'to-do' in content.lower())):
+                                    previous_domain = domain_key
+                                    logger.info(f"Found previous domain context: {previous_domain}")
+                                    break
+                    break
+        
         prompt = f"""
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -50,7 +76,17 @@ class IntentDetector:
            - Otherwise use the most relevant domain based on context
         3. Look at the context of what they're asking about
         4. Default to "default" domain if unclear or for general conversation
-
+        """
+        
+        # Add context about previous domain if available
+        if previous_domain:
+            prompt += f"""
+        IMPORTANT CONTEXT: The user's previous messages were about the "{previous_domain}" domain.
+        If this message appears to be a follow-up question referring to the same topic, 
+        maintain that domain context rather than switching to a general domain.
+            """
+        
+        prompt += f"""
         Classify the intent:
         - retrieve: To fetch specific information or recommendations
         - analyze: To generate insights or analyze patterns
@@ -82,6 +118,14 @@ class IntentDetector:
             intent_data = json.loads(json_str)
             logger.info(f"Parsed intent data: {intent_data}")
             
+            # If this is a follow-up question and we have a previous domain, consider using it
+            if previous_domain and user_input.lower().startswith(('what', 'which', 'who', 'how', 'when', 'where', 'why')) or \
+               any(ref in user_input.lower() for ref in ['it', 'that', 'this', 'these', 'those', 'them', 'they', 'first', 'second', 'third']):
+                # Only override if the LLM chose the default domain for generic questions
+                if intent_data.get("target") == "default" and previous_domain in database_summary.keys():
+                    intent_data["target"] = previous_domain
+                    logger.info(f"Overriding target to maintain conversation context: {previous_domain}")
+            
             # Force target to "todos" if the word appears in input
             if "todos" in user_input.lower():
                 logger.info("Found 'todos' in input, forcing target to 'todos'")
@@ -105,8 +149,12 @@ class IntentDetector:
                 # First try to match domain from user input
                 target_domain = next(
                     (domain for domain in available_domains if domain in user_input_lower),
-                    # If no match, use todos as default if available, else first available domain
-                    next((domain for domain in available_domains if domain == "todos"), available_domains[0] if available_domains else "todos")
+                    # If no match, use previous domain if available
+                    previous_domain if previous_domain else (
+                        # Otherwise try todos as default if available, else first available domain
+                        next((domain for domain in available_domains if domain == "todos"), 
+                             available_domains[0] if available_domains else "todos")
+                    )
                 )
                 logger.info(f"Selected target domain: {target_domain}")
                 
