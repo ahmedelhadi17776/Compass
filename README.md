@@ -79,6 +79,8 @@ COMPASS is an **AI-powered productivity assistant** designed to **enhance task m
 - **OAuth 2.0 + WebAuthn** for user authentication.
 - **Federated Learning** to improve AI models while protecting user privacy.
 
+
+
 * * *
 
 # **🚀 Why COMPASS is a Game-Changer**
@@ -89,3 +91,8 @@ COMPASS is an **AI-powered productivity assistant** designed to **enhance task m
 ✅ **AI agents that adapt to individual user needs** for **seamless collaboration**.
 
 COMPASS is more than just a productivity tool—it’s a **personal AI assistant** that **learns, adapts, and optimizes** your workflow, ensuring **maximum efficiency with minimal effort**.
+
+* * *
+
+## License
+This project is licensed under the **GNU Affero General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
