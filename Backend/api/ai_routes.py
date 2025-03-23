@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, cast, Union
 from datetime import datetime
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 import logging
 import os
+import shutil
+from pathlib import Path
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionUserMessageParam, ChatCompletionAssistantMessageParam
 from fastapi import Request, BackgroundTasks
+from sqlalchemy import Column
 
 from Backend.data_layer.database.connection import get_db
 from Backend.app.schemas.task_schemas import TaskCreate, TaskResponse
@@ -18,6 +22,7 @@ from Backend.ai_services.llm.llm_service import LLMService
 from Backend.data_layer.database.models.user import User
 from Backend.ai_services.rag.todo_ai_service import TodoAIService
 from Backend.orchestration.ai_orchestrator import AIOrchestrator
+from Backend.app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
 
 
 # Set up logger
@@ -25,9 +30,11 @@ logger = logging.getLogger(__name__)
 
 # Request/Response Models
 
+
 class PreviousMessage(BaseModel):
     sender: str
     text: str
+
 
 class AIRequest(BaseModel):
     prompt: str
@@ -52,6 +59,13 @@ class AIResponse(BaseModel):
 class FeedbackRequest(BaseModel):
     feedback_score: float = Field(..., ge=0, le=1)
     feedback_text: Optional[str] = None
+
+
+class ProcessPDFResponse(BaseModel):
+    status: str
+    message: str
+    processed_files: Optional[List[Dict[str, Any]]] = None
+    error: Optional[str] = None
 
 
 router = APIRouter(prefix="/ai", tags=["AI Services"])
@@ -83,25 +97,31 @@ async def process_ai_request(
     """
     try:
         orchestrator = AIOrchestrator(db)
-        
-        # If we have previous messages from the frontend, add them to the conversation history
+
+        # Get user ID safely
+        if not hasattr(current_user, 'id'):
+            raise ValueError("User ID is required")
+
+        # Convert SQLAlchemy Column to string then int
+        user_id = int(str(getattr(current_user, 'id')))
+
+        # Process previous messages
         if request.previous_messages:
+            # Get or create conversation history
+            history = orchestrator._get_conversation_history(user_id)
+
+            # Add messages to history
             for msg in request.previous_messages:
                 if msg.sender == "user":
-                    user_message = {"role": "user", "content": msg.text}
-                    if current_user.id not in orchestrator.conversation_history:
-                        orchestrator.conversation_history[current_user.id] = []
-                    orchestrator.conversation_history[current_user.id].append(user_message)
+                    history.add_message(UserMessage(content=str(msg.text)))
                 elif msg.sender == "assistant":
-                    assistant_message = {"role": "assistant", "content": msg.text}
-                    if current_user.id not in orchestrator.conversation_history:
-                        orchestrator.conversation_history[current_user.id] = []
-                    orchestrator.conversation_history[current_user.id].append(assistant_message)
-        
+                    history.add_message(
+                        AssistantMessage(content=str(msg.text)))
+
         result = await orchestrator.process_request(
             user_input=request.prompt,
-            user_id=current_user.id,
-            domain=request.domain
+            user_id=user_id,
+            domain=str(request.domain) if request.domain else None
         )
 
         # Transform the result to match AIResponse model
@@ -141,38 +161,44 @@ async def process_ai_request_stream(
     try:
         # Initialize the streaming response
         orchestrator = AIOrchestrator(db)
-        
-        # If we have previous messages from the frontend, add them to the conversation history
+
+        # Get user ID safely
+        if not hasattr(current_user, 'id'):
+            raise ValueError("User ID is required")
+
+        # Convert SQLAlchemy Column to string then int
+        user_id = int(str(getattr(current_user, 'id')))
+
+        # Process previous messages if any
         if request.previous_messages:
+            history = orchestrator._get_conversation_history(user_id)
             for msg in request.previous_messages:
                 if msg.sender == "user":
-                    user_message = {"role": "user", "content": msg.text}
-                    if current_user.id not in orchestrator.conversation_history:
-                        orchestrator.conversation_history[current_user.id] = []
-                    orchestrator.conversation_history[current_user.id].append(user_message)
+                    history.add_message(UserMessage(content=str(msg.text)))
                 elif msg.sender == "assistant":
-                    assistant_message = {"role": "assistant", "content": msg.text}
-                    if current_user.id not in orchestrator.conversation_history:
-                        orchestrator.conversation_history[current_user.id] = []
-                    orchestrator.conversation_history[current_user.id].append(assistant_message)
-        
+                    history.add_message(
+                        AssistantMessage(content=str(msg.text)))
+
         async def stream_generator():
             try:
                 # Use the orchestrator to process in streaming mode
-                stream = await llm_service.generate_response(
+                stream = await orchestrator.llm_service.generate_response(
                     prompt=request.prompt,
+                    context={"user_id": user_id, "domain": request.domain} if request.domain else {
+                        "user_id": user_id},
+                    model_parameters=request.model_parameters,
                     stream=True
                 )
-                
+
                 async for chunk in stream:
                     yield f"data: {chunk}\n\n"
-                    
+
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"Error in stream: {error_msg}")
                 yield f"data: Error: {error_msg}\n\n"
-        
+
         return StreamingResponse(
             stream_generator(),
             media_type="text/event-stream"
@@ -184,6 +210,7 @@ async def process_ai_request_stream(
             iter([f"data: Error: {error_msg}\n\n"]),
             media_type="text/event-stream"
         )
+
 
 @router.get("/context/{user_id}")
 async def get_user_context(
@@ -231,10 +258,16 @@ async def get_cache_stats(
     try:
         orchestrator = AIOrchestrator(db)
         cache_config = orchestrator.ai_registry.get_cache_config()
+        llm_cache_stats = {
+            "hits": orchestrator.llm_service.cache_hits,
+            "ttls": orchestrator.llm_service.cache_ttls,
+            "hit_threshold": orchestrator.llm_service.cache_hit_threshold
+        }
         return {
             "config": cache_config,
             "enabled": cache_config.get("enabled", False),
-            "ttl_settings": cache_config.get("ttl_per_intent", {})
+            "ttl_settings": cache_config.get("ttl_per_intent", {}),
+            "llm_cache_stats": llm_cache_stats
         }
     except Exception as e:
         logger.error(f"Error getting cache stats: {str(e)}")
@@ -333,3 +366,41 @@ async def process_knowledge_base(
         logger.error(f"Error starting knowledge base processing: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error processing knowledge base: {str(e)}")
+
+
+@router.post("/knowledge-base/upload", response_model=ProcessPDFResponse)
+async def upload_pdf_to_knowledge_base(
+    file: UploadFile = File(...),
+    domain: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a PDF file to the knowledge base."""
+    try:
+        # Create knowledge base directory if it doesn't exist
+        kb_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "ai_services", "rag", "knowledge_base"
+        )
+        os.makedirs(kb_dir, exist_ok=True)
+
+        # Save the uploaded file
+        file_path = os.path.join(kb_dir, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Process the PDF
+        from Backend.ai_services.rag.knowledge_processor import process_knowledge_base
+        result = await process_knowledge_base(kb_dir)
+
+        return ProcessPDFResponse(
+            status="success",
+            message=f"PDF processed successfully: {file.filename}",
+            processed_files=result.get("files", [])
+        )
+    except Exception as e:
+        logger.error(f"Error processing PDF: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing PDF: {str(e)}"
+        )

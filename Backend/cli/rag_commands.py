@@ -56,15 +56,19 @@ def query(domain, query):
     # Run query
     async def run_query():
         rag_service = RAGService()
-        results = await rag_service.query(query, domain=domain)
+        results = await rag_service.query_knowledge_base(
+            query=query,
+            context={"domain": domain},
+            filters={"domain": domain}
+        )
         return results
 
     results = asyncio.run(run_query())
 
     # Display results
     click.echo("\nResults:")
-    if results and 'text' in results:
-        click.echo(results['text'])
+    if results and 'answer' in results:
+        click.echo(results['answer'])
 
         if 'sources' in results and results['sources']:
             click.echo("\nSources:")

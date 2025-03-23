@@ -1,40 +1,94 @@
+from typing import Optional, List, Dict, Any, Union
 import redis.asyncio as redis
 from Backend.core.config import settings
 import logging
+import json
+from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
-# ✅ Initialize Redis Connection
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+# Create Redis connection pool
+redis_client = redis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True
+)
 
 
-async def get_cached_value(key: str):
-    """Retrieve a cached value from Redis."""
-    return await redis_client.get(key)
+async def get_cached_value(key: str) -> Optional[str]:
+    """Get a cached value by key."""
+    try:
+        logger.debug(f"Getting cached value for key: {key}")
+        value = await redis_client.get(key)
+        if value:
+            logger.debug("Cache hit")
+            return value
+        logger.debug("Cache miss")
+        return None
+    except Exception as e:
+        logger.error(f"Error getting cached value: {str(e)}", exc_info=True)
+        return None
 
 
-async def set_cached_value(key: str, value: str, ttl: int = 3600):
-    """Store a value in Redis with a time-to-live (TTL)."""
-    await redis_client.setex(key, ttl, value)
+async def set_cached_value(key: str, value: str, ttl: int = 3600) -> bool:
+    """Set a cached value with TTL."""
+    try:
+        logger.debug(f"Setting cache value for key: {key} with TTL: {ttl}")
+        await redis_client.set(key, value, ex=ttl)
+        logger.debug("Cache value set successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting cached value: {str(e)}", exc_info=True)
+        return False
 
 
-async def delete_cached_value(key: str):
-    """
-    Delete a cached value from Redis.
-    If the key contains a wildcard (*), it will delete all matching keys.
-    """
-    if '*' in key:
-        # Pattern deletion - scan and delete matching keys
-        cursor = 0
-        deleted_count = 0
-        while True:
-            cursor, keys = await redis_client.scan(cursor, match=key, count=100)
-            if keys:
-                deleted_count += await redis_client.delete(*keys)
-            if cursor == 0:
-                break
-        logger.debug(f"Deleted {deleted_count} keys matching pattern: {key}")
-        return deleted_count
-    else:
-        # Single key deletion
-        return await redis_client.delete(key)
+async def delete_cached_value(key: str) -> bool:
+    """Delete a cached value."""
+    try:
+        logger.debug(f"Deleting cached value for key: {key}")
+        result = await redis_client.delete(key)
+        if result:
+            logger.debug("Cache value deleted successfully")
+        else:
+            logger.debug("Key not found in cache")
+        return bool(result)
+    except Exception as e:
+        logger.error(f"Error deleting cached value: {str(e)}", exc_info=True)
+        return False
+
+
+async def get_keys_by_pattern(pattern: str) -> List[str]:
+    """Get all Redis keys matching a pattern."""
+    try:
+        logger.debug(f"Searching for keys matching pattern: {pattern}")
+        keys = []
+        async for key in redis_client.scan_iter(match=pattern):
+            keys.append(key)
+        logger.debug(f"Found {len(keys)} matching keys")
+        return keys
+    except Exception as e:
+        logger.error(f"Error getting keys by pattern: {str(e)}", exc_info=True)
+        return []
+
+
+async def get_cache_stats() -> Dict[str, Any]:
+    """Get Redis cache statistics."""
+    try:
+        logger.debug("Getting cache statistics")
+        info = await redis_client.info()
+        stats = {
+            "total_keys": await redis_client.dbsize(),
+            "used_memory": info.get("used_memory_human", "unknown"),
+            "connected_clients": info.get("connected_clients", 0),
+            "uptime_days": info.get("uptime_in_days", 0)
+        }
+        logger.debug(f"Cache stats retrieved: {stats}")
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {str(e)}", exc_info=True)
+        return {
+            "error": str(e),
+            "total_keys": 0,
+            "used_memory": "unknown",
+            "connected_clients": 0,
+            "uptime_days": 0
+        }
