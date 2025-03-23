@@ -1,20 +1,21 @@
-from typing import Dict, Any, Optional, List, Union, AsyncGenerator, cast
+from typing import Dict, Any, Optional, List, Union, AsyncGenerator, cast, AsyncIterator
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai._streaming import Stream
 from Backend.core.config import settings
-from Backend.utils.cache_utils import cache_response
 from Backend.utils.logging_utils import get_logger
-from Backend.data_layer.cache.ai_cache import cache_ai_result
 from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 import time
 import json
+import asyncio
+import hashlib
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LLMService:
@@ -24,7 +25,8 @@ class LLMService:
             db_session) if db_session else None
 
         # Use the GitHub token from environment variables
-        github_token = os.environ.get("GITHUB_TOKEN", settings.LLM_API_KEY)
+        self.github_token = os.environ.get(
+            "GITHUB_TOKEN", settings.LLM_API_KEY)
 
         # Force the correct base URL and model from settings
         self.base_url = "https://models.inference.ai.azure.com"
@@ -35,7 +37,7 @@ class LLMService:
 
         # Configure the OpenAI client with GitHub API settings
         self.client = OpenAI(
-            api_key=github_token,
+            api_key=self.github_token,
             base_url=self.base_url
         )
         self.model = self.model_name
@@ -43,19 +45,19 @@ class LLMService:
         self.max_history_length = 10
         self._current_model_id: Optional[int] = None
 
-    async def _get_or_create_model(self) -> Optional[int]:
-        """Get or create AI model record in database."""
+    def _get_or_create_model(self) -> int:
+        """Get or create model ID from database."""
         if not self.model_repository:
-            return None
+            return 1  # Default model ID if no database
 
         try:
-            model = await self.model_repository.get_model_by_name_version(
+            model = self.model_repository.get_model_by_name_version(
                 name=self.model_name,
                 version="1.0"
             )
 
             if not model:
-                model = await self.model_repository.create_model({
+                model = self.model_repository.create_model({
                     "name": self.model_name,
                     "version": "1.0",
                     "type": "text-generation",
@@ -69,10 +71,12 @@ class LLMService:
                     "temperature": settings.LLM_TEMPERATURE
                 })
 
-            return model.id
+            # Safely convert SQLAlchemy Column to int
+            model_id = getattr(model, 'id', None)
+            return int(str(model_id)) if model_id is not None else 1
         except Exception as e:
             logger.error(f"Error getting/creating AI model: {str(e)}")
-            return None
+            return 1
 
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
         """Update model usage statistics."""
@@ -93,103 +97,100 @@ class LLMService:
         model_parameters: Optional[Dict] = None,
         stream: bool = False
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
+        """Generate a response using the LLM."""
         try:
-            # Get or create model record
-            if not self._current_model_id:
-                self._current_model_id = await self._get_or_create_model()
-
+            logger.info("Starting LLM response generation")
             start_time = time.time()
-            success = True
 
-            logger.info(f"Generating response for prompt: {prompt[:50]}...")
+            # Prepare messages and parameters
+            logger.debug("Preparing messages and parameters")
             messages = self._prepare_messages(prompt, context)
-            logger.info(f"Prepared messages: {json.dumps(messages, indent=2)}")
             params = self._prepare_model_parameters(model_parameters)
-            logger.info(f"Model parameters: {json.dumps(params, indent=2)}")
-            cache_key = f"rag_prompt_result:{hash(prompt)}"
-            logger.info(f"Making request to LLM API with stream={stream}")
+            logger.debug(f"Using model parameters: {params}")
 
             if stream:
-                async def stream_generator() -> AsyncGenerator[str, None]:
-                    try:
-                        response: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-                            model=self.model,
-                            messages=messages,
-                            stream=True,
-                            **params
-                        )
+                logger.info("Using streaming mode for response")
+                return self._create_stream_generator(prompt, messages, params, start_time)
 
-                        full_text = []
-                        async for chunk in response:
-                            if chunk.choices and chunk.choices[0].delta.content:
-                                content = chunk.choices[0].delta.content
-                                full_text.append(content)
-                                yield content
+            # Make the API request
+            logger.debug("Making API request")
+            response = await self._make_request(
+                "chat/completions",
+                messages=messages,
+                **params
+            )
 
-                        # Cache the complete response
-                        complete_response = {
-                            "text": "".join(full_text),
-                            "usage": {
-                                "prompt_tokens": 0,
-                                "completion_tokens": 0,
-                                "total_tokens": 0
-                            }
-                        }
-                        await cache_ai_result(cache_key, {prompt: complete_response})
-                        await self.log_training_data(prompt, complete_response["text"])
+            # Process the response
+            if response and "choices" in response:
+                logger.debug("Processing successful response")
+                result = {
+                    "text": response["choices"][0]["message"]["content"],
+                    "model": response.get("model", "unknown"),
+                    "usage": response.get("usage", {}),
+                }
 
-                    except Exception as e:
-                        success = False
-                        logger.error(f"Error in stream generator: {str(e)}")
-                        yield f"Error: {str(e)}"
-                    finally:
-                        latency = time.time() - start_time
-                        await self._update_model_stats(latency, success)
+                # Update stats and log training data
+                latency = time.time() - start_time
+                logger.info(f"Response generated in {latency:.2f} seconds")
+                await self._update_model_stats(latency, True)
+                await self.log_training_data(prompt, result["text"])
 
-                return stream_generator()
+                return result
+            else:
+                logger.error("Invalid response format from LLM API")
+                return {"error": "Invalid response format", "text": ""}
 
-            # Non-streaming response
-            logger.info("Making non-streaming request to LLM API")
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}", exc_info=True)
+            if stream:
+                return self._create_error_generator(str(e))
+            return {"error": str(e), "text": ""}
+
+    async def _create_stream_generator(
+        self,
+        prompt: str,
+        messages: List[ChatCompletionMessageParam],
+        params: Dict[str, Any],
+        start_time: float
+    ) -> AsyncGenerator[str, None]:
+        """Create a streaming response generator."""
+        success = True
+        try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                stream=False,
+                stream=True,
                 **params
             )
-            logger.info(f"Raw LLM response: {response}")
 
-            if isinstance(response, ChatCompletion) and response.choices:
-                result = {
-                    "text": response.choices[0].message.content,
-                    "usage": {
-                        "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-                        "completion_tokens": response.usage.completion_tokens if response.usage else 0,
-                        "total_tokens": response.usage.total_tokens if response.usage else 0
-                    }
-                }
-                logger.info(f"Processed LLM response: {json.dumps(result, indent=2)}")
+            full_text = []
+            async for chunk in self._stream_chunks(response):
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_text.append(content)
+                    yield content
 
-                await cache_ai_result(cache_key, {prompt: result})
-                await self.log_training_data(prompt, result["text"])
-                self._update_conversation_history(prompt, result["text"])
-
-                latency = time.time() - start_time
-                await self._update_model_stats(latency, True)
-
-                return result
-
-            raise ValueError("Invalid response from LLM service")
+            # Cache the complete response
+            complete_text = "".join(full_text)
+            result = {"text": complete_text}
+            await self.log_training_data(prompt, complete_text)
 
         except Exception as e:
+            success = False
+            logger.error(f"Error in stream generator: {str(e)}")
+            yield f"Error: {str(e)}"
+        finally:
             latency = time.time() - start_time
-            await self._update_model_stats(latency, False)
+            await self._update_model_stats(latency, success)
 
-            logger.error(f"Error generating response: {str(e)}")
-            if stream:
-                async def error_generator() -> AsyncGenerator[str, None]:
-                    yield f"Error: {str(e)}"
-                return error_generator()
-            raise
+    async def _create_error_generator(self, error_message: str) -> AsyncGenerator[str, None]:
+        """Create an error response generator."""
+        yield f"Error: {error_message}"
+
+    async def _stream_chunks(self, response: Stream[ChatCompletionChunk]) -> AsyncGenerator[ChatCompletionChunk, None]:
+        """Convert OpenAI stream to async iterator."""
+        for chunk in response:
+            yield chunk
 
     async def log_training_data(self, prompt: str, response: str):
         with open("training_data.jsonl", "a") as f:
@@ -198,7 +199,23 @@ class LLMService:
     async def _make_request(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the LLM API."""
         try:
-            if endpoint == "model_info":
+            logger.debug(f"Making request to endpoint: {endpoint}")
+            if endpoint == "chat/completions":
+                logger.debug("Processing chat completion request")
+                response = await asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=self.model,
+                    messages=kwargs.get("messages", []),
+                    **{k: v for k, v in kwargs.items() if k != "messages"}
+                )
+                logger.debug("Chat completion response received")
+                return {
+                    "choices": [{"message": {"content": choice.message.content}} for choice in response.choices],
+                    "model": response.model,
+                    "usage": dict(response.usage) if response.usage else {}
+                }
+            elif endpoint == "model_info":
+                logger.debug("Processing model info request")
                 return {
                     "model": self.model,
                     "capabilities": {
@@ -217,7 +234,7 @@ class LLMService:
                 }
             raise ValueError(f"Unknown endpoint: {endpoint}")
         except Exception as e:
-            logger.error(f"API request failed: {str(e)}")
+            logger.error(f"API request failed: {str(e)}", exc_info=True)
             raise
 
     def _prepare_messages(
@@ -225,22 +242,37 @@ class LLMService:
         prompt: str,
         context: Optional[Dict] = None
     ) -> List[ChatCompletionMessageParam]:
+        logger.debug("Preparing messages for LLM")
         messages: List[ChatCompletionMessageParam] = []
 
         if context and context.get("system_message"):
+            logger.debug("Adding system message from context")
             messages.append({
                 "role": "system",
                 "content": context["system_message"]
             })
         else:
-            # Add empty system message as in the GitHub example
+            logger.debug("Adding default empty system message")
             messages.append({
                 "role": "system",
                 "content": ""
             })
 
-        messages.extend(self.conversation_history[-self.max_history_length:])
-        messages.append({"role": "user", "content": prompt})
+        # Get conversation history if available
+        if context and context.get("conversation_history"):
+            logger.debug("Adding conversation history")
+            history = context["conversation_history"]
+            if isinstance(history, list):
+                messages.extend(history[-self.max_history_length:])
+                logger.debug(
+                    f"Added {len(history[-self.max_history_length:])} history messages")
+
+        # Add current prompt
+        logger.debug("Adding current prompt")
+        messages.append({
+            "role": "user",
+            "content": prompt
+        })
         return messages
 
     def _prepare_model_parameters(self, parameters: Optional[Dict] = None) -> Dict[str, Any]:
@@ -271,12 +303,19 @@ class LLMService:
 
     async def enhance_task_description(self, task: Dict) -> Dict:
         """Enhance task description using LLM."""
-        prompt = f"Enhance this task description:\nTitle: {task.get('title')}\nDescription: {task.get('description')}"
-        response = await self.generate_response(prompt)
+        response = await self.generate_response(
+            prompt=f"Enhance this task description:\nTitle: {task.get('title')}\nDescription: {task.get('description')}"
+        )
+        if isinstance(response, dict):
+            return {
+                "enhanced_description": response.get("text", ""),
+                "suggestions": [],
+                "keywords": []
+            }
         return {
-            "enhanced_description": response.get("text"),
-            "suggestions": response.get("suggestions", []),
-            "keywords": response.get("keywords", [])
+            "enhanced_description": "",
+            "suggestions": [],
+            "keywords": []
         }
 
     async def analyze_workflow(
@@ -285,15 +324,20 @@ class LLMService:
         historical_data: List[Dict]
     ) -> Dict:
         """Analyze workflow efficiency using LLM."""
-        prompt = f"Analyze workflow efficiency for workflow {workflow_id} with historical data"
         response = await self.generate_response(
-            prompt=prompt,
+            prompt=f"Analyze workflow efficiency for workflow {workflow_id} with historical data",
             context={"historical_data": historical_data}
         )
+        if isinstance(response, dict):
+            return {
+                "efficiency_score": 0.0,
+                "bottlenecks": [],
+                "recommendations": []
+            }
         return {
-            "efficiency_score": float(response.get("efficiency_score", 0.0)),
-            "bottlenecks": response.get("bottlenecks", []),
-            "recommendations": response.get("recommendations", [])
+            "efficiency_score": 0.0,
+            "bottlenecks": [],
+            "recommendations": []
         }
 
     async def summarize_meeting(
@@ -303,18 +347,23 @@ class LLMService:
         duration: int
     ) -> Dict:
         """Generate meeting summary using LLM."""
-        prompt = f"Summarize meeting transcript with {len(participants)} participants, duration: {duration} minutes"
         response = await self.generate_response(
-            prompt=prompt,
+            prompt=f"Summarize meeting transcript with {len(participants)} participants, duration: {duration} minutes",
             context={
                 "transcript": transcript,
                 "participants": participants
             }
         )
+        if isinstance(response, dict):
+            return {
+                "summary": response.get("text", ""),
+                "action_items": [],
+                "key_points": []
+            }
         return {
-            "summary": response.get("summary"),
-            "action_items": response.get("action_items", []),
-            "key_points": response.get("key_points", [])
+            "summary": "",
+            "action_items": [],
+            "key_points": []
         }
 
     async def close(self):
