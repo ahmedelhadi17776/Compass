@@ -1,8 +1,10 @@
 import os
 import logging
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
+import PyPDF2
+from concurrent.futures import ThreadPoolExecutor
 
 from Backend.ai_services.rag.rag_service import RAGService
 
@@ -14,10 +16,76 @@ class KnowledgeProcessor:
 
     def __init__(self, rag_service: Optional[RAGService] = None):
         self.rag_service = rag_service or RAGService()
+        self.max_workers = 4
+        self.chunk_size = 5  # Number of pages to process in one batch
+        self.thread_pool = ThreadPoolExecutor(max_workers=self.max_workers)
+
+    async def _process_pdf_batch(
+        self,
+        file_path: Path,
+        start_page: int,
+        end_page: int,
+        metadata: Dict[str, Any]
+    ) -> Tuple[bool, List[str]]:
+        """Process a batch of PDF pages."""
+        try:
+            with open(file_path, 'rb') as pdf_file:
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                content = []
+                processed_pages = []
+
+                # Process pages in the batch
+                for page_num in range(start_page, min(end_page, len(pdf_reader.pages))):
+                    page = pdf_reader.pages[page_num]
+                    page_text = page.extract_text()
+
+                    # Create page-specific metadata
+                    page_metadata = metadata.copy()
+                    page_metadata.update({
+                        "page_number": page_num + 1,
+                        "total_pages": len(pdf_reader.pages),
+                        "source_file": file_path.name,
+                        "content_type": "pdf_page",
+                        "batch_processed": True
+                    })
+
+                    # Add to content list
+                    content.append(page_text)
+                    processed_pages.append(page_num + 1)
+
+                    # Add to knowledge base in smaller chunks
+                    if len(content) >= 5:  # Process in chunks of 5 pages
+                        success = await self.rag_service.add_to_knowledge_base(
+                            content=content,
+                            metadata=[page_metadata for _ in content],
+                            normalize=True
+                        )
+                        if not success:
+                            logger.error(
+                                f"Failed to process pages {processed_pages}")
+                            return False, processed_pages
+                        content = []
+
+                # Process any remaining pages
+                if content:
+                    success = await self.rag_service.add_to_knowledge_base(
+                        content=content,
+                        metadata=[page_metadata for _ in content],
+                        normalize=True
+                    )
+                    if not success:
+                        logger.error(
+                            f"Failed to process remaining pages {processed_pages}")
+                        return False, processed_pages
+
+                return True, processed_pages
+        except Exception as e:
+            logger.error(f"Error processing PDF batch: {str(e)}")
+            return False, []
 
     async def process_knowledge_directory(self, directory_path: str) -> Dict[str, Any]:
         """
-        Process all PDF files in the knowledge base directory
+        Process all PDF files in the knowledge base directory with batch processing
 
         Args:
             directory_path: Path to the knowledge base directory
@@ -28,7 +96,8 @@ class KnowledgeProcessor:
         results = {
             "processed": 0,
             "failed": 0,
-            "files": []
+            "files": [],
+            "batches_processed": 0
         }
 
         try:
@@ -56,7 +125,7 @@ class KnowledgeProcessor:
                 else:
                     domain = "default"
 
-                # Create metadata
+                # Create base metadata
                 metadata = {
                     "domain": domain,
                     "filename": file_path.name,
@@ -65,27 +134,46 @@ class KnowledgeProcessor:
                     "content_type": "pdf"
                 }
 
-                # Process the PDF
-                success = await self.rag_service.add_pdf_to_knowledge_base(
-                    pdf_path=str(file_path),
-                    metadata=metadata
-                )
+                # Get total pages
+                with open(file_path, 'rb') as pdf_file:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file)
+                    total_pages = len(pdf_reader.pages)
+
+                # Process in batches
+                batch_results = []
+                for start_page in range(0, total_pages, self.chunk_size):
+                    end_page = min(start_page + self.chunk_size, total_pages)
+                    success, processed_pages = await self._process_pdf_batch(
+                        file_path=file_path,
+                        start_page=start_page,
+                        end_page=end_page,
+                        metadata=metadata
+                    )
+                    batch_results.append({
+                        "start_page": start_page + 1,
+                        "end_page": end_page,
+                        "success": success,
+                        "processed_pages": processed_pages
+                    })
+                    results["batches_processed"] += 1
 
                 # Update results
                 file_result = {
                     "filename": file_path.name,
                     "domain": domain,
-                    "success": success
+                    "total_pages": total_pages,
+                    "batch_results": batch_results,
+                    "success": all(b["success"] for b in batch_results)
                 }
 
                 results["files"].append(file_result)
-                if success:
+                if file_result["success"]:
                     results["processed"] += 1
                 else:
                     results["failed"] += 1
 
             logger.info(
-                f"Knowledge base processing complete: {results['processed']} processed, {results['failed']} failed")
+                f"Knowledge base processing complete: {results['processed']} processed, {results['failed']} failed, {results['batches_processed']} batches")
             return results
 
         except Exception as e:

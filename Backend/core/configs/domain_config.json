@@ -5,12 +5,46 @@
         "enable_rag": true,
         "rag_settings": {
             "limit": 10,
-            "context_window": 1500,
+            "context_window": 2000,
             "intent_rag_usage": {
                 "retrieve": true,
                 "analyze": true,
-                "summarize": false,
+                "summarize": true,
                 "plan": true
+            },
+            "filters": {
+                "content_type": [
+                    "pdf_page",
+                    "text"
+                ],
+                "domain": [
+                    "tasks",
+                    "default"
+                ],
+                "source_file": [
+                    "user_guide.pdf",
+                    "task_guide.pdf",
+                    "index.pdf"
+                ]
+            },
+            "similarity_threshold": 0.65,
+            "include_metadata": true,
+            "query_enhancement": {
+                "how_to": [
+                    "create task guide",
+                    "task management instructions",
+                    "task workflow steps"
+                ],
+                "examples": [
+                    "task examples",
+                    "sample tasks",
+                    "task templates"
+                ],
+                "reference": [
+                    "task features",
+                    "task properties",
+                    "task management concepts"
+                ]
             }
         },
         "prompt_templates": {
@@ -54,13 +88,47 @@
         "handler": "TodoHandler",
         "enable_rag": true,
         "rag_settings": {
-            "limit": 5,
-            "context_window": 1200,
+            "limit": 10,
+            "context_window": 2000,
             "intent_rag_usage": {
                 "retrieve": true,
-                "analyze": false,
+                "analyze": true,
                 "summarize": true,
                 "plan": true
+            },
+            "filters": {
+                "content_type": [
+                    "pdf_page",
+                    "text"
+                ],
+                "domain": [
+                    "todos",
+                    "default"
+                ],
+                "source_file": [
+                    "user_guide.pdf",
+                    "todo_guide.pdf",
+                    "index.pdf"
+                ]
+            },
+            "similarity_threshold": 0.65,
+            "include_metadata": true,
+            "query_enhancement": {
+                "how_to": [
+                    "create todo guide",
+                    "todo management instructions",
+                    "todo workflow steps"
+                ],
+                "examples": [
+                    "todo examples",
+                    "sample todos",
+                    "todo templates"
+                ],
+                "reference": [
+                    "todo features",
+                    "todo properties",
+                    "todo management concepts"
+                ]
             }
         },
         "prompt_templates": {
@@ -86,13 +154,47 @@
         "handler": "HabitHandler",
         "enable_rag": true,
         "rag_settings": {
-            "limit": 5,
-            "context_window": 1500,
+            "limit": 10,
+            "context_window": 2000,
             "intent_rag_usage": {
                 "retrieve": true,
                 "analyze": true,
                 "summarize": true,
                 "plan": true
+            },
+            "filters": {
+                "content_type": [
+                    "pdf_page",
+                    "text"
+                ],
+                "domain": [
+                    "habits",
+                    "default"
+                ],
+                "source_file": [
+                    "user_guide.pdf",
+                    "habits_guide.pdf",
+                    "index.pdf"
+                ]
+            },
+            "similarity_threshold": 0.65,
+            "include_metadata": true,
+            "query_enhancement": {
+                "how_to": [
+                    "create habit guide",
+                    "habit tracking instructions",
+                    "habit workflow steps"
+                ],
+                "examples": [
+                    "habit examples",
+                    "sample habits",
+                    "habit templates"
+                ],
+                "reference": [
+                    "habit features",
+                    "habit properties",
+                    "habit tracking concepts"
+                ]
             }
         },
         "prompt_templates": {
@@ -135,13 +237,50 @@
         "handler": null,
         "enable_rag": true,
         "rag_settings": {
-            "limit": 8,
-            "context_window": 2048,
+            "limit": 12,
+            "context_window": 3000,
             "intent_rag_usage": {
                 "retrieve": true,
                 "analyze": true,
                 "summarize": true,
                 "plan": true
+            },
+            "filters": {
+                "content_type": [
+                    "pdf_page",
+                    "text"
+                ],
+                "domain": [
+                    "default",
+                    "tasks",
+                    "todos",
+                    "habits"
+                ],
+                "source_file": [
+                    "user_guide.pdf",
+                    "ai_guide.pdf",
+                    "index.pdf"
+                ]
+            },
+            "similarity_threshold": 0.5,
+            "include_metadata": true,
+            "query_enhancement": {
+                "how_to": [
+                    "step by step guide",
+                    "instructions",
+                    "tutorial",
+                    "how to guide"
+                ],
+                "examples": [
+                    "example usage",
+                    "sample code",
+                    "demonstration"
+                ],
+                "reference": [
+                    "definition",
+                    "explanation",
+                    "detailed description"
+                ]
             }
         },
         "prompt_templates": {

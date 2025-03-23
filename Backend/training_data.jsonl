@@ -2324,7 +2324,7 @@ Today's plan will focus on prioritizing pending tasks that are due soon, with at
    - **Due**: March 18, 2025, 8:10 PM  
    - **Priority**: Medium  
    - **Timeframe**: 1 hour  
-   - **Action**: Schedule this visit after the library, ensuring it’s completed before the evening.  
+   - **Action**: Schedule this visit after the library, ensuring itï¿½s completed before the evening.  
 
 ---
 
@@ -4974,7 +4974,7 @@ To efficiently plan a visit to the library to pick books on computer science.
 **Estimated Time:** 15-30 minutes  
 
 1. **Review and Organize Books:**
-   - Go through the books you’ve picked to ensure they meet your research needs.
+   - Go through the books youï¿½ve picked to ensure they meet your research needs.
    - Take notes on key concepts or chapters you want to focus on.
 
 2. **Set Up a Reading Schedule:**
@@ -6605,7 +6605,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to see you here. Are you interested in learning more about libraries, or perhaps looking for book recommendations or activities to do while visiting a library? Let me know how I can help!"}
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to see you here. Are you interested in learning more about libraries, or perhaps looking for book recommendations or activities to do while visiting a library? Let me know how I can help!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -6659,7 +6659,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to see you here. Are you interested in learning more about libraries, perhaps their resources, or maybe tips on how to make the most of your visit? Let me know what you're curious about!"}
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to see you here. Are you interested in learning more about libraries, perhaps their resources, or maybe tips on how to make the most of your visit? Let me know what you're curious about!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -6717,7 +6717,7 @@ Instructions:
 
 Regarding your question about library due dates, typically, the due date for library items can vary based on the library's policies, the type of item borrowed, and your account status. I recommend checking your library's website or contacting them directly for specific due dates. 
 
-If you’re looking for tips on managing library loans or recommendations for books, feel free to ask!"}
+If youï¿½re looking for tips on managing library loans or recommendations for books, feel free to ask!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -7304,7 +7304,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It's great to see you here. Are you interested in visiting the library for a specific purpose, like finding books, studying, or attending events? I’d love to help you with that! If you have any specific questions about libraries or their resources, feel free to ask."}
+- If information is not available, suggest related topics", "completion": "Hello! It's great to see you here. Are you interested in visiting the library for a specific purpose, like finding books, studying, or attending events? Iï¿½d love to help you with that! If you have any specific questions about libraries or their resources, feel free to ask."}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -7769,7 +7769,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hi there! It's great to see you! How can I assist you today? Are there any specific topics or interests you’d like to explore?"}
+- If information is not available, suggest related topics", "completion": "Hi there! It's great to see you! How can I assist you today? Are there any specific topics or interests youï¿½d like to explore?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -8423,7 +8423,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to see you here. Could you tell me a bit more about what you’re looking for? Are you thinking about travel destinations, activities, or something else? I’d love to help you find the perfect place!"}
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to see you here. Could you tell me a bit more about what youï¿½re looking for? Are you thinking about travel destinations, activities, or something else? Iï¿½d love to help you find the perfect place!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -8542,7 +8542,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to connect with you. While I don’t have specific information about task number 2, I’d be happy to help you with anything else you’re curious about. Are you working on a project or looking for resources on a particular topic? Let me know how I can assist you!"}
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to connect with you. While I donï¿½t have specific information about task number 2, Iï¿½d be happy to help you with anything else youï¿½re curious about. Are you working on a project or looking for resources on a particular topic? Let me know how I can assist you!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -8596,7 +8596,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to see you here. What are your interests today? Are you looking for book recommendations, some fun facts, or maybe something else? Let me know how I can assist you!"}
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to see you here. What are your interests today? Are you looking for book recommendations, some fun facts, or maybe something else? Let me know how I can assist you!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -8957,7 +8957,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "It looks like I don't have any specific data to reference for your question about "the title of number 2." However, if you can provide a bit more context—like what list or category you're referring to—I’d be happy to help you find the information you need! Alternatively, if you're interested in a particular topic or type of title, let me know, and I can suggest something related!"}
+- If information is not available, suggest related topics", "completion": "It looks like I don't have any specific data to reference for your question about "the title of number 2." However, if you can provide a bit more contextï¿½like what list or category you're referring toï¿½Iï¿½d be happy to help you find the information you need! Alternatively, if you're interested in a particular topic or type of title, let me know, and I can suggest something related!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9086,7 +9086,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "It seems I don't have any specific data available at the moment, so I'm unable to provide the title of number 2. However, if you let me know what context you're referring to—like a list, a book, or a movie—I can help you with related topics or suggestions! What are you interested in?"}
+- If information is not available, suggest related topics", "completion": "It seems I don't have any specific data available at the moment, so I'm unable to provide the title of number 2. However, if you let me know what context you're referring toï¿½like a list, a book, or a movieï¿½I can help you with related topics or suggestions! What are you interested in?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9270,7 +9270,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to see you here. How can I assist you today? If you're looking for tasks, it seems there are no current tasks available. Would you like help with something else, like organizing your schedule or finding ways to manage your tasks effectively?"}
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to see you here. How can I assist you today? If you're looking for tasks, it seems there are no current tasks available. Would you like help with something else, like organizing your schedule or finding ways to manage your tasks effectively?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9389,7 +9389,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It’s great to see you here. How can I assist you today? If you're looking for recommendations or have any questions, feel free to ask!
+- If information is not available, suggest related topics", "completion": "Hello! Itï¿½s great to see you here. How can I assist you today? If you're looking for recommendations or have any questions, feel free to ask!
 
 Regarding your query about "the title of number 2," it seems I don't have specific data available to provide an answer. If you're referring to a particular list or context, could you share a bit more? I'd be happy to help with related topics or information!"}
 {"prompt": "
@@ -9512,7 +9512,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "It looks like I don't have any specific data available to answer your question about "the title of 2." However, if you provide a bit more context or clarify what you're referring to, I’d be happy to help! Are you looking for a title related to a book, movie, or something else? Let me know!"}
+- If information is not available, suggest related topics", "completion": "It looks like I don't have any specific data available to answer your question about "the title of 2." However, if you provide a bit more context or clarify what you're referring to, Iï¿½d be happy to help! Are you looking for a title related to a book, movie, or something else? Let me know!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9635,7 +9635,7 @@ Instructions:
 - Be conversational but informative
 - If information is not available, suggest related topics", "completion": "Hello! It's great to see you here. How can I assist you today? 
 
-Regarding your question about "the title of 2," it seems like I don't have specific data to provide an answer. However, if you could give me a bit more context—like if you're referring to a book, movie, or something else—I’d be happy to help you find the information or suggest related topics!"}
+Regarding your question about "the title of 2," it seems like I don't have specific data to provide an answer. However, if you could give me a bit more contextï¿½like if you're referring to a book, movie, or something elseï¿½Iï¿½d be happy to help you find the information or suggest related topics!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9758,7 +9758,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "It looks like I don’t have any specific information available regarding "the title of 2." However, I’d be happy to help you with related topics! Are you referring to a book, a movie, or something else? Let me know, and I can provide some recommendations or information on that topic!"}
+- If information is not available, suggest related topics", "completion": "It looks like I donï¿½t have any specific information available regarding "the title of 2." However, Iï¿½d be happy to help you with related topics! Are you referring to a book, a movie, or something else? Let me know, and I can provide some recommendations or information on that topic!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9879,7 +9879,7 @@ Instructions:
 - Be conversational but informative
 - If information is not available, suggest related topics", "completion": "Hello! It's great to see you here. What interests you today? If you're looking for information or recommendations, feel free to ask! 
 
-Regarding your query about "the title of the first one," it seems I don't have specific data available to answer that. If you could provide a bit more context—like the subject or category you're referring to—I’d be happy to help with related topics or suggestions!"}
+Regarding your query about "the title of the first one," it seems I don't have specific data available to answer that. If you could provide a bit more contextï¿½like the subject or category you're referring toï¿½Iï¿½d be happy to help with related topics or suggestions!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -9998,7 +9998,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "It seems I don't have specific data available to answer your question about the title of the first one. However, if you provide a bit more context—like what you're referring to (a book, movie, task, etc.)—I’d be happy to help you find the information or suggest related topics! What interests you?"}
+- If information is not available, suggest related topics", "completion": "It seems I don't have specific data available to answer your question about the title of the first one. However, if you provide a bit more contextï¿½like what you're referring to (a book, movie, task, etc.)ï¿½Iï¿½d be happy to help you find the information or suggest related topics! What interests you?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -10117,7 +10117,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hello! It's great to see you here. Could you share a bit more about what you're interested in? If you're looking for a specific "first one," it would help to know what category or subject you're referring to—like the first movie, book, invention, or something else entirely. Let me know, and I'll do my best to assist you!"}
+- If information is not available, suggest related topics", "completion": "Hello! It's great to see you here. Could you share a bit more about what you're interested in? If you're looking for a specific "first one," it would help to know what category or subject you're referring toï¿½like the first movie, book, invention, or something else entirely. Let me know, and I'll do my best to assist you!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -10249,7 +10249,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you have—what's on your mind today?"}
+- If information is not available, suggest related topics", "completion": "The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you haveï¿½what's on your mind today?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -10305,7 +10305,7 @@ Assistant: Here are your current tasks:
 
 Please let me know if you need more details or assistance with these tasks!
 User: what is the name of the first one
-Assistant: The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you have—what's on your mind today?
+Assistant: The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you haveï¿½what's on your mind today?
 User Query: "what is the name of the second one"
 
 Available Data:
@@ -10318,7 +10318,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curious—what are some topics or hobbies you enjoy discussing?"}
+- If information is not available, suggest related topics", "completion": "The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curiousï¿½what are some topics or hobbies you enjoy discussing?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -10369,9 +10369,9 @@ Assistant: Here are your current tasks:
 
 Please let me know if you need more details or assistance with these tasks!
 User: what is the name of the first one
-Assistant: The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you have—what's on your mind today?
+Assistant: The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you haveï¿½what's on your mind today?
 User: what is the name of the second one
-Assistant: The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curious—what are some topics or hobbies you enjoy discussing?
+Assistant: The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curiousï¿½what are some topics or hobbies you enjoy discussing?
 User Query: "show my todos"
 
 Available Todos:
@@ -10475,9 +10475,9 @@ If you need more details about any specific todo, just let me know!"}
 {"prompt": "You are a knowledgeable assistant helping users find information and get recommendations.
 
 Previous Conversation:
-Assistant: The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you have—what's on your mind today?
+Assistant: The name of the first task is **test2**. If you have any specific questions about it or need help with anything else, feel free to ask! Also, I'm here to chat about any interests you haveï¿½what's on your mind today?
 User: what is the name of the second one
-Assistant: The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curious—what are some topics or hobbies you enjoy discussing?
+Assistant: The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curiousï¿½what are some topics or hobbies you enjoy discussing?
 User: show my todos
 Assistant: Here are your current todos:
 
@@ -10515,7 +10515,7 @@ Instructions:
 
 - **Go to the library** (pending) - due: 2025-03-18, priority: medium
 
-If you need any more details about this task or if there's something specific you'd like to discuss about visiting the library—like book recommendations or study tips—just let me know! What kind of books or activities do you enjoy there?"}
+If you need any more details about this task or if there's something specific you'd like to discuss about visiting the libraryï¿½like book recommendations or study tipsï¿½just let me know! What kind of books or activities do you enjoy there?"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -10562,7 +10562,7 @@ If you need any more details about this task or if there's something specific yo
 {"prompt": "You are a knowledgeable assistant helping users find information and get recommendations.
 
 Previous Conversation:
-Assistant: The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curious—what are some topics or hobbies you enjoy discussing?
+Assistant: The name of the second task is **string**. If you have any specific questions about it or if there's anything else you need help with, just let me know! Also, I'm curiousï¿½what are some topics or hobbies you enjoy discussing?
 User: show my todos
 Assistant: Here are your current todos:
 
@@ -10589,7 +10589,7 @@ Assistant: It looks like the todo related to the library is:
 
 - **Go to the library** (pending) - due: 2025-03-18, priority: medium
 
-If you need any more details about this task or if there's something specific you'd like to discuss about visiting the library—like book recommendations or study tips—just let me know! What kind of books or activities do you enjoy there?
+If you need any more details about this task or if there's something specific you'd like to discuss about visiting the libraryï¿½like book recommendations or study tipsï¿½just let me know! What kind of books or activities do you enjoy there?
 User Query: "what books do i get from there i have a data structure and algorithms exam"
 
 Available Data:
@@ -11145,7 +11145,7 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hi there! It’s great to see you here. What kind of daily habits are you interested in? Are you looking for suggestions on habits related to productivity, health, or something else? Let me know how I can help!"}
+- If information is not available, suggest related topics", "completion": "Hi there! Itï¿½s great to see you here. What kind of daily habits are you interested in? Are you looking for suggestions on habits related to productivity, health, or something else? Let me know how I can help!"}
 {"prompt": "
         You are an AI assistant responsible for understanding and acting on user requests.
         Based on the following information, identify the user's intent and target data:
@@ -11552,7 +11552,7 @@ To create a new task effectively, following a structured approach.
 
 ### Step 7: Review and Adjust
 
-**Action:** After completing the task, review what worked and what didn’t.
+**Action:** After completing the task, review what worked and what didnï¿½t.
 - **Timeframe:** 15 minutes
 - **Details:** Reflect on the task execution and identify areas for improvement for future tasks.
 
@@ -11702,7 +11702,7 @@ To create a new task effectively, following a structured approach.
 
 ### Step 7: Review and Adjust
 
-**Action:** After completing the task, review what worked and what didn’t.
+**Action:** After completing the task, review what worked and what didnï¿½t.
 - **Timeframe:** 15 minutes
 - **Details:** Reflect on the task execution and identify areas for improvement for future tasks.
 
@@ -12665,4 +12665,4 @@ Instructions:
 - For questions: Provide clear, informative answers
 - If using RAG data, incorporate it naturally into your response
 - Be conversational but informative
-- If information is not available, suggest related topics", "completion": "Hi there! It’s great to see you. What’s on your mind today? Are there any particular interests or topics you’d like to explore?"}
+- If information is not available, suggest related topics", "completion": "Hi there! Itï¿½s great to see you. Whatï¿½s on your mind today? Are there any particular interests or topics youï¿½d like to explore?"}

@@ -1,12 +1,12 @@
-from typing import Dict, List, Optional, Union, Any, cast, AsyncGenerator
+from typing import Dict, List, Optional, Union, Any, cast, AsyncGenerator, Sequence, TypedDict, Literal
 import chromadb
 from chromadb.config import Settings
+from chromadb.types import Where
 from Backend.core.config import settings
 from Backend.utils.logging_utils import get_logger
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.ai_services.embedding.embedding_service import EmbeddingService
 from Backend.ai_services.base.ai_service_base import AIServiceBase
-from Backend.data_layer.cache.ai_cache import cache_ai_result, get_cached_ai_result, invalidate_rag_cache
 from Backend.data_layer.vector_db.chroma_client import ChromaClient
 from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
 from Backend.orchestration.ai_registry import ai_registry
@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+from numpy.typing import NDArray
 from functools import lru_cache
 import time
 import hashlib
@@ -22,6 +23,19 @@ import os
 import PyPDF2
 
 logger = get_logger(__name__)
+
+
+class MetadataDict(TypedDict, total=False):
+    source_file: str
+    page_number: int
+    domain: str
+    content_type: str
+
+
+class WhereFilter(TypedDict):
+    operator: Literal["$in", "$eq"]
+    key: str
+    value: Union[List[str], str]
 
 
 class RAGService(AIServiceBase):
@@ -38,34 +52,225 @@ class RAGService(AIServiceBase):
         self.llm_service = LLMService(db_session)
         self.embedding_service = EmbeddingService(db_session=db_session)
         self.thread_pool = ThreadPoolExecutor(max_workers=4)
-        self._cache = {}
 
-    @lru_cache(maxsize=1000)
-    def _generate_cache_key(self, query: str, context_str: str, filters_str: Optional[str] = None) -> str:
-        """Generates a cache key based on the query and context with LRU caching."""
-        cache_input = json.dumps(
-            {"query": query, "context": context_str, "filters": filters_str},
-            sort_keys=True
-        )
-        return f"rag_query:{hashlib.sha256(cache_input.encode()).hexdigest()}"
+    async def query_knowledge_base(
+        self,
+        query: str,
+        context: Dict[str, Any] = {},
+        intent: Optional[str] = None,
+        user_id: int = 1,
+        limit: int = 8,
+        context_window: int = 1000,
+        normalize: bool = True,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Optimized knowledge base query with parallel processing."""
+        start_time = time.time()
+        success = True
+        try:
+            if not self._current_model_id:
+                self._current_model_id = await self._get_or_create_model()
 
-    def _get_cache_key(self, query: str, context: Dict[str, Any], filters: Optional[Dict[str, Any]] = None) -> str:
-        """Helper method to convert dictionaries to strings and generate cache key."""
-        def make_json_serializable(obj):
-            if isinstance(obj, dict):
-                return {str(k): make_json_serializable(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [make_json_serializable(item) for item in obj]
-            elif isinstance(obj, (int, float, str, bool, type(None))):
-                return obj
-            else:
-                return str(obj)
+            # Step 2: Collection check
+            if not self.collection:
+                logger.error("ChromaDB collection not initialized")
+                return self._error_response("Knowledge base not initialized")
 
-        context_str = json.dumps(
-            make_json_serializable(context), sort_keys=True)
-        filters_str = json.dumps(make_json_serializable(
-            filters), sort_keys=True) if filters is not None else None
-        return self._generate_cache_key(query, context_str, filters_str)
+            # Enhance query with context and intent
+            enhanced_query = self._enhance_query(query, context, intent)
+
+            # Get domain-specific filters
+            domain = context.get("domain", "default")
+            domain_config = ai_registry.get_domain_config(domain)
+            rag_settings = domain_config.get("rag_settings", {})
+
+            # Format ChromaDB filters properly
+            filter_conditions: List[Dict[str, Dict[str, Any]]] = []
+            if rag_settings.get("filters"):
+                for key, values in rag_settings["filters"].items():
+                    if values:
+                        filter_conditions.append({
+                            key: {"$in": values}
+                        })
+
+            # Add any additional filters
+            if filters:
+                for key, value in filters.items():
+                    if isinstance(value, list):
+                        filter_conditions.append({
+                            key: {"$in": value}
+                        })
+                    else:
+                        filter_conditions.append({
+                            key: {"$eq": value}
+                        })
+
+            # Create the final where clause
+            chroma_filters: Optional[Where] = {
+                "$and": filter_conditions} if filter_conditions else None
+
+            # Step 3: Generate embedding asynchronously
+            try:
+                query_embedding = await self.embedding_service.get_embedding(enhanced_query, normalize=normalize)
+            except Exception as e:
+                success = False
+                logger.error(f"Error generating embedding: {str(e)}")
+                return self._error_response(f"Error generating embedding: {str(e)}")
+
+            # Perform semantic search with enhanced parameters
+            try:
+                results = await asyncio.get_event_loop().run_in_executor(
+                    self.thread_pool,
+                    lambda: self.collection.query(
+                        query_embeddings=[query_embedding],
+                        n_results=rag_settings.get("limit", limit),
+                        where=chroma_filters,
+                        include=["documents", "metadatas", "distances"]
+                    ) if self.collection else None
+                )
+
+                if not results or not isinstance(results, dict) or "documents" not in results:
+                    success = False
+                    return self._error_response("No results found")
+
+                # Safely access results with proper type checking
+                documents = results.get("documents", [[]])[
+                    0] if results.get("documents") else []
+                sources = results.get("metadatas", [[]])[
+                    0] if results.get("metadatas") else []
+                distances = results.get("distances", [[]])[
+                    0] if results.get("distances") else []
+
+                # Cast to proper types
+                documents = cast(List[str], documents)
+                sources = cast(List[MetadataDict], sources)
+                distances = cast(List[float], distances)
+
+                # Process and filter results
+                filtered_results = self._filter_relevant_results(
+                    documents, sources, distances,
+                    rag_settings.get("similarity_threshold", 0.6)
+                )
+
+                # Process context with enhanced window
+                context_window = rag_settings.get(
+                    "context_window", context_window)
+                context_parts = []
+                total_length = 0
+
+                for doc, source in filtered_results:
+                    if total_length + len(doc) <= context_window:
+                        context_parts.append({
+                            "content": doc,
+                            "metadata": source
+                        })
+                        total_length += len(doc)
+                    else:
+                        break
+
+                # Generate AI response with enhanced context
+                response = await self.llm_service.generate_response(
+                    prompt=self._build_prompt(query, context_parts, context),
+                    context={"sources": sources}
+                )
+
+                result = await self._process_llm_response(response, sources, query_embedding)
+
+                # Add metadata about the knowledge source
+                result["knowledge_source"] = [
+                    {
+                        "file": source.get("source_file", "unknown"),
+                        "page": source.get("page_number", 0),
+                        "domain": source.get("domain", "unknown")
+                    } for source in sources[:3]  # Include top 3 sources
+                ]
+
+                latency = time.time() - start_time
+                await self._update_model_stats(latency, success)
+
+                return result
+
+            except Exception as e:
+                success = False
+                logger.error(f"Error in search process: {str(e)}")
+                return self._error_response(str(e))
+
+        except Exception as e:
+            success = False
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
+            logger.error(f"RAG query error: {str(e)}")
+            return self._error_response(str(e))
+
+    def _enhance_query(self, query: str, context: Dict[str, Any], intent: Optional[str]) -> str:
+        """Enhance the query with context and intent information."""
+        enhanced_parts = [query.lower()]
+
+        # Get domain config for query enhancement
+        domain = context.get("domain", "default")
+        domain_config = ai_registry.get_domain_config(domain)
+        rag_settings = domain_config.get("rag_settings", {})
+        query_enhancement = rag_settings.get("query_enhancement", {})
+
+        # Add intent-specific context
+        if intent:
+            intent_prefixes = {
+                "retrieve": "find detailed information about",
+                "analyze": "analyze and explain in detail",
+                "summarize": "provide a comprehensive summary of",
+                "plan": "create a detailed plan for"
+            }
+            if intent in intent_prefixes:
+                enhanced_parts.append(intent_prefixes[intent])
+
+        # Enhance query based on type
+        query_lower = query.lower()
+        if "how" in query_lower or "steps" in query_lower or "guide" in query_lower:
+            # Add how-to related terms
+            enhanced_parts.extend(query_enhancement.get("how_to", []))
+            enhanced_parts.append("from user guide")
+            enhanced_parts.append("step by step instructions")
+        elif "example" in query_lower or "sample" in query_lower:
+            # Add example related terms
+            enhanced_parts.extend(query_enhancement.get("examples", []))
+        elif "what is" in query_lower or "explain" in query_lower:
+            # Add reference related terms
+            enhanced_parts.extend(query_enhancement.get("reference", []))
+            enhanced_parts.append("from documentation")
+
+        # Add domain context
+        if domain != "default":
+            enhanced_parts.append(f"in the context of {domain}")
+            if "create" in query_lower or "add" in query_lower or "new" in query_lower:
+                enhanced_parts.append(f"how to create {domain}")
+                enhanced_parts.append("step by step guide")
+
+        # Join all parts and remove duplicates while maintaining order
+        seen = set()
+        enhanced_query = " ".join(
+            [x for x in enhanced_parts if not (x in seen or seen.add(x))])
+
+        logger.debug(f"Enhanced query: {enhanced_query}")
+        return enhanced_query
+
+    def _filter_relevant_results(
+        self,
+        documents: Sequence[str],
+        sources: Sequence[MetadataDict],
+        distances: Sequence[float],
+        threshold: float
+    ) -> List[tuple[str, MetadataDict]]:
+        """Filter results based on relevance and metadata."""
+        filtered_results = []
+
+        for doc, source, distance in zip(documents, sources, distances):
+            # Convert distance to similarity score (1 - distance)
+            similarity = 1 - distance if distance <= 1 else 0
+
+            if similarity >= threshold:
+                filtered_results.append((doc, source))
+
+        return filtered_results
 
     async def _get_or_create_model(self) -> Optional[int]:
         """Get or create AI model record in database."""
@@ -109,121 +314,55 @@ class RAGService(AIServiceBase):
             except Exception as e:
                 logger.error(f"Error updating model stats: {str(e)}")
 
-    async def query_knowledge_base(
-        self,
-        query: str,
-        context: Dict[str, Any] = {},
-        intent: Optional[str] = None,
-        user_id: int = 1,
-        limit: int = 8,
-        context_window: int = 1000,
-        normalize: bool = True,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Optimized knowledge base query with parallel processing and caching."""
-        try:
-            if not self._current_model_id:
-                self._current_model_id = await self._get_or_create_model()
-
-            start_time = time.time()
-            success = True
-
-            # Cache Check
-            cache_key = self._get_cache_key(query, context, filters)
-            cache_config = ai_registry.get_cache_config()
-            intent_ttl = cache_config["ttl_per_intent"].get(
-                intent, cache_config["default_ttl"])
-
-            if cached_result := await get_cached_ai_result(cache_key):
-                return cached_result
-
-            # Step 2: Collection check
-            if not self.collection:
-                logger.error("ChromaDB collection not initialized")
-                return self._error_response("Knowledge base not initialized")
-
-            # Step 3: Generate embedding asynchronously
-            try:
-                query_embedding = await self.embedding_service.get_embedding(query, normalize=normalize)
-            except Exception as e:
-                success = False
-                logger.error(f"Error generating embedding: {str(e)}")
-                return self._error_response(f"Error generating embedding: {str(e)}")
-
-            # Perform semantic search
-            try:
-                results = await asyncio.get_event_loop().run_in_executor(
-                    self.thread_pool,
-                    lambda: self.collection.query(
-                        query_embeddings=[query_embedding],
-                        n_results=limit,
-                        where=filters
-                    ) if self.collection else None
+    def _build_prompt(self, query: str, context_parts: List[MetadataDict], additional_context: Dict[str, Any]) -> str:
+        """Build an optimized prompt template with enhanced context handling."""
+        # Convert conversation history to serializable format
+        if "conversation_history" in additional_context:
+            history = additional_context["conversation_history"]
+            if hasattr(history, "get_messages"):
+                additional_context["conversation_history"] = history.get_messages(
                 )
+            elif hasattr(history, "__dict__"):
+                additional_context["conversation_history"] = history.__dict__
+            elif isinstance(history, list):
+                additional_context["conversation_history"] = [
+                    msg.__dict__ if hasattr(msg, "__dict__") else msg
+                    for msg in history
+                ]
 
-                if not results:
-                    success = False
-                    return self._error_response("No results found")
+        # Format context parts with metadata
+        formatted_context = []
+        for part in context_parts:
+            content = part.get("content", "")
+            metadata = part.get("metadata", {})
+            source_info = f"[Source: {metadata.get('source_file', 'unknown')}"
+            if metadata.get("page_number"):
+                source_info += f", Page {metadata['page_number']}"
+            source_info += "]"
 
-                documents = results.get("documents", [[]])[0]
-                sources = results.get("metadatas", [[]])[0]
+            formatted_context.append(f"{content}\n{source_info}")
 
-                # Process context
-                context_parts = []
-                total_length = 0
-                for doc in documents:
-                    if total_length + len(doc) <= context_window:
-                        context_parts.append(doc)
-                        total_length += len(doc)
-                    else:
-                        break
-                truncated_context = "\n".join(context_parts)
+        # Filter out non-serializable objects from additional context
+        serializable_context = {
+            k: v for k, v in additional_context.items()
+            if isinstance(v, (str, int, float, bool, list, dict, type(None)))
+        }
 
-                # Generate AI response
-                response = await self.llm_service.generate_response(
-                    prompt=self._build_prompt(
-                        query, truncated_context, context),
-                    context={"sources": sources}
-                )
-
-                result = await self._process_llm_response(response, sources, query_embedding)
-
-                latency = time.time() - start_time
-                await self._update_model_stats(latency, success)
-
-                await cache_ai_result(cache_key, result, ttl=intent_ttl)
-                return result
-
-            except Exception as e:
-                success = False
-                logger.error(f"Error in search process: {str(e)}")
-                return self._error_response(str(e))
-
-        except Exception as e:
-            success = False
-            latency = time.time() - start_time
-            await self._update_model_stats(latency, success)
-
-            logger.error(f"RAG query error: {str(e)}")
-            return self._error_response(str(e))
-
-    def _build_prompt(self, query: str, context: str, additional_context: Dict[str, Any]) -> str:
-        """Build an optimized prompt template."""
         return f"""
         User Query: {query}
 
         Knowledge Base Context:
-        {context}
+        {chr(10).join(formatted_context)}
 
         Additional Context:
-        {json.dumps(additional_context, indent=2)}
+        {json.dumps(serializable_context, indent=2)}
         """
 
     async def _process_llm_response(
         self,
         response: Union[Dict[str, Any], AsyncGenerator[str, None]],
-        sources: List[Dict[str, Any]],
-        query_embedding: List[float]
+        sources: Sequence[MetadataDict],
+        query_embedding: Union[List[float], NDArray[np.float32]]
     ) -> Dict[str, Any]:
         """Process LLM response with proper handling of streaming and non-streaming responses."""
         if isinstance(response, AsyncGenerator):
@@ -232,14 +371,14 @@ class RAGService(AIServiceBase):
                 chunks.append(chunk)
             return {
                 "answer": "".join(chunks),
-                "sources": sources,
+                "sources": list(sources),
                 "confidence": 0.8,
                 "embedding_dimension": len(query_embedding)
             }
         else:
             return {
                 "answer": response.get("text", "No answer generated."),
-                "sources": sources,
+                "sources": list(sources),
                 "confidence": response.get("confidence", 0.0),
                 "embedding_dimension": len(query_embedding)
             }
@@ -378,9 +517,11 @@ class RAGService(AIServiceBase):
 
     async def invalidate_rag_cache(self, domain: str) -> None:
         """
-        Invalidate cache for a specific domain after knowledge base updates.
+        This method is deprecated as caching is now handled by the orchestrator.
         """
-        await invalidate_rag_cache(domain)
+        logger.info(
+            f"Cache invalidation now handled by orchestrator for domain: {domain}")
+        pass
 
     async def _get_embeddings_batch(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
         """Process embeddings in batches asynchronously."""
