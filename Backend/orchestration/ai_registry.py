@@ -34,7 +34,6 @@ REPO_MAPPING = {
 REPO_NAME_MAPPING = {
     "TaskRepository": "tasks",
     "TodoRepository": "todos",
-    "HabitRepository": "habits",
     "DailyHabitRepository": "habits",
     "BaseRepository": "base"
 }

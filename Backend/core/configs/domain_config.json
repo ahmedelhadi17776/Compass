@@ -82,7 +82,7 @@
         }
     },
     "habits": {
-        "repository": "HabitRepository",
+        "repository": "DailyHabitRepository",
         "handler": "HabitHandler",
         "enable_rag": true,
         "rag_settings": {
