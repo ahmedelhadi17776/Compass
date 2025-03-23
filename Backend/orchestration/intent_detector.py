@@ -70,7 +70,7 @@ class IntentDetector:
         Available Domains: {list(database_summary.keys())}
 
         DOMAIN SELECTION RULES:
-        1. For task management: If input contains "todos" or "tasks", use respective domain
+        1. For task management: If input contains "todos" or "tasks" or "habits", use respective domain
         2. For general queries (like greetings, recommendations, or questions):
            - Use "default" domain if available
            - Otherwise use the most relevant domain based on context
@@ -101,7 +101,7 @@ class IntentDetector:
         Respond with a JSON object:
         {{
             "intent": "retrieve/analyze/summarize/plan",
-            "target": "tasks/todos/default",
+            "target": "tasks/todos/habits/default",
             "description": "A short explanation of the user's goal"
         }}
         """

@@ -164,3 +164,68 @@ class DailyHabitRepository(BaseRepository[DailyHabit]):
 
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def get_context(self, user_id: int) -> Dict[str, Any]:
+        """Get context data for a user's daily habits."""
+        try:
+            # Get all habits for the user
+            habits = await self.get_user_habits(user_id)
+            
+            # Get active habits
+            today = date.today()
+            active_habits = [
+                habit for habit in habits 
+                if habit.start_day <= today and (habit.end_day is None or habit.end_day >= today)
+            ]
+            
+            # Convert habits to a dictionary format
+            habit_list = []
+            for habit in habits:
+                habit_dict = {
+                    "id": habit.id,
+                    "name": habit.habit_name,
+                    "description": habit.description,
+                    "current_streak": habit.current_streak,
+                    "longest_streak": habit.longest_streak,
+                    "is_completed": habit.is_completed,
+                    "start_day": habit.start_day.isoformat() if habit.start_day else None,
+                    "end_day": habit.end_day.isoformat() if habit.end_day else None,
+                    "last_completed_date": habit.last_completed_date.isoformat() if habit.last_completed_date else None,
+                    "is_active": (habit.start_day <= today and 
+                                 (habit.end_day is None or habit.end_day >= today))
+                }
+                habit_list.append(habit_dict)
+            
+            # Calculate statistics
+            total_habits = len(habits)
+            active_count = len(active_habits)
+            completed_today_count = sum(1 for h in active_habits if h.is_completed)
+            pending_today_count = active_count - completed_today_count
+            
+            # Group habits by streak ranges
+            no_streak = sum(1 for h in habits if h.current_streak == 0)
+            short_streak = sum(1 for h in habits if 1 <= h.current_streak <= 3) 
+            medium_streak = sum(1 for h in habits if 4 <= h.current_streak <= 7)
+            long_streak = sum(1 for h in habits if h.current_streak > 7)
+            
+            # Calculate average streak
+            avg_streak = sum(h.current_streak for h in habits) / total_habits if total_habits > 0 else 0
+            
+            # Return the context
+            return {
+                "user_id": user_id,
+                "habits": habit_list,
+                "total_count": total_habits,
+                "active_count": active_count,
+                "completed_today_count": completed_today_count,
+                "pending_today_count": pending_today_count,
+                "no_streak_count": no_streak,
+                "short_streak_count": short_streak,
+                "medium_streak_count": medium_streak, 
+                "long_streak_count": long_streak,
+                "average_current_streak": round(avg_streak, 1),
+                "completion_rate": round((completed_today_count / active_count * 100) if active_count > 0 else 0, 1)
+            }
+        except Exception as e:
+            logger.error(f"Error getting habit context: {str(e)}")
+            return {"user_id": user_id, "habits": [], "error": str(e)}
