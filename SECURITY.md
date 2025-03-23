@@ -4,7 +4,7 @@
 We take security seriously. If you discover a security vulnerability in **Compass**, please **do not disclose it publicly**. Instead, report it **privately** so we can address the issue before it is made public.
 
 ### **How to Report a Security Issue**
-1. **Email us at** [ahmedelhadi1777@gmail.com](ahmedelhadi1777@gmail.com) with a detailed report.
+1. **Email us at** [support@compass.com](ahmedelhadi1777@gmail.com) with a detailed report.
 2. Include:
    - A clear description of the issue.
    - Steps to reproduce the vulnerability.
