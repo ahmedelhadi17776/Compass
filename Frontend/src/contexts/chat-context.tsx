@@ -1,5 +1,6 @@
-import { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useContext, useState, useEffect } from 'react';
 import { llmService } from '@/services/llmService';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface Message {
   id: string;
@@ -24,10 +25,18 @@ interface ChatContextType {
   resetToDefault: () => void;
 }
 
+const getTimeBasedGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return { text: 'Good morning', emoji: '☀️' };
+  if (hour < 18) return { text: 'Good afternoon', emoji: '⛅' };
+  return { text: 'Good evening', emoji: '🌙' };
+};
+
+// Initial empty default message that will be populated with user data
 const defaultMessages: Message[] = [
   {
     id: "1",
-    text: "👋 Hello! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.",
+    text: "✨ Hello! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.",
     sender: 'assistant',
     timestamp: new Date(),
   }
@@ -36,9 +45,32 @@ const defaultMessages: Message[] = [
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>(defaultMessages);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState('');
+
+  // Update default message when user data is available
+  useEffect(() => {
+    if (user) {
+      const greeting = getTimeBasedGreeting();
+      const userName = user.first_name || '';
+      const welcomeMessage = {
+        id: "1",
+        text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
+        sender: 'assistant' as const,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => {
+        // Replace the first message if it exists, otherwise add the welcome message
+        if (prev.length > 0 && prev[0].id === "1") {
+          return [welcomeMessage, ...prev.slice(1)];
+        }
+        return [welcomeMessage, ...prev];
+      });
+    }
+  }, [user]);
 
   const addMessage = (message: Message) => {
     const messageWithId = {
@@ -49,11 +81,31 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const clearMessages = () => {
-    setMessages(defaultMessages);
+    // Create a personalized default message
+    const greeting = getTimeBasedGreeting();
+    const userName = user?.first_name || '';
+    const welcomeMessage = {
+      id: "1",
+      text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
+      sender: 'assistant' as const,
+      timestamp: new Date(),
+    };
+    
+    setMessages([welcomeMessage]);
   };
 
   const resetToDefault = () => {
-    setMessages(defaultMessages);
+    // Create a personalized default message
+    const greeting = getTimeBasedGreeting();
+    const userName = user?.first_name || '';
+    const welcomeMessage = {
+      id: "1",
+      text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
+      sender: 'assistant' as const,
+      timestamp: new Date(),
+    };
+    
+    setMessages([welcomeMessage]);
   };
 
   const getPreviousMessages = (count: number = 5) => {

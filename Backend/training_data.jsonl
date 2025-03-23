@@ -12312,3 +12312,357 @@ Instructions:
    - Priority: Medium
 
 If you need more information or assistance with specific todos, let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "show my tasks"
+        Available Domains: ['tasks', 'todos', 'habits', 'resolved_references', 'conversation_history']
+
+        DOMAIN SELECTION RULES:
+        1. For task management: If input contains "todos" or "tasks" or "habits", use respective domain
+        2. For general queries (like greetings, recommendations, or questions):
+           - Use "default" domain if available
+           - Otherwise use the most relevant domain based on context
+        3. Look at the context of what they're asking about
+        4. Default to "default" domain if unclear or for general conversation
+        
+        Classify the intent:
+        - retrieve: To fetch specific information or recommendations
+        - analyze: To generate insights or analyze patterns
+        - summarize: Provide a summary or overview
+        - plan: To schedule, organize, or create plans
+        
+        For general queries or greetings:
+        - Use "retrieve" for information requests or recommendations
+        - Use "analyze" for analytical questions
+        - Use "default" as the target domain
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits/default",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "tasks",
+    "description": "The user wants to fetch their current tasks."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "show my tasks"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "Here are your current tasks:
+
+1. **test2** - Status: To Do
+2. **string** - Status: To Do
+3. **tt3** - Status: To Do
+
+Please let me know if you need more details or assistance with these tasks!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "show my tasks"
+        Available Domains: ['tasks', 'todos', 'habits', 'resolved_references', 'conversation_history']
+
+        DOMAIN SELECTION RULES:
+        1. For task management: If input contains "todos" or "tasks" or "habits", use respective domain
+        2. For general queries (like greetings, recommendations, or questions):
+           - Use "default" domain if available
+           - Otherwise use the most relevant domain based on context
+        3. Look at the context of what they're asking about
+        4. Default to "default" domain if unclear or for general conversation
+        
+        Classify the intent:
+        - retrieve: To fetch specific information or recommendations
+        - analyze: To generate insights or analyze patterns
+        - summarize: Provide a summary or overview
+        - plan: To schedule, organize, or create plans
+        
+        For general queries or greetings:
+        - Use "retrieve" for information requests or recommendations
+        - Use "analyze" for analytical questions
+        - Use "default" as the target domain
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits/default",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "tasks",
+    "description": "The user wants to view their tasks."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+Previous Conversation:
+User: show my tasks
+Assistant: Here are your current tasks:
+
+1. **test2** - Status: To Do
+2. **string** - Status: To Do
+3. **tt3** - Status: To Do
+
+Please let me know if you need more details or assistance with these tasks!
+User Query: "show my tasks"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "Here are your current tasks:
+
+1. **test2**  
+   - Status: To Do  
+   - Deadline: Not specified  
+   - Priority: Not specified  
+
+2. **string**  
+   - Status: To Do  
+   - Deadline: Not specified  
+   - Priority: Not specified  
+
+3. **tt3**  
+   - Status: To Do  
+   - Deadline: Not specified  
+   - Priority: Not specified  
+
+If you need additional details or updates on any of these tasks, feel free to ask!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "show my tasks"
+        Available Domains: ['tasks', 'todos', 'habits', 'resolved_references', 'conversation_history']
+
+        DOMAIN SELECTION RULES:
+        1. For task management: If input contains "todos" or "tasks" or "habits", use respective domain
+        2. For general queries (like greetings, recommendations, or questions):
+           - Use "default" domain if available
+           - Otherwise use the most relevant domain based on context
+        3. Look at the context of what they're asking about
+        4. Default to "default" domain if unclear or for general conversation
+        
+        Classify the intent:
+        - retrieve: To fetch specific information or recommendations
+        - analyze: To generate insights or analyze patterns
+        - summarize: Provide a summary or overview
+        - plan: To schedule, organize, or create plans
+        
+        For general queries or greetings:
+        - Use "retrieve" for information requests or recommendations
+        - Use "analyze" for analytical questions
+        - Use "default" as the target domain
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits/default",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "tasks",
+    "description": "The user wants to view their current tasks."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+User Query: "show my tasks"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "Here are your current tasks:
+
+1. **test2** - Status: To Do
+2. **string** - Status: To Do
+3. **tt3** - Status: To Do
+
+Please let me know if you need more information on any specific task!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "show my tasks"
+        Available Domains: ['tasks', 'todos', 'habits', 'resolved_references', 'conversation_history']
+
+        DOMAIN SELECTION RULES:
+        1. For task management: If input contains "todos" or "tasks" or "habits", use respective domain
+        2. For general queries (like greetings, recommendations, or questions):
+           - Use "default" domain if available
+           - Otherwise use the most relevant domain based on context
+        3. Look at the context of what they're asking about
+        4. Default to "default" domain if unclear or for general conversation
+        
+        Classify the intent:
+        - retrieve: To fetch specific information or recommendations
+        - analyze: To generate insights or analyze patterns
+        - summarize: Provide a summary or overview
+        - plan: To schedule, organize, or create plans
+        
+        For general queries or greetings:
+        - Use "retrieve" for information requests or recommendations
+        - Use "analyze" for analytical questions
+        - Use "default" as the target domain
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits/default",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "tasks",
+    "description": "The user wants to view their list of tasks."
+}
+```"}
+{"prompt": "You are a task management assistant. The user is searching for specific task information.
+
+Previous Conversation:
+User: show my tasks
+Assistant: Here are your current tasks:
+
+1. **test2** - Status: To Do
+2. **string** - Status: To Do
+3. **tt3** - Status: To Do
+
+Please let me know if you need more information on any specific task!
+User Query: "show my tasks"
+
+Available Tasks:
+User_id: 1
+Tasks:
+Error: '<' not supported between instances of 'NoneType' and 'int'
+Recent_tasks:
+  1. test2 (To Do)
+  2. string (To Do)
+  3. tt3 (To Do)
+
+
+Instructions:
+- Provide a clear, direct response focusing only on the specific tasks requested
+- Include relevant deadlines, priorities, and task details
+- Format your response as a concise list or paragraph
+- Only mention tasks that are directly relevant to the query
+- Be factual and precise", "completion": "Here are your current tasks:
+
+1. **test2**
+   - Status: To Do
+   - Deadline: Not specified
+   - Priority: Not specified
+
+2. **string**
+   - Status: To Do
+   - Deadline: Not specified
+   - Priority: Not specified
+
+3. **tt3**
+   - Status: To Do
+   - Deadline: Not specified
+   - Priority: Not specified
+
+If you need additional details or want to update any tasks, just let me know!"}
+{"prompt": "
+        You are an AI assistant responsible for understanding and acting on user requests.
+        Based on the following information, identify the user's intent and target data:
+
+        User Input: "hi"
+        Available Domains: ['tasks', 'todos', 'habits', 'resolved_references', 'conversation_history']
+
+        DOMAIN SELECTION RULES:
+        1. For task management: If input contains "todos" or "tasks" or "habits", use respective domain
+        2. For general queries (like greetings, recommendations, or questions):
+           - Use "default" domain if available
+           - Otherwise use the most relevant domain based on context
+        3. Look at the context of what they're asking about
+        4. Default to "default" domain if unclear or for general conversation
+        
+        Classify the intent:
+        - retrieve: To fetch specific information or recommendations
+        - analyze: To generate insights or analyze patterns
+        - summarize: Provide a summary or overview
+        - plan: To schedule, organize, or create plans
+        
+        For general queries or greetings:
+        - Use "retrieve" for information requests or recommendations
+        - Use "analyze" for analytical questions
+        - Use "default" as the target domain
+        
+        Respond with a JSON object:
+        {
+            "intent": "retrieve/analyze/summarize/plan",
+            "target": "tasks/todos/habits/default",
+            "description": "A short explanation of the user's goal"
+        }
+        ", "completion": "```json
+{
+    "intent": "retrieve",
+    "target": "default",
+    "description": "The user is initiating a conversation with a greeting."
+}
+```"}
+{"prompt": "You are a knowledgeable assistant helping users find information and get recommendations.
+
+User Query: "hi"
+
+Available Data:
+No data available
+
+
+Instructions:
+- For greetings: Respond warmly and ask about their interests
+- For recommendations: Use available knowledge to suggest relevant items
+- For questions: Provide clear, informative answers
+- If using RAG data, incorporate it naturally into your response
+- Be conversational but informative
+- If information is not available, suggest related topics", "completion": "Hi there! It’s great to see you. What’s on your mind today? Are there any particular interests or topics you’d like to explore?"}
