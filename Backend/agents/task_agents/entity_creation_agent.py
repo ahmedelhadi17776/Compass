@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, date
 from crewai import Agent
 from langchain.tools import Tool
 from Backend.ai_services.llm.llm_service import LLMService
@@ -343,65 +343,23 @@ Extract and format as JSON:
                 current_time = datetime.utcnow()
                 todo_data["created_at"] = current_time
                 todo_data["updated_at"] = current_time
-                todo_data["completed"] = False
+                todo_data["is_recurring"] = False
                 todo_data["user_id"] = user_id
                 
-                # Set status to PENDING by default (assuming TodoStatus.PENDING exists)
-                # Map common status terms to TodoStatus enum values
-                status_mapping = {
-                    "pending": "PENDING",
-                    "todo": "PENDING",
-                    "to do": "PENDING",
-                    "to-do": "PENDING",
-                    "in progress": "IN_PROGRESS",
-                    "in-progress": "IN_PROGRESS",
-                    "inprogress": "IN_PROGRESS",
-                    "done": "COMPLETED",
-                    "complete": "COMPLETED",
-                    "completed": "COMPLETED"
-                }
-                
-                # Check if TodoStatus.PENDING exists, otherwise use something like IN_PROGRESS
-                try:
-                    todo_data["status"] = TodoStatus.PENDING
-                except AttributeError:
-                    # If PENDING doesn't exist, try other common status values
-                    for status_name in ["TODO", "NEW", "ACTIVE"]:
-                        try:
-                            todo_data["status"] = getattr(TodoStatus, status_name)
-                            break
-                        except AttributeError:
-                            continue
-                    else:
-                        # If no matching status found, use the first enum value as default
-                        todo_data["status"] = list(TodoStatus)[0]
+                # Set status to PENDING by default
+                todo_data["status"] = TodoStatus.PENDING
                 
                 # Convert priority string to enum value
                 priority_mapping = {
-                    "low": "LOW",
-                    "medium": "MEDIUM",
-                    "mid": "MEDIUM",
-                    "high": "HIGH",
-                    "urgent": "HIGH",  # Map urgent to HIGH if URGENT doesn't exist
-                    "critical": "HIGH"
+                    "low": TodoPriority.LOW,
+                    "medium": TodoPriority.MEDIUM,
+                    "mid": TodoPriority.MEDIUM,
+                    "high": TodoPriority.HIGH
                 }
                 
                 if "priority" in todo_data:
                     priority_str = todo_data["priority"].lower()
-                    if priority_str in priority_mapping:
-                        enum_value = priority_mapping[priority_str]
-                        try:
-                            todo_data["priority"] = TodoPriority[enum_value]
-                        except KeyError:
-                            logger.warning(f"Invalid priority mapping: {enum_value}, using MEDIUM")
-                            todo_data["priority"] = TodoPriority.MEDIUM
-                    else:
-                        # Try direct enum lookup
-                        try:
-                            todo_data["priority"] = TodoPriority[priority_str.upper()]
-                        except KeyError:
-                            logger.warning(f"Invalid priority: {priority_str}, using MEDIUM")
-                            todo_data["priority"] = TodoPriority.MEDIUM
+                    todo_data["priority"] = priority_mapping.get(priority_str, TodoPriority.MEDIUM)
                 else:
                     todo_data["priority"] = TodoPriority.MEDIUM
                 
@@ -426,12 +384,12 @@ Extract and format as JSON:
                 for key, value in list(todo_data.items()):
                     if isinstance(value, datetime):
                         todo_data[key] = value.isoformat()
-                    elif hasattr(value, "name"):  # Check if it's an enum
-                        todo_data[key] = value.name
+                    elif isinstance(value, (TodoStatus, TodoPriority)):  # Check if it's an enum
+                        todo_data[key] = value.value
                     elif isinstance(value, (list, tuple)):
                         # Handle lists that might contain non-serializable items
                         todo_data[key] = [
-                            item.name if hasattr(item, "name") else 
+                            item.value if isinstance(item, (TodoStatus, TodoPriority)) else 
                             item.isoformat() if hasattr(item, "isoformat") else 
                             item 
                             for item in value
@@ -464,9 +422,8 @@ Description: {description}
 Extract and format as JSON with ONLY these fields:
 - habit_name: A clear, concise name for the habit
 - description: Full description with details
-- tags: Array of relevant tags
-
-Note: DO NOT include frequency, target_completion_time, difficulty, or motivation fields as they are not supported by the system.""",
+- start_day: Start date in YYYY-MM-DD format
+- end_day: Optional end date in YYYY-MM-DD format""",
                 context={
                     "system_message": "You are a habit extraction AI. Extract structured habit information from natural language, using only the supported fields."
                 }
@@ -484,35 +441,29 @@ Note: DO NOT include frequency, target_completion_time, difficulty, or motivatio
                 
                 habit_data = json.loads(response_text)
                 
-                # Adapt field names to match the model requirements
-                if "name" in habit_data:
-                    habit_data["habit_name"] = habit_data.pop("name")
+                # Convert date strings to date objects
+                if "start_day" in habit_data and habit_data["start_day"]:
+                    habit_data["start_day"] = datetime.strptime(habit_data["start_day"], "%Y-%m-%d").date()
+                
+                if "end_day" in habit_data and habit_data["end_day"]:
+                    habit_data["end_day"] = datetime.strptime(habit_data["end_day"], "%Y-%m-%d").date()
                 
                 # Add metadata - use actual datetime objects, not strings
                 current_time = datetime.utcnow()
                 habit_data["created_at"] = current_time
+                habit_data["updated_at"] = current_time
                 habit_data["current_streak"] = 0
                 habit_data["longest_streak"] = 0
                 habit_data["is_completed"] = False
-                habit_data["start_day"] = current_time.date()
                 habit_data["user_id"] = user_id
-                
-                # Filter out fields not accepted by the DailyHabit model
-                # These are common fields from LLM extraction that might not be in the model
-                fields_to_remove = [
-                    "frequency", 
-                    "target_completion_time", 
-                    "difficulty", 
-                    "motivation"
-                ]
-                
-                # Create a clean copy with only fields that should be passed to the repository
-                clean_habit_data = {k: v for k, v in habit_data.items() 
-                                    if k not in fields_to_remove}
-                
+
+                # Set start_day to current date if not provided
+                if "start_day" not in habit_data:
+                    habit_data["start_day"] = current_time.date()
+
                 # Save to database if repository is available
                 if self.habit_repository is not None:
-                    db_habit = await self.habit_repository.create(**clean_habit_data)
+                    db_habit = await self.habit_repository.create(**habit_data)
                     habit_data["id"] = db_habit.id
                 
                 # Ensure all values are JSON serializable
@@ -520,12 +471,11 @@ Note: DO NOT include frequency, target_completion_time, difficulty, or motivatio
                 for key, value in list(habit_data.items()):
                     if isinstance(value, datetime):
                         habit_data[key] = value.isoformat()
-                    elif hasattr(value, "name"):  # Check if it's an enum
-                        habit_data[key] = value.name
+                    elif isinstance(value, date):  # Handle date objects
+                        habit_data[key] = value.isoformat()
                     elif isinstance(value, (list, tuple)):
                         # Handle lists that might contain non-serializable items
                         habit_data[key] = [
-                            item.name if hasattr(item, "name") else 
                             item.isoformat() if hasattr(item, "isoformat") else 
                             item 
                             for item in value
@@ -545,4 +495,4 @@ Note: DO NOT include frequency, target_completion_time, difficulty, or motivatio
                 }
         except Exception as e:
             logger.error(f"Habit creation failed: {str(e)}")
-            return {"status": "error", "message": f"Habit creation failed: {str(e)}"} 
+            return {"status": "error", "message": f"Habit creation failed: {str(e)}"}
