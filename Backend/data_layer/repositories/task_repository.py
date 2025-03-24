@@ -521,7 +521,6 @@ class TaskRepository(BaseRepository[Task]):
             # Get recurring tasks with occurrences
             recurring_query = select(Task).where(
                 and_(
-                    Task.project_id == project_id,
                     Task.recurrence != RecurrenceType.NONE,
                     Task.occurrences.any()  # Has occurrences
                 )
