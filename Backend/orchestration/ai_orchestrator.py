@@ -20,6 +20,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from sqlalchemy import Column
 from difflib import SequenceMatcher
 import uuid
+from Backend.agents.task_agents.entity_creation_agent import EntityCreationAgent
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class AIOrchestrator:
         self.cache_ttls: Dict[str, int] = {}
         self.cache_hit_threshold = 5
         self.similarity_threshold = 0.85  # Threshold for considering queries similar
+        self.entity_creation_agent = EntityCreationAgent(db_session)
 
     async def _get_or_create_model(self) -> int:
         """Get or create the AI model ID."""
@@ -399,70 +401,109 @@ class AIOrchestrator:
         history.add_message(UserMessage(content=prompt))
         history.add_message(AssistantMessage(content=response))
 
-    async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
-        """Process an AI request with caching."""
+    async def process_entity_creation(self, user_input: str, user_id: int) -> Dict[str, Any]:
+        """
+        Process requests to create tasks, todos, or habits based on natural language description.
+        
+        Args:
+            user_input: Natural language description of the entity to create
+            user_id: User ID for whom to create the entity
+            
+        Returns:
+            Dict containing the creation result
+        """
         try:
-            logger.info(
-                f"Starting request processing for user {user_id} with input: {user_input[:50]}...")
-            start_time = time.time()
-
-            # Get conversation history
-            logger.debug(f"Getting conversation history for user {user_id}")
-            conversation_history = self._get_conversation_history(user_id)
-
-            # Prepare context
-            logger.debug("Preparing request context")
-            context = {
-                "conversation_history": conversation_history,
-                "domain": domain,
-                "user_id": user_id
+            # First, determine what type of entity the user wants to create
+            entity_analysis = await self.entity_creation_agent.determine_entity_type(user_input)
+            entity_type = entity_analysis.get("entity_type", "task")
+            
+            # Create the appropriate entity
+            if entity_type == "task":
+                result = await self.entity_creation_agent.create_task(user_input, user_id)
+            elif entity_type == "todo":
+                result = await self.entity_creation_agent.create_todo(user_input, user_id)
+            elif entity_type == "habit":
+                result = await self.entity_creation_agent.create_habit(user_input, user_id)
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Unknown entity type: {entity_type}"
+                }
+            
+            # Add the entity creation to the conversation history
+            history = self._get_conversation_history(user_id)
+            history.add_message(UserMessage(content=user_input))
+            
+            if result.get("status") == "success":
+                response = f"I've created the {entity_type}: {result.get('message')}"
+            else:
+                response = f"I couldn't create the {entity_type}: {result.get('message')}"
+            
+            history.add_message(AssistantMessage(content=response))
+            
+            # Return the result with standardized response format
+            return {
+                "response": response,
+                "intent": "create",
+                "target": entity_type,
+                "description": f"Create {entity_type} from description",
+                "creation_result": result,
+                "confidence": 0.95,
+                "rag_used": False,
+                "cached": False
+            }
+        except Exception as e:
+            logger.error(f"Entity creation failed: {str(e)}")
+            return {
+                "response": f"I couldn't create the entity: {str(e)}",
+                "intent": "create",
+                "target": "unknown",
+                "description": "Create entity from description",
+                "error": True,
+                "error_message": str(e),
+                "confidence": 0.0,
+                "rag_used": False,
+                "cached": False
             }
 
-            # Generate cache key
-            logger.debug("Generating cache key")
-            cache_key = await self._generate_cache_key(user_id, user_input, context)
-            logger.info(f"Generated cache key: {cache_key}")
-
-            # Try to get from cache first
-            logger.debug("Checking cache")
-            cached_result = await self._get_cached_result(cache_key)
-            if cached_result:
-                logger.info(f"Cache hit for key: {cache_key}")
-                self._update_cache_stats(cache_key)
-                return cached_result
-
-            logger.info("Cache miss - processing new request")
-            try:
-                # Process the request
-                result = await self._process_request_internal(user_input, context)
-
-                # Update conversation history
-                if result and "response" in result:
-                    logger.debug("Updating conversation history")
-                    self._update_conversation_history(
-                        user_id, user_input, result["response"])
-
-                # Cache the result
-                logger.debug("Caching result")
-                await self._cache_result(cache_key, result)
-
-                # Update model stats
-                latency = time.time() - start_time
-                logger.info(f"Request processed in {latency:.2f} seconds")
-                await self._update_model_stats(latency)
-
-                return result
-
-            except Exception as e:
-                logger.error(
-                    f"Error in request processing: {str(e)}", exc_info=True)
-                raise
-
+    async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Process a user request through the AI system.
+        
+        Args:
+            user_input: The user's text input
+            user_id: The user's ID
+            domain: Optional domain to use for processing
+            
+        Returns:
+            Dict with the AI response and metadata
+        """
+        try:
+            # Check if this is an entity creation request
+            if any(phrase in user_input.lower() for phrase in [
+                "create a task", "create task", "add a task", "add task",
+                "create a todo", "create todo", "add a todo", "add todo",
+                "create a habit", "create habit", "add a habit", "add habit",
+                "make a new task", "new task", "make a new todo", "new todo",
+                "make a new habit", "new habit"
+            ]):
+                return await self.process_entity_creation(user_input, user_id)
+                
+            # Continue with normal request processing
+            # Build context from user history and domain data
+            context = await self.context_builder.build_context(user_id, domain)
+            
+            # Add user to context
+            context["user_id"] = user_id
+            
+            # Process the request with full context
+            return await self._process_request_internal(user_input, context)
         except Exception as e:
-            logger.error(f"Error processing request: {str(e)}", exc_info=True)
+            self.logger.error(f"Error processing request: {str(e)}")
             return {
-                "error": str(e),
-                "status": "error"
+                "response": f"I encountered an error: {str(e)}",
+                "error": True,
+                "error_message": str(e)
             }
 
     async def _process_request_internal(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
