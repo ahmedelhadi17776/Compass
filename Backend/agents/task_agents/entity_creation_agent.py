@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime, date
-from crewai import Agent
+from crewai import Agent, Task, Crew
 from langchain.tools import Tool
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.utils.logging_utils import get_logger
@@ -18,57 +18,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = get_logger(__name__)
 
 
-class EntityCreationAgent(Agent):
-    """Agent specialized in creating various entities (tasks, todos, habits) from natural language requests."""
-    
-    ai_service: LLMService = Field(default_factory=LLMService)
-    db: Optional[AsyncSession] = Field(default=None)
-    task_repository: Optional[TaskRepository] = Field(default=None)
-    todo_repository: Optional[TodoRepository] = Field(default=None)
-    habit_repository: Optional[DailyHabitRepository] = Field(default=None)
-    
+class EntityCreationAgent:
     def __init__(self, db_session=None):
-        # Define agent tools
-        tools = [
-            Tool.from_function(
-                func=self.create_task,
-                name="create_task",
-                description="Creates a new task from natural language description"
-            ),
-            Tool.from_function(
-                func=self.create_todo,
-                name="create_todo",
-                description="Creates a new todo item from natural language description"
-            ),
-            Tool.from_function(
-                func=self.create_habit,
-                name="create_habit",
-                description="Creates a new habit from natural language description"
-            ),
-            Tool.from_function(
-                func=self.determine_entity_type,
-                name="determine_entity_type",
-                description="Determines what type of entity to create based on user input"
-            )
-        ]
-        
-        # Initialize agent with base properties
-        super().__init__(
+        self.agent = Agent(
             role="Entity Creation Specialist",
             goal="Create tasks, todos, and habits from natural language instructions",
-            backstory="I help users effortlessly create and organize their tasks, todos, and habits by understanding their natural language descriptions and capturing all relevant details.",
-            tools=tools,
+            backstory="""I am an expert in task management and organization. I help users 
+                        efficiently create and manage their tasks, todos, and habits by 
+                        understanding natural language and extracting structured information.""",
+            tools=[
+                Tool(
+                    name="create_task",
+                    func=self.create_task,
+                    description="Creates a new task from natural language"
+                ),
+                Tool(
+                    name="create_todo",
+                    func=self.create_todo,
+                    description="Creates a new todo item from natural language"
+                ),
+                Tool(
+                    name="create_habit",
+                    func=self.create_habit,
+                    description="Creates a new habit from natural language"
+                ),
+                Tool(
+                    name="determine_entity_type",
+                    func=self.determine_entity_type,
+                    description="Determines entity type from user input"
+                )
+            ],
             verbose=True,
-            allow_delegation=False,
-            memory=True
+            allow_delegation=True  # Enable task delegation
         )
         
-        # Initialize repositories if db_session is provided
-        if db_session:
-            self.db = db_session
-            self.task_repository = TaskRepository(db_session)
-            self.todo_repository = TodoRepository(db_session)
-            self.habit_repository = DailyHabitRepository(db_session)
+        self.ai_service = LLMService()
+        self.db = db_session
+        self.task_repository = TaskRepository(db_session) if db_session else None
+        self.todo_repository = TodoRepository(db_session) if db_session else None
+        self.habit_repository = DailyHabitRepository(db_session) if db_session else None
     
     async def determine_entity_type(self, user_input: str) -> Dict[str, Any]:
         """Determine what type of entity the user wants to create."""
