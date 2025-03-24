@@ -544,6 +544,10 @@ class AIOrchestrator:
             formatted_context = self._format_context_data(
                 target_context, intent)
 
+            # Get conversation history messages
+            conversation_history = context.get("conversation_history")
+            history_messages = conversation_history.get_messages() if conversation_history else []
+
             # Prepare template context
             template_context = {
                 "user_prompt": user_input,
@@ -558,7 +562,7 @@ class AIOrchestrator:
                 "description": description,
                 "resolved_references": reference_results,
                 "has_references": bool(reference_results['matches']),
-                "conversation_history": context.get("conversation_history", [])
+                "conversation_history": history_messages
             }
 
             # Render the template and generate response
