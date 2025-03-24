@@ -17,10 +17,21 @@ class IntentDetector:
 
     def _extract_json_from_markdown(self, text: str) -> str:
         """Extract JSON content from markdown code blocks."""
-        # Try to find JSON in code blocks
+        # Try to find JSON in code blocks with language specifier
         json_match = re.search(r'```(?:json)?\n(.*?)\n```', text, re.DOTALL)
         if json_match:
             return json_match.group(1).strip()
+
+        # Try alternative format without newlines
+        json_match = re.search(r'```(?:json)?(.*?)```', text, re.DOTALL)
+        if json_match:
+            return json_match.group(1).strip()
+
+        # Try to find JSON object directly
+        json_match = re.search(r'\{[^\{\}]*"intent"[^\{\}]*\}', text)
+        if json_match:
+            return json_match.group(0).strip()
+
         return text.strip()
 
     async def detect_intent(self, user_input: str, database_summary: Dict[str, Any]) -> Dict[str, str]:
@@ -87,7 +98,7 @@ class IntentDetector:
         if previous_domain:
             prompt += f"""
         IMPORTANT CONTEXT: The user's previous messages were about the "{previous_domain}" domain.
-        If this message appears to be a follow-up question referring to the same topic, 
+        If this message appears to be a follow-up question referring to the same topic,
         maintain that domain context rather than switching to a general domain.
             """
 
@@ -97,12 +108,12 @@ class IntentDetector:
         - analyze: To generate insights or analyze patterns
         - summarize: Provide a summary or overview
         - plan: To schedule, organize, or create plans
-        
+
         For general queries or greetings:
         - Use "retrieve" for information requests or recommendations
         - Use "analyze" for analytical questions
         - Use "default" as the target domain
-        
+
         Respond with a JSON object:
         {{
             "intent": "retrieve/analyze/summarize/plan",
@@ -127,34 +138,102 @@ class IntentDetector:
                 async for chunk in result:
                     chunks.append(chunk)
                 json_str = self._extract_json_from_markdown("".join(chunks))
+                
+            logger.debug(f"Raw collected response: {json_str}")
+
+            # Ensure we have a valid JSON string, even if empty
+            if not json_str or json_str.strip() == "":
+                json_str = "{}"
 
             logger.info(f"Extracted JSON string: {json_str}")
             intent_data = json.loads(json_str)
             logger.info(f"Parsed intent data: {intent_data}")
 
-            # If this is a follow-up question and we have a previous domain, consider using it
-            if previous_domain and user_input.lower().startswith(('what', 'which', 'who', 'how', 'when', 'where', 'why')) or \
-               any(ref in user_input.lower() for ref in ['it', 'that', 'this', 'these', 'those', 'them', 'they', 'first', 'second', 'third']):
-                # Only override if the LLM chose the default domain for generic questions
-                if intent_data.get("target") == "default" and previous_domain in database_summary.keys():
-                    intent_data["target"] = previous_domain
-                    logger.info(
-                        f"Overriding target to maintain conversation context: {previous_domain}")
+            # Determine domain from conversation context and user input
+            domain_from_input = None
+            input_lower = user_input.lower()
 
-            # Force target to "todos" if the word appears in input
-            if "todos" in user_input.lower():
+            # First check for explicit domain mentions in input
+            if "todos" in input_lower:
+                domain_from_input = "todos"
+                logger.info("Found 'todos' in input")
+            elif "tasks" in input_lower:
+                domain_from_input = "tasks"
+                logger.info("Found 'tasks' in input")
+            elif "habits" in input_lower:
+                domain_from_input = "habits"
+                logger.info("Found 'habits' in input")
+
+            # Enhanced follow-up question detection
+            follow_up_indicators = {
+                'question_words': ('what', 'which', 'who', 'how', 'when', 'where', 'why'),
+                'references': ('it', 'that', 'this', 'these', 'those', 'them', 'they'),
+                'ordinals': ('first', 'second', 'third', 'next', 'previous', 'last'),
+                'conjunctions': ('and', 'or', 'but', 'also', 'additionally'),
+                'continuity': ('more', 'another', 'again', 'else', 'other')
+            }
+
+            is_followup = (
+                input_lower.startswith(follow_up_indicators['question_words']) or
+                any(ref in input_lower.split() for ref in follow_up_indicators['references']) or
+                any(ord in input_lower.split() for ord in follow_up_indicators['ordinals']) or
+                (len(input_lower.split()) <= 4 and any(conj in input_lower.split() for conj in follow_up_indicators['conjunctions'])) or
+                any(cont in input_lower.split()
+                    for cont in follow_up_indicators['continuity'])
+            )
+
+            # Enhanced domain selection logic
+            domain_confidence = {}
+
+            # 1. Explicit domain mention (highest priority)
+            if domain_from_input:
+                domain_confidence[domain_from_input] = 1.0
                 logger.info(
-                    "Found 'todos' in input, forcing target to 'todos'")
-                intent_data["target"] = "todos"
-            elif "tasks" in user_input.lower():
+                    f"Explicit domain mention: {domain_from_input} (confidence: 1.0)")
+
+            # 2. Follow-up context
+            if is_followup and previous_domain and previous_domain in database_summary.keys():
+                confidence = 0.8 if len(input_lower.split()) <= 4 else 0.6
+                domain_confidence[previous_domain] = confidence
                 logger.info(
-                    "Found 'tasks' in input, forcing target to 'tasks'")
-                intent_data["target"] = "tasks"
-            elif any(greeting in user_input.lower() for greeting in ["hi", "hello", "hey"]) or \
-                    any(general_query in user_input.lower() for general_query in ["recommend", "suggest", "what", "how"]):
+                    f"Follow-up context: {previous_domain} (confidence: {confidence})")
+
+            # 3. Domain-specific keywords
+            domain_keywords = {
+                'tasks': ['task', 'doing', 'work', 'project', 'deadline'],
+                'todos': ['todo', 'list', 'item', 'pending', 'incomplete'],
+                'habits': ['habit', 'routine', 'daily', 'weekly', 'track'],
+                'default': ['recommend', 'suggest', 'general', 'help']
+            }
+
+            for domain, keywords in domain_keywords.items():
+                if domain in database_summary.keys():
+                    matches = sum(
+                        keyword in input_lower for keyword in keywords)
+                    if matches > 0:
+                        confidence = min(0.3 + (matches * 0.15), 0.9)
+                        domain_confidence[domain] = max(
+                            domain_confidence.get(domain, 0), confidence)
+                        logger.info(
+                            f"Keyword matches for {domain}: {matches} (confidence: {confidence})")
+
+            # 4. General queries and greetings (lowest priority)
+            if any(greeting in input_lower for greeting in ["hi", "hello", "hey"]):
+                domain_confidence['default'] = max(
+                    domain_confidence.get('default', 0), 0.3)
+                logger.info("Greeting detected (confidence: 0.3)")
+
+            # Select domain with highest confidence
+            if domain_confidence:
+                selected_domain = max(
+                    domain_confidence.items(), key=lambda x: x[1])
+                intent_data["target"] = selected_domain[0]
                 logger.info(
-                    "Found greeting or general query, using default domain")
-                intent_data["target"] = "default"
+                    f"Selected domain {selected_domain[0]} with confidence {selected_domain[1]}")
+            else:
+                # Keep LLM's domain choice if no confidence scores
+                logger.info(
+                    f"Using LLM suggested domain: {intent_data.get('target')}")
 
             # Validate the required fields are present
             if not all(k in intent_data for k in ["intent", "target", "description"]):
