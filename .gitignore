@@ -103,3 +103,5 @@ scripts/
 data/
 
 etc/
+
+training_data.jsonl
