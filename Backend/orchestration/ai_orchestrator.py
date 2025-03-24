@@ -401,71 +401,6 @@ class AIOrchestrator:
         history.add_message(UserMessage(content=prompt))
         history.add_message(AssistantMessage(content=response))
 
-    async def process_entity_creation(self, user_input: str, user_id: int) -> Dict[str, Any]:
-        """
-        Process requests to create tasks, todos, or habits based on natural language description.
-        
-        Args:
-            user_input: Natural language description of the entity to create
-            user_id: User ID for whom to create the entity
-            
-        Returns:
-            Dict containing the creation result
-        """
-        try:
-            # First, determine what type of entity the user wants to create
-            entity_analysis = await self.entity_creation_agent.determine_entity_type(user_input)
-            entity_type = entity_analysis.get("entity_type", "task")
-            
-            # Create the appropriate entity
-            if entity_type == "task":
-                result = await self.entity_creation_agent.create_task(user_input, user_id)
-            elif entity_type == "todo":
-                result = await self.entity_creation_agent.create_todo(user_input, user_id)
-            elif entity_type == "habit":
-                result = await self.entity_creation_agent.create_habit(user_input, user_id)
-            else:
-                return {
-                    "status": "error",
-                    "message": f"Unknown entity type: {entity_type}"
-                }
-            
-            # Add the entity creation to the conversation history
-            history = self._get_conversation_history(user_id)
-            history.add_message(UserMessage(content=user_input))
-            
-            if result.get("status") == "success":
-                response = f"I've created the {entity_type}: {result.get('message')}"
-            else:
-                response = f"I couldn't create the {entity_type}: {result.get('message')}"
-            
-            history.add_message(AssistantMessage(content=response))
-            
-            # Return the result with standardized response format
-            return {
-                "response": response,
-                "intent": "create",
-                "target": entity_type,
-                "description": f"Create {entity_type} from description",
-                "creation_result": result,
-                "confidence": 0.95,
-                "rag_used": False,
-                "cached": False
-            }
-        except Exception as e:
-            logger.error(f"Entity creation failed: {str(e)}")
-            return {
-                "response": f"I couldn't create the entity: {str(e)}",
-                "intent": "create",
-                "target": "unknown",
-                "description": "Create entity from description",
-                "error": True,
-                "error_message": str(e),
-                "confidence": 0.0,
-                "rag_used": False,
-                "cached": False
-            }
-
     async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
         """Process an AI request with caching."""
         try:
@@ -551,7 +486,73 @@ class AIOrchestrator:
                 logger.error(f"Invalid user_id type: {type(user_id)}")
                 raise ValueError("Invalid user_id in context")
 
-            # Step 1: Collect context from the specified domain or all domains
+            # Step 1: Detect intent using the LLM to determine if this is an entity creation request
+            logger.debug("Detecting intent")
+            intent_data = await self.intent_detector.detect_intent(user_input, context)
+            intent, target, description = intent_data["intent"], intent_data["target"], intent_data["description"]
+            logger.info(f"Detected intent: {intent}, target: {target}")
+
+            # Check if this is an entity creation request
+            if intent == "create":
+                try:
+                    # Determine entity type using entity creation agent
+                    entity_analysis = await self.entity_creation_agent.determine_entity_type(user_input)
+                    entity_type = entity_analysis.get("entity_type", "task")
+                    
+                    # Create the appropriate entity
+                    if entity_type == "task":
+                        result = await self.entity_creation_agent.create_task(user_input, user_id)
+                    elif entity_type == "todo":
+                        result = await self.entity_creation_agent.create_todo(user_input, user_id)
+                    elif entity_type == "habit":
+                        result = await self.entity_creation_agent.create_habit(user_input, user_id)
+                    else:
+                        return {
+                            "response": f"Unknown entity type: {entity_type}",
+                            "intent": "create",
+                            "target": "unknown",
+                            "description": "Create entity from description",
+                            "error": True,
+                            "error_message": f"Unknown entity type: {entity_type}",
+                            "confidence": 0.0,
+                            "rag_used": False,
+                            "cached": False
+                        }
+
+                    if result.get("status") == "success":
+                        response = f"I've created the {entity_type}: {result.get('message')}"
+                    else:
+                        response = f"I couldn't create the {entity_type}: {result.get('message')}"
+
+                    return {
+                        "response": response,
+                        "intent": "create",
+                        "target": entity_type,
+                        "description": f"Create {entity_type} from description",
+                        "creation_result": result,
+                        "confidence": 0.95,
+                        "rag_used": False,
+                        "cached": False,
+                        "original_input": user_input,
+                        "context_used": context
+                    }
+                except Exception as e:
+                    logger.error(f"Entity creation failed: {str(e)}")
+                    return {
+                        "response": f"I couldn't create the entity: {str(e)}",
+                        "intent": "create",
+                        "target": "unknown",
+                        "description": "Create entity from description",
+                        "error": True,
+                        "error_message": str(e),
+                        "confidence": 0.0,
+                        "rag_used": False,
+                        "cached": False,
+                        "original_input": user_input,
+                        "context_used": context
+                    }
+
+            # Step 2: Collect context from the specified domain or all domains
             logger.debug("Collecting domain context")
             if domain:
                 logger.debug(f"Getting context for specific domain: {domain}")
@@ -564,18 +565,12 @@ class AIOrchestrator:
                 full_context = await self.context_builder.get_full_context(user_id)
                 context.update(full_context)
 
-            # Step 2: Resolve any references in the user input
+            # Step 3: Resolve any references in the user input
             logger.debug("Resolving references")
             reference_results = await self.reference_resolver.resolve_reference(user_input, context)
             context['resolved_references'] = reference_results
             logger.debug(
                 f"Found {len(reference_results.get('matches', []))} references")
-
-            # Step 3: Detect intent using the LLM
-            logger.debug("Detecting intent")
-            intent_data = await self.intent_detector.detect_intent(user_input, context)
-            intent, target, description = intent_data["intent"], intent_data["target"], intent_data["description"]
-            logger.info(f"Detected intent: {intent}, target: {target}")
 
             # Step 4: Decide if RAG is needed for the intent
             logger.debug("Checking RAG settings")
