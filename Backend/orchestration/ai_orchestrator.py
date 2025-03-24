@@ -467,43 +467,69 @@ class AIOrchestrator:
             }
 
     async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Process a user request through the AI system.
-        
-        Args:
-            user_input: The user's text input
-            user_id: The user's ID
-            domain: Optional domain to use for processing
-            
-        Returns:
-            Dict with the AI response and metadata
-        """
+        """Process an AI request with caching."""
         try:
-            # Check if this is an entity creation request
-            if any(phrase in user_input.lower() for phrase in [
-                "create a task", "create task", "add a task", "add task",
-                "create a todo", "create todo", "add a todo", "add todo",
-                "create a habit", "create habit", "add a habit", "add habit",
-                "make a new task", "new task", "make a new todo", "new todo",
-                "make a new habit", "new habit"
-            ]):
-                return await self.process_entity_creation(user_input, user_id)
-                
-            # Continue with normal request processing
-            # Build context from user history and domain data
-            context = await self.context_builder.build_context(user_id, domain)
-            
-            # Add user to context
-            context["user_id"] = user_id
-            
-            # Process the request with full context
-            return await self._process_request_internal(user_input, context)
+            logger.info(
+                f"Starting request processing for user {user_id} with input: {user_input[:50]}...")
+            start_time = time.time()
+
+            # Get conversation history
+            logger.debug(f"Getting conversation history for user {user_id}")
+            conversation_history = self._get_conversation_history(user_id)
+
+            # Prepare context
+            logger.debug("Preparing request context")
+            context = {
+                "conversation_history": conversation_history,
+                "domain": domain,
+                "user_id": user_id
+            }
+
+            # Generate cache key
+            logger.debug("Generating cache key")
+            cache_key = await self._generate_cache_key(user_id, user_input, context)
+            logger.info(f"Generated cache key: {cache_key}")
+
+            # Try to get from cache first
+            logger.debug("Checking cache")
+            cached_result = await self._get_cached_result(cache_key)
+            if cached_result:
+                logger.info(f"Cache hit for key: {cache_key}")
+                self._update_cache_stats(cache_key)
+                return cached_result
+
+            logger.info("Cache miss - processing new request")
+            try:
+                # Process the request
+                result = await self._process_request_internal(user_input, context)
+
+                # Update conversation history
+                if result and "response" in result:
+                    logger.debug("Updating conversation history")
+                    self._update_conversation_history(
+                        user_id, user_input, result["response"])
+
+                # Cache the result
+                logger.debug("Caching result")
+                await self._cache_result(cache_key, result)
+
+                # Update model stats
+                latency = time.time() - start_time
+                logger.info(f"Request processed in {latency:.2f} seconds")
+                await self._update_model_stats(latency)
+
+                return result
+
+            except Exception as e:
+                logger.error(
+                    f"Error in request processing: {str(e)}", exc_info=True)
+                raise
+
         except Exception as e:
-            self.logger.error(f"Error processing request: {str(e)}")
+            logger.error(f"Error processing request: {str(e)}", exc_info=True)
             return {
-                "response": f"I encountered an error: {str(e)}",
-                "error": True,
-                "error_message": str(e)
+                "error": str(e),
+                "status": "error"
             }
 
     async def _process_request_internal(self, user_input: str, context: Dict[str, Any]) -> Dict[str, Any]:
