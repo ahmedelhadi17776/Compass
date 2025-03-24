@@ -43,18 +43,6 @@ async def _create_todo(todo_data: Dict[str, Any]) -> Optional[Dict]:
                 "updated_at": todo.updated_at.isoformat() if todo.updated_at else None
             }
             
-            # Ensure TodoAIService is imported
-            from Backend.ai_services.rag.todo_ai_service import TodoAIService
-            
-            # Directly index the todo in the vector store
-            try:
-                ai_service = TodoAIService()
-                await ai_service.index_todo(todo)
-                logger.info(f"Successfully indexed todo {todo.id} in vector store")
-            except Exception as e:
-                # Log the error but don't fail the task
-                logger.error(f"Error indexing todo in vector store: {str(e)}")
-            
             return todo_dict
         except Exception as e:
             await session.rollback()
@@ -85,18 +73,6 @@ async def _update_todo(todo_id: int, user_id: int, updates: Dict[str, Any]) -> O
                 "updated_at": result.updated_at.isoformat() if result.updated_at else None
             }
             
-            # Ensure TodoAIService is imported
-            from Backend.ai_services.rag.todo_ai_service import TodoAIService
-            
-            # Directly index the updated todo in the vector store
-            try:
-                ai_service = TodoAIService()
-                await ai_service.index_todo(result)
-                logger.info(f"Successfully indexed updated todo {result.id} in vector store")
-            except Exception as e:
-                # Log the error but don't fail the task
-                logger.error(f"Error indexing updated todo in vector store: {str(e)}")
-            
             return result_dict
         except Exception as e:
             await session.rollback()
@@ -115,18 +91,6 @@ async def _delete_todo(todo_id: int, user_id: int) -> bool:
                 return False
             result = await todo_repo.delete(todo_id, user_id)
             await session.commit()
-            
-            # Ensure TodoAIService is imported
-            from Backend.ai_services.rag.todo_ai_service import TodoAIService
-            
-            # Directly remove the todo from the vector store
-            try:
-                ai_service = TodoAIService()
-                await ai_service.remove_todo_index(todo_id)
-                logger.info(f"Successfully removed todo {todo_id} from vector store")
-            except Exception as e:
-                # Log the error but don't fail the task
-                logger.error(f"Error removing todo from vector store: {str(e)}")
             
             return bool(result)
         except Exception as e:

@@ -20,7 +20,6 @@ from Backend.api.auth import get_current_user
 from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.data_layer.database.models.user import User
-from Backend.ai_services.rag.todo_ai_service import TodoAIService
 from Backend.orchestration.ai_orchestrator import AIOrchestrator
 from Backend.app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
 
@@ -73,8 +72,6 @@ router = APIRouter(prefix="/ai", tags=["AI Services"])
 # Initialize services
 ai_service = AIService()
 llm_service = LLMService()
-todo_ai_service = TodoAIService()
-
 
 @router.post("/process", response_model=AIResponse)
 async def process_ai_request(
