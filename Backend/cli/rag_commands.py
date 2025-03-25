@@ -28,20 +28,32 @@ def process_kb(dir=None, force=False, domain=None):
     """Process knowledge base PDF files into ChromaDB"""
     click.echo(f"Processing knowledge base{'(forced)' if force else ''}...")
 
-    # Process knowledge base
-    results = asyncio.run(process_knowledge_base(dir))
+    try:
+        # Create event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-    # Display results
-    click.echo(f"Processing complete:")
-    click.echo(f"  - Files processed: {results['processed']}")
-    click.echo(f"  - Files failed: {results['failed']}")
+        # Process knowledge base
+        results = loop.run_until_complete(process_knowledge_base(dir))
 
-    # Display files
-    if results['files']:
-        click.echo("\nProcessed files:")
-        for file in results['files']:
-            status = "✅" if file['success'] else "❌"
-            click.echo(f"  {status} {file['filename']} ({file['domain']})")
+        # Close the loop
+        loop.close()
+
+        # Display results
+        click.echo(f"Processing complete:")
+        click.echo(f"  - Files processed: {results['processed']}")
+        click.echo(f"  - Files failed: {results['failed']}")
+
+        # Display files
+        if results['files']:
+            click.echo("\nProcessed files:")
+            for file in results['files']:
+                status = "✅" if file['success'] else "❌"
+                click.echo(f"  {status} {file['filename']} ({file['domain']})")
+
+    except Exception as e:
+        click.echo(f"Error processing knowledge base: {str(e)}", err=True)
+        raise click.Abort()
 
 
 @rag.command()
@@ -67,19 +79,18 @@ def query(domain, query):
 
     # Display results
     click.echo("\nResults:")
-    if results and 'answer' in results:
-        click.echo(results['answer'])
+    if results and results.get('found', False):
+        # Print the content of the search results
+        click.echo(results.get('content', 'No content found'))
 
+        # Print sources if available
         if 'sources' in results and results['sources']:
             click.echo("\nSources:")
             for source in results['sources']:
-                if isinstance(source, dict):
-                    filename = source.get('source_file', 'unknown')
-                    page = source.get('page_number', '')
-                    page_info = f" (page {page})" if page else ""
-                    click.echo(f"  - {filename}{page_info}")
+                click.echo(f"  - {source}")
     else:
-        click.echo("No results found")
+        click.echo("No results found or error: " +
+                   results.get('error', 'Unknown error'))
 
 
 if __name__ == '__main__':
