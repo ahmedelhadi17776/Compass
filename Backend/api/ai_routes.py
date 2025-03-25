@@ -12,6 +12,7 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionUserMessageParam, ChatCompletionAssistantMessageParam
 from fastapi import Request, BackgroundTasks
 from sqlalchemy import Column
+import json
 
 from Backend.data_layer.database.connection import get_db
 from Backend.app.schemas.task_schemas import TaskCreate, TaskResponse
@@ -178,7 +179,31 @@ async def process_ai_request_stream(
 
         async def stream_generator():
             try:
-                # Use the orchestrator to process in streaming mode
+                # Check if this is an entity creation request
+                intent_result = await orchestrator.intent_detector.detect_intent(
+                    request.prompt, 
+                    {"tasks": {}, "todos": {}, "habits": {}, "default": {}}
+                )
+                
+                if intent_result.get("intent") == "create":
+                    # Handle entity creation
+                    entity_type = intent_result.get("target", "task")
+                    
+                    # First yield a confirmation message
+                    confirmation = f"Creating a new {entity_type} based on your description..."
+                    yield f"data: {json.dumps({'text': confirmation, 'done': False})}\n\n"
+                    
+                    # Process the entity creation
+                    creation_result = await orchestrator.process_entity_creation(request.prompt, user_id)
+                    
+                    # Yield the creation result
+                    result_message = creation_result.get("response", f"Created {entity_type} successfully")
+                    yield f"data: {json.dumps({'text': result_message, 'done': True, 'metadata': {'entity_type': entity_type, 'creation_result': creation_result}})}\n\n"
+                    
+                    yield "data: [DONE]\n\n"
+                    return
+                
+                # Use the orchestrator to process in streaming mode for non-creation intents
                 stream = await orchestrator.llm_service.generate_response(
                     prompt=request.prompt,
                     context={"user_id": user_id, "domain": request.domain} if request.domain else {
@@ -194,7 +219,7 @@ async def process_ai_request_stream(
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"Error in stream: {error_msg}")
-                yield f"data: Error: {error_msg}\n\n"
+                yield f"data: {json.dumps({'text': f'Error: {error_msg}', 'done': True, 'error': True})}\n\n"
 
         return StreamingResponse(
             stream_generator(),
@@ -204,7 +229,7 @@ async def process_ai_request_stream(
         error_msg = str(e)
         logger.error(f"Error setting up stream: {error_msg}")
         return StreamingResponse(
-            iter([f"data: Error: {error_msg}\n\n"]),
+            iter([f"data: {json.dumps({'text': f'Error: {error_msg}', 'done': True, 'error': True})}\n\n"]),
             media_type="text/event-stream"
         )
 
@@ -400,4 +425,51 @@ async def upload_pdf_to_knowledge_base(
         raise HTTPException(
             status_code=500,
             detail=f"Error processing PDF: {str(e)}"
+        )
+
+
+@router.post("/entity/create", response_model=AIResponse)
+async def create_entity(
+    request: AIRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new entity (task, todo, habit) from natural language description."""
+    try:
+        orchestrator = AIOrchestrator(db)
+
+        # Get user ID safely
+        if not hasattr(current_user, 'id'):
+            raise ValueError("User ID is required")
+
+        # Convert SQLAlchemy Column to string then int
+        user_id = int(str(getattr(current_user, 'id')))
+
+        # Process the entity creation
+        creation_result = await orchestrator.process_entity_creation(request.prompt, user_id)
+        
+        return AIResponse(
+            response=creation_result.get("response", "Entity created"),
+            intent=creation_result.get("intent", "create"),
+            target=creation_result.get("target", "unknown"),
+            description=creation_result.get("description", "Create entity from description"),
+            rag_used=False,
+            cached=False,
+            confidence=creation_result.get("confidence", 0.9),
+            error=creation_result.get("error", False),
+            error_message=creation_result.get("error_message")
+        )
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error creating entity: {error_msg}")
+        return AIResponse(
+            response=f"Error creating entity: {error_msg}",
+            intent="create",
+            target="unknown",
+            description="Create entity from description",
+            rag_used=False,
+            cached=False,
+            confidence=0.0,
+            error=True,
+            error_message=error_msg
         )
