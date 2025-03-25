@@ -216,19 +216,33 @@ class AIOrchestrator:
             ttl = cache_config.get("ttl_per_intent", {}).get(
                 intent, cache_config.get("default_ttl", 3600))
 
+            # Create a serializable copy of the result
+            serializable_result = {}
+            for key, value in result.items():
+                # Skip non-serializable objects
+                if key == "context_used" and "conversation_history" in value:
+                    # Create a copy without conversation_history
+                    serializable_context = {k: v for k, v in value.items() if k != "conversation_history"}
+                    serializable_result[key] = serializable_context
+                elif key == "conversation_history":
+                    # Skip conversation history entirely
+                    continue
+                else:
+                    serializable_result[key] = value
+
             # Add metadata for similarity matching
-            result["timestamp"] = time.time()
-            result["cache_key_components"] = json.dumps({
+            serializable_result["timestamp"] = time.time()
+            serializable_result["cache_key_components"] = json.dumps({
                 "user_input": result.get("original_input", ""),
                 "intent": intent,
                 "target": result.get("target", "default")
             })
 
             # Cache the result
-            await set_cached_value(cache_key, json.dumps(result), ttl)
+            await set_cached_value(cache_key, json.dumps(serializable_result), ttl)
             logger.info(f"Cached result for key: {cache_key}")
         except Exception as e:
-            logger.error(f"Error caching result: {str(e)}")
+            logger.error(f"Error caching result: {str(e)}", exc_info=True)
 
     def _update_cache_stats(self, cache_key: str) -> None:
         """Update cache statistics for a key."""
