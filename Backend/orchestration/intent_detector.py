@@ -14,11 +14,6 @@ class IntentDetector:
 
     def __init__(self):
         self.llm_service = LLMService()
-        self.creation_keywords = {
-            'task': ['create task', 'add task', 'new task', 'make task'],
-            'todo': ['create todo', 'add todo', 'new todo', 'make todo'],
-            'habit': ['create habit', 'add habit', 'new habit', 'make habit']
-        }
 
     def _extract_json_from_markdown(self, text: str) -> str:
         """Extract JSON content from markdown code blocks."""
@@ -49,23 +44,10 @@ class IntentDetector:
 
         Returns:
             Dict containing:
-                - intent: One of: retrieve, analyze, summarize, plan, create
+                - intent: One of: retrieve, analyze, summarize, plan
                 - target: The domain target (tasks, todos, etc.)
                 - description: Brief explanation of the user's goal
         """
-        # Check for creation intent first with direct pattern matching
-        user_input_lower = user_input.lower()
-        
-        # Check for creation intent
-        for entity_type, keywords in self.creation_keywords.items():
-            if any(keyword in user_input_lower for keyword in keywords):
-                logger.info(f"Detected creation intent for {entity_type}")
-                return {
-                    "intent": "create",
-                    "target": entity_type,
-                    "description": f"Create a new {entity_type}"
-                }
-        
         # Check if we have conversation history and determine previous domain
         previous_domain = None
         conversation_history = database_summary.get('conversation_history')
@@ -126,7 +108,6 @@ class IntentDetector:
         - analyze: To generate insights or analyze patterns
         - summarize: Provide a summary or overview
         - plan: To schedule, organize, or create plans
-        - create: To create a new entity (task, todo, habit)
 
         For general queries or greetings:
         - Use "retrieve" for information requests or recommendations
@@ -135,7 +116,7 @@ class IntentDetector:
 
         Respond with a JSON object:
         {{
-            "intent": "retrieve/analyze/summarize/plan/create",
+            "intent": "retrieve/analyze/summarize/plan",
             "target": "tasks/todos/habits/default",
             "description": "A short explanation of the user's goal"
         }}
@@ -282,7 +263,7 @@ class IntentDetector:
                 }
 
             # Ensure intent is one of the valid options
-            valid_intents = ["retrieve", "analyze", "summarize", "plan", "create"]
+            valid_intents = ["retrieve", "analyze", "summarize", "plan"]
             if intent_data["intent"] not in valid_intents:
                 logger.warning(
                     f"Invalid intent {intent_data['intent']}, defaulting to retrieve")
