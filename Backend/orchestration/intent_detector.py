@@ -15,6 +15,10 @@ class IntentDetector:
     def __init__(self):
         self.llm_service = LLMService()
 
+    def _is_async_iterable(self, obj):
+        """Check if an object is async iterable by looking for __aiter__ attribute."""
+        return hasattr(obj, '__aiter__') and callable(getattr(obj, '__aiter__'))
+
     def _extract_json_from_markdown(self, text: str) -> str:
         """Extract JSON content from markdown code blocks."""
         # Try to find JSON in code blocks with language specifier
@@ -135,10 +139,21 @@ class IntentDetector:
             else:
                 # For streaming response, collect all chunks
                 chunks = []
-                async for chunk in result:
-                    chunks.append(chunk)
-                json_str = self._extract_json_from_markdown("".join(chunks))
-                
+                try:
+                    if self._is_async_iterable(result):
+                        async for chunk in result:
+                            chunks.append(chunk)
+                        json_str = self._extract_json_from_markdown(
+                            "".join(chunks))
+                    else:
+                        # Handle case where result is not an async iterator
+                        json_str = self._extract_json_from_markdown(
+                            str(result))
+                except Exception as e:
+                    logger.warning(
+                        f"Error processing streaming response: {str(e)}")
+                    json_str = self._extract_json_from_markdown(str(result))
+
             logger.debug(f"Raw collected response: {json_str}")
 
             # Ensure we have a valid JSON string, even if empty
