@@ -57,6 +57,11 @@ class ChromaClient:
                     "hnsw:ef": 50  # Size of the dynamic candidate list for search
                 }
             )
+
+            # Add a check to ensure collection is initialized
+            if self.collection is None:
+                raise RuntimeError("Failed to initialize ChromaDB collection")
+
             logger.info("Successfully initialized ChromaDB client")
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB client: {str(e)}")
@@ -73,8 +78,12 @@ class ChromaClient:
     ) -> None:
         """Add documents to the collection with batching."""
         try:
+            # Ensure collection is initialized
             if self.collection is None:
-                raise RuntimeError("Collection not initialized")
+                self._initialize_client()
+                if self.collection is None:
+                    raise RuntimeError(
+                        "ChromaDB collection could not be initialized")
 
             # Convert inputs to lists
             docs = [documents] if isinstance(documents, str) else documents
@@ -119,8 +128,12 @@ class ChromaClient:
     ) -> QueryResult:
         """Optimized query with type safety."""
         try:
+            # Ensure collection is initialized
             if self.collection is None:
-                raise RuntimeError("Collection not initialized")
+                self._initialize_client()
+                if self.collection is None:
+                    raise RuntimeError(
+                        "ChromaDB collection could not be initialized")
 
             # Convert query to list format
             query_texts = [query_text] if isinstance(
