@@ -1,13 +1,13 @@
 from typing import Dict, List, Optional, Any
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from crewai import Agent, Task, Crew
 from langchain.tools import Tool
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.utils.logging_utils import get_logger
 from pydantic import Field
-from Backend.data_layer.repositories.task_repository import TaskRepository
-from Backend.data_layer.repositories.todo_repository import TodoRepository
-from Backend.data_layer.repositories.daily_habits_repository import DailyHabitRepository
+from Backend.services.task_service import TaskService
+from Backend.services.todo_service import TodoService
+from Backend.services.daily_habits_service import DailyHabitService
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
 from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.database.models.todo import TodoStatus, TodoPriority
@@ -54,9 +54,26 @@ class EntityCreationAgent:
         
         self.ai_service = LLMService()
         self.db = db_session
-        self.task_repository = TaskRepository(db_session) if db_session else None
-        self.todo_repository = TodoRepository(db_session) if db_session else None
-        self.habit_repository = DailyHabitRepository(db_session) if db_session else None
+        
+        # Initialize services instead of repositories
+        if db_session:
+            # For TaskService, we need to provide a TaskRepository instance
+            from Backend.data_layer.repositories.task_repository import TaskRepository
+            task_repo = TaskRepository(db_session)
+            self.task_service = TaskService(task_repo)
+            
+            # For TodoService and DailyHabitService similarly
+            from Backend.data_layer.repositories.todo_repository import TodoRepository
+            todo_repo = TodoRepository(db_session)
+            self.todo_service = TodoService(todo_repo)
+            
+            from Backend.data_layer.repositories.daily_habits_repository import DailyHabitRepository
+            habit_repo = DailyHabitRepository(db_session)
+            self.habit_service = DailyHabitService(habit_repo)
+        else:
+            self.task_service = None
+            self.todo_service = None
+            self.habit_service = None
     
     async def determine_entity_type(self, user_input: str) -> Dict[str, Any]:
         """Determine what type of entity the user wants to create."""
@@ -121,6 +138,9 @@ Please determine the entity type and provide a brief explanation why.""",
     async def create_task(self, description: str, user_id: int = None) -> Dict[str, Any]:
         """Create a new task from natural language description."""
         try:
+            # Set current_time once at the beginning
+            current_time = datetime.utcnow()
+            
             # Use LLM to extract structured data from description
             task_analysis = await self.ai_service.generate_response(
                 prompt=f"""Extract structured task information from this description:
@@ -150,11 +170,6 @@ Extract and format as JSON:
                         response_text = json_match.group(1)
                 
                 task_data = json.loads(response_text)
-                
-                # Add metadata - use actual datetime objects, not strings
-                current_time = datetime.utcnow()
-                task_data["created_at"] = current_time
-                task_data["updated_at"] = current_time
                 
                 # Map status string to proper TaskStatus enum value
                 # Map common status terms to our enum values
@@ -237,31 +252,42 @@ Extract and format as JSON:
                     try:
                         # Parse YYYY-MM-DD format
                         due_date = datetime.strptime(task_data["due_date"], "%Y-%m-%d")
-                        task_data["due_date"] = due_date
+                        
+                        # Ensure due_date is not in the past
+                        if due_date < current_time:
+                            # If due date is in the past, set it to end of current day
+                            logger.warning(f"Due date {due_date} is in the past, adjusting to future date")
+                            adjusted_due_date = current_time.replace(hour=23, minute=59, second=59)
+                            task_data["due_date"] = adjusted_due_date
+                        else:
+                            task_data["due_date"] = due_date
                     except ValueError:
                         # If parsing fails, remove invalid date
                         logger.warning(f"Invalid due_date format: {task_data['due_date']}")
                         task_data.pop("due_date", None)
                 
-                # Add required fields
-                task_data["creator_id"] = user_id  # Use the user_id as creator_id
-                task_data["organization_id"] = 1  # Default organization_id
-                task_data["project_id"] = 1  # Default project_id
+                # Map task_data to parameters needed for TaskService.create_task
+                task_creation_data = {
+                    "title": task_data["title"],
+                    "description": task_data.get("description", ""),
+                    "creator_id": user_id,
+                    "organization_id": 1,  # Default organization_id
+                    "project_id": 1,  # Default project_id
+                    "start_date": current_time,
+                    "status": task_data["status"],
+                    "priority": task_data["priority"],
+                    "recurrence": task_data["recurrence"],
+                    "due_date": task_data.get("due_date"),
+                    # Safely handle None values for duration
+                    "duration": float(task_data.get("estimated_hours")) if task_data.get("estimated_hours") is not None else 1.0,
+                    # Safely handle None values for estimated_hours
+                    "estimated_hours": float(task_data.get("estimated_hours")) if task_data.get("estimated_hours") is not None else None,
+                    "dependencies": None  # Can be added if extracted from description
+                }
                 
-                # Set status_updated_at to current time
-                task_data["status_updated_at"] = current_time
-                
-                # Convert string fields to expected types for TaskRepository.create()
-                # The create method expects start_date and possibly duration
-                task_data["start_date"] = current_time
-                if "estimated_hours" in task_data and task_data["estimated_hours"]:
-                    task_data["duration"] = float(task_data["estimated_hours"])
-                
-                # Save to database if repository is available
-                if self.task_repository is not None:
-                    start_date = task_data.pop("start_date", current_time)
-                    duration = task_data.pop("duration", None)
-                    db_task = await self.task_repository.create(start_date=start_date, duration=duration, **task_data)
+                # Save to database if service is available
+                if self.task_service is not None:
+                    db_task = await self.task_service.create_task(**task_creation_data)
                     task_data["id"] = db_task.id
                 
                 # Ensure all values are JSON serializable
@@ -299,6 +325,9 @@ Extract and format as JSON:
     async def create_todo(self, description: str, user_id: int = None) -> Dict[str, Any]:
         """Create a new todo item from natural language description."""
         try:
+            # Set current_time once at the beginning
+            current_time = datetime.utcnow()
+            
             # Use LLM to extract structured data
             todo_analysis = await self.ai_service.generate_response(
                 prompt=f"""Extract structured todo information from this description:
@@ -328,7 +357,6 @@ Extract and format as JSON:
                 todo_data = json.loads(response_text)
                 
                 # Add metadata - use actual datetime objects, not strings
-                current_time = datetime.utcnow()
                 todo_data["created_at"] = current_time
                 todo_data["updated_at"] = current_time
                 todo_data["is_recurring"] = False
@@ -356,16 +384,25 @@ Extract and format as JSON:
                     try:
                         # Parse YYYY-MM-DD format
                         due_date = datetime.strptime(todo_data["due_date"], "%Y-%m-%d")
-                        todo_data["due_date"] = due_date
+                        
+                        # Ensure due_date is not in the past
+                        if due_date < current_time:
+                            # If due date is in the past, set it to end of current day
+                            logger.warning(f"Due date {due_date} is in the past, adjusting to future date")
+                            adjusted_due_date = current_time.replace(hour=23, minute=59, second=59)
+                            todo_data["due_date"] = adjusted_due_date
+                        else:
+                            todo_data["due_date"] = due_date
                     except ValueError:
                         # If parsing fails, remove invalid date
                         logger.warning(f"Invalid due_date format: {todo_data['due_date']}")
                         todo_data.pop("due_date", None)
                 
-                # Save to database if repository is available
-                if self.todo_repository is not None:
-                    db_todo = await self.todo_repository.create(**todo_data)
-                    todo_data["id"] = db_todo.id
+                # Save to database if service is available
+                if self.todo_service is not None:
+                    db_todo = await self.todo_service.create_todo(**todo_data)
+                    if db_todo:
+                        todo_data["id"] = db_todo.id if hasattr(db_todo, 'id') else None
                 
                 # Ensure all values are JSON serializable
                 # Convert datetime objects to strings
@@ -402,6 +439,9 @@ Extract and format as JSON:
     async def create_habit(self, description: str, user_id: int = None) -> Dict[str, Any]:
         """Create a new habit from natural language description."""
         try:
+            # Set current_time once at the beginning
+            current_time = datetime.utcnow()
+            
             # Use LLM to extract structured data
             habit_analysis = await self.ai_service.generate_response(
                 prompt=f"""Extract structured habit information from this description:
@@ -431,13 +471,35 @@ Extract and format as JSON with ONLY these fields:
                 
                 # Convert date strings to date objects
                 if "start_day" in habit_data and habit_data["start_day"]:
-                    habit_data["start_day"] = datetime.strptime(habit_data["start_day"], "%Y-%m-%d").date()
+                    try:
+                        start_day = datetime.strptime(habit_data["start_day"], "%Y-%m-%d").date()
+                        # Ensure start_day is not in the past
+                        if start_day < current_time.date():
+                            logger.warning(f"Start day {start_day} is in the past, using current date")
+                            habit_data["start_day"] = current_time.date()
+                        else:
+                            habit_data["start_day"] = start_day
+                    except ValueError:
+                        logger.warning(f"Invalid start_day format: {habit_data['start_day']}, using current date")
+                        habit_data["start_day"] = current_time.date()
+                else:
+                    habit_data["start_day"] = current_time.date()
                 
                 if "end_day" in habit_data and habit_data["end_day"]:
-                    habit_data["end_day"] = datetime.strptime(habit_data["end_day"], "%Y-%m-%d").date()
+                    try:
+                        end_day = datetime.strptime(habit_data["end_day"], "%Y-%m-%d").date()
+                        # Ensure end_day is after start_day
+                        if end_day < habit_data["start_day"]:
+                            # Set end_day to 30 days after start_day
+                            logger.warning(f"End day {end_day} is before start day, adjusting to 30 days later")
+                            habit_data["end_day"] = habit_data["start_day"] + timedelta(days=30)
+                        else:
+                            habit_data["end_day"] = end_day
+                    except ValueError:
+                        logger.warning(f"Invalid end_day format: {habit_data['end_day']}")
+                        habit_data.pop("end_day", None)
                 
                 # Add metadata - use actual datetime objects, not strings
-                current_time = datetime.utcnow()
                 habit_data["created_at"] = current_time
                 habit_data["updated_at"] = current_time
                 habit_data["current_streak"] = 0
@@ -445,14 +507,11 @@ Extract and format as JSON with ONLY these fields:
                 habit_data["is_completed"] = False
                 habit_data["user_id"] = user_id
 
-                # Set start_day to current date if not provided
-                if "start_day" not in habit_data:
-                    habit_data["start_day"] = current_time.date()
-
-                # Save to database if repository is available
-                if self.habit_repository is not None:
-                    db_habit = await self.habit_repository.create(**habit_data)
-                    habit_data["id"] = db_habit.id
+                # Save to database if service is available
+                if self.habit_service is not None:
+                    db_habit = await self.habit_service.create_habit(**habit_data)
+                    if db_habit:
+                        habit_data["id"] = db_habit.id if hasattr(db_habit, 'id') else None
                 
                 # Ensure all values are JSON serializable
                 # Convert datetime objects to strings
