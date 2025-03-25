@@ -175,7 +175,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         onMouseDown={handleMouseDown}
         style={{ cursor: isFullPage ? 'default' : 'move' }}
       >
-        <h1 className={`text-lg font-medium ${isDarkTheme ? 'text-[#e5e5e5]' : 'text-gray-800'}`}>AI Assistant</h1>
+        <h1 className={`text-lg font-medium ${isDarkTheme ? 'text-[#e5e5e5]' : 'text-gray-800'}`}>AI Assistant - Iris</h1>
         <div className="flex space-x-2">
           <button
             onClick={handleExpandToAIAssistant}

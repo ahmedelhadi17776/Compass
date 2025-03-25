@@ -36,7 +36,7 @@ const getTimeBasedGreeting = () => {
 const defaultMessages: Message[] = [
   {
     id: "1",
-    text: "✨ Hello! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.",
+    text: "✨ Hello! I'm Iris, Your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.",
     sender: 'assistant',
     timestamp: new Date(),
   }
@@ -57,7 +57,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       const userName = user.first_name || '';
       const welcomeMessage = {
         id: "1",
-        text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
+        text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm Iris, Your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
         sender: 'assistant' as const,
         timestamp: new Date(),
       };
@@ -86,7 +86,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const userName = user?.first_name || '';
     const welcomeMessage = {
       id: "1",
-      text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
+      text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm Iris, Your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
       sender: 'assistant' as const,
       timestamp: new Date(),
     };
@@ -100,7 +100,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     const userName = user?.first_name || '';
     const welcomeMessage = {
       id: "1",
-      text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
+      text: `${greeting.emoji} ${greeting.text}${userName ? `, ${userName}` : ''}! I'm Iris, Your AI assistant. I can help you manage tasks, plan your day, and answer any questions about your workspace.`,
       sender: 'assistant' as const,
       timestamp: new Date(),
     };
