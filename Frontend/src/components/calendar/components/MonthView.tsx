@@ -28,7 +28,7 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
   } = useMonthTasks(date, 1, { expand_recurring: true });
 
   const getEventsForDay = (day: Date) => {
-    return events.filter(event => 
+    return events.filter((event: CalendarEvent) => 
       format(new Date(event.start), 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
     );
   };
@@ -72,48 +72,50 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
 
   return (
     <div className={cn("month-view", darkMode && "dark")}>
-      <div className="month-grid">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="month-weekday-header">
-            {day}
-          </div>
-        ))}
+      <div className="month-container">
+        <div className="month-grid">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="month-weekday-header">
+              {day}
+            </div>
+          ))}
 
-        {days.map(day => (
-          <div 
-            key={day.toISOString()}
-            className={cn(
-              "month-day-cell",
-              !isSameMonth(day, date) && "month-other-day",
-              isToday(day) && "month-today",
-              darkMode && "dark"
-            )}
-          >
-            <div className="month-day-header">
-              <span className="month-day-number">{format(day, 'd')}</span>
-            </div>
-            <div className="month-day-events">
-              {getEventsForDay(day).map(event => (
-                <div 
-                  key={event.id}
-                  className={cn(
-                    "month-event-pill",
-                    `category-${event.category}`,
-                    `priority-${event.priority}`,
-                    darkMode && "dark"
-                  )}
-                  onClick={() => onEventClick(event)}
-                >
-                  <div className="month-event-time">{format(new Date(event.start), 'h:mm a')}</div>
-                  <div className="month-event-title">
-                    <span className="priority-emoji">{getPriorityEmoji(event.priority)}</span>
-                    {event.title}
+          {days.map(day => (
+            <div 
+              key={day.toISOString()}
+              className={cn(
+                "month-day-cell",
+                !isSameMonth(day, date) && "month-other-day",
+                isToday(day) && "month-today",
+                darkMode && "dark"
+              )}
+            >
+              <div className="month-day-header">
+                <span className="month-day-number">{format(day, 'd')}</span>
+              </div>
+              <div className="month-day-events">
+                {getEventsForDay(day).map((event: CalendarEvent) => (
+                  <div 
+                    key={event.id}
+                    className={cn(
+                      "month-event-pill",
+                      `category-${event.category}`,
+                      `priority-${event.priority}`,
+                      darkMode && "dark"
+                    )}
+                    onClick={() => onEventClick(event)}
+                  >
+                    <div className="month-event-time">{format(new Date(event.start), 'h:mm a')}</div>
+                    <div className="month-event-title">
+                      <span className="priority-emoji">{getPriorityEmoji(event.priority)}</span>
+                      {event.title}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
