@@ -48,7 +48,7 @@ function App() {
                         <Routes>
                           <Route index element={<Navigate to="/dashboard" replace />} />
                           <Route path="dashboard" element={<Dashboard />} />
-                          <Route path="tasks" element={<Tasks />} />
+                          <Route path="todo-habit" element={<Tasks />} />
                           <Route path="calendar" element={<Calendar />} />
                           <Route path="ai" element={<AIAssistant />} />
                           <Route path="focus" element={<FocusMode />} />

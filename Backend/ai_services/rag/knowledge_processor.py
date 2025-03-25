@@ -16,11 +16,10 @@ class KnowledgeProcessor:
 
     def __init__(self, rag_service: Optional[RAGService] = None):
         self.rag_service = rag_service or RAGService()
-        self.max_workers = 6
-        
-        self.chunk_size = 1  
+        self.max_workers = 4
+        self.chunk_size = 5  # Number of pages to process in one batch
         self.thread_pool = ThreadPoolExecutor(max_workers=self.max_workers)
-        
+
     async def _process_pdf_batch(
         self,
         file_path: Path,
@@ -28,92 +27,61 @@ class KnowledgeProcessor:
         end_page: int,
         metadata: Dict[str, Any]
     ) -> Tuple[bool, List[str]]:
+        """Process a batch of PDF pages."""
         try:
             with open(file_path, 'rb') as pdf_file:
                 pdf_reader = PyPDF2.PdfReader(pdf_file)
                 content = []
                 processed_pages = []
 
+                # Process pages in the batch
                 for page_num in range(start_page, min(end_page, len(pdf_reader.pages))):
                     page = pdf_reader.pages[page_num]
                     page_text = page.extract_text()
-                    
-                    # Improve text cleaning
-                    page_text = self._clean_text(page_text)
-                    
-                    # Split into semantic chunks
-                    chunks = self._split_into_chunks(page_text)
-                    
-                    for chunk_idx, chunk in enumerate(chunks):
-                        chunk_metadata = metadata.copy()
-                        chunk_metadata.update({
-                            "page_number": page_num + 1,
-                            "chunk_number": chunk_idx + 1,
-                            "total_pages": len(pdf_reader.pages),
-                            "source_file": file_path.name,
-                            "content_type": "pdf_chunk",
-                            "batch_processed": True
-                        })
-                        
-                        content.append(chunk)
-                        processed_pages.append(page_num + 1)
-                        
-                        # Process immediately if we have enough chunks
-                        if len(content) >= self.chunk_size:
-                            success = await self.rag_service.add_to_knowledge_base(
-                                content=content,
-                                metadata=[chunk_metadata for _ in content],
-                                normalize=True
-                            )
-                            if not success:
-                                logger.error(f"Failed to process chunks from page {page_num + 1}")
-                                return False, processed_pages
-                            content = []
 
-                # Process remaining chunks
+                    # Create page-specific metadata
+                    page_metadata = metadata.copy()
+                    page_metadata.update({
+                        "page_number": page_num + 1,
+                        "total_pages": len(pdf_reader.pages),
+                        "source_file": file_path.name,
+                        "content_type": "pdf_page",
+                        "batch_processed": True
+                    })
+
+                    # Add to content list
+                    content.append(page_text)
+                    processed_pages.append(page_num + 1)
+
+                    # Add to knowledge base in smaller chunks
+                    if len(content) >= 5:  # Process in chunks of 5 pages
+                        success = await self.rag_service.add_to_knowledge_base(
+                            content=content,
+                            metadata=[page_metadata for _ in content],
+                            normalize=True
+                        )
+                        if not success:
+                            logger.error(
+                                f"Failed to process pages {processed_pages}")
+                            return False, processed_pages
+                        content = []
+
+                # Process any remaining pages
                 if content:
                     success = await self.rag_service.add_to_knowledge_base(
                         content=content,
-                        metadata=[chunk_metadata for _ in content],
+                        metadata=[page_metadata for _ in content],
                         normalize=True
                     )
                     if not success:
-                        logger.error(f"Failed to process remaining chunks")
+                        logger.error(
+                            f"Failed to process remaining pages {processed_pages}")
                         return False, processed_pages
 
                 return True, processed_pages
-                
         except Exception as e:
             logger.error(f"Error processing PDF batch: {str(e)}")
             return False, []
-
-    def _clean_text(self, text: str) -> str:
-        """Clean extracted text from PDF."""
-        # Remove extra whitespace
-        text = ' '.join(text.split())
-        # Remove special characters but keep punctuation
-        text = ''.join(char for char in text if char.isprintable())
-        return text
-
-    def _split_into_chunks(self, text: str, max_chunk_size: int = 1000) -> List[str]:
-        """Split text into semantic chunks."""
-        # Split on paragraph breaks first
-        paragraphs = text.split('\n\n')
-        chunks = []
-        current_chunk = ""
-        
-        for para in paragraphs:
-            if len(current_chunk) + len(para) < max_chunk_size:
-                current_chunk += para + "\n\n"
-            else:
-                if current_chunk:
-                    chunks.append(current_chunk.strip())
-                current_chunk = para + "\n\n"
-                
-        if current_chunk:
-            chunks.append(current_chunk.strip())
-            
-        return chunks
 
     async def process_knowledge_directory(self, directory_path: str) -> Dict[str, Any]:
         """
@@ -150,6 +118,10 @@ class KnowledgeProcessor:
                     domain = "todos"
                 elif "task" in filename:
                     domain = "tasks"
+                elif "ai" in filename:
+                    domain = "ai"
+                elif "user" in filename:
+                    domain = "users"
                 else:
                     domain = "default"
 

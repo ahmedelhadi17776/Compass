@@ -46,7 +46,7 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
           showTooltip ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        Chat with our AI assistant
+        Chat with IRIS, our AI assistant
       </div>
     </div>
   );

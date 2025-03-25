@@ -77,8 +77,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: "/dashboard",
           },
           {
-            title: "Task List",
-            url: "/tasks",
+            title: "Todos & Habits",
+            url: "/todo-habit",
           },
           {
             title: "Calendar Overview",
@@ -119,12 +119,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       {
         title: "TaskManagement",
-        url: "/tasks",
+        url: "/todo-habit",
         icon: ListTodo,
         items: [
           {
-            title: "Todo List",
-            url: "/tasks",
+            title: "Todos & Habits",
+            url: "/todo-habit",
           },
           {
             title: "Calendar View",
@@ -169,7 +169,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     projects: [
       {
         name: "Task Management",
-        url: "/projects/tasks",
+        url: "/projects/todo-habit",
         icon: ListTodo,
       },
       {

@@ -96,7 +96,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">AI Assistant</h2>
+        <h2 className="text-3xl font-bold tracking-tight">AI Chat Assistant</h2>
       </div>
 
       <Tabs defaultValue={view} className="space-y-4">
@@ -111,7 +111,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
             <div className="ai-chat-header">
               <div className="ai-chat-title">
                 <Sparkles className="h-5 w-5 text-muted-foreground" />
-                <span>AI Chat Assistant</span>
+                <span>AI Assistant - Iris</span>
               </div>
               <Button 
                 variant="ghost" 
@@ -145,7 +145,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                     )}
                     <div className="ai-message-content">
                       <div className="ai-message-name">
-                        {message.sender === "user" ? "You" : "AI Assistant"}
+                        {message.sender === "user" ? "You" : "AI Assistant - Iris"}
                         <span className="ai-message-timestamp">
                           {formatTimestamp(message.timestamp)}
                         </span>

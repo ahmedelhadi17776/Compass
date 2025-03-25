@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, TypeVar, Generic, Any, Dict
+from typing import Optional, List, TypeVar, Generic, Any
 from datetime import datetime
 
 T = TypeVar('T')
@@ -27,46 +27,6 @@ class BaseRepository(ABC, Generic[T]):
     async def delete(self, id: int, user_id: int) -> bool:
         """Delete an entity."""
         pass
-
-    async def get_context(self, user_id: int) -> Dict[str, Any]:
-        """Get context data for AI processing. Default implementation returns empty dict."""
-        return {"user_id": user_id}
-
-    async def get_data_for_ai(self, user_id: int) -> Dict[str, Any]:
-        """Alias for get_context for backward compatibility."""
-        return await self.get_context(user_id)
-
-
-class DefaultRepository(BaseRepository[Any]):
-    """Default concrete implementation of BaseRepository."""
-
-    def __init__(self, db_session):
-        """Initialize repository with database session."""
-        self.db = db_session
-
-    async def create(self, **data) -> Any:
-        """Create a new entity."""
-        return None
-
-    async def get_by_id(self, id: int, user_id: Optional[int] = None) -> Optional[Any]:
-        """Get an entity by ID."""
-        return None
-
-    async def update(self, id: int, user_id: int, **data) -> Optional[Any]:
-        """Update an entity."""
-        return None
-
-    async def delete(self, id: int, user_id: int) -> bool:
-        """Delete an entity."""
-        return False
-
-    async def get_context(self, user_id: int) -> Dict[str, Any]:
-        """Get basic context data."""
-        return {
-            "user_id": user_id,
-            "domain": "default",
-            "timestamp": datetime.now().isoformat()
-        }
 
 
 class TodoBaseRepository(BaseRepository[T]):

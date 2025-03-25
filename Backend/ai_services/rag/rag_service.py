@@ -64,188 +64,143 @@ class RAGService(AIServiceBase):
         normalize: bool = True,
         filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Query the knowledge base with semantic search.
-
-        Args:
-            query: The user's query
-            context: Additional context information
-            intent: Optional intent type (retrieve, analyze, etc)
-            limit: Maximum number of results to return
-            context_window: Maximum context length to return
-            normalize: Whether to normalize embeddings
-            filters: Optional filters to apply to the query
-
-        Returns:
-            Dict containing knowledge base results and metadata
-        """
+        """Optimized knowledge base query with parallel processing."""
         start_time = time.time()
-
+        success = True
         try:
-            # Step 1: Authenticate and prepare
-            await self._get_or_create_model()
+            if not self._current_model_id:
+                self._current_model_id = await self._get_or_create_model()
 
-            # Step 2: Build filters based on domain-specific configuration
-            chroma_filters = None
+            # Step 2: Collection check
+            if not self.collection:
+                logger.error("ChromaDB collection not initialized")
+                return self._error_response("Knowledge base not initialized")
 
+            # Enhance query with context and intent
+            enhanced_query = self._enhance_query(query, context, intent)
+
+            # Get domain-specific filters
+            domain = context.get("domain", "default")
+            domain_config = ai_registry.get_domain_config(domain)
+            rag_settings = domain_config.get("rag_settings", {})
+
+            # Format ChromaDB filters properly
+            filter_conditions: List[Dict[str, Dict[str, Any]]] = []
+            if rag_settings.get("filters"):
+                for key, values in rag_settings["filters"].items():
+                    if values:
+                        filter_conditions.append({
+                            key: {"$in": values}
+                        })
+
+            # Add any additional filters
             if filters:
-                filter_dict = {}
+                for key, value in filters.items():
+                    if isinstance(value, list):
+                        filter_conditions.append({
+                            key: {"$in": value}
+                        })
+                    else:
+                        filter_conditions.append({
+                            key: {"$eq": value}
+                        })
 
-                # Process content_type filters
-                if content_types := filters.get('content_type', []):
-                    if isinstance(content_types, list) and len(content_types) > 0:
-                        if len(content_types) == 1:
-                            filter_dict["content_type"] = content_types[0]
-                        else:
-                            filter_dict["content_type"] = {
-                                "$in": content_types}
-
-                # Process domain filters
-                if domains := filters.get('domain', []):
-                    if isinstance(domains, list) and len(domains) > 0:
-                        if len(domains) == 1:
-                            filter_dict["domain"] = domains[0]
-                        else:
-                            filter_dict["domain"] = {"$in": domains}
-                    elif isinstance(domains, str):
-                        filter_dict["domain"] = domains
-
-                # Process source_file filters
-                if source_files := filters.get('source_file', []):
-                    if isinstance(source_files, list) and len(source_files) > 0:
-                        if len(source_files) == 1:
-                            filter_dict["source_file"] = source_files[0]
-                        else:
-                            filter_dict["source_file"] = {"$in": source_files}
-
-                # Set filters only if we have any
-                if filter_dict:
-                    chroma_filters = filter_dict
+            # Create the final where clause
+            chroma_filters: Optional[Where] = {
+                "$and": filter_conditions} if filter_conditions else None
 
             # Step 3: Generate embedding asynchronously
             try:
-                enhanced_query = self._enhance_query(query, context, intent)
+                query_embedding = await self.embedding_service.get_embedding(enhanced_query, normalize=normalize)
+            except Exception as e:
+                success = False
+                logger.error(f"Error generating embedding: {str(e)}")
+                return self._error_response(f"Error generating embedding: {str(e)}")
 
-                # Get embeddings in a background thread
-                def get_embedding():
-                    # Create a synchronous wrapper for the async get_embedding method
-                    import asyncio
-                    loop = asyncio.new_event_loop()
-                    try:
-                        return loop.run_until_complete(
-                            self.embedding_service.get_embedding(
-                                enhanced_query, normalize=normalize)
-                        )
-                    finally:
-                        loop.close()
-
-                # Use asyncio to run embedding generation in a thread
-                query_embedding = await asyncio.get_event_loop().run_in_executor(
-                    self.thread_pool, get_embedding
-                )
-
-                # Step 4: Query ChromaDB with the embedding
-                def query_chroma():
-                    return self.collection.query(
-                        query_embeddings=[query_embedding],
-                        n_results=limit,
-                        where=chroma_filters
-                    )
-
-                # Execute chromadb query in a thread
+            # Perform semantic search with enhanced parameters
+            try:
                 results = await asyncio.get_event_loop().run_in_executor(
-                    self.thread_pool, query_chroma
+                    self.thread_pool,
+                    lambda: self.collection.query(
+                        query_embeddings=[query_embedding],
+                        n_results=rag_settings.get("limit", limit),
+                        where=chroma_filters,
+                        include=["documents", "metadatas", "distances"]
+                    ) if self.collection else None
                 )
 
-                # Safely access results with proper type checking - fixing the subscript errors
-                documents = []
-                sources = []
-                distances = []
+                if not results or not isinstance(results, dict) or "documents" not in results:
+                    success = False
+                    return self._error_response("No results found")
 
-                if results and "documents" in results and results["documents"]:
-                    documents = results["documents"][0] if results["documents"] else [
-                    ]
-
-                if results and "metadatas" in results and results["metadatas"]:
-                    sources = results["metadatas"][0] if results["metadatas"] else [
-                    ]
-
-                if results and "distances" in results and results["distances"]:
-                    distances = results["distances"][0] if results["distances"] else [
-                    ]
+                # Safely access results with proper type checking
+                documents = results.get("documents", [[]])[
+                    0] if results.get("documents") else []
+                sources = results.get("metadatas", [[]])[
+                    0] if results.get("metadatas") else []
+                distances = results.get("distances", [[]])[
+                    0] if results.get("distances") else []
 
                 # Cast to proper types
-                documents = list(documents) if documents else []
-                sources = list(sources) if sources else []
-                distances = list(distances) if distances else []
+                documents = cast(List[str], documents)
+                sources = cast(List[MetadataDict], sources)
+                distances = cast(List[float], distances)
 
-                # Step 5: Filter by relevance threshold - use a more permissive threshold
-                threshold = filters.get(
-                    'similarity_threshold', 0.3) if filters else 0.3
-                logger.info(f"Using similarity threshold: {threshold}")
-                relevant_results = self._filter_relevant_results(
-                    documents, sources, distances, threshold
+                # Process and filter results
+                filtered_results = self._filter_relevant_results(
+                    documents, sources, distances,
+                    rag_settings.get("similarity_threshold", 0.6)
                 )
 
-                # No results found
-                if not relevant_results:
-                    logger.info("No relevant knowledge base results found")
-                    latency = time.time() - start_time
-                    await self._update_model_stats(latency)
-                    return {
-                        "found": False,
-                        "content": "",
-                        "context": "",
-                        "sources": [],
-                        "query": enhanced_query
-                    }
-
-                # Step 6: Format results
+                # Process context with enhanced window
+                context_window = rag_settings.get(
+                    "context_window", context_window)
                 context_parts = []
-                sources_list = []
+                total_length = 0
 
-                for doc, metadata in relevant_results:
-                    # Add source information
-                    source_info = f"{metadata.get('source_file', 'Unknown')} "
-                    if page := metadata.get('page_number'):
-                        source_info += f"(p. {page})"
+                for doc, source in filtered_results:
+                    if total_length + len(doc) <= context_window:
+                        context_parts.append({
+                            "content": doc,
+                            "metadata": source
+                        })
+                        total_length += len(doc)
+                    else:
+                        break
 
-                    if source_info not in sources_list:
-                        sources_list.append(source_info)
+                # Generate AI response with enhanced context
+                response = await self.llm_service.generate_response(
+                    prompt=self._build_prompt(query, context_parts, context),
+                    context={"sources": sources}
+                )
 
-                    # Add document with metadata context
-                    context_parts.append(metadata)
+                result = await self._process_llm_response(response, sources, query_embedding)
 
-                # Calculate total token count
-                total_content = "\n\n".join(
-                    [doc for doc, _ in relevant_results])
+                # Add metadata about the knowledge source
+                result["knowledge_source"] = [
+                    {
+                        "file": source.get("source_file", "unknown"),
+                        "page": source.get("page_number", 0),
+                        "domain": source.get("domain", "unknown")
+                    } for source in sources[:3]  # Include top 3 sources
+                ]
 
-                # Step 7: Update stats and return results
                 latency = time.time() - start_time
-                await self._update_model_stats(latency)
+                await self._update_model_stats(latency, success)
 
-                # Build response with structured data
-                response = {
-                    "found": True,
-                    "content": total_content,
-                    "context": context_parts,
-                    "sources": sources_list,
-                    "query": enhanced_query,
-                    "model_id": self._current_model_id,
-                    "latency": latency
-                }
-
-                logger.info(
-                    f"RAG query successful: found {len(relevant_results)} relevant results")
-                return response
+                return result
 
             except Exception as e:
-                logger.error(f"Error during knowledge base query: {str(e)}")
-                return self._error_response(f"Knowledge base query failed: {str(e)}")
+                success = False
+                logger.error(f"Error in search process: {str(e)}")
+                return self._error_response(str(e))
 
         except Exception as e:
-            logger.error(f"RAG service error: {str(e)}")
-            return self._error_response(f"RAG service error: {str(e)}")
+            success = False
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
+            logger.error(f"RAG query error: {str(e)}")
+            return self._error_response(str(e))
 
     def _enhance_query(self, query: str, context: Dict[str, Any], intent: Optional[str]) -> str:
         """Enhance the query with context and intent information."""
@@ -570,33 +525,12 @@ class RAGService(AIServiceBase):
 
     async def _get_embeddings_batch(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
         """Process embeddings in batches asynchronously."""
-        all_embeddings = []
+        embeddings = []
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-
-            # Define a function to run get_embedding synchronously
-            def get_batch_embeddings():
-                import asyncio
-                loop = asyncio.new_event_loop()
-                try:
-                    return loop.run_until_complete(
-                        self.embedding_service.get_embedding(
-                            batch, normalize=True)
-                    )
-                finally:
-                    loop.close()
-
-            # Run the function in a thread pool
-            batch_embeddings = await asyncio.get_event_loop().run_in_executor(
-                self.thread_pool, get_batch_embeddings
-            )
-
-            # If the result is a single embedding (not a list of embeddings), wrap it in a list
-            if not isinstance(batch_embeddings[0], list):
-                batch_embeddings = [batch_embeddings]
-
-            all_embeddings.extend(batch_embeddings)
-        return all_embeddings
+            batch_embeddings = await self.embedding_service.get_embedding(batch, normalize=True)
+            embeddings.extend(batch_embeddings)
+        return embeddings
 
     async def add_pdf_to_knowledge_base(
         self,
@@ -664,46 +598,3 @@ class RAGService(AIServiceBase):
         except Exception as e:
             logger.error(f"Error adding PDF to knowledge base: {str(e)}")
             return False
-
-    def _prepare_rag_context(self, rag_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Prepare RAG results for inclusion in LLM prompt.
-
-        Args:
-            rag_result: Dictionary containing RAG service results
-
-        Returns:
-            Dictionary with formatted content and sources
-        """
-        if not rag_result or not rag_result.get("found", False):
-            return {
-                "content": "",
-                "sources": [],
-                "has_content": False
-            }
-
-        # Extract content and format it for the LLM
-        content = rag_result.get("content", "")
-        if not content:
-            return {
-                "content": "",
-                "sources": [],
-                "has_content": False
-            }
-
-        # Format sources in a readable way
-        sources = []
-        if "sources" in rag_result and rag_result["sources"]:
-            sources = rag_result["sources"]
-
-        # Add source formatting
-        formatted_sources = []
-        for i, source in enumerate(sources):
-            source_info = f"[{i+1}] {source}"
-            formatted_sources.append(source_info)
-
-        return {
-            "content": content,
-            "sources": formatted_sources,
-            "has_content": True
-        }
