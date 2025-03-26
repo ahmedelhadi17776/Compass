@@ -20,7 +20,9 @@ from openai.types.chat import ChatCompletionMessageParam
 from sqlalchemy import Column
 from difflib import SequenceMatcher
 import uuid
-from Backend.agents.task_agents.entity_creation_agent import EntityCreationAgent
+from Backend.agents.task_agents.task_creation_agent import TaskCreationAgent
+from Backend.agents.task_agents.todo_creation_agent import TodoCreationAgent
+from Backend.agents.task_agents.habit_creation_agent import HabitCreationAgent
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,11 @@ class AIOrchestrator:
         self.cache_ttls: Dict[str, int] = {}
         self.cache_hit_threshold = 5
         self.similarity_threshold = 0.85  # Threshold for considering queries similar
-        self.entity_creation_agent = EntityCreationAgent(db_session)
+        
+        # Initialize individual creation agents
+        self.task_creation_agent = TaskCreationAgent(db_session)
+        self.todo_creation_agent = TodoCreationAgent(db_session)
+        self.habit_creation_agent = HabitCreationAgent(db_session)
 
     async def _get_or_create_model(self) -> int:
         """Get or create the AI model ID."""
@@ -509,17 +515,17 @@ class AIOrchestrator:
             # Check if this is an entity creation request
             if intent == "create":
                 try:
-                    # Determine entity type using entity creation agent
-                    entity_analysis = await self.entity_creation_agent.determine_entity_type(user_input)
+                    # Use the determine_entity_type from intent_detector
+                    entity_analysis = await self.intent_detector.determine_entity_type(user_input)
                     entity_type = entity_analysis.get("entity_type", "task")
                     
-                    # Create the appropriate entity
+                    # Create the appropriate entity using the specific agents
                     if entity_type == "task":
-                        result = await self.entity_creation_agent.create_task(user_input, user_id)
+                        result = await self.task_creation_agent.create_task(user_input, user_id)
                     elif entity_type == "todo":
-                        result = await self.entity_creation_agent.create_todo(user_input, user_id)
+                        result = await self.todo_creation_agent.create_todo(user_input, user_id)
                     elif entity_type == "habit":
-                        result = await self.entity_creation_agent.create_habit(user_input, user_id)
+                        result = await self.habit_creation_agent.create_habit(user_input, user_id)
                     else:
                         return {
                             "response": f"Unknown entity type: {entity_type}",
