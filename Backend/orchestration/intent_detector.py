@@ -38,6 +38,74 @@ class IntentDetector:
             return json_match.group(0).strip()
 
         return text.strip()
+        
+    async def determine_entity_type(self, user_input: str) -> Dict[str, Any]:
+        """Determine what type of entity the user wants to create."""
+        try:
+            # Perform basic keyword matching first for common cases
+            user_input_lower = user_input.lower()
+            
+            # Task keywords
+            if any(kw in user_input_lower for kw in ["task", "project", "deadline", "due date", "assign", "quarterly report"]):
+                return {
+                    "entity_type": "task",
+                    "explanation": "Determined as task based on keywords related to projects, deadlines, or formal work items."
+                }
+            
+            # Todo keywords
+            if any(kw in user_input_lower for kw in ["todo", "to-do", "to do", "checklist", "shopping list", "remind me to"]):
+                return {
+                    "entity_type": "todo",
+                    "explanation": "Determined as todo based on keywords related to simple checklist items or reminders."
+                }
+            
+            # Habit keywords
+            if any(kw in user_input_lower for kw in ["habit", "daily", "routine", "every day", "weekly", "regularly"]):
+                return {
+                    "entity_type": "habit",
+                    "explanation": "Determined as habit based on keywords related to recurring activities or routines."
+                }
+            
+            # Fall back to LLM for more complex cases
+            entity_analysis = await self.llm_service.generate_response(
+                prompt=f"""Analyze this user input and determine what type of entity they want to create:
+User Input: {user_input}
+
+Respond with one of:
+- task: For project-related items with deadlines and complex details (examples: reports, assignments, project milestones)
+- todo: For simple to-do list items (examples: buy groceries, call mom, send email)
+- habit: For recurring daily/weekly activities to build consistency (examples: exercise, meditation, reading)
+
+Please determine the entity type and provide a brief explanation why.""",
+                context={
+                    "system_message": "You are an entity classification AI. Determine if the user wants to create a task, todo, or habit."
+                }
+            )
+            
+            # Parse response
+            if isinstance(entity_analysis, dict):
+                response_text = entity_analysis.get("text", "")
+            else:
+                # For streaming response, collect all chunks
+                chunks = []
+                async for chunk in entity_analysis:
+                    chunks.append(chunk)
+                response_text = "".join(chunks)
+            
+            entity_type = "task"  # Default
+            
+            if "todo" in response_text.lower():
+                entity_type = "todo"
+            elif "habit" in response_text.lower():
+                entity_type = "habit"
+            
+            return {
+                "entity_type": entity_type,
+                "explanation": response_text
+            }
+        except Exception as e:
+            logger.error(f"Entity type determination failed: {str(e)}")
+            return {"entity_type": "task", "explanation": f"Defaulting to task due to error: {str(e)}"}
 
     async def detect_intent(self, user_input: str, database_summary: Dict[str, Any]) -> Dict[str, str]:
         """
