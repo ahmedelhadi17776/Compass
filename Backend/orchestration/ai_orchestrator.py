@@ -581,8 +581,28 @@ class AIOrchestrator:
                     
                     # Edit the appropriate entity using the specific agents
                     if target_domain == "todos":
+                        # Get previous messages from conversation history if available
+                        previous_messages = []
+                        conversation_history = context.get("conversation_history")
+                        if conversation_history:
+                            history_messages = conversation_history.get_messages()
+                            # Convert to previous_messages format expected by edit_todo
+                            for msg in history_messages:
+                                if msg.get('role') in ['user', 'assistant']:
+                                    previous_messages.append({
+                                        "sender": msg.get('role'),
+                                        "text": msg.get('content', '')
+                                    })
+                            logger.info(f"Passing {len(previous_messages)} previous messages to edit_todo")
+                        else:
+                            logger.warning("No conversation history found to pass to edit_todo")
+                            
                         # The edit_todo method processes natural language requests to identify the todo to edit
-                        result = await self.todo_agent.edit_todo(user_input, user_id)
+                        result = await self.todo_agent.edit_todo(
+                            description=user_input, 
+                            user_id=user_id,
+                            previous_messages=previous_messages
+                        )
                     else:
                         return {
                             "response": f"Editing {target_domain} is not supported yet",
