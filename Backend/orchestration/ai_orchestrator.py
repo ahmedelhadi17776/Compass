@@ -21,7 +21,7 @@ from sqlalchemy import Column
 from difflib import SequenceMatcher
 import uuid
 from Backend.agents.task_agents.task_creation_agent import TaskCreationAgent
-from Backend.agents.task_agents.todo_creation_agent import TodoCreationAgent
+from Backend.agents.task_agents.todo_agent import TodoAgent
 from Backend.agents.task_agents.habit_creation_agent import HabitCreationAgent
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class AIOrchestrator:
         
         # Initialize individual creation agents
         self.task_creation_agent = TaskCreationAgent(db_session)
-        self.todo_creation_agent = TodoCreationAgent(db_session)
+        self.todo_agent = TodoAgent(db_session)
         self.habit_creation_agent = HabitCreationAgent(db_session)
 
     async def _get_or_create_model(self) -> int:
@@ -522,7 +522,7 @@ class AIOrchestrator:
                     if target_domain == "tasks":
                         result = await self.task_creation_agent.create_task(user_input, user_id)
                     elif target_domain == "todos":
-                        result = await self.todo_creation_agent.create_todo(user_input, user_id)
+                        result = await self.todo_agent.create_todo(user_input, user_id)
                     elif target_domain == "habits":
                         result = await self.habit_creation_agent.create_habit(user_input, user_id)
                     else:
@@ -564,6 +564,64 @@ class AIOrchestrator:
                         "intent": "create",
                         "target": "unknown",
                         "description": "Create entity from description",
+                        "error": True,
+                        "error_message": str(e),
+                        "confidence": 0.0,
+                        "rag_used": False,
+                        "cached": False,
+                        "original_input": user_input,
+                        "context_used": context
+                    }
+            
+            # Check if this is an entity edit request
+            elif intent == "edit":
+                try:
+                    # Use the target already identified in the first intent detection
+                    target_domain = target
+                    
+                    # Edit the appropriate entity using the specific agents
+                    if target_domain == "todos":
+                        # The edit_todo method processes natural language requests to identify the todo to edit
+                        result = await self.todo_agent.edit_todo(user_input, user_id)
+                    else:
+                        return {
+                            "response": f"Editing {target_domain} is not supported yet",
+                            "intent": "edit",
+                            "target": target_domain,
+                            "description": f"Edit {target_domain.rstrip('s')} from description",
+                            "error": True,
+                            "error_message": f"Editing {target_domain} is not supported yet",
+                            "confidence": 0.0,
+                            "rag_used": False,
+                            "cached": False,
+                            "original_input": user_input,
+                            "context_used": context
+                        }
+
+                    if result.get("status") == "success":
+                        response = f"I've updated the {target_domain.rstrip('s')}: {result.get('message')}"
+                    else:
+                        response = f"I couldn't update the {target_domain.rstrip('s')}: {result.get('message')}"
+
+                    return {
+                        "response": response,
+                        "intent": "edit",
+                        "target": target_domain,
+                        "description": f"Edit {target_domain.rstrip('s')} from description",
+                        "edit_result": result,
+                        "confidence": 0.95,
+                        "rag_used": False,
+                        "cached": False,
+                        "original_input": user_input,
+                        "context_used": context
+                    }
+                except Exception as e:
+                    logger.error(f"Entity edit failed: {str(e)}")
+                    return {
+                        "response": f"I couldn't edit the entity: {str(e)}",
+                        "intent": "edit",
+                        "target": target_domain if 'target_domain' in locals() else "unknown",
+                        "description": "Edit entity from description",
                         "error": True,
                         "error_message": str(e),
                         "confidence": 0.0,
@@ -617,7 +675,7 @@ class AIOrchestrator:
             # Step 5: Generate the AI response
             logger.debug("Preparing response generation")
             template_variant = intent if intent in [
-                "retrieve", "analyze", "plan", "summarize"] else "default"
+                "retrieve", "analyze", "plan", "summarize", "edit"] else "default"
             prompt_template = self.ai_registry.get_prompt_template(
                 target, template_variant)
             logger.debug(f"Using template variant: {template_variant}")
