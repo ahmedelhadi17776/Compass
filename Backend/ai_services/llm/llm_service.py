@@ -193,8 +193,18 @@ class LLMService:
             yield chunk
 
     async def log_training_data(self, prompt: str, response: str):
-        with open("training_data.jsonl", "a") as f:
-            f.write(f'{{"prompt": "{prompt}", "completion": "{response}"}}\n')
+        """Log training data with proper Unicode handling."""
+        try:
+            with open("training_data.jsonl", "a", encoding="utf-8") as f:
+                data = {
+                    "prompt": prompt,
+                    "completion": response
+                }
+                f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to log training data: {str(e)}")
+            # Continue execution even if logging fails
+            pass
 
     async def _make_request(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the LLM API."""

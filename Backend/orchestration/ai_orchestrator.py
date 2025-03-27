@@ -515,40 +515,41 @@ class AIOrchestrator:
             # Check if this is an entity creation request
             if intent == "create":
                 try:
-                    # Use the determine_entity_type from intent_detector
-                    entity_analysis = await self.intent_detector.determine_entity_type(user_input)
-                    entity_type = entity_analysis.get("entity_type", "task")
+                    # Use the target already identified in the first intent detection
+                    target_domain = target
                     
                     # Create the appropriate entity using the specific agents
-                    if entity_type == "task":
+                    if target_domain == "tasks":
                         result = await self.task_creation_agent.create_task(user_input, user_id)
-                    elif entity_type == "todo":
+                    elif target_domain == "todos":
                         result = await self.todo_creation_agent.create_todo(user_input, user_id)
-                    elif entity_type == "habit":
+                    elif target_domain == "habits":
                         result = await self.habit_creation_agent.create_habit(user_input, user_id)
                     else:
                         return {
-                            "response": f"Unknown entity type: {entity_type}",
+                            "response": f"Unknown target type: {target_domain}",
                             "intent": "create",
                             "target": "unknown",
                             "description": "Create entity from description",
                             "error": True,
-                            "error_message": f"Unknown entity type: {entity_type}",
+                            "error_message": f"Unknown target type: {target_domain}",
                             "confidence": 0.0,
                             "rag_used": False,
-                            "cached": False
+                            "cached": False,
+                            "original_input": user_input,
+                            "context_used": context
                         }
 
                     if result.get("status") == "success":
-                        response = f"I've created the {entity_type}: {result.get('message')}"
+                        response = f"I've created the {target_domain.rstrip('s')}: {result.get('message')}"
                     else:
-                        response = f"I couldn't create the {entity_type}: {result.get('message')}"
+                        response = f"I couldn't create the {target_domain.rstrip('s')}: {result.get('message')}"
 
                     return {
                         "response": response,
                         "intent": "create",
-                        "target": entity_type,
-                        "description": f"Create {entity_type} from description",
+                        "target": target_domain,
+                        "description": f"Create {target_domain.rstrip('s')} from description",
                         "creation_result": result,
                         "confidence": 0.95,
                         "rag_used": False,
