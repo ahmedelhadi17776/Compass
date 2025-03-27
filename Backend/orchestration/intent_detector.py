@@ -14,11 +14,6 @@ class IntentDetector:
 
     def __init__(self):
         self.llm_service = LLMService()
-        self.creation_keywords = {
-            'task': ['create task', 'add task', 'new task', 'make task'],
-            'todo': ['create todo', 'add todo', 'new todo', 'make todo'],
-            'habit': ['create habit', 'add habit', 'new habit', 'make habit']
-        }
 
     def _extract_json_from_markdown(self, text: str) -> str:
         """Extract JSON content from markdown code blocks."""
@@ -38,74 +33,6 @@ class IntentDetector:
             return json_match.group(0).strip()
 
         return text.strip()
-        
-    async def determine_entity_type(self, user_input: str) -> Dict[str, Any]:
-        """Determine what type of entity the user wants to create."""
-        try:
-            # Perform basic keyword matching first for common cases
-            user_input_lower = user_input.lower()
-            
-            # Task keywords
-            if any(kw in user_input_lower for kw in ["task", "project", "deadline", "due date", "assign", "quarterly report"]):
-                return {
-                    "entity_type": "task",
-                    "explanation": "Determined as task based on keywords related to projects, deadlines, or formal work items."
-                }
-            
-            # Todo keywords
-            if any(kw in user_input_lower for kw in ["todo", "to-do", "to do", "checklist", "shopping list", "remind me to"]):
-                return {
-                    "entity_type": "todo",
-                    "explanation": "Determined as todo based on keywords related to simple checklist items or reminders."
-                }
-            
-            # Habit keywords
-            if any(kw in user_input_lower for kw in ["habit", "daily", "routine", "every day", "weekly", "regularly"]):
-                return {
-                    "entity_type": "habit",
-                    "explanation": "Determined as habit based on keywords related to recurring activities or routines."
-                }
-            
-            # Fall back to LLM for more complex cases
-            entity_analysis = await self.llm_service.generate_response(
-                prompt=f"""Analyze this user input and determine what type of entity they want to create:
-User Input: {user_input}
-
-Respond with one of:
-- task: For project-related items with deadlines and complex details (examples: reports, assignments, project milestones)
-- todo: For simple to-do list items (examples: buy groceries, call mom, send email)
-- habit: For recurring daily/weekly activities to build consistency (examples: exercise, meditation, reading)
-
-Please determine the entity type and provide a brief explanation why.""",
-                context={
-                    "system_message": "You are an entity classification AI. Determine if the user wants to create a task, todo, or habit."
-                }
-            )
-            
-            # Parse response
-            if isinstance(entity_analysis, dict):
-                response_text = entity_analysis.get("text", "")
-            else:
-                # For streaming response, collect all chunks
-                chunks = []
-                async for chunk in entity_analysis:
-                    chunks.append(chunk)
-                response_text = "".join(chunks)
-            
-            entity_type = "task"  # Default
-            
-            if "todo" in response_text.lower():
-                entity_type = "todo"
-            elif "habit" in response_text.lower():
-                entity_type = "habit"
-            
-            return {
-                "entity_type": entity_type,
-                "explanation": response_text
-            }
-        except Exception as e:
-            logger.error(f"Entity type determination failed: {str(e)}")
-            return {"entity_type": "task", "explanation": f"Defaulting to task due to error: {str(e)}"}
 
     async def detect_intent(self, user_input: str, database_summary: Dict[str, Any]) -> Dict[str, str]:
         """
@@ -121,18 +48,7 @@ Please determine the entity type and provide a brief explanation why.""",
                 - target: The domain target (tasks, todos, etc.)
                 - description: Brief explanation of the user's goal
         """
-        # Check for creation intent first with direct pattern matching
         user_input_lower = user_input.lower()
-        
-        # Check for creation intent
-        for entity_type, keywords in self.creation_keywords.items():
-            if any(keyword in user_input_lower for keyword in keywords):
-                logger.info(f"Detected creation intent for {entity_type}")
-                return {
-                    "intent": "create",
-                    "target": entity_type,
-                    "description": f"Create a new {entity_type}"
-                }
         
         # Check if we have conversation history and determine previous domain
         previous_domain = None
@@ -304,12 +220,6 @@ Please determine the entity type and provide a brief explanation why.""",
                         logger.info(
                             f"Keyword matches for {domain}: {matches} (confidence: {confidence})")
 
-            # 4. General queries and greetings (lowest priority)
-            if any(greeting in input_lower for greeting in ["hi", "hello", "hey"]):
-                domain_confidence['default'] = max(
-                    domain_confidence.get('default', 0), 0.3)
-                logger.info("Greeting detected (confidence: 0.3)")
-
             # Select domain with highest confidence
             if domain_confidence:
                 selected_domain = max(
@@ -325,6 +235,7 @@ Please determine the entity type and provide a brief explanation why.""",
             # Validate the required fields are present
             if not all(k in intent_data for k in ["intent", "target", "description"]):
                 logger.warning("Missing required fields in intent data")
+                logger.info(f"Current intent_data: {intent_data}")  # Log what we received
                 # Try to determine target from user input
                 user_input_lower = user_input.lower()
                 available_domains = list(database_summary.keys())
@@ -346,8 +257,9 @@ Please determine the entity type and provide a brief explanation why.""",
                 intent_data = {
                     "intent": "retrieve",  # Default to retrieve as safest option
                     "target": target_domain,
-                    "description": "Retrieving information based on user query"
+                    "description": f"Processing user query about {target_domain}"
                 }
+                logger.info(f"Created default intent data: {intent_data}")
 
             # Ensure intent is one of the valid options
             valid_intents = ["retrieve", "analyze", "summarize", "plan", "create"]
@@ -357,6 +269,12 @@ Please determine the entity type and provide a brief explanation why.""",
                 intent_data["intent"] = "retrieve"
 
             logger.info(f"Final intent data: {intent_data}")
+            # Add colorful console logging for better visibility
+            print("\n=== Intent Detection Results ===")
+            print(f"Intent: {intent_data['intent']}")
+            print(f"Target: {intent_data['target']}")
+            print(f"Description: {intent_data['description']}")
+            print("============================\n")
             return intent_data
 
         except (json.JSONDecodeError, AttributeError) as e:
@@ -365,7 +283,12 @@ Please determine the entity type and provide a brief explanation why.""",
             default_response = {
                 "intent": "retrieve",
                 "target": next(iter(database_summary.keys()), "tasks"),
-                "description": "Retrieving information based on user query"
+                "description": f"Processing user query: {user_input[:50]}..."
             }
             logger.info(f"Returning default response: {default_response}")
+            print("\n=== Intent Detection Results (Default) ===")
+            print(f"Intent: {default_response['intent']}")
+            print(f"Target: {default_response['target']}")
+            print(f"Description: {default_response['description']}")
+            print("============================\n")
             return default_response
