@@ -111,6 +111,7 @@ class IntentDetector:
         - summarize: Provide a summary or overview
         - plan: To schedule, organize, or create plans
         - create: To create a new entity (task, todo, habit)
+        - edit: To modify an existing entity (task, todo, habit)
 
         For general queries or greetings:
         - Use "retrieve" for information requests or recommendations
@@ -119,7 +120,7 @@ class IntentDetector:
 
         Respond with a JSON object:
         {{
-            "intent": "retrieve/analyze/summarize/plan/create",
+            "intent": "retrieve/analyze/summarize/plan/create/edit",
             "target": "tasks/todos/habits/default",
             "description": "A short explanation of the user's goal"
         }}
@@ -175,6 +176,21 @@ class IntentDetector:
                 'conjunctions': ('and', 'or', 'but', 'also', 'additionally'),
                 'continuity': ('more', 'another', 'again', 'else', 'other')
             }
+            
+            # Add edit-related indicators to help identify edit intents
+            edit_indicators = ('edit', 'update', 'change', 'modify', 'mark', 'complete', 'finish', 'rename')
+            is_edit_request = any(indicator in input_lower.split() for indicator in edit_indicators)
+            
+            # If edit indicators are found, set intent to 'edit' if the LLM didn't already identify it
+            if is_edit_request and intent_data.get('intent') not in ['edit', 'create']:
+                logger.info(f"Edit indicators found in input: changing intent to 'edit'")
+                intent_data['intent'] = 'edit'
+                # If no target is set, try to determine it from keywords
+                if not intent_data.get('target') or intent_data.get('target') == 'default':
+                    # Check for todo-related keywords
+                    if any(kw in input_lower for kw in ['todo', 'list', 'item']):
+                        intent_data['target'] = 'todos'
+                    # Can add more target detection logic here later
 
             is_followup = (
                 input_lower.startswith(follow_up_indicators['question_words']) or
@@ -204,7 +220,7 @@ class IntentDetector:
             # 3. Domain-specific keywords
             domain_keywords = {
                 'tasks': ['task', 'doing', 'work', 'project', 'deadline'],
-                'todos': ['todo', 'list', 'item', 'pending', 'incomplete'],
+                'todos': ['todo', 'list', 'item', 'pending', 'incomplete', 'complete', 'change', 'edit', 'update', 'modify', 'mark', 'finish'],
                 'habits': ['habit', 'routine', 'daily', 'weekly', 'track'],
                 'default': ['recommend', 'suggest', 'general', 'help']
             }
@@ -262,7 +278,7 @@ class IntentDetector:
                 logger.info(f"Created default intent data: {intent_data}")
 
             # Ensure intent is one of the valid options
-            valid_intents = ["retrieve", "analyze", "summarize", "plan", "create"]
+            valid_intents = ["retrieve", "analyze", "summarize", "plan", "create", "edit"]
             if intent_data["intent"] not in valid_intents:
                 logger.warning(
                     f"Invalid intent {intent_data['intent']}, defaulting to retrieve")
