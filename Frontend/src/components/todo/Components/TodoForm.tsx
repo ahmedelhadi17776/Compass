@@ -20,9 +20,10 @@ interface TodoFormProps {
   todo?: Todo;
   onSubmit?: (formData: TodoFormData) => void;
   onDelete?: (todoId: number) => void;
+  currentListId?: string;
 }
 
-const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDelete }) => {
+const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDelete, currentListId = 'default' }) => {
   const queryClient = useQueryClient();
   const [isClosing, setIsClosing] = useState(false);
   const [formData, setFormData] = useState<Required<TodoFormData>>({

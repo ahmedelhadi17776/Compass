@@ -64,7 +64,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ darkMode = false }) => {
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to="/">Dashboard</Link>
+                <Link to="/">Compass</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {path.length > 0 && (

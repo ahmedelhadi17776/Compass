@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown, ListFilter } from 'lucide-react';
 import PriorityIndicator from './PriorityIndicator';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
@@ -15,6 +15,7 @@ import authApi, { User } from '@/api/auth';
 import { Habit } from '@/components/todo/types-habit';
 import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/components/todo/types-todo';
 import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit } from '../hooks';
+import { Separator } from '@/components/ui/separator';
 
 const TodoList: React.FC = () => {
   const { theme } = useTheme();
@@ -27,6 +28,21 @@ const TodoList: React.FC = () => {
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [showHabitTracker, setShowHabitTracker] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  
+  // New state for managing multiple lists
+  const [currentListId, setCurrentListId] = useState<string>('default');
+  const [showNewListInput, setShowNewListInput] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const newListInputRef = useRef<HTMLInputElement>(null);
+  
+  // Mock data for lists - to be replaced with API data later
+  const todoLists = [
+    { id: 'default', name: 'Default List' },
+    { id: 'work', name: 'Work' },
+    { id: 'personal', name: 'Personal' },
+    { id: 'shopping', name: 'Shopping' },
+    { id: 'projects', name: 'Projects' }
+  ];
 
   // User authentication query
   const { data: user } = useQuery<User>({
@@ -69,6 +85,7 @@ const TodoList: React.FC = () => {
         ...formData,
         due_date: formData.due_date?.toISOString(),
         reminder_time: formData.reminder_time?.toISOString(),
+        // In future when backend supports multiple lists, we would add list_id: currentListId here
       };
       updateTodoMutation.mutate({ id: editingTask.id, updates });
     } else {
@@ -83,6 +100,7 @@ const TodoList: React.FC = () => {
         reminder_time: formData.reminder_time?.toISOString(),
         tags: formData.tags,
         checklist: [],
+        // In future when backend supports multiple lists, we would add list_id: currentListId here
       };
       createTodoMutation.mutate(newTodo);
     }
@@ -110,7 +128,7 @@ const TodoList: React.FC = () => {
             <div
               key={todo.id}
               className={cn(
-                "group relative rounded-lg border bg-card p-4 transition-all hover:border-border/50",
+                "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
                 todo.status === TodoStatus.COMPLETED && "bg-muted"
               )}
             >
@@ -498,6 +516,35 @@ const TodoList: React.FC = () => {
     );
   };
 
+  // Add list selection handler
+  const handleListChange = (listId: string) => {
+    setCurrentListId(listId);
+    // In future implementation, this would fetch the todos for the selected list from the backend
+  };
+
+  // Add new list handler
+  const handleAddNewList = () => {
+    if (!newListName.trim()) return;
+    
+    // Create a unique ID for the list (in a real app, this would come from the backend)
+    const listId = `list-${Date.now()}`;
+    
+    // Add the new list to the todoLists array
+    const newList = {
+      id: listId,
+      name: newListName.trim()
+    };
+    
+    todoLists.push(newList);
+    
+    // Set the current list to the newly created one
+    setCurrentListId(listId);
+    
+    // Reset state
+    setNewListName('');
+    setShowNewListInput(false);
+  };
+
   if (!user) {
     return <div>Please log in to view todos</div>;
   }
@@ -509,9 +556,76 @@ const TodoList: React.FC = () => {
   return (
     <div className="grid grid-cols-4 gap-4 p-6 h-full w-full">
       <div className="col-span-4 mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-baseline gap-2">
           <h2 className="text-xl font-semibold">Todos & Habits</h2>
+          <Separator orientation="vertical" className="h-5 my-auto z-[100] -mr-1" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="-ml-2 bg-[#1a1a1a] text-white">
+                {todoLists.find(list => list.id === currentListId)?.name}
+                <ChevronDown className="h-4 w-4 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-[180px]">
+              {todoLists.map(list => (
+                <DropdownMenuItem 
+                  key={list.id}
+                  onClick={() => handleListChange(list.id)}
+                  className={cn(
+                    "cursor-pointer",
+                    currentListId === list.id && "bg-muted"
+                  )}
+                >
+                  {list.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem 
+                className="border-t mt-1 pt-1 cursor-pointer text-primary font-medium"
+                onClick={() => {
+                  setShowNewListInput(true);
+                  // Focus the input after it's rendered
+                  setTimeout(() => {
+                    newListInputRef.current?.focus();
+                  }, 0);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create new list
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* New list input */}
+          {showNewListInput && (
+            <div className="flex gap-2 items-center">
+              <Input
+                ref={newListInputRef}
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                placeholder="List name..."
+                className="w-40 h-8"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddNewList()}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowNewListInput(false)}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleAddNewList}
+                className="h-8 w-8 p-0"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
+        
         <Button 
           variant="outline" 
           size="sm" 
@@ -540,6 +654,8 @@ const TodoList: React.FC = () => {
           todo={editingTask || undefined}
           onSubmit={handleTodoFormSubmit}
           onDelete={handleDeleteTodo}
+          // Pass the current list ID to the form - to be implemented in TodoForm
+          currentListId={currentListId}
         />
       )}
     </div>

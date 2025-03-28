@@ -125,6 +125,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
       toast({
         title: "Success",
         description: "You have successfully logged in.",
+        duration: 1200,
       });
     },
     onError: (error: any) => {
@@ -132,6 +133,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
         title: "Error",
         description: error.response?.data?.detail || "Login failed",
         variant: "destructive",
+        duration: 1200,
       });
     }
   });
@@ -189,6 +191,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                     value={formData.username}
                     onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                     disabled={loginMutation.isPending}
+                    className="focus:border-transparent"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -201,6 +204,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                       value={formData.password}
                       onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                       disabled={loginMutation.isPending}
+                      className="focus:border-transparent"
                     />
                     <Button
                       type="button"
