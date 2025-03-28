@@ -94,8 +94,14 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
 
   return (
     <div className={cn("h-full flex flex-col p-4", darkMode ? "bg-gray-900 text-white" : "bg-background text-foreground")}>
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-4">
+
+      {/* Header container */}
+      <div className="flex justify-between items-center mt-4">
+        {/* Header for name and date */}
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-semibold ml-4">
+            {format(currentDate, 'MMMM yyyy')} / W{format(currentDate, 'w')}
+          </h2>
           <button
             onClick={handlePrevious}
             className={cn("p-2 rounded-md", darkMode ? "hover:bg-gray-700" : "hover:bg-accent hover:text-accent-foreground")}
@@ -108,11 +114,10 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
           >
             <ChevronRight className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-semibold">
-            {format(currentDate, 'MMMM yyyy')}
-          </h2>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Header for view selector and new task button */}
+        <div className="flex items-center gap-2 mr-4">
           <ViewSelector
             currentView={currentView}
             onViewChange={handleViewChange}
