@@ -510,7 +510,7 @@ const TodoList: React.FC = () => {
     <div className="grid grid-cols-4 gap-4 p-6 h-full w-full">
       <div className="col-span-4 mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Tasks</h2>
+          <h2 className="text-xl font-semibold">Todos & Habits</h2>
         </div>
         <Button 
           variant="outline" 
