@@ -177,9 +177,24 @@ Extract and format as JSON:
                 context_prompt += "Previous conversation:\n"
                 # Add up to 5 most recent messages for context
                 for msg in previous_messages[-5:]:
-                    sender = msg.get("sender", "unknown")
-                    text = msg.get("text", "")
-                    context_prompt += f"{sender.capitalize()}: {text}\n"
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    metadata = msg.get("metadata", {})
+                    timestamp = msg.get("timestamp")
+                    
+                    # Format timestamp if available
+                    time_str = ""
+                    if timestamp:
+                        try:
+                            time_str = f" ({datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')})"
+                        except:
+                            pass
+                    
+                    context_prompt += f"{role.capitalize()}{time_str}: {content}\n"
+                    
+                    # Add any relevant metadata
+                    if metadata and metadata.get("domain"):
+                        context_prompt += f"Context: {metadata['domain']}\n"
                 context_prompt += "\n"
             
             # Get user's todos for context if todo_service is available
