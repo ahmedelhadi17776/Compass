@@ -22,7 +22,7 @@ from difflib import SequenceMatcher
 import uuid
 from Backend.agents.task_agents.task_creation_agent import TaskCreationAgent
 from Backend.agents.task_agents.todo_agent import TodoAgent
-from Backend.agents.task_agents.habit_creation_agent import HabitCreationAgent
+from Backend.agents.task_agents.habit_agent import HabitAgent
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class AIOrchestrator:
         # Initialize individual creation agents
         self.task_creation_agent = TaskCreationAgent(db_session)
         self.todo_agent = TodoAgent(db_session)
-        self.habit_creation_agent = HabitCreationAgent(db_session)
+        self.habit_agent = HabitAgent(db_session)
 
     async def _get_or_create_model(self) -> int:
         """Get or create the AI model ID."""
@@ -582,24 +582,53 @@ class AIOrchestrator:
                     # Edit the appropriate entity using the specific agents
                     if target_domain == "todos":
                         # Get previous messages from conversation history if available
-                        previous_messages = []
                         conversation_history = context.get("conversation_history")
-                        if conversation_history:
-                            history_messages = conversation_history.get_messages()
-                            # Convert to previous_messages format expected by edit_todo
-                            for msg in history_messages:
-                                if msg.get('role') in ['user', 'assistant']:
+                        previous_messages = []
+                        
+                        if conversation_history and hasattr(conversation_history, 'get_messages'):
+                            messages = conversation_history.get_messages()
+                            # Convert messages to the standardized format
+                            for msg in messages:
+                                if isinstance(msg, dict) and msg.get('role') in ['user', 'assistant']:
                                     previous_messages.append({
-                                        "sender": msg.get('role'),
-                                        "text": msg.get('content', '')
+                                        "role": msg.get('role'),
+                                        "content": msg.get('content', ''),
+                                        "metadata": msg.get('metadata', {}),
+                                        "timestamp": msg.get('timestamp', None)
                                     })
-                            logger.info(f"Passing {len(previous_messages)} previous messages to edit_todo")
+                            logger.info(f"Passing {len(previous_messages)} formatted messages to todo agent")
                         else:
-                            logger.warning("No conversation history found to pass to edit_todo")
+                            logger.warning("No conversation history found for todo agent")
                             
-                        # The edit_todo method processes natural language requests to identify the todo to edit
+                        # Pass the formatted conversation history to edit_todo
                         result = await self.todo_agent.edit_todo(
                             description=user_input, 
+                            user_id=user_id,
+                            previous_messages=previous_messages
+                        )
+                    elif target_domain == "habits":
+                        # Get previous messages from conversation history if available
+                        conversation_history = context.get("conversation_history")
+                        previous_messages = []
+                        
+                        if conversation_history and hasattr(conversation_history, 'get_messages'):
+                            messages = conversation_history.get_messages()
+                            # Convert messages to the standardized format
+                            for msg in messages:
+                                if isinstance(msg, dict) and msg.get('role') in ['user', 'assistant']:
+                                    previous_messages.append({
+                                        "role": msg.get('role'),
+                                        "content": msg.get('content', ''),
+                                        "metadata": msg.get('metadata', {}),
+                                        "timestamp": msg.get('timestamp', None)
+                                    })
+                            logger.info(f"Passing {len(previous_messages)} formatted messages to habit agent")
+                        else:
+                            logger.warning("No conversation history found for habit agent")
+                            
+                        # Pass the formatted conversation history to edit_habit
+                        result = await self.habit_agent.edit_habit(
+                            description=user_input,
                             user_id=user_id,
                             previous_messages=previous_messages
                         )
