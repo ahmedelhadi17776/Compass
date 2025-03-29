@@ -33,7 +33,7 @@ from Backend.data_layer.database.models.meeting_notes import MeetingNotes
 from Backend.data_layer.database.models.todo import Todo, TodoHistory, TodoPriority, TodoStatus
 from Backend.data_layer.database.models.task_agent_interaction import TaskAgentInteraction
 from Backend.data_layer.database.models.workflow_agent_interaction import WorkflowAgentInteraction
-from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+from Backend.data_layer.database.models.event_occurrence import EventOccurrence
 
 
 __all__ = [
@@ -89,5 +89,5 @@ __all__ = [
     'TaskAgentInteraction',
     'DailyHabit',
     'WorkflowAgentInteraction',
-    'TaskOccurrence'
+    'EventOccurrence'
 ]

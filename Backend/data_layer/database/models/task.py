@@ -1,15 +1,11 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum as SQLAlchemyEnum, Text, Index, Float, JSON
-from sqlalchemy.dialects import postgresql
-
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
 from typing import List
 import datetime
 import enum
 import json
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func
-from Backend.data_layer.database.models.calendar_event import RecurrenceType
 
 # Define TaskStatus using Python's enum
 
@@ -57,11 +53,6 @@ class Task(Base):
         DateTime, default=datetime.datetime.utcnow, nullable=False)
     duration = Column(Float, nullable=True)
     due_date = Column(DateTime, nullable=True)
-    recurrence = Column(SQLAlchemyEnum(RecurrenceType),
-                        default=RecurrenceType.NONE, nullable=False)
-    recurrence_custom_days = Column(postgresql.ARRAY(String), nullable=True)
-    recurrence_end_date = Column(
-        DateTime, nullable=True)  # When recurrence stops
     status_updated_at = Column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -148,8 +139,6 @@ class Task(Base):
     # Add to existing relationships
     agent_interactions = relationship(
         "TaskAgentInteraction", back_populates="task", cascade="all, delete-orphan")
-    occurrences = relationship(
-        "TaskOccurrence", back_populates="task", cascade="all, delete-orphan")
     __table_args__ = (
         Index("ix_task_status", "status"),
         Index("ix_task_creator_id", "creator_id"),
@@ -158,7 +147,6 @@ class Task(Base):
         Index("ix_task_start_date", "start_date"),
         Index("ix_task_due_date", "due_date"),
         Index("ix_task_status_updated_at", "status_updated_at"),
-        Index("ix_task_recurrence", "recurrence"),
         Index("ix_task_created_at", "created_at"),
         Index("ix_task_category_id", "category_id"),
         Index("ix_task_priority", "priority"),

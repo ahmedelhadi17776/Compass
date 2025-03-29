@@ -112,6 +112,7 @@ class IntentDetector:
         - plan: To schedule, organize, or create plans
         - create: To create a new entity (task, todo, habit)
         - edit: To modify an existing entity (task, todo, habit)
+        - delete: To delete an existing entity (task, todo, habit)
 
         For general queries or greetings:
         - Use "retrieve" for information requests or recommendations
@@ -120,7 +121,7 @@ class IntentDetector:
 
         Respond with a JSON object:
         {{
-            "intent": "retrieve/analyze/summarize/plan/create/edit",
+            "intent": "retrieve/analyze/summarize/plan/create/edit/delete",
             "target": "tasks/todos/habits/default",
             "description": "A short explanation of the user's goal"
         }}
@@ -278,7 +279,7 @@ class IntentDetector:
                 logger.info(f"Created default intent data: {intent_data}")
 
             # Ensure intent is one of the valid options
-            valid_intents = ["retrieve", "analyze", "summarize", "plan", "create", "edit"]
+            valid_intents = ["retrieve", "analyze", "summarize", "plan", "create", "edit", "delete"]
             if intent_data["intent"] not in valid_intents:
                 logger.warning(
                     f"Invalid intent {intent_data['intent']}, defaulting to retrieve")
