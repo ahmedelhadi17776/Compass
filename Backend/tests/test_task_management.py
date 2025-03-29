@@ -25,7 +25,7 @@ def default_task() -> Task:
         title="Test Task",
         description="This is a test task",
         priority=TaskPriority.MEDIUM,
-        status=TaskStatus.TODO,
+        status=TaskStatus.UPCOMING,
         creator_id=uuid.uuid4(),
         assignee_id=uuid.uuid4(),
         estimated_hours=5.0,
@@ -51,7 +51,7 @@ def mock_task_repo():
             id=1,
             title=kwargs.get('title', 'Test Task'),
             description=kwargs.get('description', 'Test Description'),
-            status=kwargs.get('status', TaskStatus.TODO),
+            status=kwargs.get('status', TaskStatus.UPCOMING),
             creator_id=kwargs.get('creator_id', 1),
             assignee_id=kwargs.get('assignee_id'),
             project_id=kwargs.get('project_id', 1),
@@ -89,7 +89,7 @@ def mock_task_repo():
             id=task_id,
             title="Test Task",
             description="Test Description",
-            status=TaskStatus.TODO,
+            status=TaskStatus.UPCOMING,
             creator_id=1,
             project_id=1,
             organization_id=1,
@@ -116,7 +116,7 @@ def mock_task_repo():
             id=task_id,
             title=updates.get('title', 'Test Task'),
             description=updates.get('description', 'Test Description'),
-            status=updates.get('status', TaskStatus.TODO),
+            status=updates.get('status', TaskStatus.UPCOMING),
             creator_id=1,
             project_id=updates.get('project_id', 1),
             organization_id=1,
@@ -211,7 +211,7 @@ async def test_create_task(task_service, default_task):
 
     assert created_task.title == default_task.title
     assert created_task.description == default_task.description
-    assert created_task.status == TaskStatus.TODO
+    assert created_task.status == TaskStatus.UPCOMING
     assert created_task.priority == default_task.priority
     assert created_task.creator_id == default_task.creator_id
     assert created_task.assignee_id == default_task.assignee_id
@@ -376,7 +376,7 @@ async def test_calculate_health_score(task_service, default_task):
     # Calculate health score using the private method
     health_score = await task_service._calculate_health_score(
         task=created_task,
-        new_status=TaskStatus.TODO,
+        new_status=TaskStatus.UPCOMING,
         new_due_date=None,
         blockers=None
     )

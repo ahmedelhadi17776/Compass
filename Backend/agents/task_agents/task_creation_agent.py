@@ -115,16 +115,16 @@ Extract and format as JSON:
                             task_data["status"] = TaskStatus[enum_value]
                         except KeyError:
                             logger.warning(f"Invalid status mapping: {enum_value}, using TODO")
-                            task_data["status"] = TaskStatus.TODO
+                            task_data["status"] = TaskStatus.UPCOMING
                     else:
                         # Try direct enum lookup
                         try:
                             task_data["status"] = TaskStatus[status_str.upper()]
                         except KeyError:
                             logger.warning(f"Invalid status: {status_str}, using TODO")
-                            task_data["status"] = TaskStatus.TODO
+                            task_data["status"] = TaskStatus.UPCOMING
                 else:
-                    task_data["status"] = TaskStatus.TODO
+                    task_data["status"] = TaskStatus.UPCOMING
                 
                 # Convert priority string to enum value
                 priority_mapping = {

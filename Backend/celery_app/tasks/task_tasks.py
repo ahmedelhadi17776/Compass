@@ -75,11 +75,11 @@ def _is_valid_status_transition(current_status: TaskStatus, new_status: TaskStat
     """Validate if the status transition is allowed."""
     # Define valid transitions
     valid_transitions = {
-        TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],
+        TaskStatus.UPCOMING: [TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],
         TaskStatus.IN_PROGRESS: [TaskStatus.BLOCKED, TaskStatus.COMPLETED, TaskStatus.DEFERRED],
-        TaskStatus.BLOCKED: [TaskStatus.TODO, TaskStatus.IN_PROGRESS],
+        TaskStatus.BLOCKED: [TaskStatus.UPCOMING, TaskStatus.IN_PROGRESS],
         TaskStatus.COMPLETED: [TaskStatus.IN_PROGRESS],  # Allow reopening
-        TaskStatus.DEFERRED: [TaskStatus.TODO, TaskStatus.IN_PROGRESS]
+        TaskStatus.DEFERRED: [TaskStatus.UPCOMING, TaskStatus.IN_PROGRESS]
     }
 
     return new_status in valid_transitions.get(current_status, [])

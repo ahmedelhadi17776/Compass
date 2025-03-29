@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 
 
 class TaskStatus(enum.Enum):
-    TODO = "To Do"
+    UPCOMING = "Upcoming"
     IN_PROGRESS = "In Progress"
     COMPLETED = "Completed"
     CANCELLED = "Cancelled"
@@ -34,7 +34,7 @@ class Task(Base):
     title = Column(String(255), nullable=False, index=True)
     description = Column(Text)
     status = Column(SQLAlchemyEnum(TaskStatus),
-                    default=TaskStatus.TODO, nullable=False)
+                    default=TaskStatus.UPCOMING, nullable=False)
     priority = Column(SQLAlchemyEnum(TaskPriority),
                       default=TaskPriority.MEDIUM)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

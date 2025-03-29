@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, JSON, Text, Index, Enum
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
-from Backend.data_layer.database.models.calendar_event import CalendarEvent
+from Backend.data_layer.database.models.calendar_event import CalendarEvent, EventType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
 import datetime
 from sqlalchemy.sql import func
@@ -36,6 +36,9 @@ class EventOccurrence(Base):
     status = Column(Enum(TaskStatus), nullable=True)
     # If null, use original task priority
     priority = Column(Enum(TaskPriority), nullable=True)
+
+    # If null, use original Event type
+    event_type = Column(Enum(EventType), nullable=True)
 
     # Additional fields for tracking
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
