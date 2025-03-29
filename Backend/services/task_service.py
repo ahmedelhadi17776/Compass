@@ -78,13 +78,13 @@ class TaskService:
 
         # Define valid transition rules
         valid_transitions = {
-            TaskStatus.TODO: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],
-            TaskStatus.IN_PROGRESS: [TaskStatus.COMPLETED, TaskStatus.BLOCKED, TaskStatus.UNDER_REVIEW, TaskStatus.TODO],
-            TaskStatus.COMPLETED: [TaskStatus.TODO, TaskStatus.IN_PROGRESS],
-            TaskStatus.CANCELLED: [TaskStatus.TODO],
-            TaskStatus.BLOCKED: [TaskStatus.IN_PROGRESS, TaskStatus.TODO, TaskStatus.CANCELLED],
+            TaskStatus.UPCOMING: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED, TaskStatus.DEFERRED, TaskStatus.COMPLETED],
+            TaskStatus.IN_PROGRESS: [TaskStatus.COMPLETED, TaskStatus.BLOCKED, TaskStatus.UNDER_REVIEW, TaskStatus.UPCOMING],
+            TaskStatus.COMPLETED: [TaskStatus.UPCOMING, TaskStatus.IN_PROGRESS],
+            TaskStatus.CANCELLED: [TaskStatus.UPCOMING],
+            TaskStatus.BLOCKED: [TaskStatus.IN_PROGRESS, TaskStatus.UPCOMING, TaskStatus.CANCELLED],
             TaskStatus.UNDER_REVIEW: [TaskStatus.COMPLETED, TaskStatus.IN_PROGRESS],
-            TaskStatus.DEFERRED: [TaskStatus.TODO, TaskStatus.CANCELLED]
+            TaskStatus.DEFERRED: [TaskStatus.UPCOMING, TaskStatus.CANCELLED]
         }
 
         # Check if the transition is allowed
@@ -163,7 +163,7 @@ class TaskService:
         project_id: int,
         organization_id: int,
         start_date: datetime,
-        status: TaskStatus = TaskStatus.TODO,  # Add status parameter with default
+        status: TaskStatus = TaskStatus.UPCOMING,  # Add status parameter with default
         # Add priority parameter with default
         priority: TaskPriority = TaskPriority.MEDIUM,
         workflow_id: Optional[int] = None,

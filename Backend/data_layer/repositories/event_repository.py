@@ -2,7 +2,7 @@ from typing import Dict, List, Any, Optional, cast, Sequence
 from sqlalchemy import select, and_, or_, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
-from Backend.data_layer.database.models.calendar_event import CalendarEvent, RecurrenceType
+from Backend.data_layer.database.models.calendar_event import CalendarEvent, RecurrenceType, EventType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
 from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
 from datetime import datetime, timedelta
@@ -36,6 +36,15 @@ class EventRepository(BaseRepository[CalendarEvent]):
         missing = required_fields - event_data.keys()
         if missing:
             raise ValueError(f"Missing required fields: {missing}")
+
+        # Handle enum values for event_type
+        if 'event_type' in event_data and isinstance(event_data['event_type'], str):
+            try:
+                event_data['event_type'] = EventType(event_data['event_type'])
+            except ValueError:
+                logger.warning(f"Invalid event_type value: {event_data['event_type']}")
+                # Use default instead of removing
+                event_data['event_type'] = EventType.NONE
 
         valid_columns = {c.name for c in CalendarEvent.__table__.columns}
         filtered_data = {k: v for k,
@@ -89,6 +98,21 @@ class EventRepository(BaseRepository[CalendarEvent]):
                 logger.warning(
                     f"Invalid priority type: {type(occurrence_data['priority'])}")
                 del occurrence_data['priority']
+                
+        # Handle enum values for event_type
+        if 'event_type' in occurrence_data:
+            if isinstance(occurrence_data['event_type'], str):
+                try:
+                    occurrence_data['event_type'] = EventType(
+                        occurrence_data['event_type'])
+                except ValueError:
+                    logger.warning(
+                        f"Invalid event_type value: {occurrence_data['event_type']}")
+                    del occurrence_data['event_type']
+            elif not isinstance(occurrence_data['event_type'], EventType):
+                logger.warning(
+                    f"Invalid event_type type: {type(occurrence_data['event_type'])}")
+                del occurrence_data['event_type']
 
         occurrence = EventOccurrence(**occurrence_data)
         self.db.add(occurrence)
@@ -310,6 +334,8 @@ class EventRepository(BaseRepository[CalendarEvent]):
             virtual_event.status = occurrence.status
         if occurrence.priority:
             virtual_event.priority = occurrence.priority
+        if occurrence.event_type:
+            virtual_event.event_type = occurrence.event_type
         
         # Always override date-related fields
         virtual_event.start_date = occurrence.start_date

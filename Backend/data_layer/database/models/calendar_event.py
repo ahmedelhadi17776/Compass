@@ -16,6 +16,13 @@ class RecurrenceType(enum.Enum):
     YEARLY = "Yearly"
     CUSTOM = "Custom"
 
+class EventType(enum.Enum):
+    NONE = "None"
+    TASK = "Task"
+    MEETING = "Meeting"
+    TODO = "Todo"
+    HOLIDAY = "Holiday"
+    REMINDER = "Reminder"
 
 class CalendarEvent(Base):
     __tablename__ = "calendar_events"
@@ -28,9 +35,11 @@ class CalendarEvent(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text)
     status = Column(Enum(TaskStatus),
-                    default=TaskStatus.TODO, nullable=False)
+                    default=TaskStatus.UPCOMING, nullable=False)
     priority = Column(Enum(TaskPriority),
                       default=TaskPriority.MEDIUM)
+    event_type = Column(Enum(EventType),
+                        default=EventType.NONE, nullable=False)
     start_date = Column(
         DateTime, default=datetime.datetime.utcnow, nullable=False)
     duration = Column(Float, nullable=True)

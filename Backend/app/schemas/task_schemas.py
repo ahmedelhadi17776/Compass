@@ -15,7 +15,7 @@ from Backend.app.schemas.history_schemas import HistoryResponse
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
-    status: TaskStatus = TaskStatus.TODO
+    status: TaskStatus = TaskStatus.UPCOMING
     priority: TaskPriority = TaskPriority.MEDIUM
     project_id: int
     organization_id: int
