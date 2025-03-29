@@ -5,7 +5,7 @@ from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.repositories.task_repository import TaskRepository
 from Backend.data_layer.database.models.task import Task, TaskStatus, TaskPriority
 from Backend.data_layer.database.models.task_history import TaskHistory
-from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
+from Backend.data_layer.database.models.event_occurrence import TaskOccurrence
 from Backend.data_layer.database.errors import TaskNotFoundError
 from Backend.celery_app.tasks.task_tasks import process_task, execute_task_step
 from celery.result import AsyncResult
