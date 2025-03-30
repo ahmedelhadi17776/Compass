@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from Backend.data_layer.database.connection import get_db
 from Backend.data_layer.database.models.calendar_event import CalendarEvent, RecurrenceType, EventType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
+from Backend.data_layer.database.models.event_occurrence import EventOccurrence
 from Backend.app.schemas.event_schemas import (
     EventCreate,
     EventUpdate,
@@ -184,8 +185,9 @@ async def update_event(
     event_id: int,
     user_id: int,
     event_update: EventUpdate,
-    update_all_occurrences: bool = Query(
-        True, description="Whether to update all occurrences of a recurring event or just this one"),
+    update_option: str = Query(
+        "this_occurrence", 
+        description="How to handle recurring events: 'this_occurrence', 'this_and_future_occurrences', or 'all_occurrences'"),
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ) -> EventResponse:
@@ -200,6 +202,14 @@ async def update_event(
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Event {event_id} not found"
+            )
+            
+        # Validate update_option
+        valid_options = ["this_occurrence", "this_and_future_occurrences", "all_occurrences"]
+        if update_option not in valid_options:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid update_option. Must be one of: {', '.join(valid_options)}"
             )
 
         event_data = event_update.dict(exclude_unset=True)
@@ -225,7 +235,7 @@ async def update_event(
             updated_event = await service.update_event(
                 event_id, 
                 event_data, 
-                update_all_occurrences=update_all_occurrences
+                update_option=update_option
             )
 
         return updated_event
@@ -346,20 +356,49 @@ async def update_event_occurrence(
     occurrence_num: int,
     user_id: int,
     event_update: EventUpdate,
+    update_option: str = Query(
+        "this_occurrence", 
+        description="How to handle this occurrence: 'this_occurrence' or 'this_and_future_occurrences'"),
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ):
-    """Update a specific occurrence of a recurring event."""
+    """Update a specific occurrence of a recurring event.
+    
+    Args:
+        event_id: The event ID
+        occurrence_num: The occurrence number to update
+        user_id: The user ID
+        event_update: The fields to update
+        update_option: How to handle this update:
+            - this_occurrence: Update only this occurrence
+            - this_and_future_occurrences: Update this and all future occurrences
+    """
     try:
         repo = EventRepository(db)
         service = EventService(repo)
         
-        # Get the occurrence
-        occurrence = await repo.get_event_occurrence(event_id, occurrence_num)
-        if not occurrence:
-            # If occurrence doesn't exist yet, we'll need to create it
-            # when updating the event with update_all_occurrences=False
-            pass
+        # Validate update_option for occurrences
+        valid_options = ["this_occurrence", "this_and_future_occurrences"]
+        if update_option not in valid_options:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid update_option for occurrence. Must be one of: {', '.join(valid_options)}"
+            )
+        
+        # Check if the event exists
+        event = await service.get_event(event_id)
+        if not event:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+            
+        # Check if this is a recurring event
+        if event.recurrence == RecurrenceType.NONE:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="This operation is only valid for recurring events"
+            )
         
         # Update the specific occurrence
         event_data = event_update.dict(exclude_unset=True)
@@ -368,22 +407,52 @@ async def update_event_occurrence(
         # Use the virtual ID format that EventService recognizes for occurrences
         virtual_id = f"{event_id}_{occurrence_num}"
         
-        # Update just this occurrence, not all occurrences
+        # Update using the specified update option
         updated_event = await service.update_event(
             virtual_id,  # Use the virtual ID
             event_data,
-            update_all_occurrences=False
+            update_option=update_option
         )
         
-        # Retrieve the updated occurrence
-        updated_occurrence = await repo.get_event_occurrence(event_id, occurrence_num)
-        if not updated_occurrence:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"Failed to update occurrence {occurrence_num} of event {event_id}"
-            )
-            
-        return updated_occurrence
+        # If we're updating just this occurrence, return the occurrence
+        if update_option == "this_occurrence":
+            # Retrieve the updated occurrence
+            updated_occurrence = await repo.get_event_occurrence(event_id, occurrence_num)
+            if not updated_occurrence:
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail=f"Failed to update occurrence {occurrence_num} of event {event_id}"
+                )
+                
+            return updated_occurrence
+        else:
+            # For this_and_future_occurrences, we'll return the first updated occurrence
+            updated_occurrence = await repo.get_event_occurrence(event_id, occurrence_num) 
+            if updated_occurrence:
+                return updated_occurrence
+            else:
+                # If no specific occurrence was created yet, return a virtual representation
+                # Get the original event to create a virtual occurrence
+                event = await service.get_event(event_id)
+                
+                # Create a mock occurrence for response
+                mock_occurrence = EventOccurrence()
+                mock_occurrence.id = -1  # Placeholder ID
+                mock_occurrence.calendar_event_id = event_id
+                mock_occurrence.occurrence_num = occurrence_num
+                mock_occurrence.start_date = service._calculate_occurrence_start_date(event, occurrence_num)
+                mock_occurrence.title = event.title
+                mock_occurrence.description = event.description
+                mock_occurrence.status = event.status
+                mock_occurrence.priority = event.priority
+                mock_occurrence.event_type = event.event_type
+                
+                # Calculate due date if event has duration
+                if event.duration:
+                    mock_occurrence.due_date = mock_occurrence.start_date + timedelta(hours=event.duration)
+                
+                return mock_occurrence
+                
     except HTTPException:
         raise
     except Exception as e:

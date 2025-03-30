@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, JSON, Text, Index, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, JSON, Text, Index, Enum, Boolean
 from sqlalchemy.orm import relationship
 from Backend.data_layer.database.models.base import Base
 from Backend.data_layer.database.models.calendar_event import CalendarEvent, EventType
@@ -39,6 +39,12 @@ class EventOccurrence(Base):
 
     # If null, use original Event type
     event_type = Column(Enum(EventType), nullable=True)
+    
+    transparency = Column(String(50), nullable=True)
+    color = Column(String(7), nullable=True)
+    time_zone = Column(String(50), nullable=True)    
+    location = Column(String(255), nullable=True)
+    is_all_day = Column(Boolean, nullable=True)
 
     # Additional fields for tracking
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
