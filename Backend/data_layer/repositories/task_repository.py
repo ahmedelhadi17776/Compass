@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from Backend.data_layer.repositories.base_repository import BaseRepository
 import logging
 import json
-from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
 from Backend.events.event_dispatcher import dispatcher
 from Backend.events.event_registry import TASK_UPDATED
 
@@ -56,50 +55,6 @@ class TaskRepository(BaseRepository[Task]):
         await self.db.flush()
         return new_task
 
-    async def create_task_occurrence(self, occurrence_data: dict) -> None:
-        """Create a task occurrence for a recurring task.
-
-        Args:
-            occurrence_data: Dictionary containing the occurrence data
-        """
-        from Backend.data_layer.database.models.task_occurrence import TaskOccurrence
-
-        # Create a copy of the data to avoid modifying the original
-        occurrence_data = occurrence_data.copy()
-
-        # Handle enum values for status and priority
-        if 'status' in occurrence_data:
-            if isinstance(occurrence_data['status'], str):
-                try:
-                    occurrence_data['status'] = TaskStatus(
-                        occurrence_data['status'])
-                except ValueError:
-                    logger.warning(
-                        f"Invalid status value: {occurrence_data['status']}")
-                    del occurrence_data['status']
-            elif not isinstance(occurrence_data['status'], TaskStatus):
-                logger.warning(
-                    f"Invalid status type: {type(occurrence_data['status'])}")
-                del occurrence_data['status']
-
-        if 'priority' in occurrence_data:
-            if isinstance(occurrence_data['priority'], str):
-                try:
-                    occurrence_data['priority'] = TaskPriority(
-                        occurrence_data['priority'])
-                except ValueError:
-                    logger.warning(
-                        f"Invalid priority value: {occurrence_data['priority']}")
-                    del occurrence_data['priority']
-            elif not isinstance(occurrence_data['priority'], TaskPriority):
-                logger.warning(
-                    f"Invalid priority type: {type(occurrence_data['priority'])}")
-                del occurrence_data['priority']
-
-        occurrence = TaskOccurrence(**occurrence_data)
-        self.db.add(occurrence)
-        await self.db.flush()
-
     async def get_by_id(self, task_id: int, user_id: Optional[int] = None) -> Optional[Task]:
         """Get a task by ID with optional user ID check."""
         query = select(Task).where(Task.id == task_id)
@@ -130,7 +85,7 @@ class TaskRepository(BaseRepository[Task]):
                 if hasattr(task, key):
                     setattr(task, key, value)
             await self.db.flush()
-            await dispatcher.dispatch(TASK_UPDATED, {"task_id": task_id, "task_data": update_data})
+            await dispatcher.dispatch(TASK_UPDATED, {"task_id": id, "task_data": update_data})
             return task
         return None
 
@@ -196,7 +151,7 @@ class TaskRepository(BaseRepository[Task]):
                 setattr(task, key, value)
 
         await self.db.flush()
-        await dispatcher.dispatch(TASK_UPDATED, {"task_id": task_id, "task_data": update_data})
+        await dispatcher.dispatch(TASK_UPDATED, {"task_id": task_id, "task_data": task_data})
 
         return task
 
@@ -328,96 +283,6 @@ class TaskRepository(BaseRepository[Task]):
         
         return all_tasks
     
-    async def get_task_occurrences_in_range(
-        self, 
-        task_id: int, 
-        start_date: Optional[datetime] = None, 
-        end_date: Optional[datetime] = None
-    ) -> List[TaskOccurrence]:
-        """Get task occurrences within a date range."""
-        query = select(TaskOccurrence).where(TaskOccurrence.task_id == task_id)
-        
-        if start_date and end_date:
-            query = query.where(
-                or_(
-                    # Occurrences starting within the range
-                    and_(
-                        TaskOccurrence.start_date >= start_date,
-                        TaskOccurrence.start_date <= end_date
-                    ),
-                    # Occurrences ending within the range
-                    and_(
-                        TaskOccurrence.due_date >= start_date,
-                        TaskOccurrence.due_date <= end_date
-                    ),
-                    # Occurrences spanning across the range
-                    and_(
-                        TaskOccurrence.start_date <= start_date,
-                        TaskOccurrence.due_date >= end_date
-                    )
-                )
-            )
-        
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
-    
-    def _create_virtual_task_from_occurrence(self, base_task: Task, occurrence: TaskOccurrence) -> Task:
-        """Create a virtual task object from a task occurrence.
-        
-        This creates a copy of the base task with the occurrence's overridden properties.
-        The task ID is modified to include the occurrence number for identification.
-        """
-        # Create a shallow copy of the base task
-        virtual_task = Task()
-        
-        # Copy all attributes from the base task
-        for column in Task.__table__.columns:
-            if column.name != 'id':  # Don't copy the ID
-                setattr(virtual_task, column.name, getattr(base_task, column.name))
-        
-        # Override with occurrence-specific attributes if they exist
-        if occurrence.title:
-            virtual_task.title = occurrence.title
-        if occurrence.description:
-            virtual_task.description = occurrence.description
-        if occurrence.status:
-            virtual_task.status = occurrence.status
-        if occurrence.priority:
-            virtual_task.priority = occurrence.priority
-        if occurrence.assignee_id:
-            virtual_task.assignee_id = occurrence.assignee_id
-        if occurrence.reviewer_id:
-            virtual_task.reviewer_id = occurrence.reviewer_id
-        if occurrence.category_id:
-            virtual_task.category_id = occurrence.category_id
-        if occurrence.progress_metrics:
-            virtual_task.progress_metrics = occurrence.progress_metrics
-        if occurrence.blockers:
-            virtual_task.blockers = occurrence.blockers
-        if occurrence.health_score:
-            virtual_task.health_score = occurrence.health_score
-        if occurrence.risk_factors:
-            virtual_task.risk_factors = occurrence.risk_factors
-        
-        # Always override date-related fields
-        virtual_task.start_date = occurrence.start_date
-        if occurrence.duration:
-            virtual_task.duration = occurrence.duration
-        if occurrence.due_date:
-            virtual_task.due_date = occurrence.due_date
-        
-        # Set a virtual ID that combines the task ID and occurrence number
-        # This will be used to identify the specific occurrence when updating
-        virtual_task.id = int(f"{base_task.id}_{occurrence.occurrence_num}")
-        
-        # Add occurrence metadata
-        virtual_task.is_occurrence = True
-        virtual_task.occurrence_num = occurrence.occurrence_num
-        virtual_task.original_task_id = base_task.id
-        virtual_task.occurrence_id = occurrence.id
-        
-        return virtual_task
-
     async def get_tasks(
         self,
         skip: int = 0,
@@ -857,53 +722,6 @@ class TaskRepository(BaseRepository[Task]):
         attachment = await self.get_attachment(attachment_id)
         if attachment and attachment.uploaded_by == user_id:
             await self.db.delete(attachment)
-            await self.db.flush()
-            return True
-        return False
-
-    # Task Occurrence Methods
-    async def get_task_occurrence(self, task_id: int, occurrence_num: int) -> Optional[TaskOccurrence]:
-        """Get a specific occurrence of a recurring task."""
-        query = select(TaskOccurrence).where(
-            and_(
-                TaskOccurrence.task_id == task_id,
-                TaskOccurrence.occurrence_num == occurrence_num
-            )
-        )
-        result = await self.db.execute(query)
-        return result.scalars().first()
-    
-    async def update_task_occurrence(self, occurrence_id: int, update_data: dict) -> Optional[TaskOccurrence]:
-        """Update a task occurrence."""
-        query = select(TaskOccurrence).where(TaskOccurrence.id == occurrence_id)
-        result = await self.db.execute(query)
-        occurrence = result.scalars().first()
-        
-        if occurrence:
-            for key, value in update_data.items():
-                if hasattr(occurrence, key):
-                    setattr(occurrence, key, value)
-            await self.db.flush()
-            return occurrence
-        return None
-    
-    async def get_task_occurrences(self, task_id: int) -> List[TaskOccurrence]:
-        """Get all occurrences for a task."""        
-        query = select(TaskOccurrence).where(TaskOccurrence.task_id == task_id)
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
-
-    async def delete_task_occurrence(self, occurrence_id: int) -> bool:
-        """Delete a task occurrence record."""
-        from sqlalchemy import select
-
-        query = select(TaskOccurrence).where(
-            TaskOccurrence.id == occurrence_id)
-        result = await self.db.execute(query)
-        occurrence = result.scalars().first()
-
-        if occurrence:
-            await self.db.delete(occurrence)
             await self.db.flush()
             return True
         return False
