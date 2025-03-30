@@ -47,6 +47,9 @@ class CalendarEvent(Base):
     location = Column(String(255))
     is_all_day = Column(Boolean, default=False)
     external_id = Column(String(255))
+    time_zone = Column(String(50), nullable=True)
+    transparency = Column(String(50), default="opaque", nullable=True)
+    color = Column(String(7), nullable=True)
 
     # Recurrence Fields
     recurrence = Column(Enum(RecurrenceType),
@@ -54,6 +57,7 @@ class CalendarEvent(Base):
     recurrence_custom_days = Column(postgresql.ARRAY(String), nullable=True)
     recurrence_end_date = Column(
         DateTime, nullable=True)  # When recurrence stops
+    recurrence_count = Column(Integer, nullable=True)  # End after this many occurrences
 
     # Reminder Fields
     reminder_minutes_before = Column(Integer, nullable=True)

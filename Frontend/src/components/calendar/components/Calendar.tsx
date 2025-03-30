@@ -6,7 +6,7 @@ import DayView from './DayView';
 import WeekView from './WeekView';
 import ThreeDayView from './ThreeDayView';
 import MonthView from './MonthView';
-import TaskForm from './TaskForm';
+import EventForm from './EventForm';
 import ViewSelector from './ViewSelector';
 import { CalendarEvent } from '../types';
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,12 @@ interface CalendarProps {
 const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState<ViewType>('week');
-  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   const handleEventClick = (event: CalendarEvent) => {
     setEditingEvent(event);
-    setShowTaskForm(true);
+    setShowEventForm(true);
   };
 
   const handlePrevious = () => {
@@ -135,7 +135,7 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
             variant="outline" 
             size="sm" 
             className="gap-2"
-            onClick={() => setShowTaskForm(true)}
+            onClick={() => setShowEventForm(true)}
           >
             <Plus className="h-4 w-4" />
             New Task
@@ -143,11 +143,11 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
         </div>
       </div>
       
-      {showTaskForm && (
-        <TaskForm
+      {showEventForm && (
+        <EventForm
           task={editingEvent}
           onClose={() => {
-            setShowTaskForm(false);
+            setShowEventForm(false);
             setEditingEvent(null);
           }}
           userId={userId}

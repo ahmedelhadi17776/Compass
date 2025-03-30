@@ -155,22 +155,17 @@ class EventService:
 
         return event
 
-    async def update_event(self, event_id: int, event_data: Dict, update_all_occurrences: bool = True) -> CalendarEvent:
+    async def update_event(self, event_id: int, event_data: Dict, update_option: str = "this_occurrence") -> CalendarEvent:
         """Update an existing event.
 
         Args:
             event_id: The ID of the event to update
             event_data: Dictionary containing the fields to update
-            update_all_occurrences: If True, update all occurrences of a recurring event. If False, only update this occurrence.
+            update_option: How to handle recurring events:
+                - "this_occurrence": Update only this specific occurrence
+                - "this_and_future_occurrences": Update this and all future occurrences
+                - "all_occurrences": Update the original event and all occurrences
         """
-        # Get existing event first
-        existing_event = await self.repo.get_event(event_id)
-        if not existing_event:
-            raise EventNotFoundError(f"Event {event_id} not found")
-
-        # Check if this is a recurring event
-        is_recurring = existing_event.recurrence != RecurrenceType.NONE
-
         # Extract the occurrence information from the event_id if it's a virtual ID
         occurrence_num = 0
         original_event_id = event_id
@@ -183,17 +178,22 @@ class EventService:
             original_event_id = int(parts[0])
             occurrence_num = int(parts[1])
             is_virtual_id = True
+            
+        # Get existing event first - using the original event ID, not the virtual ID
+        existing_event = await self.repo.get_event(original_event_id)
+        if not existing_event:
+            raise EventNotFoundError(f"Event {original_event_id} not found")
 
-            # If it's a virtual ID, we need to get the actual event
-            if original_event_id != event_id:
-                existing_event = await self.repo.get_event(original_event_id)
-                if not existing_event:
-                    raise EventNotFoundError(
-                        f"Original event {original_event_id} not found")
-                    
-        # If this is a recurring event and we're not updating all occurrences,
+        # Check if this is a recurring event
+        is_recurring = existing_event.recurrence != RecurrenceType.NONE
+
+        # If this is a non-recurring event, always update all occurrences
+        if not is_recurring:
+            update_option = "all_occurrences"
+            
+        # If this is a recurring event and we're updating only this occurrence, 
         # or if this is a virtual ID (which always refers to a specific occurrence)
-        if (is_recurring and not update_all_occurrences) or is_virtual_id:
+        if is_recurring and update_option == "this_occurrence" or is_virtual_id:
             # For single occurrence updates, we don't modify the original event
             # Instead, we create or update an EventOccurrence record
 
@@ -209,7 +209,8 @@ class EventService:
 
             # Add all the fields that can be modified for a specific occurrence
             for field in ['title', 'description', 'status', 'priority', 'event_type',
-                          'start_date', 'duration', 'due_date']:
+                         'start_date', 'duration', 'due_date', 'location', 'is_all_day', 
+                         'transparency', 'color', 'time_zone']:
                 if field in event_data:
                     occurrence_data[field] = event_data[field]
 
@@ -227,6 +228,41 @@ class EventService:
 
             # Return the original event (not modified)
             return existing_event
+            
+        elif is_recurring and update_option == "this_and_future_occurrences":
+            # Update this occurrence and all future occurrences
+            
+            # First, update the base event to reflect the changes
+            # but we need to keep the original recurrence pattern
+            base_event_data = event_data.copy()
+            
+            # Get all occurrences for this event
+            all_occurrences = await self.repo.get_event_occurrences(original_event_id)
+            
+            # We need to create or update occurrences for all future events
+            for occ in all_occurrences:
+                if occ.occurrence_num >= occurrence_num:
+                    # Delete this occurrence - we'll create a new one with the updated pattern
+                    await self.repo.delete_event_occurrence(occ.id)
+            
+            # Update the original event with the new data
+            updated_event = await self.repo.update_event(original_event_id, event_data)
+            
+            # Get the updated event object (not just the data dictionary)
+            updated_event_obj = await self.repo.get_event(original_event_id)
+            if not updated_event_obj:
+                raise EventNotFoundError(f"Failed to retrieve updated event {original_event_id}")
+            
+            # Now we need to regenerate all future occurrences based on the updated event
+            # We'll start from the current occurrence number
+            await self._regenerate_future_occurrences(
+                updated_event_obj,  # Use the updated event object, not the event_data dictionary
+                start_occurrence_num=occurrence_num, 
+                modified_by_id=event_data.get('modified_by_id', existing_event.user_id)
+            )
+            
+            return updated_event
+            
         else:
             # Normal update behavior for non-recurring events or when updating all occurrences
             
@@ -252,7 +288,7 @@ class EventService:
 
             # If this is a recurring event and we're updating all occurrences,
             # we should also update any existing occurrence records to match the new base event
-            if is_recurring and update_all_occurrences:
+            if is_recurring and update_option == "all_occurrences":
                 # Get all occurrences for this event
                 occurrences = await self.repo.get_event_occurrences(original_event_id)
 
@@ -263,7 +299,8 @@ class EventService:
 
                     # Fields to potentially update in occurrences when the base event changes
                     # Only update fields that aren't specifically set in the occurrence
-                    for field in ['title', 'description', 'priority', 'event_type']:
+                    for field in ['title', 'description', 'priority', 'event_type', 'location', 
+                                 'is_all_day', 'transparency', 'color', 'time_zone']:
                         if field in event_data and getattr(occurrence, field) is None:
                             occurrence_update[field] = event_data[field]
 
@@ -749,22 +786,6 @@ class EventService:
                                     'occurrence_num': occurrence_num,
                                     'is_modified': True
                                 })
-                            else:
-                                occurrences.append({
-                                    'id': f"{event.id}_{occurrence_num}",
-                                    'title': event.title,
-                                    'start': current_date,
-                                    'end': current_date + timedelta(hours=event.duration) if event.duration else None,
-                                    'status': event.status,
-                                    'priority': event.priority,
-                                    'event_type': event.event_type,
-                                    'recurrence': event.recurrence,
-                                    'recurrence_end_date': event.recurrence_end_date,
-                                    'location': event.location,
-                                    'is_all_day': event.is_all_day,
-                                    'occurrence_num': occurrence_num,
-                                    'is_modified': False
-                                })
 
                         # Calculate next occurrence date
                         if event.recurrence == RecurrenceType.DAILY:
@@ -818,3 +839,84 @@ class EventService:
         except Exception as e:
             logger.error(f"Error retrieving calendar events: {str(e)}")
             return []
+
+    async def _regenerate_future_occurrences(
+        self, 
+        event: CalendarEvent, 
+        start_occurrence_num: int,
+        modified_by_id: int
+    ) -> None:
+        """Regenerate future occurrences of a recurring event starting from a specific occurrence number.
+        
+        Args:
+            event: The recurring event to regenerate occurrences for
+            start_occurrence_num: The occurrence number to start from
+            modified_by_id: The user ID who triggered the regeneration
+        """
+        if event.recurrence == RecurrenceType.NONE:
+            return
+            
+        # Calculate the start date for the specified occurrence
+        occurrence_start_date = self._calculate_occurrence_start_date(event, start_occurrence_num)
+        
+        # Initialize occurrence counter and current date
+        occurrence_num = start_occurrence_num
+        current_date = occurrence_start_date
+        
+        # Generate occurrences until reaching the recurrence end date
+        while not event.recurrence_end_date or current_date <= event.recurrence_end_date:
+            # Create occurrence data
+            occurrence_data = {
+                "calendar_event_id": event.id,
+                "occurrence_num": occurrence_num,
+                "start_date": current_date,
+                "modified_by_id": modified_by_id
+            }
+            
+            # Add the due date if the event has a duration
+            if event.duration:
+                occurrence_data["due_date"] = current_date + timedelta(hours=event.duration)
+            elif event.due_date:
+                # Maintain the same duration between start and due dates
+                original_duration = (event.due_date - event.start_date).total_seconds()
+                occurrence_data["due_date"] = current_date + timedelta(seconds=original_duration)
+                
+            # Create the occurrence record
+            await self.repo.create_event_occurrence(occurrence_data)
+            
+            # Calculate next occurrence date
+            if event.recurrence == RecurrenceType.DAILY:
+                current_date += timedelta(days=1)
+            elif event.recurrence == RecurrenceType.WEEKLY:
+                current_date += timedelta(weeks=1)
+            elif event.recurrence == RecurrenceType.BIWEEKLY:
+                current_date += timedelta(weeks=2)
+            elif event.recurrence == RecurrenceType.MONTHLY:
+                current_date += relativedelta(months=1)
+            elif event.recurrence == RecurrenceType.YEARLY:
+                current_date += relativedelta(years=1)
+            elif event.recurrence == RecurrenceType.CUSTOM and event.recurrence_custom_days:
+                custom_days = event.recurrence_custom_days
+                if custom_days:
+                    # Handle custom recurrence pattern
+                    try:
+                        if isinstance(custom_days[0], str) and custom_days[0].isdigit():
+                            custom_days = [int(d) for d in custom_days]
+                        
+                        # Get the index in the custom_days array
+                        idx = occurrence_num % len(custom_days)
+                        days_to_add = custom_days[idx]
+                        
+                        current_date += timedelta(days=int(days_to_add))
+                    except (ValueError, IndexError) as e:
+                        logger.error(f"Error calculating custom recurrence: {str(e)}")
+                        # Default fallback
+                        current_date += timedelta(days=1)
+                else:
+                    # No custom days defined, can't continue
+                    break
+            else:
+                # Unknown recurrence type, stop generating
+                break
+                
+            occurrence_num += 1

@@ -5,15 +5,15 @@ import { useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/components/cal
 import { CalendarEvent } from '../types';
 import { Button } from '@/components/ui/button';
 import "react-datepicker/dist/react-datepicker.css";
-import './TaskForm.css';
+import './EventForm.css';
 
-interface TaskFormProps {
+interface EventFormProps {
   task?: CalendarEvent | null;
   onClose: () => void;
   userId?: number;
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
+const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
   const createEvent = useCreateEvent(userId);
   const updateEvent = useUpdateEvent(userId);
   const deleteEvent = useDeleteEvent(userId);
@@ -300,4 +300,4 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
   );
 };
 
-export default TaskForm;
+export default EventForm;

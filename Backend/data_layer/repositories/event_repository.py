@@ -519,15 +519,52 @@ class EventRepository(BaseRepository[CalendarEvent]):
         return result.scalars().first()
     
     async def update_event_occurrence(self, occurrence_id: int, update_data: dict) -> Optional[EventOccurrence]:
-        """Update an event occurrence."""
+        """Update an event occurrence.
+        
+        Args:
+            occurrence_id: The ID of the occurrence to update
+            update_data: Dictionary containing the fields to update
+            
+        Returns:
+            The updated EventOccurrence object or None if not found
+        """
         query = select(EventOccurrence).where(EventOccurrence.id == occurrence_id)
         result = await self.db.execute(query)
         occurrence = result.scalars().first()
         
         if occurrence:
+            # Handle enum values for status
+            if 'status' in update_data and isinstance(update_data['status'], str):
+                try:
+                    update_data['status'] = TaskStatus(update_data['status'])
+                except ValueError:
+                    logger.warning(f"Invalid status value: {update_data['status']}")
+                    del update_data['status']
+            
+            # Handle enum values for priority
+            if 'priority' in update_data and isinstance(update_data['priority'], str):
+                try:
+                    update_data['priority'] = TaskPriority(update_data['priority'])
+                except ValueError:
+                    logger.warning(f"Invalid priority value: {update_data['priority']}")
+                    del update_data['priority']
+                    
+            # Handle enum values for event_type
+            if 'event_type' in update_data and isinstance(update_data['event_type'], str):
+                try:
+                    update_data['event_type'] = EventType(update_data['event_type'])
+                except ValueError:
+                    logger.warning(f"Invalid event_type value: {update_data['event_type']}")
+                    del update_data['event_type']
+            
+            # Update the occurrence fields
             for key, value in update_data.items():
                 if hasattr(occurrence, key):
                     setattr(occurrence, key, value)
+            
+            # Make sure the updated_at field gets updated
+            occurrence.updated_at = datetime.utcnow()
+            
             await self.db.flush()
             return occurrence
         return None
@@ -552,13 +589,51 @@ class EventRepository(BaseRepository[CalendarEvent]):
         return False
         
     async def update_event_occurrence_by_info(self, event_id: int, occurrence_num: int, update_data: dict) -> Optional[EventOccurrence]:
-        """Update an event occurrence by event_id and occurrence_num."""
+        """Update an event occurrence by event_id and occurrence_num.
+        
+        Args:
+            event_id: The ID of the parent event
+            occurrence_num: The occurrence number to update
+            update_data: Dictionary containing the fields to update
+            
+        Returns:
+            The updated EventOccurrence object or None if not found
+        """
         occurrence = await self.get_event_occurrence(event_id, occurrence_num)
         
         if occurrence:
+            # Handle enum values for status
+            if 'status' in update_data and isinstance(update_data['status'], str):
+                try:
+                    update_data['status'] = TaskStatus(update_data['status'])
+                except ValueError:
+                    logger.warning(f"Invalid status value: {update_data['status']}")
+                    del update_data['status']
+            
+            # Handle enum values for priority
+            if 'priority' in update_data and isinstance(update_data['priority'], str):
+                try:
+                    update_data['priority'] = TaskPriority(update_data['priority'])
+                except ValueError:
+                    logger.warning(f"Invalid priority value: {update_data['priority']}")
+                    del update_data['priority']
+                    
+            # Handle enum values for event_type
+            if 'event_type' in update_data and isinstance(update_data['event_type'], str):
+                try:
+                    update_data['event_type'] = EventType(update_data['event_type'])
+                except ValueError:
+                    logger.warning(f"Invalid event_type value: {update_data['event_type']}")
+                    del update_data['event_type']
+                    
+            # Update the occurrence fields
             for key, value in update_data.items():
                 if hasattr(occurrence, key):
                     setattr(occurrence, key, value)
+            
+            # Make sure the updated_at field gets updated
+            occurrence.updated_at = datetime.utcnow()
+            
             await self.db.flush()
             return occurrence
         return None
