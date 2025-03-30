@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import './WeekView.css';
 import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
-import { useWeekTasks, useUpdateTask } from '@/components/calendar/hooks';
+import { useWeekEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
@@ -26,9 +26,9 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
     error,
     refetch,
     isFetching 
-  } = useWeekTasks(date);
+  } = useWeekEvents(date);
   
-  const updateTaskMutation = useUpdateTask();
+  const updateEventMutation = useUpdateEvent();
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -65,16 +65,16 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
     const newEnd = new Date(newStart.getTime() + duration);
 
     try {
-      await updateTaskMutation.mutateAsync({
-        taskId: draggingEvent.id,
-        task: {
+      await updateEventMutation.mutateAsync({
+        eventId: draggingEvent.id,
+        event: {
           ...draggingEvent,
           start: newStart,
           end: newEnd,
         }
       });
     } catch (error) {
-      console.error('Failed to update task:', error);
+      console.error('Failed to update event:', error);
     }
 
     setDraggingEvent(null);

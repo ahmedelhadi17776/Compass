@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tasksApi } from './api';
+import { eventsApi } from './api';
 import { CalendarEvent } from './types';
 import { startOfWeek, endOfWeek, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth } from 'date-fns';
 
-export const useCalendarTasks = (
+export const useCalendarEvents = (
   startDate: Date,
   endDate: Date,
   userId: number = 1,
@@ -14,7 +14,7 @@ export const useCalendarTasks = (
 ) => {
   return useQuery({
     queryKey: [
-      'tasks',
+      'events',
       'calendar',
       startDate.toISOString(),
       endDate.toISOString(),
@@ -22,7 +22,7 @@ export const useCalendarTasks = (
       options?.expand_recurring,
       options?.project_id
     ],
-    queryFn: () => tasksApi.getTasks({
+    queryFn: () => eventsApi.getEvents({
       due_date_start: startDate,
       due_date_end: endDate,
       user_id: userId,
@@ -36,60 +36,60 @@ export const useCalendarTasks = (
   });
 };
 
-export const useWeekTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+export const useWeekEvents = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
   const startDate = startOfWeek(date);
   const endDate = endOfWeek(date);
-  return useCalendarTasks(startDate, endDate, userId, options);
+  return useCalendarEvents(startDate, endDate, userId, options);
 };
 
-export const useDayTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+export const useDayEvents = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
   const startDate = startOfDay(date);
   const endDate = endOfDay(date);
-  return useCalendarTasks(startDate, endDate, userId, options);
+  return useCalendarEvents(startDate, endDate, userId, options);
 };
 
-export const useThreeDayTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+export const useThreeDayEvents = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
   const startDate = startOfDay(date);
   const endDate = endOfDay(addDays(date, 2));
-  return useCalendarTasks(startDate, endDate, userId, options);
+  return useCalendarEvents(startDate, endDate, userId, options);
 };
 
-export const useMonthTasks = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
+export const useMonthEvents = (date: Date, userId: number = 1, options?: { expand_recurring?: boolean; project_id?: number }) => {
   const startDate = startOfMonth(date);
   const endDate = endOfMonth(date);
-  return useCalendarTasks(startDate, endDate, userId, options);
+  return useCalendarEvents(startDate, endDate, userId, options);
 };
 
-export const useCreateTask = (userId: number) => {
+export const useCreateEvent = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (task: Partial<CalendarEvent>) => tasksApi.createTask(task, userId),
+    mutationFn: (event: Partial<CalendarEvent>) => eventsApi.createEvent(event, userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
     },
   });
 };
 
-export const useUpdateTask = (userId: number) => {
+export const useUpdateEvent = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ taskId, task }: { taskId: string; task: Partial<CalendarEvent> }) =>
-      tasksApi.updateTask(taskId, task, userId),
+    mutationFn: ({ eventId, event }: { eventId: string; event: Partial<CalendarEvent> }) =>
+      eventsApi.updateEvent(eventId, event, userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
     },
   });
 };
 
-export const useDeleteTask = (userId: number) => {
+export const useDeleteEvent = (userId: number) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (taskId: string) => tasksApi.deleteTask(taskId, userId),
+    mutationFn: (eventId: string) => eventsApi.deleteEvent(eventId, userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
     },
   });
 }; 
