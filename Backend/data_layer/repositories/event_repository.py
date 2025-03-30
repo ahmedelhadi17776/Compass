@@ -143,6 +143,28 @@ class EventRepository(BaseRepository[CalendarEvent]):
         """Update an event. Implementation of abstract method from BaseRepository."""
         event = await self.get_by_id(id, user_id)
         if event:
+            # Handle enum values
+            if 'event_type' in update_data and isinstance(update_data['event_type'], str):
+                try:
+                    update_data['event_type'] = EventType(update_data['event_type'])
+                except ValueError:
+                    logger.warning(f"Invalid event_type value: {update_data['event_type']}")
+                    update_data['event_type'] = EventType.NONE
+
+            if 'status' in update_data and isinstance(update_data['status'], str):
+                try:
+                    update_data['status'] = TaskStatus(update_data['status'])
+                except ValueError:
+                    logger.warning(f"Invalid status value: {update_data['status']}")
+                    del update_data['status']
+
+            if 'priority' in update_data and isinstance(update_data['priority'], str):
+                try:
+                    update_data['priority'] = TaskPriority(update_data['priority'])
+                except ValueError:
+                    logger.warning(f"Invalid priority value: {update_data['priority']}")
+                    del update_data['priority']
+
             # Update event fields
             for key, value in update_data.items():
                 if hasattr(event, key):
@@ -190,6 +212,38 @@ class EventRepository(BaseRepository[CalendarEvent]):
         event = await self.get_by_id(event_id)
         if not event:
             raise EventNotFoundError(f"CalendarEvent with id {event_id} not found")
+
+        # Create a copy to avoid modifying the original
+        event_data = event_data.copy()
+
+        # Handle enum values
+        if 'event_type' in event_data and isinstance(event_data['event_type'], str):
+            try:
+                event_data['event_type'] = EventType(event_data['event_type'])
+            except ValueError:
+                logger.warning(f"Invalid event_type value: {event_data['event_type']}")
+                event_data['event_type'] = EventType.NONE
+
+        if 'status' in event_data and isinstance(event_data['status'], str):
+            try:
+                event_data['status'] = TaskStatus(event_data['status'])
+            except ValueError:
+                logger.warning(f"Invalid status value: {event_data['status']}")
+                del event_data['status']
+
+        if 'priority' in event_data and isinstance(event_data['priority'], str):
+            try:
+                event_data['priority'] = TaskPriority(event_data['priority'])
+            except ValueError:
+                logger.warning(f"Invalid priority value: {event_data['priority']}")
+                del event_data['priority']
+
+        if 'recurrence' in event_data and isinstance(event_data['recurrence'], str):
+            try:
+                event_data['recurrence'] = RecurrenceType(event_data['recurrence'])
+            except ValueError:
+                logger.warning(f"Invalid recurrence value: {event_data['recurrence']}")
+                event_data['recurrence'] = RecurrenceType.NONE
 
         if "start_date" in event_data or "duration" in event_data:
             new_start = event_data.get("start_date", event.start_date)

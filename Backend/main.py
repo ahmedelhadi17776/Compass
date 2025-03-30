@@ -31,6 +31,7 @@ from Backend.api.roles import router as role_router
 from Backend.api.workflows import router as workflow_router
 from Backend.api.ai_routes import router as ai_router
 from Backend.api.tasks import router as task_router
+from Backend.api.events import router as event_router
 from Backend.api.organizations import router as organization_router
 from Backend.api.projects import router as project_router
 from Backend.api.cache_routes import router as cache_router
@@ -99,6 +100,9 @@ app.include_router(organization_router,
 app.include_router(project_router, prefix="/projects", tags=["projects"])
 
 app.include_router(task_router, prefix="/tasks", tags=["tasks"])
+
+# Include events router
+app.include_router(event_router, prefix="/events", tags=["events"])
 
 # Include cache test routes
 app.include_router(cache_test_router)
