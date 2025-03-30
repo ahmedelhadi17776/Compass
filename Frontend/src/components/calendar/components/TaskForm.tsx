@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import { X } from 'lucide-react';
-import { useCreateTask, useUpdateTask, useDeleteTask } from '@/components/calendar/hooks';
+import { useCreateEvent, useUpdateEvent, useDeleteEvent } from '@/components/calendar/hooks';
 import { CalendarEvent } from '../types';
 import { Button } from '@/components/ui/button';
 import "react-datepicker/dist/react-datepicker.css";
@@ -14,13 +14,13 @@ interface TaskFormProps {
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
-  const createTask = useCreateTask(userId);
-  const updateTask = useUpdateTask(userId);
-  const deleteTask = useDeleteTask(userId);
+  const createEvent = useCreateEvent(userId);
+  const updateEvent = useUpdateEvent(userId);
+  const deleteEvent = useDeleteEvent(userId);
   const [isClosing, setIsClosing] = useState(false);
 
   const statuses = [
-    { value: 'To Do', label: 'To Do' },
+    { value: 'Upcoming', label: 'Upcoming' },
     { value: 'In Progress', label: 'In Progress' },
     { value: 'Completed', label: 'Completed' },
     { value: 'Cancelled', label: 'Cancelled' },
@@ -32,16 +32,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
   const priorities = [
     { value: 'High', label: 'High' },
     { value: 'Medium', label: 'Medium' },
-    { value: 'Low', label: 'Low' },
-    { value: 'Urgent', label: 'Urgent' }
-  ];
-
-  const categories = [
-    { value: 'work', label: 'Work' },
-    { value: 'personal', label: 'Personal' },
-    { value: 'study', label: 'Study' },
-    { value: 'health', label: 'Health' },
-    { value: 'other', label: 'Other' }
+    { value: 'Low', label: 'Low' }
   ];
 
   type RecurrenceType = NonNullable<CalendarEvent['recurrence']>;
@@ -60,15 +51,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
   const [formData, setFormData] = useState<Partial<CalendarEvent> & { recurrence: RecurrenceType }>({
     title: task?.title || '',
     description: task?.description || '',
-    category: task?.category || 'work',
     priority: task?.priority || 'Medium',
     location: task?.location || '',
     start_date: task?.start || new Date(),
     end_date: task?.end || new Date(Date.now() + 60 * 60000),
-    status: task?.status || 'To Do',
-    project_id: task?.project_id || 1,
-    organization_id: task?.organization_id || 1,
-    creator_id: userId,
+    status: task?.status || 'Upcoming',
     user_id: userId,
     recurrence: (task?.recurrence || 'None') as RecurrenceType,
     recurrence_end_date: task?.recurrence_end_date || (task?.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
@@ -102,16 +89,16 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
       };
 
       if (task?.id) {
-        await updateTask.mutateAsync({
-          taskId: task.id,
-          task: taskData
+        await updateEvent.mutateAsync({
+          eventId: task.id,
+          event: taskData
         });
       } else {
-        await createTask.mutateAsync(taskData);
+        await createEvent.mutateAsync(taskData);
       }
       setTimeout(onClose, 300);
     } catch (error) {
-      console.error('Failed to save task:', error);
+      console.error('Failed to save event:', error);
       setIsClosing(false);
     }
   };
@@ -120,10 +107,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
     if (!task?.id) return;
     setIsClosing(true);
     try {
-      await deleteTask.mutateAsync(task.id);
+      await deleteEvent.mutateAsync(task.id);
       setTimeout(onClose, 300);
     } catch (error) {
-      console.error('Failed to delete task:', error);
+      console.error('Failed to delete event:', error);
       setIsClosing(false);
     }
   };
@@ -210,21 +197,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300">Category</label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-              >
-                {categories.map(category => (
-                  <option key={category.value} value={category.value} className="bg-gray-800">
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
               <label className="block text-sm font-medium text-gray-300">Location</label>
               <input
                 type="text"
@@ -296,10 +268,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
                 type="button"
                 onClick={handleDelete}
                 variant="destructive"
-                disabled={deleteTask.isPending}
+                disabled={deleteEvent.isPending}
                 className="px-4 py-2"
               >
-                {deleteTask.isPending ? 'Deleting...' : 'Delete Task'}
+                {deleteEvent.isPending ? 'Deleting...' : 'Delete Event'}
               </Button>
             )}
             <div className="flex gap-3 ml-auto">
@@ -313,12 +285,12 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, userId = 1 }) => {
               </Button>
               <Button
                 type="submit"
-                disabled={createTask.isPending || updateTask.isPending}
+                disabled={createEvent.isPending || updateEvent.isPending}
                 className="px-4 py-2"
               >
-                {createTask.isPending || updateTask.isPending 
+                {createEvent.isPending || updateEvent.isPending 
                   ? 'Saving...' 
-                  : task ? 'Update Task' : 'Create Task'}
+                  : task ? 'Update Event' : 'Create Event'}
               </Button>
             </div>
           </div>

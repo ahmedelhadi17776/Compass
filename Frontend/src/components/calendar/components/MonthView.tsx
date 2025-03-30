@@ -3,7 +3,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isTod
 import { cn } from '@/lib/utils';
 import './MonthView.css';
 import { CalendarEvent } from '../types';
-import { useMonthTasks } from '@/components/calendar/hooks';
+import { useMonthEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface MonthViewProps {
@@ -25,7 +25,7 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
     isError,
     error,
     refetch 
-  } = useMonthTasks(date, 1, { expand_recurring: true });
+  } = useMonthEvents(date, 1, { expand_recurring: true });
 
   const getEventsForDay = (day: Date) => {
     return events.filter((event: CalendarEvent) => 
@@ -99,7 +99,6 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
                     key={event.id}
                     className={cn(
                       "month-event-pill",
-                      `category-${event.category}`,
                       `priority-${event.priority}`,
                       darkMode && "dark"
                     )}

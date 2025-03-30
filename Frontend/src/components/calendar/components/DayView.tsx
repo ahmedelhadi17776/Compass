@@ -4,7 +4,7 @@ import './DayView.css';
 import { cn } from '@/lib/utils';
 import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
-import { useDayTasks, useUpdateTask } from '@/components/calendar/hooks';
+import { useDayEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface DayViewProps {
@@ -24,9 +24,9 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     isError,
     error,
     refetch 
-  } = useDayTasks(date, 1, { expand_recurring: true });
+  } = useDayEvents(date, 1, { expand_recurring: true });
   
-  const updateTaskMutation = useUpdateTask(1);
+  const updateEventMutation = useUpdateEvent(1);
 
   useEffect(() => {
     const updateTimeIndicator = () => {
@@ -66,16 +66,16 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     const newEnd = new Date(newStart.getTime() + duration);
 
     try {
-      await updateTaskMutation.mutateAsync({
-        taskId: draggingEvent.id,
-        task: {
+      await updateEventMutation.mutateAsync({
+        eventId: draggingEvent.id,
+        event: {
           ...draggingEvent,
           start: newStart,
           end: newEnd,
         }
       });
     } catch (error) {
-      console.error('Failed to update task:', error);
+      console.error('Failed to update event:', error);
     }
 
     setDraggingEvent(null);

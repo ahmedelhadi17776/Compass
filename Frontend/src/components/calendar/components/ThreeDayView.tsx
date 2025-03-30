@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import './ThreeDayView.css';
 import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
-import { useThreeDayTasks, useUpdateTask } from '@/components/calendar/hooks';
+import { useThreeDayEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ThreeDayViewProps {
@@ -23,9 +23,9 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     isError,
     error,
     refetch 
-  } = useThreeDayTasks(date, 1, { expand_recurring: true });
+  } = useThreeDayEvents(date, 1, { expand_recurring: true });
   
-  const updateTaskMutation = useUpdateTask(1);
+  const updateEventMutation = useUpdateEvent(1);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -75,16 +75,16 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     const newEnd = new Date(newStart.getTime() + duration);
 
     try {
-      await updateTaskMutation.mutateAsync({
-        taskId: draggingEvent.id,
-        task: {
+      await updateEventMutation.mutateAsync({
+        eventId: draggingEvent.id,
+        event: {
           ...draggingEvent,
           start: newStart,
           end: newEnd,
         }
       });
     } catch (error) {
-      console.error('Failed to update task:', error);
+      console.error('Failed to update event:', error);
     }
 
     setDraggingEvent(null);

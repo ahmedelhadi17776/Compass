@@ -20,8 +20,8 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-export const tasksApi = {
-  getTasks: async ({
+export const eventsApi = {
+  getEvents: async ({
     skip = 0,
     limit = 100,
     status,
@@ -62,13 +62,13 @@ export const tasksApi = {
       const formattedStartDate = formatDateWithoutTimezone(due_date_start);
       const formattedEndDate = formatDateWithoutTimezone(due_date_end);
 
-      let endpoint = '/tasks/';
+      let endpoint = '/events/';
       const params: Record<string, any> = {
         user_id,
       };
 
       if (due_date_start && due_date_end) {
-        endpoint = '/tasks/calendar';
+        endpoint = '/events/calendar';
         params.start_date = formattedStartDate;
         params.end_date = formattedEndDate;
         params.expand_recurring = expand_recurring;
@@ -93,10 +93,10 @@ export const tasksApi = {
     }
   },
 
-  getTaskById: async (taskId: string, user_id: number = 1) => {
-    // If it's a recurring task occurrence, extract the original ID
-    const originalId = taskId.includes('_') ? taskId.split('_')[0] : taskId;
-    const { data } = await axiosInstance.get(`/tasks/by_id/${originalId}`, {
+  getEventById: async (eventId: string, user_id: number = 1) => {
+    // If it's a recurring event occurrence, extract the original ID
+    const originalId = eventId.includes('_') ? eventId.split('_')[0] : eventId;
+    const { data } = await axiosInstance.get(`/events/by_id/${originalId}`, {
       params: { user_id }
     });
     
@@ -120,7 +120,7 @@ export const tasksApi = {
     return data;
   },
 
-  createTask: async (task: Partial<CalendarEvent>, user_id: number = 1) => {
+  createEvent: async (event: Partial<CalendarEvent>, user_id: number = 1) => {
     const formatDate = (date: Date | string | undefined) => {
       if (!date) return undefined;
       const d = date instanceof Date ? date : new Date(date);
@@ -135,11 +135,11 @@ export const tasksApi = {
 
     const mapStatusForBackend = (status: string | undefined) => {
       if (!status) return undefined;
-      if (['To Do', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
+      if (['Upcoming', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
         return status;
       }
       const statusMap: Record<string, string> = {
-        'TODO': 'To Do',
+        'UPCOMING': 'Upcoming',
         'IN_PROGRESS': 'In Progress',
         'COMPLETED': 'Completed',
         'CANCELLED': 'Cancelled',
@@ -166,29 +166,26 @@ export const tasksApi = {
 
     // Calculate duration if start and end dates are provided
     let duration = undefined;
-    if (task.start && task.end) {
+    if (event.start && event.end) {
       // Duration in hours
-      duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
+      duration = (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60);
     }
 
     // Prioritize due_date if it's explicitly provided
-    const dueDate = task.due_date ? formatDate(task.due_date) : 
-                   task.end ? formatDate(task.end) : 
-                   task.end_date ? formatDate(task.end_date) : undefined;
+    const dueDate = event.due_date ? formatDate(event.due_date) : 
+                   event.end ? formatDate(event.end) : 
+                   event.end_date ? formatDate(event.end_date) : undefined;
 
     // Format recurrence_end_date without timezone information
-    const recurrenceEndDate = task.recurrence_end_date ? formatDate(task.recurrence_end_date) : undefined;
+    const recurrenceEndDate = event.recurrence_end_date ? formatDate(event.recurrence_end_date) : undefined;
 
-    const { data } = await axiosInstance.post(`/tasks`, {
-      ...task,
-      start_date: formatDate(task.start_date || task.start),
+    const { data } = await axiosInstance.post(`/events`, {
+      ...event,
+      start_date: formatDate(event.start_date || event.start),
       due_date: dueDate,
       duration: duration,
-      project_id: task.project_id || 1,
-      organization_id: task.organization_id || 1,
-      creator_id: task.creator_id || user_id,
-      status: mapStatusForBackend(task.status),
-      priority: mapPriorityForBackend(task.priority),
+      status: mapStatusForBackend(event.status),
+      priority: mapPriorityForBackend(event.priority),
       recurrence_end_date: recurrenceEndDate,
     }, {
       params: { user_id }
@@ -196,7 +193,7 @@ export const tasksApi = {
     return data;
   },
 
-  updateTask: async (taskId: string, task: Partial<CalendarEvent>, user_id: number = 1) => {
+  updateEvent: async (eventId: string, event: Partial<CalendarEvent>, user_id: number = 1) => {
     const formatDate = (date: Date | string | undefined) => {
       if (!date) return undefined;
       const d = date instanceof Date ? date : new Date(date);
@@ -211,11 +208,11 @@ export const tasksApi = {
 
     const mapStatusForBackend = (status: string | undefined) => {
       if (!status) return undefined;
-      if (['To Do', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
+      if (['Upcoming', 'In Progress', 'Completed', 'Cancelled', 'Blocked', 'Under Review', 'Deferred'].includes(status)) {
         return status;
       }
       const statusMap: Record<string, string> = {
-        'TODO': 'To Do',
+        'UPCOMING': 'Upcoming',
         'IN_PROGRESS': 'In Progress',
         'COMPLETED': 'Completed',
         'CANCELLED': 'Cancelled',
@@ -242,28 +239,28 @@ export const tasksApi = {
 
     // Calculate duration if start and end dates are provided
     let duration = undefined;
-    if (task.start && task.end) {
+    if (event.start && event.end) {
       // Duration in hours
-      duration = (task.end.getTime() - task.start.getTime()) / (1000 * 60 * 60);
+      duration = (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60);
     }
 
-    const originalId = taskId.split('_')[0];
+    const originalId = eventId.split('_')[0];
 
     // Prioritize due_date if it's explicitly provided
-    const dueDate = task.due_date ? formatDate(task.due_date) : 
-                   task.end ? formatDate(task.end) : 
-                   task.end_date ? formatDate(task.end_date) : undefined;
+    const dueDate = event.due_date ? formatDate(event.due_date) : 
+                   event.end ? formatDate(event.end) : 
+                   event.end_date ? formatDate(event.end_date) : undefined;
 
     // Format recurrence_end_date without timezone information
-    const recurrenceEndDate = task.recurrence_end_date ? formatDate(task.recurrence_end_date) : undefined;
+    const recurrenceEndDate = event.recurrence_end_date ? formatDate(event.recurrence_end_date) : undefined;
 
-    const { data } = await axiosInstance.put(`/tasks/${originalId}`, {
-      ...task,
-      start_date: formatDate(task.start_date || task.start),
+    const { data } = await axiosInstance.put(`/events/${originalId}`, {
+      ...event,
+      start_date: formatDate(event.start_date || event.start),
       due_date: dueDate,
       duration: duration,
-      status: mapStatusForBackend(task.status),
-      priority: mapPriorityForBackend(task.priority),
+      status: mapStatusForBackend(event.status),
+      priority: mapPriorityForBackend(event.priority),
       recurrence_end_date: recurrenceEndDate,
     }, {
       params: { user_id }
@@ -271,9 +268,9 @@ export const tasksApi = {
     return data;
   },
 
-  deleteTask: async (taskId: string, user_id: number = 1) => {
-    const originalId = taskId.split('_')[0];
-    await axiosInstance.delete(`/tasks/${originalId}`, {
+  deleteEvent: async (eventId: string, user_id: number = 1) => {
+    const originalId = eventId.split('_')[0];
+    await axiosInstance.delete(`/events/${originalId}`, {
       params: { user_id }
     });
   },
