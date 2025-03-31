@@ -21,8 +21,12 @@ class EventBase(BaseModel):
     recurrence: Optional[Union[RecurrenceType, str]] = RecurrenceType.NONE
     recurrence_custom_days: Optional[List[str]] = None
     recurrence_end_date: Optional[datetime] = None
+    recurrence_count: Optional[int] = None
     reminder_minutes_before: Optional[int] = None
     notification_method: Optional[str] = None
+    time_zone: Optional[str] = None
+    transparency: Optional[str] = "opaque"
+    color: Optional[str] = None
 
 
 class EventCreate(EventBase):
@@ -45,9 +49,13 @@ class EventUpdate(BaseModel):
     recurrence: Optional[Union[RecurrenceType, str]] = None
     recurrence_custom_days: Optional[List[str]] = None
     recurrence_end_date: Optional[datetime] = None
+    recurrence_count: Optional[int] = None
     reminder_minutes_before: Optional[int] = None
     notification_method: Optional[str] = None
     modified_by_id: Optional[int] = None
+    time_zone: Optional[str] = None
+    transparency: Optional[str] = None
+    color: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -86,6 +94,11 @@ class EventOccurrenceResponse(BaseModel):
     status: Optional[Union[TaskStatus, str]] = None
     priority: Optional[Union[TaskPriority, str]] = None
     event_type: Optional[Union[EventType, str]] = None
+    transparency: Optional[str] = None
+    color: Optional[str] = None
+    time_zone: Optional[str] = None
+    location: Optional[str] = None
+    is_all_day: Optional[bool] = None
     modified_by_id: int
     created_at: datetime
     updated_at: datetime
