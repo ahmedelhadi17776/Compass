@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 from Backend.data_layer.database.connection import get_db
-from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority, Task
 from Backend.app.schemas.task_schemas import (
     TaskCreate,
@@ -47,11 +46,18 @@ async def create_task(
                 detail="Duration must be positive"
             )
 
-        # Validate recurrence end date
-        if task_data.get("recurrence_end_date") and task_data["recurrence_end_date"] < task_data["start_date"]:
+        # Ensure datetime objects are timezone-naive
+        for field in ["start_date", "due_date"]:
+            if field in task_data and task_data[field] is not None:
+                # Remove timezone info if present
+                if task_data[field].tzinfo:
+                    task_data[field] = task_data[field].replace(tzinfo=None)
+
+        # Validate dates
+        if task_data.get("due_date") and task_data["start_date"] > task_data["due_date"]:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="Recurrence end date cannot be before start date"
+                detail="Start date must be before due date"
             )
 
         result = await service.create_task(**task_data)
@@ -105,22 +111,16 @@ async def get_tasks(
     start_date: Optional[datetime] = None,
     duration: Optional[float] = None,
     due_date: Optional[datetime] = None,
-    recurrence: Optional[RecurrenceType] = None,
     end_date: Optional[datetime] = None,
-    include_recurring: bool = True,
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ):
-    """Get tasks with optional filtering and calendar support.
-    
-    This endpoint handles both regular tasks and recurring tasks with their occurrences.
-    For recurring tasks, it returns virtual tasks representing each occurrence.
-    """
+    """Get tasks with optional filtering."""
     try:
         repo = TaskRepository(db)
         service = TaskService(repo)
 
-        # Use service layer's method that handles recurring tasks properly
+        # Use service layer's method
         tasks = await service.get_tasks(
             skip=skip,
             limit=limit,
@@ -132,13 +132,9 @@ async def get_tasks(
             start_date=start_date,
             duration=duration,
             due_date=due_date,
-            recurrence=recurrence,
-            end_date=end_date,
-            include_recurring=include_recurring
+            end_date=end_date
         )
 
-        # Convert to response model
-        # Note: You may need to update TaskResponse to handle virtual tasks
         return tasks
     except Exception as e:
         raise HTTPException(
@@ -653,73 +649,4 @@ async def delete_task_attachment(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting attachment: {str(e)}"
-        )
-
-
-@router.get("/calendar", response_model=List[Dict])
-async def get_calendar_tasks(
-    start_date: datetime,
-    end_date: datetime,
-    user_id: int,
-    project_id: Optional[int] = None,
-    include_recurring: bool = Query(
-        True, description="Whether to include recurring tasks and their occurrences"),
-    db: AsyncSession = Depends(get_db)
-    # current_user=Depends(get_current_user)
-):
-    """Get tasks formatted for calendar view with expanded recurring tasks.
-
-    This endpoint retrieves tasks for a calendar view and expands recurring tasks
-    into individual occurrences based on their recurrence pattern.
-
-    Args:
-        start_date: Start of the calendar range
-        end_date: End of the calendar range
-        user_id: User ID for filtering
-        project_id: Optional project filter
-        expand_recurring: Whether to expand recurring tasks into occurrences
-
-    Returns:
-        List of task dictionaries formatted for calendar display
-    """
-    try:
-        repo = TaskRepository(db)
-        service = TaskService(repo)
-
-        # Ensure timezone-naive datetime objects
-        if start_date.tzinfo:
-            start_date = start_date.replace(tzinfo=None)
-        if end_date.tzinfo:
-            end_date = end_date.replace(tzinfo=None)
-
-        # Validate date range
-        if start_date > end_date:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="Start date must be before end date"
-            )
-
-        # Limit range to prevent performance issues (e.g., max 3 months)
-        max_range = timedelta(days=90)
-        if end_date - start_date > max_range:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=f"Date range too large. Maximum range is {max_range.days} days"
-            )
-
-        calendar_tasks = await service.get_calendar_tasks(
-            start_date=start_date,
-            end_date=end_date,
-            project_id=project_id,
-            user_id=user_id,
-            include_recurring=include_recurring
-        )
-
-        return calendar_tasks
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving calendar tasks: {str(e)}"
         )

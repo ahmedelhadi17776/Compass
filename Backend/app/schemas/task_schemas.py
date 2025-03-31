@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Dict
-from Backend.data_layer.database.models.calendar_event import RecurrenceType
 from Backend.data_layer.database.models.task import TaskStatus, TaskPriority
 
 # ToDo: implemetn other necessary schemas
@@ -29,8 +28,6 @@ class TaskBase(BaseModel):
     start_date: datetime
     duration: Optional[float] = None  
     due_date: Optional[datetime] = None
-    recurrence: RecurrenceType = RecurrenceType.NONE  
-    recurrence_end_date: Optional[datetime] = None
     dependencies: Optional[List[int]] = Field(default_factory=list)
     
     # AI and Analytics Fields
@@ -62,8 +59,6 @@ class TaskUpdate(BaseModel):
     due_date: Optional[datetime] = None
     estimated_hours: Optional[float] = None
     actual_hours: Optional[float] = None
-    recurrence: Optional[RecurrenceType] = None  
-    recurrence_end_date: Optional[datetime] = None 
     progress_metrics: Optional[Dict] = None
     blockers: Optional[List[str]] = None
     health_score: Optional[float] = None
@@ -91,19 +86,11 @@ class TaskResponse(BaseModel):
     start_date: datetime
     duration: Optional[float] = None
     due_date: Optional[datetime] = None
-    recurrence: RecurrenceType
-    recurrence_end_date: Optional[datetime] = None
     project_id: int
     organization_id: int
     workflow_id: Optional[int] = None
     dependencies: Optional[List[int]] = None
     health_score: Optional[float] = None
-    
-    # Fields for recurring task occurrences
-    is_occurrence: Optional[bool] = False
-    occurrence_num: Optional[int] = None
-    original_task_id: Optional[int] = None
-    occurrence_id: Optional[int] = None
     
     # status_updated_at: datetime
     completed_at: Optional[datetime] = None

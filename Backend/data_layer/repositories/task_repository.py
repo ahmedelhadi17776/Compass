@@ -139,11 +139,6 @@ class TaskRepository(BaseRepository[Task]):
         if "due_date" in task_data:
             task.due_date = task_data["due_date"]
 
-        if "recurrence_end_date" in task_data:
-            if task_data["recurrence_end_date"] and task_data["recurrence_end_date"] < task.start_date:
-                raise ValueError(
-                    "Recurrence end date cannot be before start date")
-
         # Update task fields
         for key, value in task_data.items():
             # Skip date fields as they're handled separately above
@@ -167,16 +162,9 @@ class TaskRepository(BaseRepository[Task]):
         start_date: Optional[datetime] = None,
         due_date: Optional[datetime] = None,
         duration: Optional[float] = None,
-        recurrence: Optional[RecurrenceType] = None,
-        end_date: Optional[datetime] = None,
-        include_recurring: bool = True
+        end_date: Optional[datetime] = None
     ) -> List[Task]:
-        """Get tasks by project with optional filters and calendar support.
-
-        This method supports calendar view by filtering tasks based on date ranges
-        and handling recurring tasks appropriately.
-        """
-        # First, get all regular tasks and recurring tasks without occurrences
+        """Get tasks by project with optional filters."""
         query = select(Task).where(Task.project_id == project_id)
 
         # Apply filters
@@ -188,18 +176,14 @@ class TaskRepository(BaseRepository[Task]):
             query = query.where(Task.assignee_id == assignee_id)
         if creator_id:
             query = query.where(Task.creator_id == creator_id)
-        if recurrence:
-            query = query.where(Task.recurrence == recurrence)
         
         # Calendar-specific filters for regular tasks
         if start_date and end_date:
-            # For regular tasks, use direct date filtering
             date_filter = or_(
-                # Non-recurring tasks within the range
+                # Tasks within the range
                 and_(
                     Task.start_date >= start_date,
-                    Task.start_date <= end_date,
-                    Task.recurrence == RecurrenceType.NONE
+                    Task.start_date <= end_date
                 ),
                 # Tasks ending within the range
                 and_(
@@ -212,76 +196,19 @@ class TaskRepository(BaseRepository[Task]):
                     Task.due_date >= end_date
                 )
             )
-            
-            if not include_recurring:
-                # If we don't want recurring tasks, add the filter
-                query = query.where(and_(date_filter, Task.recurrence == RecurrenceType.NONE))
-            else:
-                # Otherwise, get regular tasks and recurring tasks without occurrences
-                query = query.where(
-                    or_(
-                        date_filter,
-                        and_(
-                            Task.recurrence != RecurrenceType.NONE,
-                            ~Task.occurrences.any()  # No occurrences
-                        )
-                    )
-                )
+            query = query.where(date_filter)
         
         # Apply pagination
         query = query.offset(skip).limit(limit)
         
-        # Execute the query to get regular tasks
+        # Execute the query
         result = await self.db.execute(query)
-        regular_tasks = list(result.scalars().all())
-        
-        # Now, get recurring tasks with occurrences if needed
-        recurring_tasks = []
-        if include_recurring:
-            # Get recurring tasks with occurrences
-            recurring_query = select(Task).where(
-                and_(
-                    Task.project_id == project_id,
-                    Task.recurrence != RecurrenceType.NONE,
-                    Task.occurrences.any()  # Has occurrences
-                )
-            )
-            
-            # Apply the same filters as before
-            if status:
-                recurring_query = recurring_query.where(Task.status == status)
-            if priority:
-                recurring_query = recurring_query.where(Task.priority == priority)
-            if assignee_id:
-                recurring_query = recurring_query.where(Task.assignee_id == assignee_id)
-            if creator_id:
-                recurring_query = recurring_query.where(Task.creator_id == creator_id)
-            
-            recurring_result = await self.db.execute(recurring_query)
-            recurring_tasks_with_occurrences = list(recurring_result.scalars().all())
-            
-            # For each recurring task, get its occurrences
-            for task in recurring_tasks_with_occurrences:
-                # Get occurrences for this task
-                occurrences = await self.get_task_occurrences_in_range(
-                    task.id, 
-                    start_date=start_date, 
-                    end_date=end_date
-                )
-                
-                # Add virtual tasks for each occurrence
-                for occurrence in occurrences:
-                    # Create a virtual task based on the occurrence
-                    virtual_task = self._create_virtual_task_from_occurrence(task, occurrence)
-                    recurring_tasks.append(virtual_task)
-        
-        # Combine regular and recurring tasks
-        all_tasks = regular_tasks + recurring_tasks
+        tasks = list(result.scalars().all())
         
         # Sort by start date
-        all_tasks.sort(key=lambda t: t.start_date if t.start_date else datetime.max)
+        tasks.sort(key=lambda t: t.start_date if t.start_date else datetime.max)
         
-        return all_tasks
+        return tasks
     
     async def get_tasks(
         self,
@@ -294,34 +221,10 @@ class TaskRepository(BaseRepository[Task]):
         start_date: Optional[datetime] = None,
         due_date: Optional[datetime] = None,
         duration: Optional[float] = None,
-        recurrence: Optional[RecurrenceType] = None,
-        end_date: Optional[datetime] = None,
-        include_recurring: bool = True
+        end_date: Optional[datetime] = None
     ) -> List[Task]:
-        
-        """Get all tasks with optional filters and calendar support.
-
-        This method supports calendar view by filtering tasks based on date ranges
-        and handling recurring tasks appropriately.
-
-        Args:
-            skip: Number of records to skip (pagination)
-            limit: Maximum number of records to return (pagination)
-            status: Filter by task status
-            priority: Filter by task priority
-            assignee_id: Filter by assignee
-            creator_id: Filter by creator
-            start_date: Filter tasks starting on or after this date
-            due_date: Filter tasks due on this date
-            duration: Filter tasks with this duration
-            recurrence: Filter tasks with this recurrence pattern
-            end_date: Filter tasks ending before this date (for calendar range)
-            include_recurring: Whether to include recurring tasks in results
-
-        Returns:
-            List of Task objects matching the criteria
-        """
-        query = select(Task).outerjoin(Task.occurrences)
+        """Get all tasks with optional filters."""
+        query = select(Task)
 
         # Apply filters
         if status:
@@ -332,18 +235,14 @@ class TaskRepository(BaseRepository[Task]):
             query = query.where(Task.assignee_id == assignee_id)
         if creator_id:
             query = query.where(Task.creator_id == creator_id)
-        if recurrence:
-            query = query.where(Task.recurrence == recurrence)
 
         # Calendar-specific filters for regular tasks
         if start_date and end_date:
-            # For regular tasks, use direct date filtering
             date_filter = or_(
-                # Non-recurring tasks within the range
+                # Tasks within the range
                 and_(
                     Task.start_date >= start_date,
-                    Task.start_date <= end_date,
-                    Task.recurrence == RecurrenceType.NONE
+                    Task.start_date <= end_date
                 ),
                 # Tasks ending within the range
                 and_(
@@ -356,80 +255,17 @@ class TaskRepository(BaseRepository[Task]):
                     Task.due_date >= end_date
                 )
             )
-
-            if not include_recurring:
-                # If we don't want recurring tasks, add the filter
-                query = query.where(
-                    and_(date_filter, Task.recurrence == RecurrenceType.NONE))
-            else:
-                # Otherwise, get regular tasks and recurring tasks without occurrences
-                query = query.where(
-                    or_(
-                        date_filter,
-                        and_(
-                            Task.recurrence != RecurrenceType.NONE,
-                            ~Task.occurrences.any()  # No occurrences
-                        )
-                    )
-                )
+            query = query.where(date_filter)
 
         # Apply pagination
         query = query.offset(skip).limit(limit)
 
-        # Execute the query to get regular tasks
+        # Execute the query
         result = await self.db.execute(query)
-        regular_tasks = list(result.scalars().all())
-
-        # Now, get recurring tasks with occurrences if needed
-        recurring_tasks = []
-        if include_recurring:
-            # Get recurring tasks with occurrences
-            recurring_query = select(Task).where(
-                and_(
-                    Task.recurrence != RecurrenceType.NONE,
-                    Task.occurrences.any()  # Has occurrences
-                )
-            )
-
-            # Apply the same filters as before
-            if status:
-                recurring_query = recurring_query.where(Task.status == status)
-            if priority:
-                recurring_query = recurring_query.where(
-                    Task.priority == priority)
-            if assignee_id:
-                recurring_query = recurring_query.where(
-                    Task.assignee_id == assignee_id)
-            if creator_id:
-                recurring_query = recurring_query.where(
-                    Task.creator_id == creator_id)
-
-            recurring_result = await self.db.execute(recurring_query)
-            recurring_tasks_with_occurrences = list(
-                recurring_result.scalars().all())
-
-            # For each recurring task, get its occurrences
-            for task in recurring_tasks_with_occurrences:
-                # Get occurrences for this task
-                occurrences = await self.get_task_occurrences_in_range(
-                    task.id,
-                    start_date=start_date,
-                    end_date=end_date
-                )
-
-                # Add virtual tasks for each occurrence
-                for occurrence in occurrences:
-                    # Create a virtual task based on the occurrence
-                    virtual_task = self._create_virtual_task_from_occurrence(
-                        task, occurrence)
-                    recurring_tasks.append(virtual_task)
-
-        # Combine regular and recurring tasks
-        tasks = regular_tasks + recurring_tasks
+        tasks = list(result.scalars().all())
 
         # Sort by start date
-        tasks.sort(
-            key=lambda t: t.start_date if t.start_date else datetime.max)
+        tasks.sort(key=lambda t: t.start_date if t.start_date else datetime.max)
 
         return tasks
 
