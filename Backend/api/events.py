@@ -182,7 +182,7 @@ async def get_events_in_date_range(
 
 @router.put("/{event_id}", response_model=EventResponse)
 async def update_event(
-    event_id: str,  # Changed to str to handle both formats
+    event_id: int,
     user_id: int,
     event_update: EventUpdate,
     update_option: str = Query(
@@ -191,125 +191,37 @@ async def update_event(
     db: AsyncSession = Depends(get_db)
     # current_user=Depends(get_current_user)
 ) -> EventResponse:
-    """Update an existing event.
-    
-    For recurring events, supports three update modes:
-    - this_occurrence: Updates only the selected occurrence
-    - this_and_future_occurrences: Updates the selected occurrence and all future occurrences
-    - all_occurrences: Updates all instances of the recurring event
-    
-    For non-recurring events, the update_option is ignored and a standard update is performed.
-    
-    The event_id can be either:
-    - A simple integer (e.g., "29" for the base event)
-    - A string in the format "eventId_occurrenceNum" (e.g., "29_1" for the first occurrence)
-    """
+    """Update an existing event."""
     try:
         repo = EventRepository(db)
         service = EventService(repo)
 
-        # Parse event_id and occurrence_num from the input
-        original_event_id = event_id
-        occurrence_num = None
-        
-        if '_' in str(event_id):
-            try:
-                base_id, occ_num = event_id.split('_')
-                original_event_id = int(base_id)
-                occurrence_num = int(occ_num)
-            except ValueError:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid event ID format. Must be either an integer or 'eventId_occurrenceNum'"
-                )
-        else:
-            try:
-                original_event_id = int(event_id)
-            except ValueError:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid event ID format. Must be either an integer or 'eventId_occurrenceNum'"
-                )
-
-        # Get existing event using the original event ID
-        existing_event = await service.get_event(original_event_id)
+        # Get existing event
+        existing_event = await service.get_event(event_id)
         if not existing_event:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"Event {original_event_id} not found"
+                detail=f"Event {event_id} not found"
             )
             
-        # For non-recurring events, force all_occurrences mode
-        if existing_event.recurrence == RecurrenceType.NONE:
-            if occurrence_num is not None:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot specify occurrence number for non-recurring events"
-                )
-            update_option = "all_occurrences"
-        else:
-            # Validate update_option for recurring events
-            valid_options = ["this_occurrence", "this_and_future_occurrences", "all_occurrences"]
-            if update_option not in valid_options:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid update_option. Must be one of: {', '.join(valid_options)}"
-                )
-            
-            # If an occurrence number was provided in the ID, force "this_occurrence" mode
-            if occurrence_num is not None:
-                update_option = "this_occurrence"
-                # Check if the occurrence exists or needs to be created
-                occurrence = await repo.get_event_occurrence(original_event_id, occurrence_num)
-                if not occurrence:
-                    # Calculate the start date for this occurrence
-                    occurrence_start = service._calculate_occurrence_start_date(existing_event, occurrence_num)
-                    # Create occurrence data
-                    occurrence_data = {
-                        "calendar_event_id": original_event_id,
-                        "occurrence_num": occurrence_num,
-                        "start_date": occurrence_start,
-                        "modified_by_id": user_id
-                    }
-                    if existing_event.duration:
-                        occurrence_data["due_date"] = occurrence_start + timedelta(hours=existing_event.duration)
-                    # Create the occurrence
-                    await repo.create_event_occurrence(occurrence_data)
+        # Validate update_option
+        valid_options = ["this_occurrence", "this_and_future_occurrences", "all_occurrences"]
+        if update_option not in valid_options:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid update_option. Must be one of: {', '.join(valid_options)}"
+            )
 
         event_data = event_update.dict(exclude_unset=True)
-        event_data["modified_by_id"] = user_id
         
-        # Validate dates if provided
-        if "start_date" in event_data and "due_date" in event_data:
-            if event_data["start_date"] > event_data["due_date"]:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail="Start date must be before due date"
-                )
-                
         # Handle status updates if needed
         if 'status' in event_data:
             try:
-                if occurrence_num is not None:
-                    # Update occurrence status directly
-                    occurrence = await repo.get_event_occurrence(original_event_id, occurrence_num)
-                    if occurrence:
-                        updated_occurrence = await repo.update_event_occurrence(
-                            occurrence.id,
-                            {"status": event_data['status'], "modified_by_id": user_id}
-                        )
-                        if not updated_occurrence:
-                            raise HTTPException(
-                                status_code=http_status.HTTP_404_NOT_FOUND,
-                                detail=f"Failed to update occurrence {occurrence_num} of event {original_event_id}"
-                            )
-                else:
-                    # Update base event status
-                    updated_event = await service.update_event_status(
-                        original_event_id,
-                        event_data['status'],
-                        user_id
-                    )
+                updated_event = await service.update_event_status(
+                    event_id,
+                    event_data['status'],
+                    user_id
+                )
                 # Remove status from event_data as it's already updated
                 event_data.pop('status')
             except Exception as e:
@@ -320,46 +232,13 @@ async def update_event(
 
         # Update remaining fields if any
         if event_data:
-            try:
-                if occurrence_num is not None:
-                    # Update specific occurrence
-                    occurrence = await repo.get_event_occurrence(original_event_id, occurrence_num)
-                    if occurrence:
-                        updated_occurrence = await repo.update_event_occurrence(
-                            occurrence.id,
-                            event_data
-                        )
-                        if not updated_occurrence:
-                            raise HTTPException(
-                                status_code=http_status.HTTP_404_NOT_FOUND,
-                                detail=f"Failed to update occurrence {occurrence_num} of event {original_event_id}"
-                            )
-                        # Return the base event with updated occurrence
-                        return existing_event
-                else:
-                    # Update base event
-                    updated_event = await service.update_event(
-                        original_event_id, 
-                        event_data, 
-                        update_option=update_option
-                    )
-                    
-                    if not updated_event:
-                        raise HTTPException(
-                            status_code=http_status.HTTP_404_NOT_FOUND,
-                            detail=f"Event {original_event_id} not found or update failed"
-                        )
-                        
-                    return updated_event
-                
-            except EventUpdateError as e:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=str(e)
-                )
+            updated_event = await service.update_event(
+                event_id, 
+                event_data, 
+                update_option=update_option
+            )
 
-        return existing_event
-        
+        return updated_event
     except HTTPException:
         raise
     except Exception as e:

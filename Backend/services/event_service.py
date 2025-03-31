@@ -60,12 +60,8 @@ class EventService:
         recurrence: RecurrenceType = RecurrenceType.NONE,
         recurrence_custom_days: Optional[List[str]] = None,
         recurrence_end_date: Optional[datetime] = None,
-        recurrence_count: Optional[int] = None,
         reminder_minutes_before: Optional[int] = None,
-        notification_method: Optional[str] = None,
-        time_zone: Optional[str] = None,
-        transparency: Optional[str] = "opaque",
-        color: Optional[str] = None
+        notification_method: Optional[str] = None
     ) -> CalendarEvent:
         """Create a new event and index it in RAG knowledge base."""
         if not start_date:
@@ -92,11 +88,7 @@ class EventService:
             "recurrence": recurrence,
             "recurrence_custom_days": recurrence_custom_days,
             "recurrence_end_date": recurrence_end_date,
-            "recurrence_count": recurrence_count,
             "reminder_minutes_before": reminder_minutes_before,
-            "time_zone": time_zone,
-            "transparency": transparency,
-            "color": color,
             "notification_method": notification_method
         }
 

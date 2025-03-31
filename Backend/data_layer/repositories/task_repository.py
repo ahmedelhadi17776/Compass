@@ -504,21 +504,6 @@ class TaskRepository(BaseRepository[Task]):
             logger.error(f"Error updating task dependencies: {str(e)}")
             return False
 
-    async def track_ai_interaction(self, task_id: int, ai_result: Dict) -> None:
-        """Track AI interaction for a task."""
-        try:
-            # Use create_task_agent_interaction to avoid code duplication
-            await self.create_task_agent_interaction(
-                task_id=task_id,
-                agent_type=ai_result.get("agent_type", "unknown"),
-                interaction_type=ai_result.get("interaction_type", "analysis"),
-                result=ai_result.get("result"),
-                success_rate=ai_result.get("confidence", 1.0)
-            )
-        except Exception as e:
-            await self.db.rollback()
-            logger.error(f"Failed to track AI interaction: {str(e)}")
-            raise
 
     async def create_task_agent_interaction(self, **interaction_data) -> TaskAgentInteraction:
         """Create a new task agent interaction."""
@@ -548,20 +533,6 @@ class TaskRepository(BaseRepository[Task]):
             return task
         return None
 
-    async def track_ai_optimization(self, task_id: int, optimization_data: Dict) -> None:
-        """Track AI optimization attempts for a task."""
-        try:
-            # Use create_task_agent_interaction to avoid code duplication
-            await self.create_task_agent_interaction(
-                task_id=task_id,
-                agent_type="optimizer",
-                interaction_type="optimization",
-                result=optimization_data.get('result')
-            )
-        except Exception as e:
-            await self.db.rollback()
-            logger.error(f"Error tracking AI optimization: {str(e)}")
-            raise
 
     # Task Comment Methods
     async def create_comment(self, task_id: int, user_id: int, content: str, parent_id: Optional[int] = None) -> "TaskComment":
