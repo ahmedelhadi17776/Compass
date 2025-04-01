@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import Dashboard from './components/dashboard/Dashboard';
 import HealthDashboard from './components/health/HealthDashboard';
 import Workflow from './components/workflow/Workflow';
+import WorkflowDetailPage from './components/workflow/WorkflowDetail';
 import {Tasks} from './components/todo/Components/TodoParentPage';
 import Calendar from './components/calendar/components/Calendar';
 import AIAssistant from './components/ai/AIAssistant';
@@ -55,6 +56,7 @@ function App() {
                           <Route path="files" element={<FileManager />} />
                           <Route path="health" element={<HealthDashboard />} />
                           <Route path="workflow" element={<Workflow />} />
+                          <Route path="workflow/:id" element={<WorkflowDetailPage />} />
                         </Routes>
                       </main>
                       <Chatbot />

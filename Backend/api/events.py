@@ -14,7 +14,7 @@ from Backend.app.schemas.event_schemas import (
     EventWithDetails,
     EventOccurrenceResponse
 )
-from Backend.services.event_service import EventService
+from Backend.services.event_service import EventService, EventUpdateError
 from Backend.data_layer.repositories.event_repository import EventRepository, EventNotFoundError
 from Backend.api.auth import get_current_user
 
@@ -256,12 +256,12 @@ async def update_event(
                     detail=f"Invalid update_option. Must be one of: {', '.join(valid_options)}"
                 )
             
-            # If an occurrence number was provided in the ID, force "this_occurrence" mode
+            # Check if the occurrence exists or needs to be created 
+            # for this_occurrence and this_and_future_occurrences options
             if occurrence_num is not None:
-                update_option = "this_occurrence"
-                # Check if the occurrence exists or needs to be created
+                # Only create the occurrence if it doesn't exist yet and we need it
                 occurrence = await repo.get_event_occurrence(original_event_id, occurrence_num)
-                if not occurrence:
+                if not occurrence and update_option == "this_occurrence":
                     # Calculate the start date for this occurrence
                     occurrence_start = service._calculate_occurrence_start_date(existing_event, occurrence_num)
                     # Create occurrence data
@@ -290,8 +290,8 @@ async def update_event(
         # Handle status updates if needed
         if 'status' in event_data:
             try:
-                if occurrence_num is not None:
-                    # Update occurrence status directly
+                if occurrence_num is not None and update_option == "this_occurrence":
+                    # Update occurrence status directly for this_occurrence mode
                     occurrence = await repo.get_event_occurrence(original_event_id, occurrence_num)
                     if occurrence:
                         updated_occurrence = await repo.update_event_occurrence(
@@ -321,8 +321,8 @@ async def update_event(
         # Update remaining fields if any
         if event_data:
             try:
-                if occurrence_num is not None:
-                    # Update specific occurrence
+                if occurrence_num is not None and update_option == "this_occurrence":
+                    # Update specific occurrence only when update_option is this_occurrence
                     occurrence = await repo.get_event_occurrence(original_event_id, occurrence_num)
                     if occurrence:
                         updated_occurrence = await repo.update_event_occurrence(
@@ -337,10 +337,15 @@ async def update_event(
                         # Return the base event with updated occurrence
                         return existing_event
                 else:
-                    # Update base event
+                    # Update base event or all occurrences
+                    # Pass the occurrence_num to the service for this_and_future_occurrences and all_occurrences
+                    event_id_param = original_event_id 
+                    if occurrence_num is not None and (update_option == "this_and_future_occurrences" or update_option == "all_occurrences"):
+                        event_id_param = f"{original_event_id}_{occurrence_num}"
+                        
                     updated_event = await service.update_event(
-                        original_event_id, 
-                        event_data, 
+                        event_id=event_id_param, 
+                        event_data=event_data, 
                         update_option=update_option
                     )
                     
@@ -354,8 +359,8 @@ async def update_event(
                 
             except EventUpdateError as e:
                 raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=str(e)
+                    status_code=e.status_code,
+                    detail={"message": str(e), "error_code": e.error_code}
                 )
 
         return existing_event

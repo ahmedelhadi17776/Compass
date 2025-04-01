@@ -116,7 +116,7 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
           </button>
         </div>
 
-        {/* Header for view selector and new task button */}
+        {/* Header for view selector and New Event button */}
         <div className="flex items-center gap-2 mr-4">
           <ViewSelector
             currentView={currentView}
@@ -138,7 +138,7 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
             onClick={() => setShowEventForm(true)}
           >
             <Plus className="h-4 w-4" />
-            New Task
+            New Event
           </Button>
         </div>
       </div>

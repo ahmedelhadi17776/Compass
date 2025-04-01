@@ -34,7 +34,7 @@ class EventCreate(EventBase):
 
 
 class EventUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     start_date: Optional[datetime] = None
     duration: Optional[float] = None
@@ -43,19 +43,18 @@ class EventUpdate(BaseModel):
     status: Optional[Union[TaskStatus, str]] = None
     priority: Optional[Union[TaskPriority, str]] = None
     task_id: Optional[int] = None
-    location: Optional[str] = None
+    location: Optional[str] = Field(None, max_length=255)
     is_all_day: Optional[bool] = None
-    external_id: Optional[str] = None
+    external_id: Optional[str] = Field(None, max_length=255)
     recurrence: Optional[Union[RecurrenceType, str]] = None
     recurrence_custom_days: Optional[List[str]] = None
     recurrence_end_date: Optional[datetime] = None
     recurrence_count: Optional[int] = None
     reminder_minutes_before: Optional[int] = None
-    notification_method: Optional[str] = None
-    modified_by_id: Optional[int] = None
-    time_zone: Optional[str] = None
-    transparency: Optional[str] = None
-    color: Optional[str] = None
+    notification_method: Optional[str] = Field(None, max_length=50)
+    time_zone: Optional[str] = Field(None, max_length=50)
+    transparency: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=7)
 
     class Config:
         orm_mode = True
