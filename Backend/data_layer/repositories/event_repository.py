@@ -333,37 +333,37 @@ class EventRepository(BaseRepository[CalendarEvent]):
         return list(result.scalars().all())
         
     async def get_event_occurrences_in_range(
-        self, 
-        event_id: int, 
-        start_date: Optional[datetime] = None, 
-        end_date: Optional[datetime] = None
+        self,
+        event_id: int,
+        start_date: datetime,
+        end_date: datetime
     ) -> List[EventOccurrence]:
-        """Get event occurrences within a date range."""
-        query = select(EventOccurrence).where(EventOccurrence.calendar_event_id == event_id)
-        
-        if start_date and end_date:
-            query = query.where(
-                or_(
-                    # Occurrences starting within the range
-                    and_(
-                        EventOccurrence.start_date >= start_date,
-                        EventOccurrence.start_date <= end_date
-                    ),
-                    # Occurrences ending within the range
-                    and_(
-                        EventOccurrence.due_date >= start_date,
-                        EventOccurrence.due_date <= end_date
-                    ),
-                    # Occurrences spanning across the range
-                    and_(
-                        EventOccurrence.start_date <= start_date,
-                        EventOccurrence.due_date >= end_date
-                    )
+        """Get all occurrences for an event within a specific date range.
+
+        Args:
+            event_id: The ID of the event to get occurrences for
+            start_date: Start of the date range
+            end_date: End of the date range
+
+        Returns:
+            List of event occurrences within the date range
+        """
+        try:
+            query = select(EventOccurrence).where(
+                and_(
+                    EventOccurrence.calendar_event_id == event_id,
+                    EventOccurrence.start_date >= start_date,
+                    EventOccurrence.start_date <= end_date
                 )
-            )
-        
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
+            ).order_by(EventOccurrence.occurrence_num)
+
+            result = await self.db.execute(query)
+            occurrences = result.scalars().all()
+            return occurrences
+
+        except Exception as e:
+            logger.error(f"Error getting event occurrences in range: {str(e)}")
+            return []
     
     def _create_virtual_event_from_occurrence(self, base_event: CalendarEvent, occurrence: EventOccurrence) -> CalendarEvent:
         """Create a virtual event object from an event occurrence.
@@ -533,6 +533,9 @@ class EventRepository(BaseRepository[CalendarEvent]):
         occurrence = result.scalars().first()
         
         if occurrence:
+            # Create a copy to avoid modifying the original
+            update_data = update_data.copy()
+            
             # Handle enum values for status
             if 'status' in update_data and isinstance(update_data['status'], str):
                 try:
@@ -556,6 +559,27 @@ class EventRepository(BaseRepository[CalendarEvent]):
                 except ValueError:
                     logger.warning(f"Invalid event_type value: {update_data['event_type']}")
                     del update_data['event_type']
+            
+            # Validate date fields
+            if "start_date" in update_data or "duration" in update_data:
+                new_start = update_data.get("start_date", occurrence.start_date)
+                new_duration = update_data.get("duration", occurrence.duration)
+
+                if new_duration and new_duration < 0:
+                    logger.warning("Duration must be positive")
+                    new_duration = abs(new_duration)
+
+                update_data["start_date"] = new_start
+                update_data["duration"] = new_duration
+                
+                # Update due_date if start_date or duration changes
+                if new_duration:
+                    update_data["due_date"] = new_start + timedelta(hours=new_duration)
+
+            # Ensure modified_by_id is included
+            if 'modified_by_id' not in update_data:
+                # If not provided, use the existing one
+                update_data['modified_by_id'] = occurrence.modified_by_id
             
             # Update the occurrence fields
             for key, value in update_data.items():
@@ -602,6 +626,9 @@ class EventRepository(BaseRepository[CalendarEvent]):
         occurrence = await self.get_event_occurrence(event_id, occurrence_num)
         
         if occurrence:
+            # Create a copy to avoid modifying the original
+            update_data = update_data.copy()
+            
             # Handle enum values for status
             if 'status' in update_data and isinstance(update_data['status'], str):
                 try:
@@ -625,6 +652,27 @@ class EventRepository(BaseRepository[CalendarEvent]):
                 except ValueError:
                     logger.warning(f"Invalid event_type value: {update_data['event_type']}")
                     del update_data['event_type']
+                    
+            # Validate date fields
+            if "start_date" in update_data or "duration" in update_data:
+                new_start = update_data.get("start_date", occurrence.start_date)
+                new_duration = update_data.get("duration", occurrence.duration)
+
+                if new_duration and new_duration < 0:
+                    logger.warning("Duration must be positive")
+                    new_duration = abs(new_duration)
+
+                update_data["start_date"] = new_start
+                update_data["duration"] = new_duration
+                
+                # Update due_date if start_date or duration changes
+                if new_duration:
+                    update_data["due_date"] = new_start + timedelta(hours=new_duration)
+
+            # Ensure modified_by_id is included
+            if 'modified_by_id' not in update_data:
+                # If not provided, use the existing one
+                update_data['modified_by_id'] = occurrence.modified_by_id
                     
             # Update the occurrence fields
             for key, value in update_data.items():

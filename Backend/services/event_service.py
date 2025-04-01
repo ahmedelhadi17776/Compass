@@ -16,7 +16,14 @@ logger = logging.getLogger(__name__)
 
 class EventUpdateError(Exception):
     """Custom exception for event update errors."""
-    pass
+    def __init__(self, message: str, status_code: int = 400, error_code: str = "EVENT_UPDATE_ERROR"):
+        self.message = message
+        self.status_code = status_code
+        self.error_code = error_code
+        super().__init__(self.message)
+        
+    def __str__(self):
+        return self.message
 
 
 class EventService:
@@ -199,9 +206,8 @@ class EventService:
         if not is_recurring:
             update_option = "all_occurrences"
             
-        # If this is a recurring event and we're updating only this occurrence, 
-        # or if this is a virtual ID (which always refers to a specific occurrence)
-        if is_recurring and update_option == "this_occurrence" or is_virtual_id:
+        # If this is a recurring event and we're updating only this occurrence
+        if is_recurring and update_option == "this_occurrence" and (is_virtual_id or occurrence_num > 0):
             # For single occurrence updates, we don't modify the original event
             # Instead, we create or update an EventOccurrence record
 
@@ -239,6 +245,8 @@ class EventService:
             
         elif is_recurring and update_option == "this_and_future_occurrences":
             # Update this occurrence and all future occurrences
+            # Use the occurrence_num from virtual ID if available
+            occ_num = occurrence_num if is_virtual_id else 0
             
             # First, update the base event to reflect the changes
             # but we need to keep the original recurrence pattern
@@ -247,27 +255,45 @@ class EventService:
             # Get all occurrences for this event
             all_occurrences = await self.repo.get_event_occurrences(original_event_id)
             
-            # We need to create or update occurrences for all future events
+            # Create a copy of event_data without date-related fields
+            occurrence_update_data = event_data.copy()
+            if 'start_date' in occurrence_update_data:
+                del occurrence_update_data['start_date']
+            if 'due_date' in occurrence_update_data:
+                del occurrence_update_data['due_date']
+            if 'duration' in occurrence_update_data:
+                del occurrence_update_data['duration']
+            
+            # Update existing future occurrences with the new data while preserving their dates
             for occ in all_occurrences:
-                if occ.occurrence_num >= occurrence_num:
-                    # Delete this occurrence - we'll create a new one with the updated pattern
-                    await self.repo.delete_event_occurrence(occ.id)
+                if occ.occurrence_num >= occ_num:
+                    # Create occurrence-specific update data
+                    occ_data = occurrence_update_data.copy()
+                    occ_data['modified_by_id'] = event_data.get('modified_by_id', existing_event.user_id)
+                    
+                    # Update the occurrence
+                    await self.repo.update_event_occurrence(occ.id, occ_data)
             
             # Update the original event with the new data
             updated_event = await self.repo.update_event(original_event_id, event_data)
             
-            # Get the updated event object (not just the data dictionary)
-            updated_event_obj = await self.repo.get_event(original_event_id)
-            if not updated_event_obj:
+            # Get the updated parent event
+            parent_event = await self.repo.get_event(original_event_id)
+            if not parent_event:
                 raise EventNotFoundError(f"Failed to retrieve updated event {original_event_id}")
             
-            # Now we need to regenerate all future occurrences based on the updated event
-            # We'll start from the current occurrence number
-            await self._regenerate_future_occurrences(
-                updated_event_obj,  # Use the updated event object, not the event_data dictionary
-                start_occurrence_num=occurrence_num, 
-                modified_by_id=event_data.get('modified_by_id', existing_event.user_id)
-            )
+            # If there are no occurrences yet, or we need to generate more future occurrences,
+            # use _regenerate_future_occurrences with the last known occurrence number
+            max_occurrence_num = max([o.occurrence_num for o in all_occurrences]) if all_occurrences else occ_num - 1
+            
+            # Generate any missing occurrences if we have a recurrence end date
+            if parent_event.recurrence_end_date:
+                await self._regenerate_future_occurrences(
+                    parent_event,
+                    start_occurrence_num=max_occurrence_num + 1,
+                    modified_by_id=event_data.get('modified_by_id', parent_event.user_id),
+                    regenerate_all=False
+                )
             
             return updated_event
             
@@ -299,21 +325,40 @@ class EventService:
             if is_recurring and update_option == "all_occurrences":
                 # Get all occurrences for this event
                 occurrences = await self.repo.get_event_occurrences(original_event_id)
-
-                # For each occurrence, update the fields that weren't specifically modified for that occurrence
+                
+                # Create a copy of event_data without date-related fields
+                occurrence_update_data = event_data.copy()
+                if 'start_date' in occurrence_update_data:
+                    del occurrence_update_data['start_date']
+                if 'due_date' in occurrence_update_data:
+                    del occurrence_update_data['due_date']
+                if 'duration' in occurrence_update_data:
+                    del occurrence_update_data['duration']
+                
+                # Update each occurrence with the new data while preserving their dates
                 for occurrence in occurrences:
-                    # Only update fields that weren't specifically overridden for this occurrence
-                    occurrence_update = {}
-
-                    # Fields to potentially update in occurrences when the base event changes
-                    # Only update fields that aren't specifically set in the occurrence
-                    for field in ['title', 'description', 'priority', 'event_type', 'location', 
-                                 'is_all_day', 'transparency', 'color', 'time_zone']:
-                        if field in event_data and getattr(occurrence, field) is None:
-                            occurrence_update[field] = event_data[field]
-
-                    if occurrence_update:
-                        await self.repo.update_event_occurrence(occurrence.id, occurrence_update)
+                    # Create occurrence-specific update data
+                    occ_data = occurrence_update_data.copy()
+                    occ_data['modified_by_id'] = event_data.get('modified_by_id', existing_event.user_id)
+                    
+                    # Update the occurrence
+                    await self.repo.update_event_occurrence(occurrence.id, occ_data)
+                    
+                # If there are no occurrences yet, or we need to generate more future occurrences,
+                # use _regenerate_future_occurrences with the last known occurrence number
+                max_occurrence_num = max([o.occurrence_num for o in occurrences]) if occurrences else -1
+                
+                # Get the updated parent event
+                parent_event = await self.repo.get_event(original_event_id)
+                
+                # Generate any missing occurrences
+                if parent_event.recurrence_end_date:
+                    await self._regenerate_future_occurrences(
+                        parent_event,
+                        start_occurrence_num=max_occurrence_num + 1,
+                        modified_by_id=event_data.get('modified_by_id', parent_event.user_id),
+                        regenerate_all=False
+                    )
 
             # Invalidate cache for this event
             invalidate_cache('event', original_event_id)
@@ -745,87 +790,47 @@ class EventService:
             if end_date.tzinfo:
                 end_date = end_date.replace(tzinfo=None)
 
-            # Get base events
-            if user_id:
-                events = await self.repo.get_events_in_date_range(
-                    user_id=user_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    include_recurring=include_recurring
-                )
-            else:
-                # If no user_id provided, we can't get events (all events belong to a user)
+            if not user_id:
                 return []
 
-            # Format events for calendar view
+            # Get all events in the date range
+            events = await self.repo.get_events_in_date_range(
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                include_recurring=include_recurring
+            )
+
             calendar_events = []
+            
             for event in events:
-                # For recurring events, generate occurrences
+                # For recurring events, get their occurrences from the database
                 if event.recurrence != RecurrenceType.NONE and include_recurring:
-                    # Get any modified occurrences for this event
-                    modified_occurrences = await self.repo.get_event_occurrences(event.id)
-                    modified_occurrences_dict = {
-                        occ.occurrence_num: occ for occ in modified_occurrences}
-
-                    # Generate all occurrences within the date range
-                    occurrences = []
-                    current_date = event.start_date
-                    occurrence_num = 0
-
-                    while current_date <= end_date and (not event.recurrence_end_date or current_date <= event.recurrence_end_date):
-                        if current_date >= start_date:
-                            # Check if this occurrence has been modified
-                            modified_occurrence = modified_occurrences_dict.get(
-                                occurrence_num)
-
-                            if modified_occurrence:
-                                occurrences.append({
-                                    'id': f"{event.id}_{occurrence_num}",
-                                    'title': modified_occurrence.title or event.title,
-                                    'start': modified_occurrence.start_date,
-                                    'end': modified_occurrence.due_date or (modified_occurrence.start_date + timedelta(hours=event.duration) if event.duration else None),
-                                    'status': modified_occurrence.status or event.status,
-                                    'priority': modified_occurrence.priority or event.priority,
-                                    'event_type': modified_occurrence.event_type or event.event_type,
-                                    'recurrence': event.recurrence,
-                                    'recurrence_end_date': event.recurrence_end_date,
-                                    'location': event.location,
-                                    'is_all_day': event.is_all_day,
-                                    'occurrence_num': occurrence_num,
-                                    'is_modified': True
-                                })
-
-                        # Calculate next occurrence date
-                        if event.recurrence == RecurrenceType.DAILY:
-                            current_date += timedelta(days=1)
-                        elif event.recurrence == RecurrenceType.WEEKLY:
-                            current_date += timedelta(weeks=1)
-                        elif event.recurrence == RecurrenceType.BIWEEKLY:
-                            current_date += timedelta(weeks=2)
-                        elif event.recurrence == RecurrenceType.MONTHLY:
-                            current_date += relativedelta(months=1)
-                        elif event.recurrence == RecurrenceType.YEARLY:
-                            current_date += relativedelta(years=1)
-                        elif event.recurrence == RecurrenceType.CUSTOM and event.recurrence_custom_days:
-                            # For custom recurrence, we need to look at each day
-                            # This is simplified - real implementation would be more complex
-                            custom_days = event.recurrence_custom_days
-                            if custom_days:
-                                try:
-                                    custom_days = [int(d) for d in custom_days]
-                                    current_date += timedelta(
-                                        days=custom_days[occurrence_num % len(custom_days)])
-                                except (ValueError, TypeError, IndexError):
-                                    # Fallback to daily if custom days parsing fails
-                                    current_date += timedelta(days=1)
-                            else:
-                                break
-                        else:
-                            break
-
-                        occurrence_num += 1
-
-                    calendar_events.extend(occurrences)
+                    # Get occurrences for this event in the date range
+                    occurrences = await self.repo.get_event_occurrences_in_range(
+                        event_id=event.id,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    
+                    for occurrence in occurrences:
+                        calendar_events.append({
+                            'id': f"{event.id}_{occurrence.occurrence_num}",
+                            'title': occurrence.title or event.title,
+                            'start': occurrence.start_date,
+                            'end': occurrence.due_date or (occurrence.start_date + timedelta(hours=event.duration) if event.duration else None),
+                            'status': occurrence.status.value if occurrence.status else event.status.value,
+                            'priority': occurrence.priority.value if occurrence.priority else event.priority.value,
+                            'event_type': occurrence.event_type.value if occurrence.event_type else event.event_type.value,
+                            'recurrence': event.recurrence.value,
+                            'recurrence_end_date': event.recurrence_end_date,
+                            'location': occurrence.location or event.location,
+                            'is_all_day': occurrence.is_all_day if occurrence.is_all_day is not None else event.is_all_day,
+                            'occurrence_num': occurrence.occurrence_num,
+                            'is_modified': bool(occurrence.title or occurrence.description or occurrence.status or 
+                                             occurrence.priority or occurrence.event_type or occurrence.location or 
+                                             occurrence.is_all_day is not None)
+                        })
                 else:
                     # Non-recurring events are added as-is
                     calendar_events.append({
@@ -833,15 +838,18 @@ class EventService:
                         'title': event.title,
                         'start': event.start_date,
                         'end': event.due_date or (event.start_date + timedelta(hours=event.duration) if event.duration else None),
-                        'status': event.status,
-                        'priority': event.priority,
-                        'event_type': event.event_type,
-                        'recurrence': event.recurrence,
+                        'status': event.status.value,
+                        'priority': event.priority.value,
+                        'event_type': event.event_type.value,
+                        'recurrence': event.recurrence.value,
                         'recurrence_end_date': event.recurrence_end_date,
                         'location': event.location,
-                        'is_all_day': event.is_all_day
+                        'is_all_day': event.is_all_day,
+                        'is_modified': False
                     })
 
+            # Sort events by start date
+            calendar_events.sort(key=lambda x: x['start'])
             return calendar_events
 
         except Exception as e:
@@ -852,7 +860,8 @@ class EventService:
         self, 
         event: CalendarEvent, 
         start_occurrence_num: int,
-        modified_by_id: int
+        modified_by_id: int,
+        regenerate_all: bool = False
     ) -> None:
         """Regenerate future occurrences of a recurring event starting from a specific occurrence number.
         
@@ -860,15 +869,19 @@ class EventService:
             event: The recurring event to regenerate occurrences for
             start_occurrence_num: The occurrence number to start from
             modified_by_id: The user ID who triggered the regeneration
+            regenerate_all: If True, regenerate all occurrences starting from 0, ignoring start_occurrence_num
         """
         if event.recurrence == RecurrenceType.NONE:
             return
             
+        # Determine the starting occurrence number
+        actual_start_num = 0 if regenerate_all else start_occurrence_num
+            
         # Calculate the start date for the specified occurrence
-        occurrence_start_date = self._calculate_occurrence_start_date(event, start_occurrence_num)
+        occurrence_start_date = self._calculate_occurrence_start_date(event, actual_start_num)
         
         # Initialize occurrence counter and current date
-        occurrence_num = start_occurrence_num
+        occurrence_num = actual_start_num
         current_date = occurrence_start_date
         
         # Generate occurrences until reaching the recurrence end date

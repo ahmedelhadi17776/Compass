@@ -138,7 +138,7 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
         </button>
 
         <h2 className="text-xl font-semibold text-gray-100 mb-6">
-          {task ? 'Update Task' : 'Create New Task'}
+          {task ? 'Update Event' : 'Create New Event'}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
