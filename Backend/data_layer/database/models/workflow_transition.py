@@ -9,12 +9,13 @@ class WorkflowTransition(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     from_step_id = Column(Integer, ForeignKey(
-        "workflow_steps.id", ondelete="CASCADE"))
+        "workflow_steps.id", ondelete="CASCADE"), nullable=False)
     to_step_id = Column(Integer, ForeignKey(
-        "workflow_steps.id", ondelete="CASCADE"))
-    conditions = Column(JSON)
-    triggers = Column(JSON)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+        "workflow_steps.id", ondelete="CASCADE"), nullable=False)
+    conditions = Column(JSON, nullable=True)
+    triggers = Column(JSON, nullable=True)
+    created_at = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     # Relationships
     from_step = relationship("WorkflowStep", foreign_keys=[

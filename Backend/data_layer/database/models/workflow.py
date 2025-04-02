@@ -30,48 +30,48 @@ class Workflow(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    description = Column(Text)
+    description = Column(Text, nullable=True)
     workflow_type = Column(SQLEnum(WorkflowType),
-                           default=WorkflowType.SEQUENTIAL)
-    created_by = Column(Integer, ForeignKey("users.id"))
+                           default=WorkflowType.SEQUENTIAL, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     organization_id = Column(Integer, ForeignKey(
         "organizations.id"), nullable=False)
-    status = Column(SQLEnum(WorkflowStatus), default=WorkflowStatus.PENDING)
+    status = Column(SQLEnum(WorkflowStatus), default=WorkflowStatus.PENDING, nullable=False)
 
     # Configuration & Metadata
-    config = Column(JSON)  # Workflow configuration
-    workflow_metadata = Column(JSON)  # Additional metadata
-    version = Column(String(50))  # Workflow version
-    tags = Column(JSON)  # Workflow tags for categorization
+    config = Column(JSON, nullable=True)  # Workflow configuration
+    workflow_metadata = Column(JSON, nullable=True)  # Additional metadata
+    version = Column(String(50), nullable=True)  # Workflow version
+    tags = Column(JSON, nullable=True)  # Workflow tags for categorization
 
     # AI Integration
-    ai_enabled = Column(Boolean, default=False)
+    ai_enabled = Column(Boolean, default=False, nullable=False)
     # Minimum confidence for AI decisions
-    ai_confidence_threshold = Column(Float)
-    ai_override_rules = Column(JSON)  # Rules for AI decision override
-    ai_learning_data = Column(JSON)  # Historical learning data
+    ai_confidence_threshold = Column(Float, nullable=True)
+    ai_override_rules = Column(JSON, nullable=True)  # Rules for AI decision override
+    ai_learning_data = Column(JSON, nullable=True)  # Historical learning data
 
     # Performance Metrics
-    average_completion_time = Column(Float)  # Average workflow completion time
-    success_rate = Column(Float)  # Workflow success rate
-    optimization_score = Column(Float)  # AI-calculated optimization score
-    bottleneck_analysis = Column(JSON)  # Identified workflow bottlenecks
+    average_completion_time = Column(Float, nullable=True)  # Average workflow completion time
+    success_rate = Column(Float, nullable=True)  # Workflow success rate
+    optimization_score = Column(Float, nullable=True)  # AI-calculated optimization score
+    bottleneck_analysis = Column(JSON, nullable=True)  # Identified workflow bottlenecks
 
     # Time Management
-    estimated_duration = Column(Integer)  # Estimated minutes to complete
-    actual_duration = Column(Integer)  # Actual minutes to complete
-    schedule_constraints = Column(JSON)  # Timing constraints
-    deadline = Column(DateTime)
+    estimated_duration = Column(Integer, nullable=True)  # Estimated minutes to complete
+    actual_duration = Column(Integer, nullable=True)  # Actual minutes to complete
+    schedule_constraints = Column(JSON, nullable=True)  # Timing constraints
+    deadline = Column(DateTime, nullable=True)
 
     # Error Handling
-    error_handling_config = Column(JSON)  # Error handling rules
-    retry_policy = Column(JSON)  # Retry configuration
-    fallback_steps = Column(JSON)  # Fallback procedures
+    error_handling_config = Column(JSON, nullable=True)  # Error handling rules
+    retry_policy = Column(JSON, nullable=True)  # Retry configuration
+    fallback_steps = Column(JSON, nullable=True)  # Fallback procedures
 
     # Audit & Compliance
-    compliance_rules = Column(JSON)  # Compliance requirements
-    audit_trail = Column(JSON)  # Detailed audit information
-    access_control = Column(JSON)  # Access control rules
+    compliance_rules = Column(JSON, nullable=True)  # Compliance requirements
+    audit_trail = Column(JSON, nullable=True)  # Detailed audit information
+    access_control = Column(JSON, nullable=True)  # Access control rules
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
