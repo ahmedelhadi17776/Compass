@@ -11,11 +11,11 @@ class WorkflowStepExecution(Base):
     execution_id = Column(Integer, ForeignKey(
         "workflow_executions.id"), nullable=False)
     step_id = Column(Integer, ForeignKey("workflow_steps.id"), nullable=False)
-    status = Column(String(50), default="pending")
+    status = Column(String(50), default="pending", nullable=False)
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
-    completed_at = Column(DateTime)
-    result = Column(JSON)
-    error = Column(String)
+    completed_at = Column(DateTime, nullable=True)
+    result = Column(JSON, nullable=True)
+    error = Column(String, nullable=True)
 
     # Relationships
     execution = relationship("WorkflowExecution", back_populates="steps")
@@ -27,11 +27,11 @@ class WorkflowExecution(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
-    status = Column(String(50), default="pending")
+    status = Column(String(50), default="pending", nullable=False)
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
-    completed_at = Column(DateTime)
-    result = Column(JSON)
-    error = Column(String)
+    completed_at = Column(DateTime, nullable=True)
+    result = Column(JSON, nullable=True)
+    error = Column(String, nullable=True)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="executions")
@@ -43,12 +43,14 @@ class WorkflowAgentLink(Base):
     __tablename__ = "workflow_agent_links"
 
     id = Column(Integer, primary_key=True, index=True)
-    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete="CASCADE"))
-    agent_id = Column(Integer, ForeignKey("agent_actions.id"))
-    interaction_type = Column(String(100))
-    confidence_score = Column(Float)
-    interaction_metadata = Column(JSON)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    workflow_id = Column(Integer, ForeignKey(
+        "workflows.id", ondelete="CASCADE"), nullable=False)
+    agent_id = Column(Integer, ForeignKey("agent_actions.id"), nullable=False)
+    interaction_type = Column(String(100), nullable=False)
+    confidence_score = Column(Float, nullable=True)
+    interaction_metadata = Column(JSON, nullable=True)
+    created_at = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     # Relationships
     workflow = relationship("Workflow", back_populates="agent_links")
