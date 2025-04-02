@@ -36,7 +36,8 @@ class Workflow(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     organization_id = Column(Integer, ForeignKey(
         "organizations.id"), nullable=False)
-    status = Column(SQLEnum(WorkflowStatus), default=WorkflowStatus.PENDING, nullable=False)
+    status = Column(SQLEnum(WorkflowStatus),
+                    default=WorkflowStatus.PENDING, nullable=False)
 
     # Configuration & Metadata
     config = Column(JSON, nullable=True)  # Workflow configuration
@@ -47,19 +48,27 @@ class Workflow(Base):
     # AI Integration
     ai_enabled = Column(Boolean, default=False, nullable=False)
     # Minimum confidence for AI decisions
-    ai_confidence_threshold = Column(Float, nullable=True)
-    ai_override_rules = Column(JSON, nullable=True)  # Rules for AI decision override
-    ai_learning_data = Column(JSON, nullable=True)  # Historical learning data
+    ai_confidence_threshold = Column(Float, default=0.8, nullable=False)
+    # Rules for AI decision override
+    ai_override_rules = Column(JSON, default=lambda: {}, nullable=False)
+    # Historical learning data
+    ai_learning_data = Column(JSON, default=lambda: {}, nullable=False)
 
     # Performance Metrics
-    average_completion_time = Column(Float, nullable=True)  # Average workflow completion time
-    success_rate = Column(Float, nullable=True)  # Workflow success rate
-    optimization_score = Column(Float, nullable=True)  # AI-calculated optimization score
-    bottleneck_analysis = Column(JSON, nullable=True)  # Identified workflow bottlenecks
+    # Average workflow completion time
+    average_completion_time = Column(Float, default=0.0, nullable=False)
+    # Workflow success rate
+    success_rate = Column(Float, default=0.0, nullable=False)
+    # AI-calculated optimization score
+    optimization_score = Column(Float, default=0.0, nullable=False)
+    # Identified workflow bottlenecks
+    bottleneck_analysis = Column(JSON, default=lambda: {}, nullable=False)
 
     # Time Management
-    estimated_duration = Column(Integer, nullable=True)  # Estimated minutes to complete
-    actual_duration = Column(Integer, nullable=True)  # Actual minutes to complete
+    # Estimated minutes to complete
+    estimated_duration = Column(Integer, nullable=True)
+    # Actual minutes to complete
+    actual_duration = Column(Integer, nullable=True)
     schedule_constraints = Column(JSON, nullable=True)  # Timing constraints
     deadline = Column(DateTime, nullable=True)
 
@@ -92,8 +101,8 @@ class Workflow(Base):
     tasks = relationship("Task", back_populates="workflow")
     # Add to existing relationships in Workflow class
     agent_interactions = relationship(
-        "WorkflowAgentInteraction", 
-        back_populates="workflow", 
+        "WorkflowAgentInteraction",
+        back_populates="workflow",
         cascade="all, delete-orphan"
     )
     __table_args__ = (
