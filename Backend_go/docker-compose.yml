@@ -1,6 +1,24 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=ahmed
+      - POSTGRES_PASSWORD=0502747598
+      - POSTGRES_DB=compass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - compass-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ahmed -d compass"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -10,24 +28,16 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_USER=ahmed
+      - DB_PASSWORD=0502747598
       - DB_NAME=compass
-    depends_on:
-      - postgres
-    networks:
-      - compass-network
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=compass
-    ports:
-      - "5432:5432"
+      - DB_SSLMODE=disable
+      - SERVER_MODE=development
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./pkg/config:/app/pkg/config
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - compass-network
 
@@ -45,6 +55,8 @@ services:
       - "--web.console.templates=/usr/share/prometheus/consoles"
     networks:
       - compass-network
+    depends_on:
+      - api
 
   grafana:
     image: grafana/grafana:latest
@@ -55,6 +67,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
+    networks:
+      - compass-network
     depends_on:
       - prometheus
 

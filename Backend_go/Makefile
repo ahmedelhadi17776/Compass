@@ -7,7 +7,19 @@ GORUN=$(GOCMD) run
 GOTEST=$(GOCMD) test
 GOFMT=$(GOCMD) fmt
 GOMOD=$(GOCMD) mod
-BINARY_NAME=server
+BINARY_NAME=server.exe
+GOPATH=$(shell go env GOPATH)
+
+# Detect OS
+ifeq ($(OS),Windows_NT)
+    SHELL := powershell.exe
+    .SHELLFLAGS := -NoProfile -Command
+    RM_F_CMD = Remove-Item -Force -Recurse -ErrorAction Ignore
+    BINARY_EXTENSION=.exe
+else
+    RM_F_CMD = rm -rf
+    BINARY_EXTENSION=
+endif
 
 # Build the application
 build:
@@ -17,9 +29,9 @@ build:
 run: build
 	./bin/$(BINARY_NAME)
 
-# Run with hot reload using air (requires air: go install github.com/cosmtrek/air@latest)
+# Run with hot reload using air
 dev:
-	air
+	$(GOPATH)/bin/air
 
 # Run tests
 test:
@@ -27,26 +39,27 @@ test:
 
 # Generate swagger documentation
 swagger:
-	swag init -g cmd/api/main.go -o docs/swagger
+	$(GOPATH)/bin/swag init -g cmd/api/main.go -o docs/swagger
 
 # Format code
 fmt:
 	$(GOFMT) ./...
 
-# Run linter (requires golangci-lint: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+# Run linter
 lint:
-	golangci-lint run
+	$(GOPATH)/bin/golangci-lint run
 
 # Clean build artifacts
 clean:
-	rm -rf bin/
-	rm -rf docs/swagger/
+	$(RM_F_CMD) bin/
+	$(RM_F_CMD) docs/swagger/
+	$(RM_F_CMD) tmp/
 
 # Install development dependencies
 setup:
-	go install github.com/cosmtrek/air@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install github.com/swaggo/swag/cmd/swag@latest
+	$(GOCMD) install github.com/air-verse/air@latest
+	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
 	$(GOMOD) tidy
 
 # Create database
