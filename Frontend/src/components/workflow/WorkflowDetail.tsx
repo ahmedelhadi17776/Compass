@@ -17,28 +17,8 @@ import { Button } from "../ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-interface WorkflowStep {
-  id: string;
-  name: string;
-  description: string;
-  type: "start" | "process" | "decision" | "end";
-}
-
-interface WorkflowTransition {
-  from: string;
-  to: string;
-  condition?: string;
-}
-
-interface WorkflowDetail {
-  id: string;
-  name: string;
-  description: string;
-  lastRun: string;
-  steps: WorkflowStep[];
-  transitions: WorkflowTransition[];
-}
+import { WorkflowDetail, WorkflowStep } from "@/types/workflow";
+import { calculateLineAnimations } from "@/utils/workflowAnimation";
 
 // Mock data for workflow details with steps and transitions
 const mockWorkflowDetails: Record<string, WorkflowDetail> = {
@@ -116,6 +96,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
+  const [lastCompletedStep, setLastCompletedStep] = useState<string | null>(null);
 
   useEffect(() => {
     // In a real app, fetch the workflow detail from an API
@@ -127,6 +108,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
         setActiveStep(mockWorkflowDetails[id].steps[0].id);
         // For demo - set first step as completed
         setCompletedSteps([mockWorkflowDetails[id].steps[0].id]);
+        setLastCompletedStep(mockWorkflowDetails[id].steps[0].id);
       }
     }
   }, [id]);
@@ -186,11 +168,19 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
 
   const handleToggleStepCompletion = (stepId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setCompletedSteps(prev => 
-      prev.includes(stepId) 
-        ? prev.filter(id => id !== stepId)
-        : [...prev, stepId]
-    );
+    const newCompletedSteps = completedSteps.includes(stepId)
+      ? completedSteps.filter(id => id !== stepId)
+      : [...completedSteps, stepId];
+      
+    setCompletedSteps(newCompletedSteps);
+    
+    if (!completedSteps.includes(stepId)) {
+      setLastCompletedStep(stepId);
+    } else if (stepId === lastCompletedStep) {
+      // If we're un-completing the last step, find the new "last" completed step
+      const remainingCompleted = newCompletedSteps.filter(id => id !== stepId);
+      setLastCompletedStep(remainingCompleted.length > 0 ? remainingCompleted[remainingCompleted.length - 1] : null);
+    }
   };
 
   const handleExpandStep = (stepId: string) => {
@@ -220,6 +210,9 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
     acc[rowIndex].push(step);
     return acc;
   }, []);
+  
+  // Calculate animations for all lines
+  const { horizontalLines, verticalLines, getConnectionPath } = calculateLineAnimations(groupedSteps, completedSteps);
 
   return (
     <div className={cn("h-full flex flex-col p-4", darkMode ? "bg-gray-900 text-white" : "bg-background text-foreground")}>
@@ -349,31 +342,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                   <motion.div 
                     className="h-full bg-primary rounded-full"
                     initial={{ width: 0 }}
-                    animate={{ 
-                      width: `${
-                        // Calculate percentage based on completed steps
-                        (() => {
-                          const totalCompletedInRow = sortedSteps.filter(s => completedSteps.includes(s.id)).length;
-                          const totalStepsInRow = sortedSteps.length;
-                          
-                          if (totalCompletedInRow === 0) return 0;
-                          if (totalCompletedInRow === totalStepsInRow) return 100;
-                          
-                          // Find the index of the last completed step in this row
-                          const lastCompletedIndex = sortedSteps
-                            .map((step, idx) => ({ step, idx }))
-                            .filter(({ step }) => completedSteps.includes(step.id))
-                            .sort((a, b) => b.idx - a.idx)[0]?.idx || 0;
-                          
-                          // For RTL rows, invert the calculation
-                          if (isRtl) {
-                            return (totalStepsInRow - lastCompletedIndex - 1) / (totalStepsInRow - 1) * 100;
-                          } else {
-                            return lastCompletedIndex / (totalStepsInRow - 1) * 100;
-                          }
-                        })()
-                      }%` 
-                    }}
+                    animate={{ width: `${horizontalLines[rowIndex]}%` }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
                     style={{
                       transformOrigin: isRtl ? 'right' : 'left',
@@ -382,23 +351,26 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                   />
                 </div>
                 
-                {/* Vertical connection between rows */}
+                {/* Vertical connecting line to previous row */}
                 {rowIndex > 0 && (
                   <div 
-                    className="absolute w-1.5 bg-border dark:bg-muted rounded-full z-0"
-                    style={{ 
-                      top: '-7rem',
-                      left: isRtl 
-                        ? 'calc(86.65% - 0.75rem)' // Adjusted for RTL rows - pushed inward
-                        : 'calc(14.45% - 0.75rem)', // Adjusted for LTR rows - pushed inward
-                      height: '7rem'
+                    className="absolute w-1.5 bg-border dark:bg-muted rounded-full z-0 overflow-hidden"
+                    style={{
+                      top: '-70px', // Connect to previous row
+                      height: '70px',
+                      // Position based on the previous row's direction, not current row
+                      // If previous row is LTR, connect from right side; if RTL, connect from left side
+                      left: `${(rowIndex-1) % 2 === 0 ? '85%' : '15%'}`,
+                      transform: 'translateX(-50%)'
                     }}
                   >
+                    {/* Animated vertical line fill based on completion */}
                     <motion.div 
-                      className="h-full w-full bg-primary rounded-full"
+                      className="w-full bg-primary rounded-full"
                       initial={{ height: 0 }}
-                      animate={{ height: '100%' }}
-                      transition={{ duration: 0.3 }}
+                      animate={{ height: `${verticalLines[rowIndex-1]}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      style={{ transformOrigin: 'top' }}
                     />
                   </div>
                 )}
