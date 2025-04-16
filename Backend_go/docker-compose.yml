@@ -4,8 +4,8 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=ahmed
-      - POSTGRES_PASSWORD=0502747598
+      - POSTGRES_USER=elhadi
+      - POSTGRES_PASSWORD=test123
       - POSTGRES_DB=compass
     ports:
       - "5432:5432"
@@ -14,10 +14,26 @@ services:
     networks:
       - compass-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ahmed -d compass"]
+      test: ["CMD-SHELL", "pg_isready -U elhadi -d compass"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - compass-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
   api:
     build:
@@ -28,18 +44,34 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=ahmed
-      - DB_PASSWORD=0502747598
+      - DB_USER=elhadi
+      - DB_PASSWORD=test123
       - DB_NAME=compass
       - DB_SSLMODE=disable
+      - DB_TIMEZONE=UTC
+      - DB_MAX_OPEN_CONNS=25
+      - DB_MAX_IDLE_CONNS=25
+      - DB_CONN_MAX_LIFETIME=1h
       - SERVER_MODE=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - JWT_ISSUER=compass-api
+      - JWT_EXPIRY_HOURS=24
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=json
     volumes:
       - ./pkg/config:/app/pkg/config
+      - ./migrations:/app/migrations
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - compass-network
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
@@ -57,6 +89,7 @@ services:
       - compass-network
     depends_on:
       - api
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
@@ -65,15 +98,18 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
       - compass-network
     depends_on:
       - prometheus
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
   prometheus_data:
   grafana_data:
 
