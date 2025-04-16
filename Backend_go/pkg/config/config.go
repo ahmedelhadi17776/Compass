@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -79,30 +80,42 @@ func LoadConfig(configPath string) (*Config, error) {
 		viper.AddConfigPath(path)
 	}
 
-	// Set default values from environment variables first
-	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
-	viper.SetDefault("database.port", getEnv("DB_PORT", "5432"))
-	viper.SetDefault("database.user", getEnv("DB_USER", "ahmed"))
-	viper.SetDefault("database.password", getEnv("DB_PASSWORD", ""))
-	viper.SetDefault("database.name", getEnv("DB_NAME", "compass"))
-	viper.SetDefault("database.sslmode", getEnv("DB_SSLMODE", "disable"))
-	viper.SetDefault("auth.jwt_secret", getEnv("JWT_SECRET", "a82552a2c8133eddce94cc781f716cdcb911d065528783a8a75256aff6731886"))
-
-	// Load main config file
+	// Load main config file first
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("error loading config.yaml: %v", err)
 	}
 
-	// Convert database port to integer
-	dbPort := viper.GetString("database.port")
-	port, err := strconv.Atoi(dbPort)
-	if err != nil {
-		return nil, fmt.Errorf("invalid database port number: %v", err)
-	}
-	viper.Set("database.port", port)
+	// Enable environment variable override
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	// Override with environment variables if they exist
+	if host := os.Getenv("DB_HOST"); host != "" {
+		viper.Set("database.host", host)
+	}
+	if port := os.Getenv("DB_PORT"); port != "" {
+		portInt, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, fmt.Errorf("invalid database port number: %v", err)
+		}
+		viper.Set("database.port", portInt)
+	}
+	if user := os.Getenv("DB_USER"); user != "" {
+		viper.Set("database.user", user)
+	}
+	if password := os.Getenv("DB_PASSWORD"); password != "" {
+		viper.Set("database.password", password)
+	}
+	if name := os.Getenv("DB_NAME"); name != "" {
+		viper.Set("database.name", name)
+	}
+	if sslmode := os.Getenv("DB_SSLMODE"); sslmode != "" {
+		viper.Set("database.sslmode", sslmode)
+	}
+
+	// Unmarshal config
 	err = viper.Unmarshal(&config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %v", err)
