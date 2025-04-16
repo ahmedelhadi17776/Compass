@@ -1,8 +1,11 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // @Summary Create a new task
@@ -19,7 +22,30 @@ import (
 // @Router /tasks [post]
 func createTaskHandler(taskService task.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ... existing implementation ...
+		var req task.CreateTaskRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Convert request to service input
+		input := task.CreateTaskInput{
+			Title:          req.Title,
+			Description:    req.Description,
+			Status:         task.TaskStatus(req.Status),
+			StartDate:      req.DueDate, // Using DueDate as StartDate for now
+			CreatorID:      uuid.New(),  // Should come from authenticated user
+			ProjectID:      uuid.New(),  // Should come from request context
+			OrganizationID: uuid.New(),  // Should come from request context
+		}
+
+		createdTask, err := taskService.CreateTask(c.Request.Context(), input)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusCreated, createdTask)
 	}
 }
 
@@ -35,7 +61,21 @@ func createTaskHandler(taskService task.Service) gin.HandlerFunc {
 // @Router /tasks [get]
 func listTasksHandler(taskService task.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ... existing implementation ...
+		filter := task.TaskFilter{
+			Page:     0,
+			PageSize: 10,
+		}
+
+		tasks, total, err := taskService.ListTasks(c.Request.Context(), filter)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"tasks": tasks,
+			"total": total,
+		})
 	}
 }
 
@@ -53,7 +93,23 @@ func listTasksHandler(taskService task.Service) gin.HandlerFunc {
 // @Router /tasks/{id} [get]
 func getTaskHandler(taskService task.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ... existing implementation ...
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task ID"})
+			return
+		}
+
+		foundTask, err := taskService.GetTask(c.Request.Context(), id)
+		if err != nil {
+			if err == task.ErrTaskNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, foundTask)
 	}
 }
 
@@ -73,7 +129,36 @@ func getTaskHandler(taskService task.Service) gin.HandlerFunc {
 // @Router /tasks/{id} [put]
 func updateTaskHandler(taskService task.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ... existing implementation ...
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task ID"})
+			return
+		}
+
+		var req task.UpdateTaskRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Convert request to service input
+		input := task.UpdateTaskInput{
+			Title:       &req.Title,
+			Description: &req.Description,
+			Status:      (*task.TaskStatus)(&req.Status),
+		}
+
+		updatedTask, err := taskService.UpdateTask(c.Request.Context(), id, input)
+		if err != nil {
+			if err == task.ErrTaskNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, updatedTask)
 	}
 }
 
@@ -91,7 +176,23 @@ func updateTaskHandler(taskService task.Service) gin.HandlerFunc {
 // @Router /tasks/{id} [delete]
 func deleteTaskHandler(taskService task.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ... existing implementation ...
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task ID"})
+			return
+		}
+
+		err = taskService.DeleteTask(c.Request.Context(), id)
+		if err != nil {
+			if err == task.ErrTaskNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.Status(http.StatusNoContent)
 	}
 }
 

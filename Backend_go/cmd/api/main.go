@@ -11,18 +11,19 @@ import (
 	"time"
 
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // This will be created by swag
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 )
-
 
 func main() {
 	// Load configuration
@@ -58,15 +59,38 @@ func main() {
 	}
 
 	router := gin.New()
+
+	// Add middleware
 	router.Use(gin.Recovery())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     cfg.CORS.AllowedOrigins,
+		AllowMethods:     cfg.CORS.AllowedMethods,
+		AllowHeaders:     cfg.CORS.AllowedHeaders,
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: cfg.CORS.AllowCredentials,
+		MaxAge:           12 * time.Hour,
+	}))
 
-	// Setup API routes
-	api := router.Group("/api")
-	routes.SetupTaskRoutes(api, taskService)
-	routes.SetupUserRoutes(api, userService)
+	// Public routes
+	public := router.Group("/api")
+	{
+		// Swagger documentation endpoint
+		public.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// Swagger documentation endpoint
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		// Set up auth routes
+		routes.SetupUserRoutes(public, userService)
+	}
+
+	// Protected routes
+	protected := router.Group("/api")
+	protected.Use(middleware.NewAuthMiddleware(cfg.Auth.JWTSecret))
+	{
+		// Set up task routes
+		routes.SetupTaskRoutes(protected.Group("/tasks"), taskService)
+
+		// Set up user routes
+		routes.SetupUserRoutes(protected.Group("/users"), userService)
+	}
 
 	// Start server
 	server := &http.Server{
@@ -77,7 +101,7 @@ func main() {
 	// Graceful shutdown
 	go func() {
 		logger.Info(fmt.Sprintf("Server started on port %d", cfg.Server.Port))
-		logger.Info("Swagger documentation available at http://localhost:8000/swagger/index.html")
+		logger.Info("Swagger documentation available at http://localhost:8000/api/swagger/index.html")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
