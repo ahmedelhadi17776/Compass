@@ -1,15 +1,12 @@
 package connection
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
-	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 type Database struct {
@@ -17,61 +14,38 @@ type Database struct {
 }
 
 func NewDatabase(cfg *config.Config) (*Database, error) {
-	// First try to establish a basic SQL connection
-	sqlDB, err := sql.Open("postgres", fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.Name,
-	))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create sql.DB: %w", err)
-	}
-
-	// Test the connection
-	err = sqlDB.Ping()
-	if err != nil {
-		sqlErr, ok := err.(*pq.Error)
-		if ok {
-			return nil, fmt.Errorf("postgres error: code=%s, message=%s, detail=%s", sqlErr.Code, sqlErr.Message, sqlErr.Detail)
-		}
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	// Close the test connection
-	sqlDB.Close()
-
-	// Now set up GORM with detailed logging
-	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	}
-
 	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 		cfg.Database.Host,
-		cfg.Database.Port,
 		cfg.Database.User,
 		cfg.Database.Password,
 		cfg.Database.Name,
+		cfg.Database.Port,
+		cfg.Database.SSLMode,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		PrepareStmt: true,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database with GORM: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Get the underlying *sql.DB
-	sqlDB, err = db.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying *sql.DB: %w", err)
+		return nil, err
 	}
 
-	// Configure connection pool
+	// Configure connection pool using config values
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// Parse and set connection max lifetime
+	lifetime, err := time.ParseDuration(cfg.Database.ConnMaxLifetime)
+	if err != nil {
+		lifetime = time.Hour // default to 1 hour if parsing fails
+	}
+	sqlDB.SetConnMaxLifetime(lifetime)
 
 	return &Database{db}, nil
 }

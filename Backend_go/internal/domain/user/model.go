@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // User represents a user in the system
@@ -68,17 +67,15 @@ func (User) TableName() string {
 }
 
 // BeforeCreate is called before creating a new user record
-func (u *User) BeforeCreate(tx *gorm.DB) error {
+func (u *User) BeforeCreate() error {
 	if u.ID == uuid.Nil {
 		u.ID = uuid.New()
 	}
-	u.CreatedAt = time.Now()
-	u.UpdatedAt = time.Now()
 	return nil
 }
 
 // BeforeUpdate is called before updating a user record
-func (u *User) BeforeUpdate(tx *gorm.DB) error {
+func (u *User) BeforeUpdate() error {
 	u.UpdatedAt = time.Now()
 	return nil
 }

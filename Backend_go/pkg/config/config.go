@@ -7,72 +7,40 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	CORS     CORSConfig     `mapstructure:"cors"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
-	Swagger  SwaggerConfig  `mapstructure:"swagger"`
-}
+	Server struct {
+		Port int    `mapstructure:"port"`
+		Mode string `mapstructure:"mode"`
+	} `mapstructure:"server"`
 
-type ServerConfig struct {
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
-}
+	Database struct {
+		Host            string `mapstructure:"host"`
+		Port            int    `mapstructure:"port"`
+		User            string `mapstructure:"user"`
+		Password        string `mapstructure:"password"`
+		Name            string `mapstructure:"name"`
+		SSLMode         string `mapstructure:"sslmode"`
+		MaxOpenConns    int    `mapstructure:"max_open_conns"`
+		MaxIdleConns    int    `mapstructure:"max_idle_conns"`
+		ConnMaxLifetime string `mapstructure:"conn_max_lifetime"`
+	} `mapstructure:"database"`
 
-type DatabaseConfig struct {
-	Host            string        `mapstructure:"host"`
-	Port            int           `mapstructure:"port"`
-	User            string        `mapstructure:"user"`
-	Password        string        `mapstructure:"password"`
-	Name            string        `mapstructure:"name"`
-	SSLMode         string        `mapstructure:"sslmode"`
-	Timezone        string        `mapstructure:"timezone"`
-	MaxOpenConns    int           `mapstructure:"max_open_conns"`
-	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
-	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
-}
+	Redis struct {
+		Host     string `mapstructure:"host"`
+		Port     int    `mapstructure:"port"`
+		Password string `mapstructure:"password"`
+		DB       int    `mapstructure:"db"`
+	} `mapstructure:"redis"`
 
-type RedisConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	Password string `mapstructure:"password"`
-	DB       int    `mapstructure:"db"`
-}
-
-type AuthConfig struct {
-	JWTSecret        string `mapstructure:"jwt_secret"`
-	TokenExpiryHours int    `mapstructure:"token_expiry_hours"`
-	Issuer           string `mapstructure:"issuer"`
-}
-
-type CORSConfig struct {
-	AllowedOrigins   []string `mapstructure:"allowed_origins"`
-	AllowedMethods   []string `mapstructure:"allowed_methods"`
-	AllowedHeaders   []string `mapstructure:"allowed_headers"`
-	AllowCredentials bool     `mapstructure:"allow_credentials"`
-	MaxAge           string   `mapstructure:"max_age"`
-}
-
-type LoggingConfig struct {
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"`
-}
-
-type SwaggerConfig struct {
-	Enabled     bool   `mapstructure:"enabled"`
-	Title       string `mapstructure:"title"`
-	Description string `mapstructure:"description"`
-	Version     string `mapstructure:"version"`
-	Host        string `mapstructure:"host"`
-	BasePath    string `mapstructure:"base_path"`
+	Auth struct {
+		JWTSecret        string `mapstructure:"jwt_secret"`
+		TokenExpiryHours int    `mapstructure:"token_expiry_hours"`
+		Issuer           string `mapstructure:"issuer"`
+	} `mapstructure:"auth"`
 }
 
 func getEnv(key, fallback string) string {
