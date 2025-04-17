@@ -80,3 +80,8 @@ dump.rdb
 *.tmp
 *.temp
 .tmp* 
+
+docker-compose.yml
+Dockerfile
+go.mod
+go.sum
