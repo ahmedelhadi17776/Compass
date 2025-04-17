@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -103,4 +104,25 @@ func (t TaskPriority) IsValid() bool {
 		return true
 	}
 	return false
+}
+
+// TableName specifies the table name for the Task model
+func (Task) TableName() string {
+	return "tasks"
+}
+
+// BeforeCreate is called before creating a new task record
+func (t *Task) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
+	}
+	t.CreatedAt = time.Now()
+	t.UpdatedAt = time.Now()
+	return nil
+}
+
+// BeforeUpdate is called before updating a task record
+func (t *Task) BeforeUpdate(tx *gorm.DB) error {
+	t.UpdatedAt = time.Now()
+	return nil
 }
