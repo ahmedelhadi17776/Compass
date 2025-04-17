@@ -42,7 +42,7 @@ type Service interface {
 	ListUsers(ctx context.Context, filter UserFilter) ([]User, int64, error)
 	UpdateUser(ctx context.Context, id uuid.UUID, input UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
-	AuthenticateUser(ctx context.Context, username, password string) (*User, error)
+	AuthenticateUser(ctx context.Context, email, password string) (*User, error)
 	UpdatePassword(ctx context.Context, id uuid.UUID, currentPassword, newPassword string) error
 	LockAccount(ctx context.Context, id uuid.UUID, duration time.Duration) error
 	UnlockAccount(ctx context.Context, id uuid.UUID) error
@@ -193,8 +193,8 @@ func (s *service) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Update(ctx, user)
 }
 
-func (s *service) AuthenticateUser(ctx context.Context, username, password string) (*User, error) {
-	user, err := s.repo.FindByUsername(ctx, username)
+func (s *service) AuthenticateUser(ctx context.Context, email, password string) (*User, error) {
+	user, err := s.repo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}

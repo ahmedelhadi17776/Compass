@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -15,17 +15,7 @@ var log = logger.NewLogger()
 
 const (
 	bearerSchema = "Bearer "
-	userKey      = "user"
 )
-
-type Claims struct {
-	UserID      uuid.UUID `json:"user_id"`
-	Email       string    `json:"email"`
-	Roles       []string  `json:"roles"`
-	OrgID       uuid.UUID `json:"org_id"`
-	Permissions []string  `json:"permissions"`
-	jwt.RegisteredClaims
-}
 
 // AuthMiddleware is a middleware for JWT authentication
 type AuthMiddleware struct {
@@ -37,12 +27,14 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			log.Error("Missing authorization header")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header is required"})
 			c.Abort()
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, bearerSchema) {
+			log.Error("Invalid authorization header format")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
 			c.Abort()
 			return
@@ -50,19 +42,9 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		tokenString := authHeader[len(bearerSchema):]
 
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwtSecret), nil
-		})
-
+		claims, err := auth.ValidateToken(tokenString, jwtSecret)
 		if err != nil {
 			log.Error("Token validation failed", zap.Error(err))
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			c.Abort()
-			return
-		}
-
-		if !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			c.Abort()
 			return
