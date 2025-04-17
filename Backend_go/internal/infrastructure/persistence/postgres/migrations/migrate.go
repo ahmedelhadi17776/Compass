@@ -3,6 +3,7 @@ package migrations
 import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"go.uber.org/zap"
 )
@@ -21,6 +22,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 	if err := db.AutoMigrate(
 		&user.User{},
 		&task.Task{},
+		&project.Project{},
 	); err != nil {
 		logger.Error("Failed to run migrations", zap.Error(err))
 		return err
