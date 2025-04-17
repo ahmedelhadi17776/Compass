@@ -13,6 +13,7 @@ import (
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // swagger docs
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
@@ -116,14 +117,17 @@ func main() {
 	// Initialize repositories
 	taskRepo := task.NewRepository(db)
 	userRepo := user.NewRepository(db)
+	projectRepo := project.NewRepository(db)
 
 	// Initialize services
 	taskService := task.NewService(taskRepo)
 	userService := user.NewService(userRepo)
+	projectService := project.NewService(projectRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
 	taskHandler := handlers.NewTaskHandler(taskService)
+	projectHandler := handlers.NewProjectHandler(projectService)
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
@@ -156,6 +160,11 @@ func main() {
 	taskRoutes := routes.NewTaskRoutes(taskHandler, cfg.Auth.JWTSecret)
 	taskRoutes.RegisterRoutes(router)
 	log.Info("Registered task routes at /api/tasks")
+
+	// Project routes (protected)
+	projectRoutes := routes.NewProjectRoutes(projectHandler, cfg.Auth.JWTSecret)
+	projectRoutes.RegisterRoutes(router)
+	log.Info("Registered project routes at /api/projects")
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {
