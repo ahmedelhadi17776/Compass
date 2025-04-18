@@ -8,39 +8,48 @@ import (
 )
 
 type Habit struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	UserID             uuid.UUID  `gorm:"type:uuid;not null"`
-	Title              string     `gorm:"size:255;not null"`
-	Description        string     `gorm:"type:text"`
-	StartDay           time.Time  `gorm:"not null;default:current_timestamp"`
-	EndDay             *time.Time `gorm:"default:null"`
-	CurrentStreak      int        `gorm:"default:0;not null"`
-	StreakStartDate    *time.Time `gorm:"default:null"`
-	LongestStreak      int        `gorm:"default:0;not null"`
-	IsCompleted        bool       `gorm:"default:false;not null"`
-	LastCompletedDate  *time.Time `gorm:"default:null"`
-	CreatedAt          time.Time  `gorm:"not null;default:current_timestamp"`
-	UpdatedAt          time.Time  `gorm:"not null;default:current_timestamp;autoUpdateTime"`
-
-	// Relationships
-	User User `gorm:"foreignKey:UserID"`
+	ID                uuid.UUID  `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	UserID            uuid.UUID  `gorm:"type:uuid;not null"`
+	Title             string     `gorm:"size:255;not null"`
+	Description       string     `gorm:"type:text"`
+	StartDay          time.Time  `gorm:"not null;default:current_timestamp"`
+	EndDay            *time.Time `gorm:"default:null"`
+	CurrentStreak     int        `gorm:"default:0;not null"`
+	StreakStartDate   *time.Time `gorm:"default:null"`
+	LongestStreak     int        `gorm:"default:0;not null"`
+	IsCompleted       bool       `gorm:"default:false;not null"`
+	LastCompletedDate *time.Time `gorm:"default:null"`
+	CreatedAt         time.Time  `gorm:"not null;default:current_timestamp"`
+	UpdatedAt         time.Time  `gorm:"not null;default:current_timestamp;autoUpdateTime"`
+	StreakQuality     float64    `gorm:"-"` // Calculated field, not stored in DB
 }
 
-// CreateHabitRequest represents the request body for creating a habit
-type CreateHabitRequest struct {
-	Title       string    `json:"title" binding:"required" example:"New Habit"`
-	Description string    `json:"description" example:"A detailed habit description"`
-	StartDay    time.Time `json:"start_day" example:"2024-01-01T00:00:00Z"`
-	EndDay      *time.Time `json:"end_day" example:"2024-01-01T00:00:00Z"`
-	UserID      uuid.UUID `json:"user_id" binding:"required"`
+// StreakHistory represents a historical record of a habit streak
+type StreakHistory struct {
+	ID            uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	HabitID       uuid.UUID `gorm:"type:uuid;not null"`
+	StartDate     time.Time `gorm:"not null"`
+	EndDate       time.Time `gorm:"not null"`
+	StreakLength  int       `gorm:"not null"`
+	CompletedDays int       `gorm:"not null"`
+	CreatedAt     time.Time `gorm:"not null;default:current_timestamp"`
 }
 
-// UpdateHabitRequest represents the request body for updating a habit
-type UpdateHabitRequest struct {
-	Title       string    `json:"title" example:"Updated Habit"`
-	Description string    `json:"description" example:"Updated habit description"`
-	StartDay    time.Time `json:"start_day" example:"2024-01-01T00:00:00Z"`
-	EndDay      *time.Time `json:"end_day" example:"2024-01-01T00:00:00Z"`
+// CreateHabitInput represents the input for creating a new habit
+type CreateHabitInput struct {
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	StartDay    time.Time  `json:"start_day"`
+	EndDay      *time.Time `json:"end_day"`
+	UserID      uuid.UUID  `json:"user_id"`
+}
+
+// UpdateHabitInput represents the input for updating a habit
+type UpdateHabitInput struct {
+	Title       *string    `json:"title,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	StartDay    *time.Time `json:"start_day,omitempty"`
+	EndDay      *time.Time `json:"end_day,omitempty"`
 }
 
 // HabitResponse represents the response body for a habit
@@ -73,6 +82,3 @@ func (h *Habit) BeforeUpdate(tx *gorm.DB) error {
 	h.UpdatedAt = time.Now()
 	return nil
 }
-
-
-

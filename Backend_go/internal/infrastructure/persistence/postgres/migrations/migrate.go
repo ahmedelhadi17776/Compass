@@ -1,10 +1,11 @@
 package migrations
 
 import (
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"go.uber.org/zap"
 )
@@ -25,6 +26,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 		&task.Task{},
 		&project.Project{},
 		&organization.Organization{},
+		&habits.Habit{},
 	); err != nil {
 		logger.Error("Failed to run migrations", zap.Error(err))
 		return err
