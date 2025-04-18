@@ -23,17 +23,6 @@ type Service interface {
 	GetTaskMetrics(ctx context.Context, id uuid.UUID) (*TaskMetrics, error)
 }
 
-type TaskFilter struct {
-	ProjectID  *uuid.UUID
-	Status     *TaskStatus
-	Priority   *TaskPriority
-	AssigneeID *uuid.UUID
-	CreatorID  *uuid.UUID
-	StartDate  *time.Time
-	EndDate    *time.Time
-	Page       int
-	PageSize   int
-}
 
 type TaskMetrics struct {
 	HealthScore     float64                `json:"health_score"`

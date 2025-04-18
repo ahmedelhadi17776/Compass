@@ -118,13 +118,21 @@ func (ur *UserRoutes) Login(c *gin.Context) {
 		return
 	}
 
+	// Get user's roles and permissions
+	roles, permissions, err := ur.userHandler.GetUserRolesAndPermissions(c, user.ID)
+	if err != nil {
+		log.Error("Failed to get user roles and permissions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user permissions"})
+		return
+	}
+
 	// Generate JWT token with 24 hours expiry
 	token, err := auth.GenerateToken(
 		user.ID,
 		user.Email,
-		[]string{}, // No roles for now
-		uuid.Nil,   // No org ID for now
-		[]string{}, // No permissions for now
+		roles,       // Include user's roles
+		uuid.Nil,    // No org ID for now
+		permissions, // Include user's permissions
 		ur.jwtSecret,
 		24,
 	)

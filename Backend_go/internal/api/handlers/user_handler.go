@@ -188,3 +188,12 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+
+// GetUserRolesAndPermissions retrieves the roles and permissions for a user
+func (h *UserHandler) GetUserRolesAndPermissions(c *gin.Context, userID uuid.UUID) ([]string, []string, error) {
+	roles, permissions, err := h.userService.GetUserRolesAndPermissions(c.Request.Context(), userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return roles, permissions, nil
+}

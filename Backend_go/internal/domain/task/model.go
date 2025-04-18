@@ -33,23 +33,23 @@ type Task struct {
 	ID             uuid.UUID    `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
 	Title          string       `json:"title" gorm:"not null"`
 	Description    string       `json:"description"`
-	Status         TaskStatus   `json:"status" gorm:"not null;default:'Upcoming'"`
-	Priority       TaskPriority `json:"priority" gorm:"not null;default:'Medium'"`
+	Status         TaskStatus   `json:"status" gorm:"not null;default:'Upcoming';index:idx_task_status"`
+	Priority       TaskPriority `json:"priority" gorm:"not null;default:'Medium';index:idx_task_priority"`
 	CreatedAt      time.Time    `json:"created_at" gorm:"not null;default:current_timestamp"`
 	UpdatedAt      time.Time    `json:"updated_at" gorm:"not null;default:current_timestamp"`
-	CreatorID      uuid.UUID    `json:"creator_id" gorm:"type:uuid;not null"`
-	AssigneeID     *uuid.UUID   `json:"assignee_id,omitempty" gorm:"type:uuid"`
-	ReviewerID     *uuid.UUID   `json:"reviewer_id,omitempty" gorm:"type:uuid"`
+	CreatorID      uuid.UUID    `json:"creator_id" gorm:"type:uuid;not null;index:idx_task_creator"`
+	AssigneeID     *uuid.UUID   `json:"assignee_id,omitempty" gorm:"type:uuid;index:idx_task_assignee"`
+	ReviewerID     *uuid.UUID   `json:"reviewer_id,omitempty" gorm:"type:uuid;"`
 	CategoryID     *uuid.UUID   `json:"category_id,omitempty" gorm:"type:uuid"`
 	ParentTaskID   *uuid.UUID   `json:"parent_task_id,omitempty" gorm:"type:uuid"`
-	ProjectID      uuid.UUID    `json:"project_id" gorm:"type:uuid;not null"`
-	OrganizationID uuid.UUID    `json:"organization_id" gorm:"type:uuid;not null"`
+	ProjectID      uuid.UUID    `json:"project_id" gorm:"type:uuid;not null;index:idx_task_project"`
+	OrganizationID uuid.UUID    `json:"organization_id" gorm:"type:uuid;not null;index:idx_task_org"`
 
 	EstimatedHours float64    `json:"estimated_hours,omitempty"`
 	ActualHours    float64    `json:"actual_hours,omitempty"`
-	StartDate      time.Time  `json:"start_date" gorm:"not null"`
+	StartDate      time.Time  `json:"start_date" gorm:"not null;index:idx_task_dates"`
 	Duration       *float64   `json:"duration,omitempty"`
-	DueDate        *time.Time `json:"due_date,omitempty"`
+	DueDate        *time.Time `json:"due_date,omitempty" gorm:"index:idx_task_dates"`
 
 	Dependencies    []uuid.UUID `json:"dependencies" gorm:"-"`
 	HealthScore     *float64    `json:"health_score,omitempty"`
@@ -88,6 +88,27 @@ type TaskListResponse struct {
 	Tasks []Task `json:"tasks"`
 }
 
+// Common errors
+var (
+	ErrInvalidStatus  = NewError("invalid task status")
+	ErrInvalidCreator = NewError("invalid creator ID")
+)
+
+// Error represents a domain error
+type Error struct {
+	message string
+}
+
+// NewError creates a new Error instance
+func NewError(message string) *Error {
+	return &Error{message: message}
+}
+
+// Error returns the error message
+func (e *Error) Error() string {
+	return e.message
+}
+
 func (t TaskStatus) IsValid() bool {
 	switch t {
 	case TaskStatusUpcoming, TaskStatusInProgress, TaskStatusCompleted,
@@ -111,18 +132,61 @@ func (Task) TableName() string {
 	return "tasks"
 }
 
+// Validate checks if the task data is valid
+func (t *Task) Validate() error {
+	if t.Title == "" {
+		return ErrInvalidInput
+	}
+	if !t.Status.IsValid() {
+		return ErrInvalidStatus
+	}
+	if t.CreatorID == uuid.Nil {
+		return ErrInvalidCreator
+	}
+	if t.ProjectID == uuid.Nil {
+		return ErrInvalidInput
+	}
+	if t.OrganizationID == uuid.Nil {
+		return ErrInvalidInput
+	}
+	if !t.Priority.IsValid() {
+		return ErrInvalidInput
+	}
+	return nil
+}
+
 // BeforeCreate is called before creating a new task record
 func (t *Task) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == uuid.Nil {
 		t.ID = uuid.New()
 	}
+	if t.Status == "" {
+		t.Status = TaskStatusUpcoming
+	}
+	if t.Priority == "" {
+		t.Priority = TaskPriorityMedium
+	}
 	t.CreatedAt = time.Now()
 	t.UpdatedAt = time.Now()
-	return nil
+	return t.Validate()
 }
 
 // BeforeUpdate is called before updating a task record
 func (t *Task) BeforeUpdate(tx *gorm.DB) error {
 	t.UpdatedAt = time.Now()
-	return nil
+	return t.Validate()
+}
+
+type TaskFilter struct {
+	OrganizationID *uuid.UUID
+	ProjectID      *uuid.UUID
+	Status         *TaskStatus
+	Priority       *TaskPriority
+	AssigneeID     *uuid.UUID
+	CreatorID      *uuid.UUID
+	ReviewerID     *uuid.UUID
+	StartDate      *time.Time
+	EndDate        *time.Time
+	Page           int
+	PageSize       int
 }

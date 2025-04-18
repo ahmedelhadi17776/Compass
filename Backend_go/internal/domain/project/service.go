@@ -2,44 +2,12 @@ package project
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// Input types
-type CreateProjectInput struct {
-	Name           string        `json:"name"`
-	Description    string        `json:"description"`
-	Status         ProjectStatus `json:"status"`
-	OrganizationID uuid.UUID     `json:"organization_id"`
-	CreatorID      uuid.UUID     `json:"creator_id"`
-}
 
-type UpdateProjectInput struct {
-	Name        *string        `json:"name,omitempty"`
-	Description *string        `json:"description,omitempty"`
-	Status      *ProjectStatus `json:"status,omitempty"`
-}
-
-type ProjectDetails struct {
-	Project      *Project        `json:"project"`
-	MembersCount int64           `json:"members_count"`
-	TasksCount   int64           `json:"tasks_count"`
-	Members      []ProjectMember `json:"members"`
-}
-
-type ProjectMember struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Role     string    `json:"role"`
-	JoinedAt time.Time `json:"joined_at"`
-}
-
-// Common errors
-var (
-	ErrProjectNameExists = errors.New("project name already exists in organization")
-)
 
 // Service interface
 type Service interface {
@@ -89,6 +57,7 @@ func (s *service) CreateProject(ctx context.Context, input CreateProjectInput) (
 		Status:         input.Status,
 		CreatorID:      input.CreatorID,
 		OrganizationID: input.OrganizationID,
+		OwnerID:        input.OwnerID,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
@@ -149,6 +118,10 @@ func (s *service) UpdateProject(ctx context.Context, id uuid.UUID, input UpdateP
 			return nil, ErrInvalidInput
 		}
 		project.Status = *input.Status
+	}
+
+	if input.OwnerID != nil {
+		project.OwnerID = *input.OwnerID
 	}
 
 	project.UpdatedAt = time.Now()

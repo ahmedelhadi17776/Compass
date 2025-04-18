@@ -21,6 +21,7 @@ type UpdateOrganizationRequest struct {
 	Name        *string                          `json:"name,omitempty" example:"Updated Acme Corp"`
 	Description *string                          `json:"description,omitempty" example:"An innovative technology leader"`
 	Status      *organization.OrganizationStatus `json:"status,omitempty" example:"Active"`
+	OwnerID     *uuid.UUID                       `json:"owner_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // OrganizationResponse represents an organization in API responses
@@ -32,6 +33,8 @@ type OrganizationResponse struct {
 	Status      organization.OrganizationStatus `json:"status" example:"Active"`
 	CreatedAt   time.Time                       `json:"created_at" example:"2024-03-15T09:00:00Z"`
 	UpdatedAt   time.Time                       `json:"updated_at" example:"2024-03-15T10:30:00Z"`
+	CreatorID   uuid.UUID                       `json:"creator_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	OwnerID     uuid.UUID                       `json:"owner_id" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // OrganizationListResponse represents a paginated list of organizations
@@ -64,6 +67,8 @@ func OrganizationToResponse(org *organization.Organization) *OrganizationRespons
 		Status:      org.Status,
 		CreatedAt:   org.CreatedAt,
 		UpdatedAt:   org.UpdatedAt,
+		CreatorID:   org.CreatorID,
+		OwnerID:     org.OwnerID,
 	}
 }
 

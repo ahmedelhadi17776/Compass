@@ -41,10 +41,26 @@ func (h *OrganizationHandler) CreateOrganization(c *gin.Context) {
 		return
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	// Convert userID to UUID - it's already a UUID, no need to parse
+	creatorID, ok := userID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID format"})
+		return
+	}
+
 	input := organization.CreateOrganizationInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Status:      req.Status,
+		CreatorID:   creatorID,
+		OwnerID:     creatorID, // Initially, creator is also the owner
 	}
 
 	createdOrg, err := h.service.CreateOrganization(c.Request.Context(), input)
@@ -221,10 +237,35 @@ func (h *OrganizationHandler) UpdateOrganization(c *gin.Context) {
 		return
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	// Get the organization to check ownership
+	org, err := h.service.GetOrganization(c.Request.Context(), id)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if err == organization.ErrOrganizationNotFound {
+			statusCode = http.StatusNotFound
+		}
+		c.JSON(statusCode, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Only the owner can update the organization
+	if org.OwnerID.String() != userID.(string) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the organization owner can update it"})
+		return
+	}
+
 	input := organization.UpdateOrganizationInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Status:      req.Status,
+		OwnerID:     req.OwnerID,
 	}
 
 	updatedOrg, err := h.service.UpdateOrganization(c.Request.Context(), id, input)
@@ -255,6 +296,7 @@ func (h *OrganizationHandler) UpdateOrganization(c *gin.Context) {
 // @Success 204 "Organization deleted successfully"
 // @Failure 400 {object} map[string]string "Invalid organization ID"
 // @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden - Not the organization owner"
 // @Failure 404 {object} map[string]string "Organization not found"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /api/organizations/{id} [delete]
@@ -262,6 +304,30 @@ func (h *OrganizationHandler) DeleteOrganization(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid organization ID"})
+		return
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	// Get the organization to check ownership
+	org, err := h.service.GetOrganization(c.Request.Context(), id)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if err == organization.ErrOrganizationNotFound {
+			statusCode = http.StatusNotFound
+		}
+		c.JSON(statusCode, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Only the owner can delete the organization
+	if org.OwnerID.String() != userID.(string) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the organization owner can delete it"})
 		return
 	}
 

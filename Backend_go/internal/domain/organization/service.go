@@ -11,12 +11,15 @@ type CreateOrganizationInput struct {
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
 	Status      OrganizationStatus `json:"status"`
+	CreatorID   uuid.UUID          `json:"creator_id"`
+	OwnerID     uuid.UUID          `json:"owner_id"`
 }
 
 type UpdateOrganizationInput struct {
 	Name        *string             `json:"name,omitempty"`
 	Description *string             `json:"description,omitempty"`
 	Status      *OrganizationStatus `json:"status,omitempty"`
+	OwnerID     *uuid.UUID          `json:"owner_id,omitempty"`
 }
 
 // Service defines the interface for organization business logic
@@ -44,6 +47,12 @@ func (s *service) CreateOrganization(ctx context.Context, input CreateOrganizati
 	if input.Name == "" {
 		return nil, ErrInvalidInput
 	}
+	if input.CreatorID == uuid.Nil {
+		return nil, ErrInvalidCreator
+	}
+	if input.OwnerID == uuid.Nil {
+		return nil, ErrInvalidOwner
+	}
 
 	// Check if organization name exists
 	existingOrg, err := s.repo.FindByName(ctx, input.Name)
@@ -65,6 +74,8 @@ func (s *service) CreateOrganization(ctx context.Context, input CreateOrganizati
 		Name:        input.Name,
 		Description: input.Description,
 		Status:      input.Status,
+		CreatorID:   input.CreatorID,
+		OwnerID:     input.OwnerID,
 	}
 
 	if err := s.repo.Create(ctx, org); err != nil {
@@ -126,6 +137,13 @@ func (s *service) UpdateOrganization(ctx context.Context, id uuid.UUID, input Up
 			return nil, ErrInvalidStatus
 		}
 		org.Status = *input.Status
+	}
+
+	if input.OwnerID != nil {
+		if *input.OwnerID == uuid.Nil {
+			return nil, ErrInvalidOwner
+		}
+		org.OwnerID = *input.OwnerID
 	}
 
 	// Save changes
