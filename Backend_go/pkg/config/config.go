@@ -23,8 +23,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port    int           `mapstructure:"port"`
+	Mode    string        `mapstructure:"mode"`
+	Timeout time.Duration `mapstructure:"timeout"`
 }
 
 type DatabaseConfig struct {
@@ -38,6 +39,10 @@ type DatabaseConfig struct {
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+	PoolSize        int           `mapstructure:"pool_size"`
+	MinIdleConns    int           `mapstructure:"min_idle_conns"`
+	RetryAttempts   int           `mapstructure:"retry_attempts"`
+	RetryDelay      time.Duration `mapstructure:"retry_delay"`
 }
 
 type RedisConfig struct {
@@ -48,9 +53,9 @@ type RedisConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret        string `mapstructure:"jwt_secret"`
-	TokenExpiryHours int    `mapstructure:"token_expiry_hours"`
-	Issuer           string `mapstructure:"issuer"`
+	JWTSecret      string `mapstructure:"jwt_secret"`
+	JWTExpiryHours int    `mapstructure:"jwt_expiry_hours"`
+	JWTIssuer      string `mapstructure:"jwt_issuer"`
 }
 
 type CORSConfig struct {
@@ -58,7 +63,6 @@ type CORSConfig struct {
 	AllowedMethods   []string `mapstructure:"allowed_methods"`
 	AllowedHeaders   []string `mapstructure:"allowed_headers"`
 	AllowCredentials bool     `mapstructure:"allow_credentials"`
-	MaxAge           string   `mapstructure:"max_age"`
 }
 
 type LoggingConfig struct {
@@ -85,71 +89,87 @@ func getEnv(key, fallback string) string {
 func LoadConfig(configPath string) (*Config, error) {
 	var config Config
 
-	// Get the directory of the current file (config.go)
-	_, filename, _, _ := runtime.Caller(0)
-	pkgConfigDir := filepath.Dir(filename)
-
-	// Get the project root directory (two levels up from pkg/config)
-	projectRoot := filepath.Join(pkgConfigDir, "..", "..")
-	projectRoot, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get project root: %v", err)
+	// If CONFIG_FILE environment variable is set, use it
+	if envConfigFile := os.Getenv("CONFIG_FILE"); envConfigFile != "" {
+		configPath = envConfigFile
 	}
 
-	// Add config paths
-	searchPaths := []string{
-		pkgConfigDir, // pkg/config/
-		projectRoot,  // Project root
-		filepath.Join(projectRoot, "pkg", "config"), // pkg/config from root
-	}
+	// Initialize viper
+	v := viper.New()
+	v.SetConfigType("yaml")
 
+	// If configPath is provided, use it directly
 	if configPath != "" {
-		searchPaths = append([]string{configPath}, searchPaths...)
+		// Get the directory and filename
+		dir := filepath.Dir(configPath)
+		file := filepath.Base(configPath)
+		ext := filepath.Ext(file)
+		name := strings.TrimSuffix(file, ext)
+
+		v.AddConfigPath(dir)
+		v.SetConfigName(name)
+	} else {
+		// Fallback to default locations
+		_, filename, _, _ := runtime.Caller(0)
+		pkgConfigDir := filepath.Dir(filename)
+		projectRoot := filepath.Join(pkgConfigDir, "..", "..")
+
+		v.AddConfigPath(pkgConfigDir)
+		v.AddConfigPath(projectRoot)
+		v.AddConfigPath(filepath.Join(projectRoot, "pkg", "config"))
+		v.SetConfigName("config")
 	}
 
-	// Add all search paths to viper
-	for _, path := range searchPaths {
-		viper.AddConfigPath(path)
-	}
-
-	// Load main config file first
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error loading config.yaml: %v", err)
+	// Read the config file
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("error loading config file: %v", err)
 	}
 
 	// Enable environment variable override
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	// Override with environment variables if they exist
-	if host := os.Getenv("DB_HOST"); host != "" {
-		viper.Set("database.host", host)
+	envVars := map[string]string{
+		"database.host":         "DB_HOST",
+		"database.port":         "DB_PORT",
+		"database.user":         "DB_USER",
+		"database.password":     "DB_PASSWORD",
+		"database.name":         "DB_NAME",
+		"database.sslmode":      "DB_SSLMODE",
+		"server.mode":           "SERVER_MODE",
+		"server.timeout":        "SERVER_TIMEOUT",
+		"redis.host":            "REDIS_HOST",
+		"redis.port":            "REDIS_PORT",
+		"redis.password":        "REDIS_PASSWORD",
+		"redis.db":              "REDIS_DB",
+		"auth.jwt_secret":       "JWT_SECRET",
+		"auth.jwt_issuer":       "JWT_ISSUER",
+		"auth.jwt_expiry_hours": "JWT_EXPIRY_HOURS",
+		"logging.level":         "LOG_LEVEL",
+		"logging.format":        "LOG_FORMAT",
 	}
-	if port := os.Getenv("DB_PORT"); port != "" {
-		portInt, err := strconv.Atoi(port)
-		if err != nil {
-			return nil, fmt.Errorf("invalid database port number: %v", err)
+
+	for configKey, envVar := range envVars {
+		if value := os.Getenv(envVar); value != "" {
+			// Handle special cases for type conversion
+			switch envVar {
+			case "DB_PORT", "REDIS_PORT", "JWT_EXPIRY_HOURS":
+				if intVal, err := strconv.Atoi(value); err == nil {
+					v.Set(configKey, intVal)
+				}
+			case "SERVER_TIMEOUT":
+				if d, err := time.ParseDuration(value); err == nil {
+					v.Set(configKey, d)
+				}
+			default:
+				v.Set(configKey, value)
+			}
 		}
-		viper.Set("database.port", portInt)
-	}
-	if user := os.Getenv("DB_USER"); user != "" {
-		viper.Set("database.user", user)
-	}
-	if password := os.Getenv("DB_PASSWORD"); password != "" {
-		viper.Set("database.password", password)
-	}
-	if name := os.Getenv("DB_NAME"); name != "" {
-		viper.Set("database.name", name)
-	}
-	if sslmode := os.Getenv("DB_SSLMODE"); sslmode != "" {
-		viper.Set("database.sslmode", sslmode)
 	}
 
 	// Unmarshal config
-	err = viper.Unmarshal(&config)
-	if err != nil {
+	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %v", err)
 	}
 

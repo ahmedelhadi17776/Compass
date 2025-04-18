@@ -85,3 +85,5 @@ docker-compose.yml
 Dockerfile
 go.mod
 go.sum
+
+*.yaml
