@@ -13,11 +13,11 @@ import (
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // swagger docs
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
@@ -121,21 +121,20 @@ func main() {
 	userRepo := user.NewRepository(db)
 	projectRepo := project.NewRepository(db)
 	organizationRepo := organization.NewRepository(db)
-	habitsRepo := habits.NewRepository(db)
-
+	authRepo := auth.NewRepository(db.DB)
 	// Initialize services
 	taskService := task.NewService(taskRepo)
-	userService := user.NewService(userRepo)
+	authService := auth.NewService(authRepo)
+	userService := user.NewService(userRepo, authService)
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
-	habitsService := habits.NewService(habitsRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
 	taskHandler := handlers.NewTaskHandler(taskService)
+	authHandler := handlers.NewAuthHandler(authService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
-	habitsHandler := handlers.NewHabitsHandler(habitsService)
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
@@ -148,6 +147,11 @@ func main() {
 	userRoutes := routes.NewUserRoutes(userHandler, cfg.Auth.JWTSecret)
 	userRoutes.RegisterRoutes(router)
 	log.Info("Registered user routes at /api/users")
+
+	// Set up auth routes
+	authRoutes := routes.NewAuthRoutes(authHandler, cfg.Auth.JWTSecret)
+	authRoutes.RegisterRoutes(router)
+	log.Info("Registered auth routes at /api/auth")
 
 	// Health check routes (no /api prefix as these are system endpoints)
 	router.GET("/health", func(c *gin.Context) {
@@ -178,11 +182,6 @@ func main() {
 	organizationRoutes := routes.NewOrganizationRoutes(organizationHandler, cfg.Auth.JWTSecret)
 	organizationRoutes.RegisterRoutes(router)
 	log.Info("Registered organization routes at /api/organizations")
-
-	// Organization routes (protected)
-	habitsRoutes := routes.NewHabitsRoutes(habitsHandler, cfg.Auth.JWTSecret)
-	habitsRoutes.RegisterRoutes(router)
-	log.Info("Registered organization routes at /api/habits")
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {

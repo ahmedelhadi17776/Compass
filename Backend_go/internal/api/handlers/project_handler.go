@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -41,9 +42,16 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 	}
 
 	// Get creator ID from context (set by auth middleware)
-	creatorID, exists := c.Get("user_id")
+	creatorID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	// Get organization ID from context
+	orgID, exists := c.Get("org_id")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
 		return
 	}
 
@@ -51,8 +59,8 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		Name:           req.Name,
 		Description:    req.Description,
 		Status:         req.Status,
-		OrganizationID: req.OrganizationID,
-		CreatorID:      creatorID.(uuid.UUID),
+		OrganizationID: orgID.(uuid.UUID),
+		CreatorID:      creatorID,
 	}
 
 	createdProject, err := h.service.CreateProject(c.Request.Context(), input)
@@ -91,13 +99,34 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 		return
 	}
 
+	// Get organization ID from context
+	orgID, exists := c.Get("org_id")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
+		return
+	}
+
+	// Convert orgID to uuid.UUID
+	orgUUID, ok := orgID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
+		return
+	}
+
+	// Get the project
 	proj, err := h.service.GetProject(c.Request.Context(), id)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
+		statuscode := http.StatusInternalServerError
 		if err == project.ErrProjectNotFound {
-			statusCode = http.StatusNotFound
+			statuscode = http.StatusNotFound
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify project belongs to organization
+	if proj.OrganizationID != orgUUID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "project does not belong to the organization"})
 		return
 	}
 
@@ -182,9 +211,35 @@ func (h *ProjectHandler) ListProjects(c *gin.Context) {
 		return
 	}
 
+	// Get organization ID from context
+	orgID, exists := c.Get("org_id")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
+		return
+	}
+
+	// Convert orgID to uuid.UUID
+	orgUUID, ok := orgID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
+		return
+	}
+
 	filter := project.ProjectFilter{
-		Page:     page,
-		PageSize: pageSize,
+		Page:           page,
+		PageSize:       pageSize,
+		OrganizationID: &orgUUID,
+	}
+
+	// Parse optional filters
+	if statusStr := c.Query("status"); statusStr != "" {
+		status := project.ProjectStatus(statusStr)
+		if status.IsValid() {
+			filter.Status = &status
+		}
+	}
+	if name := c.Query("name"); name != "" {
+		filter.Name = &name
 	}
 
 	projects, total, err := h.service.ListProjects(c.Request.Context(), filter)
@@ -193,16 +248,18 @@ func (h *ProjectHandler) ListProjects(c *gin.Context) {
 		return
 	}
 
+	// Convert projects to response DTOs
+	projectResponses := make([]dto.ProjectResponse, len(projects))
+	for i, p := range projects {
+		response := dto.ProjectToResponse(&p)
+		projectResponses[i] = *response
+	}
+
 	response := dto.ProjectListResponse{
-		Projects:   make([]dto.ProjectResponse, len(projects)),
+		Projects:   projectResponses,
 		TotalCount: total,
 		Page:       page,
 		PageSize:   pageSize,
-	}
-
-	for i, p := range projects {
-		projectResponse := dto.ProjectToResponse(&p)
-		response.Projects[i] = *projectResponse
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})
@@ -236,27 +293,67 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 		return
 	}
 
-	input := project.UpdateProjectInput{
-		Name:        req.Name,
-		Description: req.Description,
-		Status:      req.Status,
-	}
-
-	updatedProject, err := h.service.UpdateProject(c.Request.Context(), id, input)
-	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err == project.ErrProjectNotFound {
-			statusCode = http.StatusNotFound
-		} else if err == project.ErrInvalidInput {
-			statusCode = http.StatusBadRequest
-		} else if err == project.ErrProjectNameExists {
-			statusCode = http.StatusConflict
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+	// Get organization ID from context
+	orgID, exists := c.Get("org_id")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.ProjectToResponse(updatedProject)})
+	// Convert orgID to uuid.UUID
+	orgUUID, ok := orgID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
+		return
+	}
+
+	// Get existing project to verify ownership
+	existingProj, err := h.service.GetProject(c.Request.Context(), id)
+	if err != nil {
+		statuscode := http.StatusInternalServerError
+		if err == project.ErrProjectNotFound {
+			statuscode = http.StatusNotFound
+		}
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify project belongs to organization
+	if existingProj.OrganizationID != orgUUID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "project does not belong to the organization"})
+		return
+	}
+
+	input := project.UpdateProjectInput{
+		Name:        req.Name,
+		Description: req.Description,
+		StartDate:   req.StartDate,
+		EndDate:     req.EndDate,
+	}
+
+	// Convert status if provided
+	if req.Status != nil {
+		status := project.ProjectStatus(*req.Status)
+		if !status.IsValid() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status value"})
+			return
+		}
+		input.Status = &status
+	}
+
+	updatedProj, err := h.service.UpdateProject(c.Request.Context(), id, input)
+	if err != nil {
+		statuscode := http.StatusInternalServerError
+		if err == project.ErrProjectNotFound {
+			statuscode = http.StatusNotFound
+		} else if err == project.ErrInvalidInput {
+			statuscode = http.StatusBadRequest
+		}
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": dto.ProjectToResponse(updatedProj)})
 }
 
 // DeleteProject godoc
@@ -280,17 +377,48 @@ func (h *ProjectHandler) DeleteProject(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteProject(c.Request.Context(), id)
-	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err == project.ErrProjectNotFound {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+	// Get organization ID from context
+	orgID, exists := c.Get("org_id")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	// Convert orgID to uuid.UUID
+	orgUUID, ok := orgID.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
+		return
+	}
+
+	// Get existing project to verify ownership
+	existingProj, err := h.service.GetProject(c.Request.Context(), id)
+	if err != nil {
+		statuscode := http.StatusInternalServerError
+		if err == project.ErrProjectNotFound {
+			statuscode = http.StatusNotFound
+		}
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify project belongs to organization
+	if existingProj.OrganizationID != orgUUID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "project does not belong to the organization"})
+		return
+	}
+
+	err = h.service.DeleteProject(c.Request.Context(), id)
+	if err != nil {
+		statuscode := http.StatusInternalServerError
+		if err == project.ErrProjectNotFound {
+			statuscode = http.StatusNotFound
+		}
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // AddProjectMember godoc

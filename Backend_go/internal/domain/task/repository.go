@@ -23,8 +23,6 @@ type TaskRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-
-
 type taskRepository struct {
 	db *connection.Database
 }
@@ -55,6 +53,10 @@ func (r *taskRepository) FindAll(ctx context.Context, filter TaskFilter) ([]Task
 
 	query := r.db.WithContext(ctx)
 
+	// Apply filters
+	if filter.OrganizationID != nil {
+		query = query.Where("organization_id = ?", filter.OrganizationID)
+	}
 	if filter.ProjectID != nil {
 		query = query.Where("project_id = ?", filter.ProjectID)
 	}
@@ -70,15 +72,25 @@ func (r *taskRepository) FindAll(ctx context.Context, filter TaskFilter) ([]Task
 	if filter.CreatorID != nil {
 		query = query.Where("creator_id = ?", filter.CreatorID)
 	}
+	if filter.ReviewerID != nil {
+		query = query.Where("reviewer_id = ?", filter.ReviewerID)
+	}
 	if filter.StartDate != nil && filter.EndDate != nil {
 		query = query.Where("created_at BETWEEN ? AND ?", filter.StartDate, filter.EndDate)
 	}
 
+	// Count total before pagination
+	err := query.Model(&Task{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Apply pagination
 	query = query.Offset(filter.Page * filter.PageSize).Limit(filter.PageSize)
 
-	result := query.Find(&tasks).Count(&total)
-	if result.Error != nil {
-		return nil, 0, result.Error
+	// Execute query
+	if err := query.Find(&tasks).Error; err != nil {
+		return nil, 0, err
 	}
 
 	return tasks, total, nil

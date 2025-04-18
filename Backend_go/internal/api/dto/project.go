@@ -15,27 +15,36 @@ type CreateProjectRequest struct {
 	Status         project.ProjectStatus `json:"status" example:"Active"`
 	OrganizationID uuid.UUID             `json:"organization_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
 	CreatorID      uuid.UUID             `json:"creator_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440001"`
+	OwnerID        uuid.UUID             `json:"owner_id" binding:"required" example:"550e8400-e29b-41d4-a716-446655440002"`
+	StartDate      time.Time             `json:"start_date" binding:"required" example:"2024-01-01T00:00:00Z"`
+	EndDate        *time.Time            `json:"end_date,omitempty" example:"2024-12-31T23:59:59Z"`
 }
 
 // UpdateProjectRequest represents the request body for updating an existing project
 // @Description Request body for updating project information
 type UpdateProjectRequest struct {
-	Name        *string                `json:"name,omitempty" example:"Updated: E-commerce Platform"`
-	Description *string                `json:"description,omitempty" example:"Updated platform description with new features"`
-	Status      *project.ProjectStatus `json:"status,omitempty" example:"Completed"`
+	Name        *string                `json:"name,omitempty" example:"Updated Project Name"`
+	Description *string                `json:"description,omitempty" example:"Updated project description"`
+	Status      *project.ProjectStatus `json:"status,omitempty" example:"active"`
+	OwnerID     *uuid.UUID             `json:"owner_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440003"`
+	StartDate   *time.Time             `json:"start_date,omitempty" example:"2024-01-01T00:00:00Z"`
+	EndDate     *time.Time             `json:"end_date,omitempty" example:"2024-12-31T23:59:59Z"`
 }
 
 // ProjectResponse represents a project in API responses
 // @Description Detailed project information returned in API responses
 type ProjectResponse struct {
 	ID             uuid.UUID             `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	Name           string                `json:"name" example:"E-commerce Platform"`
-	Description    string                `json:"description" example:"A modern e-commerce platform with microservices architecture"`
-	Status         project.ProjectStatus `json:"status" example:"Active"`
-	CreatedAt      time.Time             `json:"created_at" example:"2024-03-15T09:00:00Z"`
-	UpdatedAt      time.Time             `json:"updated_at" example:"2024-03-15T10:30:00Z"`
-	CreatorID      uuid.UUID             `json:"creator_id" example:"550e8400-e29b-41d4-a716-446655440001"`
-	OrganizationID uuid.UUID             `json:"organization_id" example:"550e8400-e29b-41d4-a716-446655440002"`
+	Name           string                `json:"name" example:"Project Alpha"`
+	Description    string                `json:"description" example:"A project for managing tasks"`
+	Status         project.ProjectStatus `json:"status" example:"active"`
+	OrganizationID uuid.UUID             `json:"organization_id" example:"550e8400-e29b-41d4-a716-446655440001"`
+	CreatorID      uuid.UUID             `json:"creator_id" example:"550e8400-e29b-41d4-a716-446655440002"`
+	OwnerID        uuid.UUID             `json:"owner_id" example:"550e8400-e29b-41d4-a716-446655440003"`
+	StartDate      time.Time             `json:"start_date" example:"2024-01-01T00:00:00Z"`
+	EndDate        *time.Time            `json:"end_date,omitempty" example:"2024-12-31T23:59:59Z"`
+	CreatedAt      time.Time             `json:"created_at" example:"2024-01-01T00:00:00Z"`
+	UpdatedAt      time.Time             `json:"updated_at" example:"2024-01-01T00:00:00Z"`
 }
 
 // ProjectDetailsResponse represents detailed project information including members and tasks
@@ -82,6 +91,9 @@ func ProjectToResponse(p *project.Project) *ProjectResponse {
 		UpdatedAt:      p.UpdatedAt,
 		CreatorID:      p.CreatorID,
 		OrganizationID: p.OrganizationID,
+		OwnerID:        p.OwnerID,
+		StartDate:      p.StartDate,
+		EndDate:        p.EndDate,
 	}
 }
 

@@ -39,7 +39,7 @@ func (or *OrganizationRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 409 {object} map[string]string "Organization name already exists"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/organizations [post]
-	organizationGroup.POST("", or.handler.CreateOrganization)
+	organizationGroup.POST("", middleware.RequirePermissions("organizations:create"), or.handler.CreateOrganization)
 
 	// @Summary Get all organizations
 	// @Description Get all organizations with pagination
@@ -53,7 +53,7 @@ func (or *OrganizationRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 401 {object} map[string]string "Unauthorized"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/organizations [get]
-	organizationGroup.GET("", or.handler.ListOrganizations)
+	organizationGroup.GET("", middleware.RequirePermissions("organizations:read"), or.handler.ListOrganizations)
 
 	// @Summary Get an organization by ID
 	// @Description Get detailed information about a specific organization
@@ -68,7 +68,7 @@ func (or *OrganizationRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Organization not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/organizations/{id} [get]
-	organizationGroup.GET("/:id", or.handler.GetOrganization)
+	organizationGroup.GET("/:id", middleware.RequirePermissions("organizations:read"), or.handler.GetOrganization)
 
 	// @Summary Get organization statistics
 	// @Description Get detailed statistics about a specific organization
@@ -83,7 +83,7 @@ func (or *OrganizationRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Organization not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/organizations/{id}/stats [get]
-	organizationGroup.GET("/:id/stats", or.handler.GetOrganizationStats)
+	organizationGroup.GET("/:id/stats", middleware.RequirePermissions("organizations:read"), or.handler.GetOrganizationStats)
 
 	// @Summary Update an organization
 	// @Description Update an existing organization's information
@@ -100,7 +100,7 @@ func (or *OrganizationRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 409 {object} map[string]string "Organization name already exists"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/organizations/{id} [put]
-	organizationGroup.PUT("/:id", or.handler.UpdateOrganization)
+	organizationGroup.PUT("/:id", middleware.RequirePermissions("organizations:update"), or.handler.UpdateOrganization)
 
 	// @Summary Delete an organization
 	// @Description Delete an existing organization
@@ -115,5 +115,5 @@ func (or *OrganizationRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Organization not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/organizations/{id} [delete]
-	organizationGroup.DELETE("/:id", or.handler.DeleteOrganization)
+	organizationGroup.DELETE("/:id", middleware.RequirePermissions("organizations:delete"), or.handler.DeleteOrganization)
 }
