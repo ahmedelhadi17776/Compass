@@ -7,21 +7,31 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserStatus represents the status of a user
+type UserStatus string
+
+const (
+	UserStatusActive   UserStatus = "active"
+	UserStatusInactive UserStatus = "inactive"
+	UserStatusBlocked  UserStatus = "blocked"
+)
+
 // User represents a user in the system
 type User struct {
 	ID                  uuid.UUID              `json:"id" gorm:"type:uuid;primary_key"`
-	Email               string                 `json:"email" gorm:"unique;not null"`
-	Username            string                 `json:"username" gorm:"unique;not null"`
+	Email               string                 `json:"email" gorm:"uniqueIndex:idx_user_email,where:deleted_at is null;not null"`
+	Username            string                 `json:"username" gorm:"uniqueIndex:idx_user_username,where:deleted_at is null;not null"`
 	PasswordHash        string                 `json:"-" gorm:"not null"`
-	IsActive            bool                   `json:"is_active" gorm:"default:true"`
-	IsSuperuser         bool                   `json:"is_superuser" gorm:"default:false"`
-	CreatedAt           time.Time              `json:"created_at"`
+	Status              UserStatus             `json:"status" gorm:"not null;default:'active'"`
+	IsActive            bool                   `json:"is_active" gorm:"default:true;index:idx_user_active"`
+	IsSuperuser         bool                   `json:"is_superuser" gorm:"default:false;index:idx_user_superuser"`
+	CreatedAt           time.Time              `json:"created_at" gorm:"index:idx_user_created"`
 	UpdatedAt           time.Time              `json:"updated_at"`
 	DeletedAt           *time.Time             `json:"deleted_at,omitempty" gorm:"index"`
 	MFAEnabled          bool                   `json:"mfa_enabled" gorm:"default:false"`
 	MFASecret           string                 `json:"-"`
 	FailedLoginAttempts int                    `json:"-" gorm:"default:0"`
-	AccountLockedUntil  *time.Time             `json:"-"`
+	AccountLockedUntil  *time.Time             `json:"-" gorm:"index:idx_user_locked"`
 	Preferences         map[string]interface{} `json:"preferences,omitempty" gorm:"type:jsonb"`
 }
 

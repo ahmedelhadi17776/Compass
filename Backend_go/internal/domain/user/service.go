@@ -3,8 +3,10 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -46,35 +48,51 @@ type Service interface {
 	UpdatePassword(ctx context.Context, id uuid.UUID, currentPassword, newPassword string) error
 	LockAccount(ctx context.Context, id uuid.UUID, duration time.Duration) error
 	UnlockAccount(ctx context.Context, id uuid.UUID) error
+	GetUserRolesAndPermissions(ctx context.Context, userID uuid.UUID) ([]string, []string, error)
 }
 
 type service struct {
-	repo Repository
+	repo        Repository
+	authService auth.Service
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, authService auth.Service) Service {
+	return &service{repo: repo, authService: authService}
 }
 
+// validateCreateUserInput validates the input for creating a user
+func validateCreateUserInput(input CreateUserInput) error {
+	if input.Email == "" {
+		return errors.New("email is required")
+	}
+	if input.Username == "" {
+		return errors.New("username is required")
+	}
+	if input.Password == "" {
+		return errors.New("password is required")
+	}
+	return nil
+}
+
+// CreateUser creates a new user with the given input
 func (s *service) CreateUser(ctx context.Context, input CreateUserInput) (*User, error) {
-	// Validate input
-	if input.Email == "" || input.Username == "" || input.Password == "" {
-		return nil, ErrInvalidInput
+	if err := validateCreateUserInput(input); err != nil {
+		return nil, err
 	}
 
-	// Check if email exists
+	// Check if email already exists
 	existingUser, err := s.repo.FindByEmail(ctx, input.Email)
-	if err != nil {
-		return nil, err
+	if err != nil && !errors.Is(err, ErrUserNotFound) {
+		return nil, fmt.Errorf("checking email existence: %w", err)
 	}
 	if existingUser != nil {
 		return nil, ErrEmailExists
 	}
 
-	// Check if username exists
+	// Check if username already exists
 	existingUser, err = s.repo.FindByUsername(ctx, input.Username)
-	if err != nil {
-		return nil, err
+	if err != nil && !errors.Is(err, ErrUserNotFound) {
+		return nil, fmt.Errorf("checking username existence: %w", err)
 	}
 	if existingUser != nil {
 		return nil, ErrUsernameExists
@@ -83,23 +101,35 @@ func (s *service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("hashing password: %w", err)
 	}
 
+	// Create user
 	user := &User{
 		ID:           uuid.New(),
 		Email:        input.Email,
 		Username:     input.Username,
 		PasswordHash: string(hashedPassword),
+		Status:       UserStatusActive,
 		IsActive:     true,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		Preferences:  input.Preferences,
 	}
 
-	err = s.repo.Create(ctx, user)
+	if err := s.repo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("creating user: %w", err)
+	}
+
+	// Get default user role
+	defaultRole, err := s.authService.GetRoleByName(ctx, "user")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting default role: %w", err)
+	}
+
+	// Assign default role to user
+	if err := s.authService.AssignRoleToUser(ctx, user.ID, defaultRole.ID); err != nil {
+		return nil, fmt.Errorf("assigning default role: %w", err)
 	}
 
 	return user, nil
@@ -291,4 +321,32 @@ func (s *service) UnlockAccount(ctx context.Context, id uuid.UUID) error {
 	user.UpdatedAt = time.Now()
 
 	return s.repo.Update(ctx, user)
+}
+
+// GetUserRolesAndPermissions retrieves the roles and permissions for a given user
+func (s *service) GetUserRolesAndPermissions(ctx context.Context, userID uuid.UUID) ([]string, []string, error) {
+	// Get user roles from auth service
+	userRoles, err := s.authService.GetUserRoles(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting user roles: %w", err)
+	}
+
+	// Extract role names and collect all permissions
+	roleNames := make([]string, 0, len(userRoles))
+	allPermissions := make(map[string]struct{}) // Use map to deduplicate permissions
+
+	for _, role := range userRoles {
+		roleNames = append(roleNames, role.Name)
+		for _, perm := range role.Permissions {
+			allPermissions[perm.Name] = struct{}{}
+		}
+	}
+
+	// Convert permissions map to slice
+	permissions := make([]string, 0, len(allPermissions))
+	for perm := range allPermissions {
+		permissions = append(permissions, perm)
+	}
+
+	return roleNames, permissions, nil
 }

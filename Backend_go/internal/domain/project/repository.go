@@ -9,20 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var (
-	ErrProjectNotFound = errors.New("project not found")
-	ErrInvalidInput    = errors.New("invalid input")
-)
-
-// ProjectFilter defines the filtering options for projects
-type ProjectFilter struct {
-	OrganizationID *uuid.UUID
-	Status         *ProjectStatus
-	Name           *string
-	Page           int
-	PageSize       int
-}
-
 // Repository defines the interface for project persistence operations
 type Repository interface {
 	Create(ctx context.Context, project *Project) error
