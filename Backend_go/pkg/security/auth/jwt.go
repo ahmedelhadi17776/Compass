@@ -30,8 +30,8 @@ type JWTService struct {
 func NewJWTService(config *config.Config) *JWTService {
 	return &JWTService{
 		secretKey:     []byte(config.Auth.JWTSecret),
-		tokenDuration: time.Duration(config.Auth.TokenExpiryHours) * time.Hour,
-		issuer:        config.Auth.Issuer,
+		tokenDuration: time.Duration(config.Auth.JWTExpiryHours) * time.Hour,
+		issuer:        config.Auth.JWTIssuer,
 	}
 }
 
