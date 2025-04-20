@@ -13,12 +13,13 @@ import (
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // swagger docs
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
@@ -122,8 +123,9 @@ func main() {
 	userRepo := user.NewRepository(db)
 	projectRepo := project.NewRepository(db)
 	organizationRepo := organization.NewRepository(db)
-	authRepo := auth.NewRepository(db.DB)	
+	authRepo := auth.NewRepository(db.DB)
 	habitsRepo := habits.NewRepository(db)
+	calendarRepo := calendar.NewRepository(db.DB)
 
 	// Initialize services
 	taskService := task.NewService(taskRepo)
@@ -132,6 +134,7 @@ func main() {
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
 	habitsService := habits.NewService(habitsRepo)
+	calendarService := calendar.NewService(calendarRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
@@ -140,6 +143,7 @@ func main() {
 	projectHandler := handlers.NewProjectHandler(projectService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	habitsHandler := handlers.NewHabitsHandler(habitsService)
+	calendarHandler := handlers.NewCalendarHandler(calendarService)
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
@@ -192,6 +196,11 @@ func main() {
 	habitsRoutes := routes.NewHabitsRoutes(habitsHandler, cfg.Auth.JWTSecret)
 	habitsRoutes.RegisterRoutes(router)
 	log.Info("Registered organization routes at /api/habits")
+
+	// Calendar routes (protected)
+	calendarRoutes := routes.NewCalendarRoutes(calendarHandler, cfg.Auth.JWTSecret)
+	calendarRoutes.RegisterRoutes(router)
+	log.Info("Registered calendar routes at /api/calendar")
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {

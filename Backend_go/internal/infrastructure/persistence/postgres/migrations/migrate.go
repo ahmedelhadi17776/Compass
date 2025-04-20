@@ -12,6 +12,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -69,6 +70,12 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&project.Project{},           // Projects depend on organizations
 			&task.Task{},                 // Tasks depend on projects, users, and organizations
 			&habits.Habit{},
+			&habits.StreakHistory{},
+			&calendar.CalendarEvent{},
+			&calendar.RecurrenceRule{},
+			&calendar.EventOccurrence{},
+			&calendar.EventException{},
+			&calendar.EventReminder{},
 		}
 
 		// Migrate each model
