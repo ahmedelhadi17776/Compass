@@ -15,8 +15,8 @@ DOCKER_COMPOSE=docker compose
 DOCKER=docker
 
 # Database parameters
-DB_USER ?= ahmed
-DB_PASSWORD ?= 0502747598
+DB_USER ?= elhadi
+DB_PASSWORD ?= test123
 DB_NAME ?= compass
 DB_HOST ?= localhost
 DB_PORT ?= 5432
