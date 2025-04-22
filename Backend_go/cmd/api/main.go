@@ -20,12 +20,14 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
@@ -118,6 +120,15 @@ func main() {
 		log.Fatal("Failed to run database migrations", zap.Error(err))
 	}
 
+	// Initialize logrus logger for workflow service
+	workflowLogger := logrus.New()
+	workflowLogger.SetFormatter(&logrus.JSONFormatter{})
+	if cfg.Server.Mode == "production" {
+		workflowLogger.SetLevel(logrus.InfoLevel)
+	} else {
+		workflowLogger.SetLevel(logrus.DebugLevel)
+	}
+
 	// Initialize repositories
 	taskRepo := task.NewRepository(db)
 	userRepo := user.NewRepository(db)
@@ -126,6 +137,7 @@ func main() {
 	authRepo := auth.NewRepository(db.DB)
 	habitsRepo := habits.NewRepository(db)
 	calendarRepo := calendar.NewRepository(db.DB)
+	workflowRepo := workflow.NewRepository(db.DB, workflowLogger)
 
 	// Initialize services
 	taskService := task.NewService(taskRepo)
@@ -135,6 +147,10 @@ func main() {
 	organizationService := organization.NewService(organizationRepo)
 	habitsService := habits.NewService(habitsRepo)
 	calendarService := calendar.NewService(calendarRepo)
+	workflowService := workflow.NewService(workflow.ServiceConfig{
+		Repository: workflowRepo,
+		Logger:     workflowLogger,
+	})
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
@@ -144,6 +160,7 @@ func main() {
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	habitsHandler := handlers.NewHabitsHandler(habitsService)
 	calendarHandler := handlers.NewCalendarHandler(calendarService)
+	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
@@ -201,6 +218,11 @@ func main() {
 	calendarRoutes := routes.NewCalendarRoutes(calendarHandler, cfg.Auth.JWTSecret)
 	calendarRoutes.RegisterRoutes(router)
 	log.Info("Registered calendar routes at /api/calendar")
+
+	// Workflow routes (protected)
+	workflowRoutes := routes.NewWorkflowRoutes(workflowHandler, cfg.Auth.JWTSecret)
+	workflowRoutes.RegisterRoutes(router)
+	log.Info("Registered workflow routes at /api/workflows")
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {

@@ -25,6 +25,7 @@ func (cr *CalendarRoutes) RegisterRoutes(router *gin.Engine) {
 	// Create a calendar group with authentication middleware
 	calendarGroup := router.Group("/api/calendar")
 	calendarGroup.Use(middleware.NewAuthMiddleware(cr.jwtSecret))
+	calendarGroup.Use(middleware.OrganizationMiddleware())
 
 	// Event routes
 	events := calendarGroup.Group("/events")

@@ -20,7 +20,7 @@ func NewHabitsRoutes(handler *handlers.HabitsHandler, jwtSecret string) *HabitsR
 
 // RegisterHabitsRoutes registers all habit-related routes
 func (h *HabitsRoutes) RegisterRoutes(router *gin.Engine) {
-	habits := router.Group("/habits")
+	habits := router.Group("/api/habits")
 	habits.Use(middleware.NewAuthMiddleware(h.jwtSecret))
 
 	// CRUD operations
