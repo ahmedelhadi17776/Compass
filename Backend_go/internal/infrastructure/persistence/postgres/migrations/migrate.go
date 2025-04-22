@@ -14,6 +14,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -76,6 +77,11 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&calendar.EventOccurrence{},
 			&calendar.EventException{},
 			&calendar.EventReminder{},
+			&workflow.Workflow{},
+			&workflow.WorkflowStep{},
+			&workflow.WorkflowExecution{},
+			&workflow.WorkflowAgentLink{},
+			&workflow.WorkflowTransition{},
 		}
 
 		// Migrate each model
