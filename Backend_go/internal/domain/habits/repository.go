@@ -42,6 +42,7 @@ type Repository interface {
 	LogStreakHistory(ctx context.Context, habitID uuid.UUID, streakLength int, lastCompletedDate time.Time) error
 	ResetStreak(ctx context.Context, habitID uuid.UUID) error
 	GetStreakHistory(ctx context.Context, habitID uuid.UUID) ([]StreakHistory, error)
+	UpdateStreakQuality(ctx context.Context, habitID uuid.UUID) error
 }
 
 type repository struct {
@@ -232,15 +233,39 @@ func (r *repository) GetActiveStreaks(ctx context.Context) ([]Habit, error) {
 }
 
 func (r *repository) LogStreakHistory(ctx context.Context, habitID uuid.UUID, streakLength int, lastCompletedDate time.Time) error {
+	// Calculate the actual start date by going back streakLength-1 days
+	startDate := lastCompletedDate.AddDate(0, 0, -streakLength+1)
+
+	// Get any existing streak history that might overlap
+	var existingHistory []StreakHistory
+	if err := r.db.WithContext(ctx).
+		Where("habit_id = ? AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?))",
+			habitID, startDate, lastCompletedDate, startDate, lastCompletedDate).
+		Find(&existingHistory).Error; err != nil {
+		return err
+	}
+
+	// If there's overlap, adjust the completed days
+	adjustedCompletedDays := streakLength
+	for _, h := range existingHistory {
+		if h.StartDate.After(startDate) && h.StartDate.Before(lastCompletedDate) ||
+			h.EndDate.After(startDate) && h.EndDate.Before(lastCompletedDate) {
+			// Subtract any overlapping days to avoid double counting
+			overlap := int(h.EndDate.Sub(h.StartDate).Hours()/24) + 1
+			adjustedCompletedDays = streakLength - overlap
+		}
+	}
+
 	history := StreakHistory{
 		ID:            uuid.New(),
 		HabitID:       habitID,
-		StartDate:     lastCompletedDate.AddDate(0, 0, -streakLength+1),
+		StartDate:     startDate,
 		EndDate:       lastCompletedDate,
 		StreakLength:  streakLength,
-		CompletedDays: streakLength,
+		CompletedDays: adjustedCompletedDays,
 		CreatedAt:     time.Now(),
 	}
+
 	return r.db.WithContext(ctx).Create(&history).Error
 }
 
@@ -260,4 +285,33 @@ func (r *repository) GetStreakHistory(ctx context.Context, habitID uuid.UUID) ([
 		Order("end_date DESC").
 		Find(&history).Error
 	return history, err
+}
+
+func (r *repository) UpdateStreakQuality(ctx context.Context, habitID uuid.UUID) error {
+	var history []StreakHistory
+	var totalDays, completedDays int
+
+	// Fetch history
+	if err := r.db.WithContext(ctx).
+		Where("habit_id = ?", habitID).
+		Find(&history).Error; err != nil {
+		return err
+	}
+
+	// Calculate quality
+	for _, h := range history {
+		days := int(h.EndDate.Sub(h.StartDate).Hours() / 24)
+		totalDays += days
+		completedDays += h.CompletedDays
+	}
+
+	quality := 0.0
+	if totalDays > 0 {
+		quality = float64(completedDays) / float64(totalDays)
+	}
+
+	// Update habit
+	return r.db.WithContext(ctx).Model(&Habit{}).
+		Where("id = ?", habitID).
+		Update("streak_quality", quality).Error
 }

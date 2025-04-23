@@ -122,7 +122,17 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 	if habit == nil {
 		return ErrHabitNotFound
 	}
-	return s.repo.MarkCompleted(ctx, id, userID, completionDate)
+
+	if err := s.repo.MarkCompleted(ctx, id, userID, completionDate); err != nil {
+		return err
+	}
+
+	// Update streak quality after marking completed
+	if err := s.repo.UpdateStreakQuality(ctx, id); err != nil {
+		log.Printf("failed to update streak quality for habit %s: %v", id, err)
+	}
+
+	return nil
 }
 
 func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
@@ -133,7 +143,17 @@ func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid
 	if habit == nil {
 		return ErrHabitNotFound
 	}
-	return s.repo.UnmarkCompleted(ctx, id, userID)
+
+	if err := s.repo.UnmarkCompleted(ctx, id, userID); err != nil {
+		return err
+	}
+
+	// Update streak quality after unmarking completed
+	if err := s.repo.UpdateStreakQuality(ctx, id); err != nil {
+		log.Printf("failed to update streak quality for habit %s: %v", id, err)
+	}
+
+	return nil
 }
 
 func (s *service) ResetDailyCompletions(ctx context.Context) (int64, error) {
@@ -161,6 +181,11 @@ func (s *service) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error)
 			// Before resetting, store the streak history
 			if err := s.repo.LogStreakHistory(ctx, habit.ID, habit.CurrentStreak, *habit.LastCompletedDate); err != nil {
 				log.Printf("failed to log streak history for habit %s: %v", habit.ID, err)
+			}
+
+			// Update streak quality after logging history
+			if err := s.repo.UpdateStreakQuality(ctx, habit.ID); err != nil {
+				log.Printf("failed to update streak quality for habit %s: %v", habit.ID, err)
 			}
 
 			// Reset the streak
@@ -214,20 +239,40 @@ func calculateStreakQuality(habit *Habit, history []StreakHistory) float64 {
 		return 0
 	}
 
-	var totalDays int
-	var completedDays int
+	// Sort history by start date to ensure correct calculation
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].StartDate.Before(history[j].StartDate)
+	})
+
+	// Find earliest and latest dates
+	earliest := history[0].StartDate
+	latest := history[0].EndDate
+	totalCompleted := 0
 
 	for _, h := range history {
-		days := int(h.EndDate.Sub(h.StartDate).Hours() / 24)
-		totalDays += days
-		completedDays += h.CompletedDays
+		if h.StartDate.Before(earliest) {
+			earliest = h.StartDate
+		}
+		if h.EndDate.After(latest) {
+			latest = h.EndDate
+		}
+		totalCompleted += h.CompletedDays
 	}
 
+	// Calculate total days in entire period
+	totalDays := int(latest.Sub(earliest).Hours()/24) + 1
 	if totalDays == 0 {
 		return 0
 	}
 
-	return float64(completedDays) / float64(totalDays)
+	quality := float64(totalCompleted) / float64(totalDays)
+
+	// Ensure quality doesn't exceed 1.0
+	if quality > 1.0 {
+		quality = 1.0
+	}
+
+	return quality
 }
 
 func (s *service) GetStreakHistory(ctx context.Context, id uuid.UUID) ([]StreakHistory, error) {
