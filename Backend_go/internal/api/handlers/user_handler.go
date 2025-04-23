@@ -44,9 +44,14 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	createInput := user.CreateUserInput{
-		Email:    input.Email,
-		Username: input.Username,
-		Password: input.Password,
+		Email:       input.Email,
+		Username:    input.Username,
+		Password:    input.Password,
+		FirstName:   input.FirstName,
+		LastName:    input.LastName,
+		PhoneNumber: input.PhoneNumber,
+		Timezone:    input.Timezone,
+		Locale:      input.Locale,
 	}
 
 	createdUser, err := h.userService.CreateUser(c.Request.Context(), createInput)
@@ -59,16 +64,18 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		ID:          createdUser.ID,
 		Email:       createdUser.Email,
 		Username:    createdUser.Username,
+		FirstName:   createdUser.FirstName,
+		LastName:    createdUser.LastName,
+		PhoneNumber: createdUser.PhoneNumber,
+		AvatarURL:   createdUser.AvatarURL,
+		Bio:         createdUser.Bio,
+		Timezone:    createdUser.Timezone,
+		Locale:      createdUser.Locale,
 		IsActive:    createdUser.IsActive,
 		IsSuperuser: createdUser.IsSuperuser,
 		CreatedAt:   createdUser.CreatedAt,
 		UpdatedAt:   createdUser.UpdatedAt,
 		DeletedAt:   createdUser.DeletedAt,
-		FirstName:   input.FirstName,
-		LastName:    input.LastName,
-		PhoneNumber: input.PhoneNumber,
-		Timezone:    input.Timezone,
-		Locale:      input.Locale,
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"user": response})
@@ -186,6 +193,13 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		ID:          foundUser.ID,
 		Email:       foundUser.Email,
 		Username:    foundUser.Username,
+		FirstName:   foundUser.FirstName,
+		LastName:    foundUser.LastName,
+		PhoneNumber: foundUser.PhoneNumber,
+		AvatarURL:   foundUser.AvatarURL,
+		Bio:         foundUser.Bio,
+		Timezone:    foundUser.Timezone,
+		Locale:      foundUser.Locale,
 		IsActive:    foundUser.IsActive,
 		IsSuperuser: foundUser.IsSuperuser,
 		CreatedAt:   foundUser.CreatedAt,
@@ -221,8 +235,15 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	updateInput := user.UpdateUserInput{
-		Username: input.Username,
-		Email:    input.Email,
+		Username:    input.Username,
+		Email:       input.Email,
+		FirstName:   input.FirstName,
+		LastName:    input.LastName,
+		PhoneNumber: input.PhoneNumber,
+		AvatarURL:   input.AvatarURL,
+		Bio:         input.Bio,
+		Timezone:    input.Timezone,
+		Locale:      input.Locale,
 	}
 
 	updatedUser, err := h.userService.UpdateUser(c.Request.Context(), userID.(uuid.UUID), updateInput)
@@ -235,16 +256,18 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		ID:          updatedUser.ID,
 		Email:       updatedUser.Email,
 		Username:    updatedUser.Username,
+		FirstName:   updatedUser.FirstName,
+		LastName:    updatedUser.LastName,
+		PhoneNumber: updatedUser.PhoneNumber,
+		AvatarURL:   updatedUser.AvatarURL,
+		Bio:         updatedUser.Bio,
+		Timezone:    updatedUser.Timezone,
+		Locale:      updatedUser.Locale,
 		IsActive:    updatedUser.IsActive,
 		IsSuperuser: updatedUser.IsSuperuser,
 		CreatedAt:   updatedUser.CreatedAt,
 		UpdatedAt:   updatedUser.UpdatedAt,
 		DeletedAt:   updatedUser.DeletedAt,
-		FirstName:   *input.FirstName,
-		LastName:    *input.LastName,
-		PhoneNumber: *input.PhoneNumber,
-		Timezone:    *input.Timezone,
-		Locale:      *input.Locale,
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": response})

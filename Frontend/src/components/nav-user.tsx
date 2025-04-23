@@ -1,52 +1,29 @@
 "use client"
 
-import {
-  Bell,
-  ChevronsUpDown,
-  CreditCard,
-  LogOut,
-  Settings,
-  Sparkles,
-} from "lucide-react"
-
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
+import { Bell, ChevronsUpDown, CreditCard, LogOut, Settings, Sparkles } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar"
 import { useNavigate } from "react-router-dom"
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth, User } from '@/hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
 import SettingsForm from "@/components/settings-form"
 import { useState } from "react"
 
+interface DefaultUser {
+  name: string
+  email: string
+  avatar: string
+}
+
 interface NavUserProps {
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
+  defaultUser?: DefaultUser
   onLogout?: () => void
 }
 
-export function NavUser({ user, onLogout }: NavUserProps) {
+export function NavUser({ defaultUser, onLogout }: NavUserProps) {
   const { isMobile } = useSidebar()
-  const { logout, user: authUser } = useAuth()
+  const { logout, user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showSettings, setShowSettings] = useState(false)
@@ -61,16 +38,34 @@ export function NavUser({ user, onLogout }: NavUserProps) {
     onLogout?.()
   }
 
-  // Use the authenticated user data if available
-  const displayUser = authUser ? {
-    name: `${authUser.first_name || ''} ${authUser.last_name || ''}`.trim(),
-    email: authUser.email || '',
-    avatar: user.avatar // Keep the existing avatar
-  } : user;
+  const fallbackUser: DefaultUser = {
+    name: 'Anonymous',
+    email: 'anonymous@example.com',
+    avatar: ''
+  }
 
   const getInitials = () => {
-    if (!authUser?.first_name || !authUser?.last_name) return 'AD';
-    return `${authUser.first_name[0]}${authUser.last_name[0]}`;
+    if (user) {
+      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    }
+    return (defaultUser || fallbackUser).name.slice(0, 2).toUpperCase();
+  };
+
+  const getDisplayName = () => {
+    if (user) {
+      return `${user.first_name} ${user.last_name}`.trim() || user.username;
+    }
+    return (defaultUser || fallbackUser).name;
+  };
+
+  const getAvatarUrl = () => {
+    if (user?.avatar) return user.avatar;
+    return (defaultUser || fallbackUser).avatar;
+  };
+
+  const getEmail = () => {
+    if (user?.email) return user.email;
+    return (defaultUser || fallbackUser).email;
   };
 
   return (
@@ -84,15 +79,15 @@ export function NavUser({ user, onLogout }: NavUserProps) {
             >
               <div className="flex aspect-square size-8 items-center justify-center">
                 <Avatar className="h-full w-full rounded-lg">
-                  <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
+                  <AvatarImage src={getAvatarUrl()} alt={getDisplayName()} />
                   <AvatarFallback className="rounded-lg">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{displayUser.name}</span>
-                <span className="truncate text-xs">{displayUser.email}</span>
+                <span className="truncate font-semibold">{getDisplayName()}</span>
+                <span className="truncate text-xs">{getEmail()}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -107,15 +102,15 @@ export function NavUser({ user, onLogout }: NavUserProps) {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <div className="flex aspect-square size-8 items-center justify-center">
                   <Avatar className="h-full w-full rounded-lg">
-                    <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
+                    <AvatarImage src={getAvatarUrl()} alt={getDisplayName()} />
                     <AvatarFallback className="rounded-lg">
                       {getInitials()}
                     </AvatarFallback>
                   </Avatar>
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{displayUser.name}</span>
-                  <span className="truncate text-xs">{displayUser.email}</span>
+                  <span className="truncate font-semibold">{getDisplayName()}</span>
+                  <span className="truncate text-xs">{getEmail()}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
