@@ -21,7 +21,7 @@ type Habit struct {
 	LastCompletedDate *time.Time `gorm:"default:null"`
 	CreatedAt         time.Time  `gorm:"not null;default:current_timestamp"`
 	UpdatedAt         time.Time  `gorm:"not null;default:current_timestamp;autoUpdateTime"`
-	StreakQuality     float64    `gorm:"-"` // Calculated field, not stored in DB
+	StreakQuality     float64    `gorm:"default:0;not null"` // Stored in DB for faster retrieval
 }
 
 // StreakHistory represents a historical record of a habit streak
