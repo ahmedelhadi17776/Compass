@@ -45,7 +45,7 @@ import (
 // @contact.email  support@swagger.io
 
 // @host      localhost:8000
-// @BasePath  /api
+// @BasePath
 
 // @securityDefinitions.apikey BearerAuth
 // @in header
@@ -239,10 +239,10 @@ func main() {
 	organizationRoutes.RegisterRoutes(router)
 	log.Info("Registered organization routes at /api/organizations")
 
-	// Organization routes (protected)
+	// Habits routes (protected)
 	habitsRoutes := routes.NewHabitsRoutes(habitsHandler, cfg.Auth.JWTSecret)
 	habitsRoutes.RegisterRoutes(router)
-	log.Info("Registered organization routes at /api/habits")
+	log.Info("Registered habits routes at /habits")
 
 	// Calendar routes (protected)
 	calendarRoutes := routes.NewCalendarRoutes(calendarHandler, cfg.Auth.JWTSecret)
