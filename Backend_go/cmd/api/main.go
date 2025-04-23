@@ -12,6 +12,7 @@ import (
 
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // swagger docs
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
@@ -21,6 +22,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
@@ -139,6 +141,17 @@ func main() {
 	calendarRepo := calendar.NewRepository(db.DB)
 	workflowRepo := workflow.NewRepository(db.DB, workflowLogger)
 
+	// Initialize Redis
+	redisConfig := cache.NewConfigFromEnv(cfg)
+	redisClient, err := cache.NewRedisClient(redisConfig)
+	if err != nil {
+		log.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	defer redisClient.Close()
+
+	// Create cache middleware
+	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
+
 	// Initialize services
 	taskService := task.NewService(taskRepo)
 	authService := auth.NewService(authRepo)
@@ -194,14 +207,31 @@ func main() {
 	})
 	log.Info("Registered health check routes at /health and /health/ready")
 
+	// Add cache health check
+	router.GET("/health/cache", func(c *gin.Context) {
+		if err := redisClient.HealthCheck(c); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status":    "unhealthy",
+				"component": "cache",
+				"error":     err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "healthy",
+			"component": "cache",
+			"metrics":   redisClient.GetMetrics(),
+		})
+	})
+
 	// Task routes (protected)
 	taskRoutes := routes.NewTaskRoutes(taskHandler, cfg.Auth.JWTSecret)
-	taskRoutes.RegisterRoutes(router)
+	taskRoutes.RegisterRoutes(router, cacheMiddleware)
 	log.Info("Registered task routes at /api/tasks")
 
 	// Project routes (protected)
 	projectRoutes := routes.NewProjectRoutes(projectHandler, cfg.Auth.JWTSecret)
-	projectRoutes.RegisterRoutes(router)
+	projectRoutes.RegisterRoutes(router, cacheMiddleware)
 	log.Info("Registered project routes at /api/projects")
 
 	// Organization routes (protected)

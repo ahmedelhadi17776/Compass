@@ -118,21 +118,6 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 		return
 	}
 
-	// Get organization ID from context
-	orgID, exists := c.Get("org_id")
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
-		return
-	}
-
-	// Convert orgID to uuid.UUID
-	orgUUID, ok := orgID.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
-		return
-	}
-
-	// Verify task belongs to organization
 	tsk, err := h.service.GetTask(c.Request.Context(), id)
 	if err != nil {
 		statuscode := http.StatusInternalServerError
@@ -140,12 +125,6 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 			statuscode = http.StatusNotFound
 		}
 		c.JSON(statuscode, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Check if task belongs to the organization
-	if tsk.OrganizationID != orgUUID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "task does not belong to the organization"})
 		return
 	}
 
@@ -189,24 +168,9 @@ func (h *TaskHandler) ListTasks(c *gin.Context) {
 		return
 	}
 
-	// Get organization ID from context
-	orgID, exists := c.Get("org_id")
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
-		return
-	}
-
-	// Convert orgID to uuid.UUID
-	orgUUID, ok := orgID.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
-		return
-	}
-
 	filter := task.TaskFilter{
-		Page:           page,
-		PageSize:       pageSize,
-		OrganizationID: &orgUUID,
+		Page:     page,
+		PageSize: pageSize,
 	}
 
 	// Parse optional filters
@@ -294,37 +258,6 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	// Get organization ID from context
-	orgID, exists := c.Get("org_id")
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
-		return
-	}
-
-	// Convert orgID to uuid.UUID
-	orgUUID, ok := orgID.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
-		return
-	}
-
-	// Verify task belongs to organization
-	existingTask, err := h.service.GetTask(c.Request.Context(), id)
-	if err != nil {
-		statuscode := http.StatusInternalServerError
-		if err == task.ErrTaskNotFound {
-			statuscode = http.StatusNotFound
-		}
-		c.JSON(statuscode, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Check if task belongs to the organization
-	if existingTask.OrganizationID != orgUUID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "task does not belong to the organization"})
-		return
-	}
-
 	input := task.UpdateTaskInput{
 		Title:          req.Title,
 		Description:    req.Description,
@@ -394,37 +327,6 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 		return
 	}
 
-	// Get organization ID from context
-	orgID, exists := c.Get("org_id")
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "organization context not found"})
-		return
-	}
-
-	// Convert orgID to uuid.UUID
-	orgUUID, ok := orgID.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid organization ID format"})
-		return
-	}
-
-	// Verify task belongs to organization
-	existingTask, err := h.service.GetTask(c.Request.Context(), id)
-	if err != nil {
-		statuscode := http.StatusInternalServerError
-		if err == task.ErrTaskNotFound {
-			statuscode = http.StatusNotFound
-		}
-		c.JSON(statuscode, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Check if task belongs to the organization
-	if existingTask.OrganizationID != orgUUID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "task does not belong to the organization"})
-		return
-	}
-
 	err = h.service.DeleteTask(c.Request.Context(), id)
 	if err != nil {
 		statuscode := http.StatusInternalServerError
@@ -436,4 +338,167 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// GetProjectTasks godoc
+// @Summary Get tasks for a project
+// @Description Get tasks for a specific project
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param project_id path string true "Project ID" format(uuid)
+// @Param page query int false "Page number (default: 0)"
+// @Param pageSize query int false "Number of items per page (default: 10)"
+// @Success 200 {object} dto.TaskListResponse "List of tasks retrieved successfully"
+// @Failure 400 {object} map[string]string "Invalid project ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Insufficient permissions"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/tasks/project/{project_id} [get]
+func (h *TaskHandler) GetProjectTasks(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("project_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project ID"})
+		return
+	}
+
+	pageStr := c.DefaultQuery("page", "0")
+	pageSizeStr := c.DefaultQuery("pageSize", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page number"})
+		return
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page size"})
+		return
+	}
+
+	filter := task.TaskFilter{
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	tasks, total, err := h.service.GetProjectTasks(c.Request.Context(), projectID, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert tasks to response DTOs
+	taskResponses := make([]dto.TaskResponse, len(tasks))
+	for i, t := range tasks {
+		response := dto.TaskToResponse(&t)
+		taskResponses[i] = *response
+	}
+
+	response := dto.TaskListResponse{
+		Tasks:      taskResponses,
+		TotalCount: total,
+		Page:       page,
+		PageSize:   pageSize,
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+// UpdateTaskStatus godoc
+// @Summary Update task status
+// @Description Update the status of a task
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Task ID" format(uuid)
+// @Param status body dto.UpdateTaskStatusRequest true "Task status update information"
+// @Success 200 {object} dto.TaskResponse "Task status updated successfully"
+// @Failure 400 {object} map[string]string "Invalid request or task ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Insufficient permissions"
+// @Failure 404 {object} map[string]string "Task not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/tasks/{id}/status [patch]
+func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task ID"})
+		return
+	}
+
+	var req dto.UpdateTaskStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	status := task.TaskStatus(req.Status)
+	if !status.IsValid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status value"})
+		return
+	}
+
+	updatedTask, err := h.service.UpdateTaskStatus(c.Request.Context(), id, status)
+	if err != nil {
+		statuscode := http.StatusInternalServerError
+		if err == task.ErrTaskNotFound {
+			statuscode = http.StatusNotFound
+		} else if err == task.ErrInvalidInput || err == task.ErrInvalidTransition {
+			statuscode = http.StatusBadRequest
+		}
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": dto.TaskToResponse(updatedTask)})
+}
+
+// AssignTask godoc
+// @Summary Assign a task
+// @Description Assign a task to a user
+// @Tags tasks
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Task ID" format(uuid)
+// @Param assign body dto.AssignTaskRequest true "Task assignment information"
+// @Success 200 {object} dto.TaskResponse "Task assigned successfully"
+// @Failure 400 {object} map[string]string "Invalid request or task ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Insufficient permissions"
+// @Failure 404 {object} map[string]string "Task not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/tasks/{id}/assign [patch]
+func (h *TaskHandler) AssignTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task ID"})
+		return
+	}
+
+	var req dto.AssignTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	assigneeID, err := uuid.Parse(req.AssigneeID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignee ID"})
+		return
+	}
+
+	updatedTask, err := h.service.AssignTask(c.Request.Context(), id, assigneeID)
+	if err != nil {
+		statuscode := http.StatusInternalServerError
+		if err == task.ErrTaskNotFound {
+			statuscode = http.StatusNotFound
+		}
+		c.JSON(statuscode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": dto.TaskToResponse(updatedTask)})
 }

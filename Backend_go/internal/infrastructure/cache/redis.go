@@ -1,265 +1,580 @@
 package cache
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "time"
+	"bytes"
+	"compress/gzip"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
-    "github.com/go-redis/redis/v8"
-    "github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
-    "go.uber.org/zap"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
+	"github.com/go-redis/redis/v8"
+	"go.uber.org/zap"
 )
 
 var log = logger.NewLogger()
 
-// CacheMetrics tracks cache hit/miss statistics
-type CacheMetrics struct {
-    Hits      int64
-    Misses    int64
-    HitRate   float64
-    LastReset int64
-    ByType    map[string]TypeMetrics
+// Custom error types
+var (
+	ErrCacheNotFound   = errors.New("cache: key not found")
+	ErrCacheConnection = errors.New("cache: connection error")
+	ErrCacheTimeout    = errors.New("cache: operation timeout")
+	ErrInvalidConfig   = errors.New("cache: invalid configuration")
+)
+
+// Config holds the configuration for Redis client
+type Config struct {
+	Addr             string
+	Password         string
+	DB               int
+	PoolSize         int
+	MinIdleConns     int
+	MaxRetries       int
+	ConnTimeout      time.Duration
+	OperationTimeout time.Duration
+	UseCompression   bool
+	DefaultTTL       time.Duration
+	MaxKeyLength     int           // Maximum allowed key length
+	KeyPrefix        string        // Prefix for all keys
+	RetryInterval    time.Duration // Interval between retry attempts
 }
 
-// TypeMetrics tracks metrics for a specific cache type
+// DefaultConfig returns a default configuration
+func DefaultConfig() *Config {
+	return &Config{
+		PoolSize:         100,
+		MinIdleConns:     10,
+		MaxRetries:       3,
+		ConnTimeout:      5 * time.Second,
+		OperationTimeout: 2 * time.Second,
+		UseCompression:   false,
+		DefaultTTL:       30 * time.Minute,
+		MaxKeyLength:     256,
+		KeyPrefix:        "compass:",
+		RetryInterval:    100 * time.Millisecond,
+	}
+}
+
+// NewConfigFromEnv creates a Redis config from project configuration
+func NewConfigFromEnv(cfg *config.Config) *Config {
+	return &Config{
+		Addr:             fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port),
+		Password:         cfg.Redis.Password,
+		DB:               cfg.Redis.DB,
+		PoolSize:         100,
+		MinIdleConns:     10,
+		MaxRetries:       3,
+		ConnTimeout:      5 * time.Second,
+		OperationTimeout: cfg.Server.Timeout,
+		UseCompression:   true,
+		DefaultTTL:       30 * time.Minute,
+		MaxKeyLength:     256,
+		KeyPrefix:        "compass:",
+		RetryInterval:    100 * time.Millisecond,
+	}
+}
+
+// CacheMetrics tracks cache hit/miss statistics with atomic operations
+type CacheMetrics struct {
+	hits      atomic.Int64
+	misses    atomic.Int64
+	hitRate   atomic.Int64 // Store as integer (multiply by 100 for percentage)
+	lastReset atomic.Int64
+	byType    sync.Map // map[string]*TypeMetrics
+}
+
+// TypeMetrics tracks metrics for a specific cache type with atomic operations
 type TypeMetrics struct {
-    Hits   int64
-    Misses int64
+	hits   atomic.Int64
+	misses atomic.Int64
 }
 
 // RedisClient wraps the Redis client with additional functionality
 type RedisClient struct {
-    client  *redis.Client
-    metrics CacheMetrics
-    ttls    map[string]int
+	client    *redis.Client
+	metrics   *CacheMetrics
+	ttls      sync.Map // map[string]time.Duration
+	config    *Config
+	closeOnce sync.Once
+	health    int32 // 0 = healthy, 1 = unhealthy, using atomic operations
 }
 
-// NewRedisClient creates a new Redis client
-func NewRedisClient(addr, password string, db int) (*RedisClient, error) {
-    client := redis.NewClient(&redis.Options{
-        Addr:         addr,
-        Password:     password,
-        DB:           db,
-        PoolSize:     100,
-        MinIdleConns: 10,
-        MaxRetries:   3,
-    })
+// NewRedisClient creates a new Redis client with the provided configuration
+func NewRedisClient(cfg *Config) (*RedisClient, error) {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
 
-    // Test connection
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
+	if cfg.Addr == "" {
+		return nil, fmt.Errorf("%w: address is required", ErrInvalidConfig)
+	}
 
-    if _, err := client.Ping(ctx).Result(); err != nil {
-        return nil, fmt.Errorf("failed to connect to Redis: %w", err)
-    }
+	client := redis.NewClient(&redis.Options{
+		Addr:         cfg.Addr,
+		Password:     cfg.Password,
+		DB:           cfg.DB,
+		PoolSize:     cfg.PoolSize,
+		MinIdleConns: cfg.MinIdleConns,
+		MaxRetries:   cfg.MaxRetries,
+	})
 
-    return &RedisClient{
-        client: client,
-        metrics: CacheMetrics{
-            LastReset: time.Now().Unix(),
-            ByType:    make(map[string]TypeMetrics),
-        },
-        ttls: map[string]int{
-            "default":    1800,  // 30 minutes
-            "task":       3600,  // 1 hour
-            "user":       7200,  // 2 hours
-            "project":    3600,  // 1 hour
-            "workflow":   3600,  // 1 hour
-            "event":      1800,  // 30 minutes
-            "task_list":  600,   // 10 minutes
-            "event_list": 600,   // 10 minutes
-        },
-    }, nil
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConnTimeout)
+	defer cancel()
+
+	if _, err := client.Ping(ctx).Result(); err != nil {
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	r := &RedisClient{
+		client:  client,
+		config:  cfg,
+		metrics: &CacheMetrics{},
+	}
+
+	// Initialize default TTLs
+	r.ttls.Store("default", 30*time.Minute)
+	r.ttls.Store("task", time.Hour)
+	r.ttls.Store("user", 2*time.Hour)
+	r.ttls.Store("project", time.Hour)
+	r.ttls.Store("workflow", time.Hour)
+	r.ttls.Store("event", 30*time.Minute)
+	r.ttls.Store("task_list", 10*time.Minute)
+	r.ttls.Store("event_list", 10*time.Minute)
+
+	// Start health check goroutine
+	go r.healthCheckLoop()
+
+	return r, nil
 }
 
-// Get retrieves a value from the cache
+// healthCheckLoop periodically checks Redis health
+func (r *RedisClient) healthCheckLoop() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), r.config.OperationTimeout)
+		if err := r.HealthCheck(ctx); err != nil {
+			atomic.StoreInt32(&r.health, 1)
+			log.Error("Redis health check failed", zap.Error(err))
+		} else {
+			atomic.StoreInt32(&r.health, 0)
+		}
+		cancel()
+	}
+}
+
+// IsHealthy returns whether Redis is currently healthy
+func (r *RedisClient) IsHealthy() bool {
+	return atomic.LoadInt32(&r.health) == 0
+}
+
+// withContext wraps the context with a timeout if none is set
+func (r *RedisClient) withContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); !ok {
+		return context.WithTimeout(ctx, r.config.OperationTimeout)
+	}
+	return ctx, func() {}
+}
+
+// validateKey checks if the key is valid
+func (r *RedisClient) validateKey(key string) error {
+	if len(key) == 0 {
+		return fmt.Errorf("%w: empty key", ErrInvalidConfig)
+	}
+	if len(key) > r.config.MaxKeyLength {
+		return fmt.Errorf("%w: key too long (max %d characters)", ErrInvalidConfig, r.config.MaxKeyLength)
+	}
+	return nil
+}
+
+// prefixKey adds the configured prefix to the key
+func (r *RedisClient) prefixKey(key string) string {
+	return r.config.KeyPrefix + key
+}
+
+// Get retrieves a value from the cache with proper context handling
 func (r *RedisClient) Get(ctx context.Context, key string) (string, error) {
-    val, err := r.client.Get(ctx, key).Result()
-    if err != nil {
-        if err == redis.Nil {
-            return "", nil
-        }
-        return "", err
-    }
-    return val, nil
+	if err := r.validateKey(key); err != nil {
+		return "", err
+	}
+
+	if !r.IsHealthy() {
+		return "", ErrCacheConnection
+	}
+
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
+
+	prefixedKey := r.prefixKey(key)
+	val, err := r.client.Get(ctx, prefixedKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", fmt.Errorf("%w: %s", ErrCacheNotFound, key)
+		}
+		return "", fmt.Errorf("%w: %v", ErrCacheConnection, err)
+	}
+
+	if r.config.UseCompression {
+		return r.decompress(val)
+	}
+	return val, nil
 }
 
-// Set stores a value in the cache with the specified TTL
+// Set stores a value in the cache with proper context and compression handling
 func (r *RedisClient) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-    return r.client.Set(ctx, key, value, ttl).Err()
+	if err := r.validateKey(key); err != nil {
+		return err
+	}
+
+	if !r.IsHealthy() {
+		return ErrCacheConnection
+	}
+
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
+
+	if r.config.UseCompression {
+		compressed, err := r.compress(value)
+		if err != nil {
+			return fmt.Errorf("compression failed: %w", err)
+		}
+		value = compressed
+	}
+
+	prefixedKey := r.prefixKey(key)
+	return r.client.Set(ctx, prefixedKey, value, ttl).Err()
 }
 
-// Delete removes a value from the cache
-func (r *RedisClient) Delete(ctx context.Context, keys ...string) error {
-    return r.client.Del(ctx, keys...).Err()
+// compress compresses a string using gzip
+func (r *RedisClient) compress(data string) (string, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+
+	if _, err := gz.Write([]byte(data)); err != nil {
+		return "", err
+	}
+
+	if err := gz.Close(); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
-// GenerateCacheKey creates a unique cache key for the given entity
-func GenerateCacheKey(entityType string, entityID interface{}, action string) string {
-    if action == "" {
-        return fmt.Sprintf("%s:%v", entityType, entityID)
-    }
-    return fmt.Sprintf("%s:%v:%s", entityType, entityID, action)
+// decompress decompresses a gzipped string
+func (r *RedisClient) decompress(data string) (string, error) {
+	gr, err := gzip.NewReader(strings.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	defer gr.Close()
+
+	decompressed, err := io.ReadAll(gr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(decompressed), nil
 }
 
-// CacheResponse is a generic function to cache any serializable response
-func (r *RedisClient) CacheResponse(ctx context.Context, key string, ttl time.Duration, cacheType string, fn func() (interface{}, error)) (interface{}, error) {
-    // Try to get from cache first
-    cachedData, err := r.Get(ctx, key)
-    if err != nil {
-        log.Error("Error getting from cache", zap.Error(err))
-    } else if cachedData != "" {
-        // Track cache hit
-        r.trackCacheEvent(true, cacheType)
-        log.Debug("Cache hit", zap.String("key", key), zap.String("type", cacheType))
-        
-        // Deserialize the cached data
-        var result interface{}
-        if err := json.Unmarshal([]byte(cachedData), &result); err != nil {
-            log.Error("Error deserializing cached data", zap.Error(err))
-        } else {
-            return result, nil
-        }
-    }
+// BatchGet retrieves multiple values from the cache in a single operation
+func (r *RedisClient) BatchGet(ctx context.Context, keys []string) (map[string]string, error) {
+	if !r.IsHealthy() {
+		return nil, ErrCacheConnection
+	}
 
-    // Cache miss, execute the function
-    r.trackCacheEvent(false, cacheType)
-    log.Debug("Cache miss", zap.String("key", key), zap.String("type", cacheType))
-    
-    result, err := fn()
-    if err != nil {
-        return nil, err
-    }
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
 
-    // Don't cache nil results
-    if result == nil {
-        return nil, nil
-    }
+	prefixedKeys := make([]string, len(keys))
+	for i, key := range keys {
+		if err := r.validateKey(key); err != nil {
+			return nil, err
+		}
+		prefixedKeys[i] = r.prefixKey(key)
+	}
 
-    // Serialize and cache the result
-    data, err := json.Marshal(result)
-    if err != nil {
-        log.Error("Error serializing result", zap.Error(err))
-        return result, nil
-    }
+	pipe := r.client.Pipeline()
+	cmds := make(map[string]*redis.StringCmd, len(keys))
 
-    if err := r.Set(ctx, key, string(data), ttl); err != nil {
-        log.Error("Error caching result", zap.Error(err))
-    }
+	for i, prefixedKey := range prefixedKeys {
+		cmds[keys[i]] = pipe.Get(ctx, prefixedKey)
+	}
 
-    return result, nil
+	_, err := pipe.Exec(ctx)
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("%w: %v", ErrCacheConnection, err)
+	}
+
+	result := make(map[string]string)
+	for key, cmd := range cmds {
+		val, err := cmd.Result()
+		if err == nil {
+			if r.config.UseCompression {
+				val, err = r.decompress(val)
+				if err != nil {
+					log.Error("Failed to decompress value", zap.String("key", key), zap.Error(err))
+					continue
+				}
+			}
+			result[key] = val
+		}
+	}
+
+	return result, nil
 }
 
-// InvalidateCache removes all cache entries for a specific entity
-func (r *RedisClient) InvalidateCache(ctx context.Context, entityType string, entityID interface{}) error {
-    pattern := fmt.Sprintf("%s:%v*", entityType, entityID)
-    return r.ClearByPattern(ctx, pattern)
+// BatchSet stores multiple values in the cache in a single operation
+func (r *RedisClient) BatchSet(ctx context.Context, values map[string]string, ttl time.Duration) error {
+	if !r.IsHealthy() {
+		return ErrCacheConnection
+	}
+
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
+
+	pipe := r.client.Pipeline()
+
+	for key, value := range values {
+		if err := r.validateKey(key); err != nil {
+			return err
+		}
+
+		if r.config.UseCompression {
+			compressed, err := r.compress(value)
+			if err != nil {
+				log.Error("Failed to compress value", zap.String("key", key), zap.Error(err))
+				continue
+			}
+			value = compressed
+		}
+
+		prefixedKey := r.prefixKey(key)
+		pipe.Set(ctx, prefixedKey, value, ttl)
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCacheConnection, err)
+	}
+
+	return nil
 }
 
-// ClearByPattern removes all cache entries matching the given pattern
-func (r *RedisClient) ClearByPattern(ctx context.Context, pattern string) error {
-    iter := r.client.Scan(ctx, 0, pattern, 100).Iterator()
-    var keys []string
-
-    for iter.Next(ctx) {
-        keys = append(keys, iter.Val())
-    }
-
-    if err := iter.Err(); err != nil {
-        return err
-    }
-
-    if len(keys) > 0 {
-        return r.Delete(ctx, keys...)
-    }
-
-    return nil
+// Close properly closes the Redis client and stops background tasks
+func (r *RedisClient) Close() error {
+	var err error
+	r.closeOnce.Do(func() {
+		err = r.client.Close()
+	})
+	return err
 }
 
-// GetCacheStats returns cache statistics
-func (r *RedisClient) GetCacheStats(ctx context.Context) (map[string]interface{}, error) {
-    _, err := r.client.Info(ctx, "stats").Result()
-    if err != nil {
-        return nil, err
-    }
+// trackCacheEvent tracks cache hits/misses with atomic operations
+func (r *RedisClient) trackCacheEvent(hit bool, cacheType string) {
+	if hit {
+		r.metrics.hits.Add(1)
+	} else {
+		r.metrics.misses.Add(1)
+	}
 
-    // Parse Redis info
-    redisHitRate := 0.0
-    // In a real implementation, parse the info string to extract hit rate
+	total := r.metrics.hits.Load() + r.metrics.misses.Load()
+	if total > 0 {
+		hitRate := int64((float64(r.metrics.hits.Load()) / float64(total)) * 100)
+		r.metrics.hitRate.Store(hitRate)
+	}
 
-    // Calculate application hit rate
-    appHitRate := float64(r.metrics.Hits) / float64(r.metrics.Hits+r.metrics.Misses)
-    if r.metrics.Hits+r.metrics.Misses == 0 {
-        appHitRate = 0
-    }
+	// Update type metrics
+	value, _ := r.metrics.byType.LoadOrStore(cacheType, &TypeMetrics{})
+	typeMetrics := value.(*TypeMetrics)
 
-    // Prepare type metrics
-    typeMetrics := make(map[string]map[string]interface{})
-    for cacheType, metrics := range r.metrics.ByType {
-        typeHitRate := float64(metrics.Hits) / float64(metrics.Hits+metrics.Misses)
-        if metrics.Hits+metrics.Misses == 0 {
-            typeHitRate = 0
-        }
+	if hit {
+		typeMetrics.hits.Add(1)
+	} else {
+		typeMetrics.misses.Add(1)
+	}
+}
 
-        typeMetrics[cacheType] = map[string]interface{}{
-            "hits":     metrics.Hits,
-            "misses":   metrics.Misses,
-            "hit_rate": typeHitRate,
-        }
-    }
+// GetMetrics returns current cache metrics with additional information
+func (r *RedisClient) GetMetrics() map[string]interface{} {
+	metrics := make(map[string]interface{})
+	typeMetrics := make(map[string]interface{})
 
-    return map[string]interface{}{
-        "redis": map[string]interface{}{
-            "hit_rate":   redisHitRate,
-            "total_keys": r.client.DBSize(ctx).Val(),
-        },
-        "app": map[string]interface{}{
-            "hits":          r.metrics.Hits,
-            "misses":        r.metrics.Misses,
-            "hit_rate":      appHitRate,
-            "tracking_since": time.Unix(r.metrics.LastReset, 0).Format(time.RFC3339),
-            "by_type":       typeMetrics,
-        },
-    }, nil
+	r.metrics.byType.Range(func(key, value interface{}) bool {
+		tm := value.(*TypeMetrics)
+		typeMetrics[key.(string)] = map[string]interface{}{
+			"hits":   tm.hits.Load(),
+			"misses": tm.misses.Load(),
+		}
+		return true
+	})
+
+	stats := r.client.PoolStats()
+	metrics["hits"] = r.metrics.hits.Load()
+	metrics["misses"] = r.metrics.misses.Load()
+	metrics["hit_rate"] = float64(r.metrics.hitRate.Load()) / 100.0
+	metrics["by_type"] = typeMetrics
+	metrics["health"] = r.IsHealthy()
+	metrics["pool_stats"] = map[string]interface{}{
+		"total_conns": stats.TotalConns,
+		"idle_conns":  stats.IdleConns,
+		"stale_conns": stats.StaleConns,
+	}
+	metrics["config"] = map[string]interface{}{
+		"compression": r.config.UseCompression,
+		"prefix":      r.config.KeyPrefix,
+		"max_retries": r.config.MaxRetries,
+	}
+
+	return metrics
 }
 
 // ResetCacheMetrics resets the cache hit/miss metrics
 func (r *RedisClient) ResetCacheMetrics() {
-    r.metrics = CacheMetrics{
-        Hits:      0,
-        Misses:    0,
-        HitRate:   0,
-        LastReset: time.Now().Unix(),
-        ByType:    make(map[string]TypeMetrics),
-    }
+	r.metrics.hits.Store(0)
+	r.metrics.misses.Store(0)
+	r.metrics.hitRate.Store(0)
+	r.metrics.lastReset.Store(time.Now().Unix())
 }
 
-// trackCacheEvent tracks a cache hit or miss event
-func (r *RedisClient) trackCacheEvent(hit bool, cacheType string) {
-    if hit {
-        r.metrics.Hits++
-    } else {
-        r.metrics.Misses++
-    }
+// HealthCheck checks if Redis is responding
+func (r *RedisClient) HealthCheck(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
 
-    // Update hit rate
-    total := r.metrics.Hits + r.metrics.Misses
-    if total > 0 {
-        r.metrics.HitRate = float64(r.metrics.Hits) / float64(total)
-    }
+// Delete removes values from the cache
+func (r *RedisClient) Delete(ctx context.Context, keys ...string) error {
+	if !r.IsHealthy() {
+		return ErrCacheConnection
+	}
 
-    // Initialize cache type if not exists
-    if _, ok := r.metrics.ByType[cacheType]; !ok {
-        r.metrics.ByType[cacheType] = TypeMetrics{}
-    }
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
 
-    // Update type metrics
-    typeMetrics := r.metrics.ByType[cacheType]
-    if hit {
-        typeMetrics.Hits++
-    } else {
-        typeMetrics.Misses++
-    }
-    r.metrics.ByType[cacheType] = typeMetrics
+	prefixedKeys := make([]string, len(keys))
+	for i, key := range keys {
+		if err := r.validateKey(key); err != nil {
+			return err
+		}
+		prefixedKeys[i] = r.prefixKey(key)
+	}
+
+	return r.client.Del(ctx, prefixedKeys...).Err()
+}
+
+// ClearByPattern removes all cache entries matching the given pattern
+func (r *RedisClient) ClearByPattern(ctx context.Context, pattern string) error {
+	if !r.IsHealthy() {
+		return ErrCacheConnection
+	}
+
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
+
+	prefixedPattern := r.prefixKey(pattern)
+	iter := r.client.Scan(ctx, 0, prefixedPattern, 100).Iterator()
+	var keys []string
+
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	if len(keys) > 0 {
+		return r.client.Del(ctx, keys...).Err()
+	}
+
+	return nil
+}
+
+// GenerateCacheKey creates a unique cache key for the given entity
+func GenerateCacheKey(entityType string, entityID interface{}, action string) string {
+	if action == "" {
+		return fmt.Sprintf("%s:%v", entityType, entityID)
+	}
+	return fmt.Sprintf("%s:%v:%s", entityType, entityID, action)
+}
+
+// CacheResponse is a generic function to cache any serializable response
+func (r *RedisClient) CacheResponse(ctx context.Context, key string, ttl time.Duration, cacheType string, fn func() (interface{}, error)) (interface{}, error) {
+	// Try to get from cache first
+	cachedData, err := r.Get(ctx, key)
+	if err != nil {
+		log.Error("Error getting from cache", zap.Error(err))
+	} else if cachedData != "" {
+		// Track cache hit
+		r.trackCacheEvent(true, cacheType)
+		log.Debug("Cache hit", zap.String("key", key), zap.String("type", cacheType))
+
+		// Deserialize the cached data
+		var result interface{}
+		if err := json.Unmarshal([]byte(cachedData), &result); err != nil {
+			log.Error("Error deserializing cached data", zap.Error(err))
+		} else {
+			return result, nil
+		}
+	}
+
+	// Cache miss, execute the function
+	r.trackCacheEvent(false, cacheType)
+	log.Debug("Cache miss", zap.String("key", key), zap.String("type", cacheType))
+
+	result, err := fn()
+	if err != nil {
+		return nil, err
+	}
+
+	// Don't cache nil results
+	if result == nil {
+		return nil, nil
+	}
+
+	// Serialize and cache the result
+	data, err := json.Marshal(result)
+	if err != nil {
+		log.Error("Error serializing result", zap.Error(err))
+		return result, nil
+	}
+
+	if err := r.Set(ctx, key, string(data), ttl); err != nil {
+		log.Error("Error caching result", zap.Error(err))
+	}
+
+	return result, nil
+}
+
+// InvalidateCache removes all cache entries for a specific entity
+func (r *RedisClient) InvalidateCache(ctx context.Context, entityType string, entityID interface{}) error {
+	pattern := fmt.Sprintf("%s:%v*", entityType, entityID)
+	return r.ClearByPattern(ctx, pattern)
+}
+
+func (r *RedisClient) GetPoolStats() *redis.PoolStats {
+	return r.client.PoolStats()
+}
+
+func (r *RedisClient) ExportMetrics() map[string]float64 {
+	stats := r.GetPoolStats()
+	metrics := map[string]float64{
+		"cache_hits":       float64(r.metrics.hits.Load()),
+		"cache_misses":     float64(r.metrics.misses.Load()),
+		"cache_hit_rate":   float64(r.metrics.hitRate.Load()) / 100.0,
+		"cache_last_reset": float64(r.metrics.lastReset.Load()),
+		"pool_total_conns": float64(stats.TotalConns),
+		"pool_idle_conns":  float64(stats.IdleConns),
+		"pool_stale_conns": float64(stats.StaleConns),
+	}
+	return metrics
 }
