@@ -21,8 +21,9 @@ type Service interface {
 	UpdateTaskStatus(ctx context.Context, id uuid.UUID, status TaskStatus) (*Task, error)
 	DeleteTask(ctx context.Context, id uuid.UUID) error
 	GetTaskMetrics(ctx context.Context, id uuid.UUID) (*TaskMetrics, error)
+	GetProjectTasks(ctx context.Context, projectID uuid.UUID, filter TaskFilter) ([]Task, int64, error)
+	AssignTask(ctx context.Context, id uuid.UUID, assigneeID uuid.UUID) (*Task, error)
 }
-
 
 type TaskMetrics struct {
 	HealthScore     float64                `json:"health_score"`
@@ -67,7 +68,6 @@ type UpdateTaskInput struct {
 }
 
 // Repository interface
-
 
 type service struct {
 	repo TaskRepository
@@ -376,4 +376,29 @@ func calculateComplexityScore(task *Task) float64 {
 	}
 
 	return score
+}
+
+func (s *service) GetProjectTasks(ctx context.Context, projectID uuid.UUID, filter TaskFilter) ([]Task, int64, error) {
+	filter.ProjectID = &projectID
+	return s.repo.FindAll(ctx, filter)
+}
+
+func (s *service) AssignTask(ctx context.Context, id uuid.UUID, assigneeID uuid.UUID) (*Task, error) {
+	task, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return nil, ErrTaskNotFound
+	}
+
+	task.AssigneeID = &assigneeID
+	task.UpdatedAt = time.Now()
+
+	err = s.repo.Update(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }

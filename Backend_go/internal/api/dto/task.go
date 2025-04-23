@@ -121,3 +121,14 @@ func TasksToResponse(tasks []task.Task) []*TaskResponse {
 	}
 	return response
 }
+
+
+// UpdateTaskStatusRequest represents the request body for updating a task's status
+type UpdateTaskStatusRequest struct {
+	Status string `json:"status" binding:"required" example:"In Progress"`
+}
+
+// AssignTaskRequest represents the request body for assigning a task to a user
+type AssignTaskRequest struct {
+	AssigneeID string `json:"assignee_id" binding:"required" example:"123e4567-e89b-12d3-a456-426614174000"`
+}
