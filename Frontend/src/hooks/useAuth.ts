@@ -1,7 +1,56 @@
-import { useQuery, useMutation, useQueryClient, Query } from '@tanstack/react-query';
-import authApi, { LoginCredentials, User } from '@/api/auth';
-import React from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios, { AxiosError } from 'axios';
+import React from 'react';
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  created_at: string;
+  updated_at: string;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  timezone: string;
+  locale: string;
+  mfa_enabled: boolean;
+  failed_login_attempts: number;
+  force_password_change: boolean;
+  max_sessions: number;
+  avatar?: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+const API_URL = 'http://localhost:8000/api';
+
+const authApi = {
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    const response = await axios.post(`${API_URL}/auth/login`, credentials);
+    return response.data;
+  },
+  logout: async () => {
+    await axios.post(`${API_URL}/auth/logout`);
+  },
+  getMe: async (): Promise<User> => {
+    const response = await axios.get(`${API_URL}/users/profile`);
+    return response.data.user;
+  },
+  updateUser: async (userData: Partial<User>): Promise<User> => {
+    const response = await axios.put(`${API_URL}/users/profile`, userData);
+    return response.data.user;
+  },
+};
 
 // This is a custom hook that combines React Query with auth functionality
 export function useAuth() {
@@ -11,7 +60,7 @@ export function useAuth() {
   // Query for current user
   const { data: user, isLoading: isLoadingUser } = useQuery({
     queryKey: ['user'],
-    queryFn: () => authApi.getMe(token!),
+    queryFn: authApi.getMe,
     enabled: !!token,
     retry: false,
     staleTime: 0,
@@ -38,15 +87,15 @@ export function useAuth() {
   const login = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: async (data) => {
-      localStorage.setItem('token', data.access_token);
-      setToken(data.access_token);
+      localStorage.setItem('token', data.token);
+      setToken(data.token);
       await queryClient.invalidateQueries({ queryKey: ['user'] });
     },
   });
 
   // Logout mutation
   const logout = useMutation({
-    mutationFn: () => authApi.logout(token!),
+    mutationFn: authApi.logout,
     onSuccess: () => {
       localStorage.removeItem('token');
       setToken(null);
@@ -55,11 +104,7 @@ export function useAuth() {
   });
 
   const updateUser = useMutation({
-    mutationFn: (userData: {
-      first_name: string
-      last_name: string
-      email: string
-    }) => authApi.updateUser(token!, userData),
+    mutationFn: (userData: Partial<User>) => authApi.updateUser(userData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },

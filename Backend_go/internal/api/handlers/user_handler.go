@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,11 +11,10 @@ import (
 
 type UserHandler struct {
 	userService user.Service
-	jwtSecret   string
 }
 
-func NewUserHandler(userService user.Service, jwtSecret string) *UserHandler {
-	return &UserHandler{userService: userService, jwtSecret: jwtSecret}
+func NewUserHandler(userService user.Service) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
 // CreateUser handles user registration
@@ -39,9 +37,14 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	createInput := user.CreateUserInput{
-		Email:    input.Email,
-		Username: input.Username,
-		Password: input.Password,
+		Email:       input.Email,
+		Username:    input.Username,
+		Password:    input.Password,
+		FirstName:   input.FirstName,
+		LastName:    input.LastName,
+		PhoneNumber: input.PhoneNumber,
+		Timezone:    input.Timezone,
+		Locale:      input.Locale,
 	}
 
 	createdUser, err := h.userService.CreateUser(c.Request.Context(), createInput)
@@ -54,16 +57,18 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		ID:          createdUser.ID,
 		Email:       createdUser.Email,
 		Username:    createdUser.Username,
+		FirstName:   createdUser.FirstName,
+		LastName:    createdUser.LastName,
+		PhoneNumber: createdUser.PhoneNumber,
+		AvatarURL:   createdUser.AvatarURL,
+		Bio:         createdUser.Bio,
+		Timezone:    createdUser.Timezone,
+		Locale:      createdUser.Locale,
 		IsActive:    createdUser.IsActive,
 		IsSuperuser: createdUser.IsSuperuser,
 		CreatedAt:   createdUser.CreatedAt,
 		UpdatedAt:   createdUser.UpdatedAt,
 		DeletedAt:   createdUser.DeletedAt,
-		FirstName:   input.FirstName,
-		LastName:    input.LastName,
-		PhoneNumber: input.PhoneNumber,
-		Timezone:    input.Timezone,
-		Locale:      input.Locale,
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"user": response})
@@ -101,6 +106,13 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		ID:          foundUser.ID,
 		Email:       foundUser.Email,
 		Username:    foundUser.Username,
+		FirstName:   foundUser.FirstName,
+		LastName:    foundUser.LastName,
+		PhoneNumber: foundUser.PhoneNumber,
+		AvatarURL:   foundUser.AvatarURL,
+		Bio:         foundUser.Bio,
+		Timezone:    foundUser.Timezone,
+		Locale:      foundUser.Locale,
 		IsActive:    foundUser.IsActive,
 		IsSuperuser: foundUser.IsSuperuser,
 		CreatedAt:   foundUser.CreatedAt,
@@ -136,8 +148,15 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	updateInput := user.UpdateUserInput{
-		Username: input.Username,
-		Email:    input.Email,
+		Username:    input.Username,
+		Email:       input.Email,
+		FirstName:   input.FirstName,
+		LastName:    input.LastName,
+		PhoneNumber: input.PhoneNumber,
+		AvatarURL:   input.AvatarURL,
+		Bio:         input.Bio,
+		Timezone:    input.Timezone,
+		Locale:      input.Locale,
 	}
 
 	updatedUser, err := h.userService.UpdateUser(c.Request.Context(), userID.(uuid.UUID), updateInput)
@@ -150,16 +169,18 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		ID:          updatedUser.ID,
 		Email:       updatedUser.Email,
 		Username:    updatedUser.Username,
+		FirstName:   updatedUser.FirstName,
+		LastName:    updatedUser.LastName,
+		PhoneNumber: updatedUser.PhoneNumber,
+		AvatarURL:   updatedUser.AvatarURL,
+		Bio:         updatedUser.Bio,
+		Timezone:    updatedUser.Timezone,
+		Locale:      updatedUser.Locale,
 		IsActive:    updatedUser.IsActive,
 		IsSuperuser: updatedUser.IsSuperuser,
 		CreatedAt:   updatedUser.CreatedAt,
 		UpdatedAt:   updatedUser.UpdatedAt,
 		DeletedAt:   updatedUser.DeletedAt,
-		FirstName:   *input.FirstName,
-		LastName:    *input.LastName,
-		PhoneNumber: *input.PhoneNumber,
-		Timezone:    *input.Timezone,
-		Locale:      *input.Locale,
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": response})
@@ -198,33 +219,4 @@ func (h *UserHandler) GetUserRolesAndPermissions(c *gin.Context, userID uuid.UUI
 		return nil, nil, err
 	}
 	return roles, permissions, nil
-}
-
-// Logout handles user logout
-// @Summary Logout user
-// @Description Invalidate the user's JWT token
-// @Tags users
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} map[string]string "Successfully logged out"
-// @Failure 401 {object} map[string]string "Unauthorized"
-// @Router /api/users/logout [post]
-func (h *UserHandler) Logout(c *gin.Context) {
-	token, exists := c.Get("token")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "no token found"})
-		return
-	}
-
-	// Get token claims to get expiry time
-	claims, err := auth.ValidateToken(token.(string), h.jwtSecret)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
-	}
-
-	// Add token to blacklist
-	auth.GetTokenBlacklist().AddToBlacklist(token.(string), claims.ExpiresAt.Time)
-
-	c.JSON(http.StatusOK, gin.H{"message": "successfully logged out"})
 }

@@ -166,7 +166,7 @@ func main() {
 	})
 
 	// Initialize handlers
-	userHandler := handlers.NewUserHandler(userService, cfg.Auth.JWTSecret)
+	userHandler := handlers.NewUserHandler(userService)
 	taskHandler := handlers.NewTaskHandler(taskService)
 	authHandler := handlers.NewAuthHandler(authService)
 	projectHandler := handlers.NewProjectHandler(projectService)

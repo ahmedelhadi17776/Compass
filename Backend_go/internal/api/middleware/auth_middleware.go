@@ -42,14 +42,6 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		tokenString := authHeader[len(bearerSchema):]
 
-		// Check if token is blacklisted
-		if auth.GetTokenBlacklist().IsBlacklisted(tokenString) {
-			log.Error("Token is blacklisted")
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "token has been invalidated"})
-			c.Abort()
-			return
-		}
-
 		claims, err := auth.ValidateToken(tokenString, jwtSecret)
 		if err != nil {
 			log.Error("Token validation failed", zap.Error(err))
@@ -58,13 +50,12 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Store claims and token in context for later use
+		// Store claims in context for later use
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("roles", claims.Roles)
 		c.Set("org_id", claims.OrgID)
 		c.Set("permissions", claims.Permissions)
-		c.Set("token", tokenString)
 
 		c.Next()
 	}
