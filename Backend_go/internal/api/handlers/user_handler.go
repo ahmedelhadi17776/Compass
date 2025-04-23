@@ -2,13 +2,18 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
+
+var log = logrus.New()
 
 type UserHandler struct {
 	userService user.Service
@@ -69,9 +74,89 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"user": response})
 }
 
-// AuthenticateUser handles user authentication
-func (h *UserHandler) AuthenticateUser(c *gin.Context, email, password string) (*user.User, error) {
-	return h.userService.AuthenticateUser(c.Request.Context(), email, password)
+// Login handles user authentication and session creation
+// @Summary Login user
+// @Description Authenticate user and create a new session
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param credentials body dto.LoginRequest true "Login credentials"
+// @Success 200 {object} dto.LoginResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /api/users/login [post]
+func (h *UserHandler) Login(c *gin.Context) {
+	var loginRequest dto.LoginRequest
+
+	if err := c.ShouldBindJSON(&loginRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Authenticate user
+	user, err := h.userService.AuthenticateUser(c.Request.Context(), loginRequest.Email, loginRequest.Password)
+	if err != nil {
+		log.Error("Authentication failed", zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	// Get user's roles and permissions
+	roles, permissions, err := h.userService.GetUserRolesAndPermissions(c.Request.Context(), user.ID)
+	if err != nil {
+		log.Error("Failed to get user roles and permissions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user permissions"})
+		return
+	}
+
+	// Generate JWT token
+	token, err := auth.GenerateToken(
+		user.ID,
+		user.Email,
+		roles,
+		uuid.Nil,
+		permissions,
+		h.jwtSecret,
+		24,
+	)
+	if err != nil {
+		log.Error("Failed to generate token", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	// Create session with device info
+	session := auth.GetSessionStore().CreateSession(
+		user.ID,
+		c.Request.UserAgent(),
+		c.ClientIP(),
+		token,
+		24*time.Hour,
+	)
+
+	response := dto.LoginResponse{
+		Token:     token,
+		ExpiresAt: session.ExpiresAt,
+		User: dto.UserResponse{
+			ID:          user.ID,
+			Email:       user.Email,
+			Username:    user.Username,
+			IsActive:    user.IsActive,
+			IsSuperuser: user.IsSuperuser,
+			CreatedAt:   user.CreatedAt,
+			UpdatedAt:   user.UpdatedAt,
+			DeletedAt:   user.DeletedAt,
+		},
+		Session: dto.SessionResponse{
+			ID:           session.ID,
+			DeviceInfo:   session.DeviceInfo,
+			IPAddress:    session.IPAddress,
+			LastActivity: session.LastActivity,
+			ExpiresAt:    session.ExpiresAt,
+		},
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": response})
 }
 
 // GetUser handles fetching a single user by ID
@@ -223,8 +308,76 @@ func (h *UserHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	// Invalidate session
+	auth.GetSessionStore().InvalidateSession(token.(string))
+
 	// Add token to blacklist
 	auth.GetTokenBlacklist().AddToBlacklist(token.(string), claims.ExpiresAt.Time)
 
 	c.JSON(http.StatusOK, gin.H{"message": "successfully logged out"})
+}
+
+// GetUserSessions returns all active sessions for the current user
+// @Summary Get user sessions
+// @Description Get all active sessions for the current user
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} dto.SessionResponse
+// @Failure 401 {object} map[string]string
+// @Router /api/users/sessions [get]
+func (h *UserHandler) GetUserSessions(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	sessions := auth.GetSessionStore().GetUserSessions(userID.(uuid.UUID))
+
+	response := make([]dto.SessionResponse, len(sessions))
+	for i, session := range sessions {
+		response[i] = dto.SessionResponse{
+			ID:           session.ID,
+			DeviceInfo:   session.DeviceInfo,
+			IPAddress:    session.IPAddress,
+			LastActivity: session.LastActivity,
+			ExpiresAt:    session.ExpiresAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"sessions": response})
+}
+
+// RevokeSession revokes a specific session
+// @Summary Revoke session
+// @Description Revoke a specific session by ID
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Session ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /api/users/sessions/{id}/revoke [post]
+func (h *UserHandler) RevokeSession(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	sessionID := c.Param("id")
+	sessions := auth.GetSessionStore().GetUserSessions(userID.(uuid.UUID))
+
+	for _, session := range sessions {
+		if session.ID == sessionID {
+			auth.GetSessionStore().InvalidateSession(session.Token)
+			auth.GetTokenBlacklist().AddToBlacklist(session.Token, session.ExpiresAt)
+			c.JSON(http.StatusOK, gin.H{"message": "session revoked successfully"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 }
