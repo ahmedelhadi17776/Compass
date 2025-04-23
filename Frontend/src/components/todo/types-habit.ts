@@ -1,15 +1,13 @@
 export interface Habit {
-  id: number;
-  user_id: number;
-  habit_name: string;
-  description?: string;
+  id: string;
+  title: string;
+  description: string;
   start_day: string;
-  end_day?: string;
+  end_day: string | null;
   current_streak: number;
   longest_streak: number;
   is_completed: boolean;
-  streak_start_date?: string;
-  last_completed_date?: string;
+  last_completed_date: string | null;
   created_at: string;
   updated_at: string;
 }

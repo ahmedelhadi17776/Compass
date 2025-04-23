@@ -16,6 +16,13 @@ type CreateUserInput struct {
 	Email       string                 `json:"email"`
 	Username    string                 `json:"username"`
 	Password    string                 `json:"password"`
+	FirstName   string                 `json:"first_name"`
+	LastName    string                 `json:"last_name"`
+	PhoneNumber string                 `json:"phone_number,omitempty"`
+	AvatarURL   string                 `json:"avatar_url,omitempty"`
+	Bio         string                 `json:"bio,omitempty"`
+	Timezone    string                 `json:"timezone,omitempty"`
+	Locale      string                 `json:"locale,omitempty"`
 	Preferences map[string]interface{} `json:"preferences,omitempty"`
 }
 
@@ -23,6 +30,13 @@ type UpdateUserInput struct {
 	Email       *string                `json:"email,omitempty"`
 	Username    *string                `json:"username,omitempty"`
 	Password    *string                `json:"password,omitempty"`
+	FirstName   *string                `json:"first_name,omitempty"`
+	LastName    *string                `json:"last_name,omitempty"`
+	PhoneNumber *string                `json:"phone_number,omitempty"`
+	AvatarURL   *string                `json:"avatar_url,omitempty"`
+	Bio         *string                `json:"bio,omitempty"`
+	Timezone    *string                `json:"timezone,omitempty"`
+	Locale      *string                `json:"locale,omitempty"`
 	Preferences map[string]interface{} `json:"preferences,omitempty"`
 }
 
@@ -71,6 +85,12 @@ func validateCreateUserInput(input CreateUserInput) error {
 	if input.Password == "" {
 		return errors.New("password is required")
 	}
+	if input.FirstName == "" {
+		return errors.New("first name is required")
+	}
+	if input.LastName == "" {
+		return errors.New("last name is required")
+	}
 	return nil
 }
 
@@ -110,6 +130,13 @@ func (s *service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 		Email:        input.Email,
 		Username:     input.Username,
 		PasswordHash: string(hashedPassword),
+		FirstName:    input.FirstName,
+		LastName:     input.LastName,
+		PhoneNumber:  input.PhoneNumber,
+		AvatarURL:    input.AvatarURL,
+		Bio:          input.Bio,
+		Timezone:     input.Timezone,
+		Locale:       input.Locale,
 		Status:       UserStatusActive,
 		IsActive:     true,
 		CreatedAt:    time.Now(),
@@ -192,6 +219,34 @@ func (s *service) UpdateUser(ctx context.Context, id uuid.UUID, input UpdateUser
 			return nil, err
 		}
 		user.PasswordHash = string(hashedPassword)
+	}
+
+	if input.FirstName != nil {
+		user.FirstName = *input.FirstName
+	}
+
+	if input.LastName != nil {
+		user.LastName = *input.LastName
+	}
+
+	if input.PhoneNumber != nil {
+		user.PhoneNumber = *input.PhoneNumber
+	}
+
+	if input.AvatarURL != nil {
+		user.AvatarURL = *input.AvatarURL
+	}
+
+	if input.Bio != nil {
+		user.Bio = *input.Bio
+	}
+
+	if input.Timezone != nil {
+		user.Timezone = *input.Timezone
+	}
+
+	if input.Locale != nil {
+		user.Locale = *input.Locale
 	}
 
 	if input.Preferences != nil {
