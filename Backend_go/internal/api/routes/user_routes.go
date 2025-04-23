@@ -95,6 +95,16 @@ func (ur *UserRoutes) RegisterRoutes(router *gin.Engine) {
 			// @Failure 404 {object} map[string]string "User not found"
 			// @Router /api/users/profile [delete]
 			protected.DELETE("/profile", ur.DeleteProfile)
+
+			// @Summary Logout user
+			// @Description Invalidate the current user's JWT token
+			// @Tags users
+			// @Produce json
+			// @Security BearerAuth
+			// @Success 200 {object} map[string]string "Successfully logged out"
+			// @Failure 401 {object} map[string]string "Unauthorized"
+			// @Router /api/users/logout [post]
+			protected.POST("/logout", ur.userHandler.Logout)
 		}
 	}
 }

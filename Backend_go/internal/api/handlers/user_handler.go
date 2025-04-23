@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -11,10 +12,11 @@ import (
 
 type UserHandler struct {
 	userService user.Service
+	jwtSecret   string
 }
 
-func NewUserHandler(userService user.Service) *UserHandler {
-	return &UserHandler{userService: userService}
+func NewUserHandler(userService user.Service, jwtSecret string) *UserHandler {
+	return &UserHandler{userService: userService, jwtSecret: jwtSecret}
 }
 
 // CreateUser handles user registration
@@ -196,4 +198,33 @@ func (h *UserHandler) GetUserRolesAndPermissions(c *gin.Context, userID uuid.UUI
 		return nil, nil, err
 	}
 	return roles, permissions, nil
+}
+
+// Logout handles user logout
+// @Summary Logout user
+// @Description Invalidate the user's JWT token
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]string "Successfully logged out"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Router /api/users/logout [post]
+func (h *UserHandler) Logout(c *gin.Context) {
+	token, exists := c.Get("token")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no token found"})
+		return
+	}
+
+	// Get token claims to get expiry time
+	claims, err := auth.ValidateToken(token.(string), h.jwtSecret)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+
+	// Add token to blacklist
+	auth.GetTokenBlacklist().AddToBlacklist(token.(string), claims.ExpiresAt.Time)
+
+	c.JSON(http.StatusOK, gin.H{"message": "successfully logged out"})
 }
