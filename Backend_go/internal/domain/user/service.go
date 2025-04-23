@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -66,12 +66,15 @@ type Service interface {
 }
 
 type service struct {
-	repo        Repository
-	authService auth.Service
+	repo         Repository
+	rolesService roles.Service
 }
 
-func NewService(repo Repository, authService auth.Service) Service {
-	return &service{repo: repo, authService: authService}
+func NewService(repo Repository, rolesService roles.Service) Service {
+	return &service{
+		repo:         repo,
+		rolesService: rolesService,
+	}
 }
 
 // validateCreateUserInput validates the input for creating a user
@@ -149,13 +152,13 @@ func (s *service) CreateUser(ctx context.Context, input CreateUserInput) (*User,
 	}
 
 	// Get default user role
-	defaultRole, err := s.authService.GetRoleByName(ctx, "user")
+	defaultRole, err := s.rolesService.GetRoleByName(ctx, "user")
 	if err != nil {
 		return nil, fmt.Errorf("getting default role: %w", err)
 	}
 
 	// Assign default role to user
-	if err := s.authService.AssignRoleToUser(ctx, user.ID, defaultRole.ID); err != nil {
+	if err := s.rolesService.AssignRoleToUser(ctx, user.ID, defaultRole.ID); err != nil {
 		return nil, fmt.Errorf("assigning default role: %w", err)
 	}
 
@@ -380,28 +383,28 @@ func (s *service) UnlockAccount(ctx context.Context, id uuid.UUID) error {
 
 // GetUserRolesAndPermissions retrieves the roles and permissions for a given user
 func (s *service) GetUserRolesAndPermissions(ctx context.Context, userID uuid.UUID) ([]string, []string, error) {
-	// Get user roles from auth service
-	userRoles, err := s.authService.GetUserRoles(ctx, userID)
+	// Get user roles
+	roles, err := s.rolesService.GetUserRoles(ctx, userID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting user roles: %w", err)
 	}
 
-	// Extract role names and collect all permissions
-	roleNames := make([]string, 0, len(userRoles))
-	allPermissions := make(map[string]struct{}) // Use map to deduplicate permissions
-
-	for _, role := range userRoles {
-		roleNames = append(roleNames, role.Name)
-		for _, perm := range role.Permissions {
-			allPermissions[perm.Name] = struct{}{}
-		}
+	// Get user permissions
+	permissions, err := s.rolesService.GetUserPermissions(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting user permissions: %w", err)
 	}
 
-	// Convert permissions map to slice
-	permissions := make([]string, 0, len(allPermissions))
-	for perm := range allPermissions {
-		permissions = append(permissions, perm)
+	// Convert roles and permissions to string arrays
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = role.Name
 	}
 
-	return roleNames, permissions, nil
+	permissionNames := make([]string, len(permissions))
+	for i, permission := range permissions {
+		permissionNames[i] = permission.Name
+	}
+
+	return roleNames, permissionNames, nil
 }

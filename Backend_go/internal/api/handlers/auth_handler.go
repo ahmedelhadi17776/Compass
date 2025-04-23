@@ -4,18 +4,18 @@ import (
 	"net/http"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 // AuthHandler handles HTTP requests for auth operations
 type AuthHandler struct {
-	service auth.Service
+	service roles.Service
 }
 
 // NewAuthHandler creates a new AuthHandler instance
-func NewAuthHandler(service auth.Service) *AuthHandler {
+func NewAuthHandler(service roles.Service) *AuthHandler {
 	return &AuthHandler{service: service}
 }
 
@@ -40,7 +40,7 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 		return
 	}
 
-	input := auth.CreateRoleInput{
+	input := roles.CreateRoleInput{
 		Name:        req.Name,
 		Description: req.Description,
 	}
@@ -48,7 +48,7 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 	role, err := h.service.CreateRole(c.Request.Context(), input)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
-		if err == auth.ErrInvalidInput {
+		if err == roles.ErrInvalidInput {
 			statusCode = http.StatusBadRequest
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
@@ -83,7 +83,7 @@ func (h *AuthHandler) GetRole(c *gin.Context) {
 	role, err := h.service.GetRole(c.Request.Context(), id)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
-		if err == auth.ErrRoleNotFound {
+		if err == roles.ErrRoleNotFound {
 			statusCode = http.StatusNotFound
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
@@ -149,7 +149,7 @@ func (h *AuthHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	input := auth.UpdateRoleInput{
+	input := roles.UpdateRoleInput{
 		Name:        req.Name,
 		Description: req.Description,
 	}
@@ -157,9 +157,9 @@ func (h *AuthHandler) UpdateRole(c *gin.Context) {
 	role, err := h.service.UpdateRole(c.Request.Context(), id, input)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
-		if err == auth.ErrRoleNotFound {
+		if err == roles.ErrRoleNotFound {
 			statusCode = http.StatusNotFound
-		} else if err == auth.ErrInvalidInput {
+		} else if err == roles.ErrInvalidInput {
 			statusCode = http.StatusBadRequest
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
@@ -193,7 +193,7 @@ func (h *AuthHandler) DeleteRole(c *gin.Context) {
 
 	if err := h.service.DeleteRole(c.Request.Context(), id); err != nil {
 		statusCode := http.StatusInternalServerError
-		if err == auth.ErrRoleNotFound {
+		if err == roles.ErrRoleNotFound {
 			statusCode = http.StatusNotFound
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
@@ -234,7 +234,7 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 
 	if err := h.service.AssignPermissionToRole(c.Request.Context(), roleID, permissionID); err != nil {
 		statusCode := http.StatusInternalServerError
-		if err == auth.ErrRoleNotFound || err == auth.ErrPermissionNotFound {
+		if err == roles.ErrRoleNotFound || err == roles.ErrPermissionNotFound {
 			statusCode = http.StatusNotFound
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
@@ -312,7 +312,7 @@ func (h *AuthHandler) AssignRoleToUser(c *gin.Context) {
 
 	if err := h.service.AssignRoleToUser(c.Request.Context(), userID, roleID); err != nil {
 		statusCode := http.StatusInternalServerError
-		if err == auth.ErrRoleNotFound {
+		if err == roles.ErrRoleNotFound {
 			statusCode = http.StatusNotFound
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})

@@ -14,11 +14,11 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
@@ -27,6 +27,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -136,7 +137,7 @@ func main() {
 	userRepo := user.NewRepository(db)
 	projectRepo := project.NewRepository(db)
 	organizationRepo := organization.NewRepository(db)
-	authRepo := auth.NewRepository(db.DB)
+	rolesRepo := roles.NewRepository(db.DB)
 	habitsRepo := habits.NewRepository(db)
 	calendarRepo := calendar.NewRepository(db.DB)
 	workflowRepo := workflow.NewRepository(db.DB, workflowLogger)
@@ -149,13 +150,16 @@ func main() {
 	}
 	defer redisClient.Close()
 
+	// Initialize rate limiter with Redis client
+	rateLimiter := auth.NewRedisRateLimiter(redisClient.GetClient(), 1*time.Minute, 100)
+
 	// Create cache middleware
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
 
 	// Initialize services
+	rolesService := roles.NewService(rolesRepo)
+	userService := user.NewService(userRepo, rolesService)
 	taskService := task.NewService(taskRepo)
-	authService := auth.NewService(authRepo)
-	userService := user.NewService(userRepo, authService)
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
 	habitsService := habits.NewService(habitsRepo)
@@ -166,9 +170,9 @@ func main() {
 	})
 
 	// Initialize handlers
-	userHandler := handlers.NewUserHandler(userService)
+	userHandler := handlers.NewUserHandler(userService, cfg.Auth.JWTSecret)
 	taskHandler := handlers.NewTaskHandler(taskService)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(rolesService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	habitsHandler := handlers.NewHabitsHandler(habitsService)
@@ -183,14 +187,14 @@ func main() {
 	log.Info("Registered swagger route at /swagger/*")
 
 	// Set up user routes
-	userRoutes := routes.NewUserRoutes(userHandler, cfg.Auth.JWTSecret)
+	userRoutes := routes.NewUserRoutes(userHandler, cfg.Auth.JWTSecret, rateLimiter)
 	userRoutes.RegisterRoutes(router)
 	log.Info("Registered user routes at /api/users")
 
 	// Set up auth routes
 	authRoutes := routes.NewAuthRoutes(authHandler, cfg.Auth.JWTSecret)
 	authRoutes.RegisterRoutes(router)
-	log.Info("Registered auth routes at /api/auth")
+	log.Info("Registered auth routes at /api/roles")
 
 	// Health check routes (no /api prefix as these are system endpoints)
 	router.GET("/health", func(c *gin.Context) {
@@ -223,6 +227,9 @@ func main() {
 			"metrics":   redisClient.GetMetrics(),
 		})
 	})
+
+	// Apply rate limiting middleware globally
+	router.Use(middleware.RateLimitMiddleware(rateLimiter))
 
 	// Task routes (protected)
 	taskRoutes := routes.NewTaskRoutes(taskHandler, cfg.Auth.JWTSecret)

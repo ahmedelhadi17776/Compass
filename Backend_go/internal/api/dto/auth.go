@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/google/uuid"
 )
 
@@ -51,7 +51,7 @@ type PermissionResponse struct {
 }
 
 // RoleToResponse converts a Role domain model to a RoleResponse DTO
-func RoleToResponse(role *auth.Role) *RoleResponse {
+func RoleToResponse(role *roles.Role) *RoleResponse {
 	if role == nil {
 		return nil
 	}
@@ -72,7 +72,7 @@ func RoleToResponse(role *auth.Role) *RoleResponse {
 }
 
 // PermissionToResponse converts a Permission domain model to a PermissionResponse DTO
-func PermissionToResponse(permission *auth.Permission) *PermissionResponse {
+func PermissionToResponse(permission *roles.Permission) *PermissionResponse {
 	if permission == nil {
 		return nil
 	}

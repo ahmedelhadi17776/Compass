@@ -578,3 +578,8 @@ func (r *RedisClient) ExportMetrics() map[string]float64 {
 	}
 	return metrics
 }
+
+// GetClient returns the underlying Redis client
+func (r *RedisClient) GetClient() *redis.Client {
+	return r.client
+}

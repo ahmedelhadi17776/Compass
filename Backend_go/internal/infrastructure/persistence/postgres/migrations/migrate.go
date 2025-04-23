@@ -6,15 +6,15 @@ import (
 
 	"errors"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/auth"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -62,11 +62,11 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 		// Define the models in the order they should be migrated
 		// This order matters due to foreign key relationships
 		models := []interface{}{
-			&auth.Role{},
-			&auth.Permission{},
+			&roles.Role{},
+			&roles.Permission{},
 			&user.User{}, // Users should be first as they're referenced by other tables
-			&auth.UserRole{},
-			&auth.RolePermission{},
+			&roles.UserRole{},
+			&roles.RolePermission{},
 			&organization.Organization{}, // Organizations depend on users
 			&project.Project{},           // Projects depend on organizations
 			&task.Task{},                 // Tasks depend on projects, users, and organizations
@@ -136,7 +136,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 // createDefaultRolesAndPermissions creates default roles and permissions
 func createDefaultRolesAndPermissions(db *gorm.DB) error {
 	// Create default permissions
-	permissions := []auth.Permission{
+	permissions := []roles.Permission{
 		{Name: "organizations:create", Description: "Create organizations"},
 		{Name: "organizations:read", Description: "Read organizations"},
 		{Name: "organizations:update", Description: "Update organizations"},
@@ -167,12 +167,12 @@ func createDefaultRolesAndPermissions(db *gorm.DB) error {
 	}
 
 	// Create default roles
-	roles := []struct {
-		Role        auth.Role
+	defaultRoles := []struct {
+		Role        roles.Role
 		Permissions []string
 	}{
 		{
-			Role: auth.Role{
+			Role: roles.Role{
 				Name:        "admin",
 				Description: "Administrator role with full access",
 			},
@@ -184,7 +184,7 @@ func createDefaultRolesAndPermissions(db *gorm.DB) error {
 			},
 		},
 		{
-			Role: auth.Role{
+			Role: roles.Role{
 				Name:        "user",
 				Description: "Regular user role with basic access",
 			},
@@ -196,29 +196,29 @@ func createDefaultRolesAndPermissions(db *gorm.DB) error {
 		},
 	}
 
-	for _, r := range roles {
+	for _, r := range defaultRoles {
 		// Create role if it doesn't exist
-		var existingRole auth.Role
+		var existingRole roles.Role
 		if err := db.Where("name = ?", r.Role.Name).FirstOrCreate(&existingRole, r.Role).Error; err != nil {
 			return fmt.Errorf("failed to create role %s: %w", r.Role.Name, err)
 		}
 
 		// Get all permissions for this role
 		for _, permName := range r.Permissions {
-			var perm auth.Permission
+			var perm roles.Permission
 			if err := db.Where("name = ?", permName).First(&perm).Error; err != nil {
 				return fmt.Errorf("permission %s not found: %w", permName, err)
 			}
 
 			// Check if role-permission association already exists
-			var rolePermission auth.RolePermission
+			var rolePermission roles.RolePermission
 			err := db.Where("role_id = ? AND permission_id = ?", existingRole.ID, perm.ID).
 				First(&rolePermission).Error
 
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					// Create new association only if it doesn't exist
-					rolePermission = auth.RolePermission{
+					rolePermission = roles.RolePermission{
 						RoleID:       existingRole.ID,
 						PermissionID: perm.ID,
 						CreatedAt:    time.Now(),

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
@@ -24,6 +25,53 @@ type JWTService struct {
 	secretKey     []byte
 	tokenDuration time.Duration
 	issuer        string
+}
+
+// TokenBlacklist manages invalidated tokens
+type TokenBlacklist struct {
+	blacklist map[string]time.Time
+	mu        sync.RWMutex
+}
+
+var (
+	blacklist     *TokenBlacklist
+	blacklistOnce sync.Once
+)
+
+// GetTokenBlacklist returns the singleton instance of TokenBlacklist
+func GetTokenBlacklist() *TokenBlacklist {
+	blacklistOnce.Do(func() {
+		blacklist = &TokenBlacklist{
+			blacklist: make(map[string]time.Time),
+		}
+	})
+	return blacklist
+}
+
+// AddToBlacklist adds a token to the blacklist with its expiry time
+func (tb *TokenBlacklist) AddToBlacklist(tokenString string, expiryTime time.Time) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.blacklist[tokenString] = expiryTime
+	tb.cleanup() // Cleanup expired tokens
+}
+
+// IsBlacklisted checks if a token is blacklisted
+func (tb *TokenBlacklist) IsBlacklisted(tokenString string) bool {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	_, exists := tb.blacklist[tokenString]
+	return exists
+}
+
+// cleanup removes expired tokens from the blacklist
+func (tb *TokenBlacklist) cleanup() {
+	now := time.Now()
+	for token, expiry := range tb.blacklist {
+		if now.After(expiry) {
+			delete(tb.blacklist, token)
+		}
+	}
 }
 
 // NewJWTService creates a new JWT service
