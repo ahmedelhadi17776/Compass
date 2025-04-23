@@ -205,34 +205,24 @@ const TodoList: React.FC = () => {
   };
 
   const handleAddHabit = () => {
-    if (!newHabit.trim() || !user) return;
+    if (!newHabit.trim()) return;
 
     if (editingHabit) {
       updateHabitMutation.mutate({
         habitId: editingHabit.id,
-        title: newHabit.trim()
+        habit_name: newHabit.trim()
       });
     } else {
-      createHabitMutation.mutate({
-        title: newHabit.trim(),
-        description: '',
-        start_day: new Date().toISOString(),
-        user_id: user.id
-      });
+      createHabitMutation.mutate(newHabit.trim());
     }
-
-    // Clear input and close form
-    setNewHabit('');
-    setShowHabitInput(false);
-    setEditingHabit(null);
   };
 
-  const toggleHabit = (habitId: string, isCompleted: boolean) => {
-    toggleHabitMutation.mutate({ habitId, isCompleted });
+  const toggleHabit = (id: number, isCompleted: boolean) => {
+    toggleHabitMutation.mutate({ habitId: id, isCompleted });
   };
 
-  const deleteHabit = (habitId: string) => {
-    deleteHabitMutation.mutate(habitId);
+  const deleteHabit = (id: number) => {
+    deleteHabitMutation.mutate(id);
   };
 
   const handleFlipToHabits = () => {
@@ -443,7 +433,7 @@ const TodoList: React.FC = () => {
                                 "text-sm font-medium",
                                 habit.is_completed && "line-through text-muted-foreground"
                               )}>
-                                {habit.title}
+                                {habit.habit_name}
                               </span>
                             </div>
                             {habit.current_streak > 0 && (

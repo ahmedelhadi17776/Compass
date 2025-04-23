@@ -127,14 +127,4 @@ func (h *HabitsRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Security BearerAuth
 	// @Router /{id}/streak-history [get]
 	habits.GET("/:id/streak-history", h.handler.GetStreakHistory)
-
-	// @Summary Get habits by user ID
-	// @Description Get all habits for a specific user
-	// @Tags habits
-	// @Accept json
-	// @Produce json
-	// @Param user_id path string true "User ID"
-	// @Security BearerAuth
-	// @Router /user/{user_id} [get]
-	habits.GET("/user/:user_id", h.handler.GetUserHabits)
 }

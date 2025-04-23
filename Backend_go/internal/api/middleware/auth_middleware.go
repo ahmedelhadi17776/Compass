@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
@@ -16,6 +18,12 @@ var log = logger.NewLogger()
 const (
 	bearerSchema = "Bearer "
 )
+
+// RateLimiterConfig holds configuration for rate limiting
+type RateLimiterConfig struct {
+	Window      time.Duration
+	MaxAttempts int64
+}
 
 // AuthMiddleware is a middleware for JWT authentication
 type AuthMiddleware struct {
@@ -42,6 +50,26 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		tokenString := authHeader[len(bearerSchema):]
 
+		// Check if token is blacklisted
+		if auth.GetTokenBlacklist().IsBlacklisted(tokenString) {
+			log.Error("Token is blacklisted")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "token has been invalidated"})
+			c.Abort()
+			return
+		}
+
+		// Validate session
+		session, exists := auth.GetSessionStore().GetSession(tokenString)
+		if !exists {
+			log.Error("Invalid or expired session")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired session"})
+			c.Abort()
+			return
+		}
+
+		// Update session activity
+		auth.GetSessionStore().UpdateSessionActivity(tokenString)
+
 		claims, err := auth.ValidateToken(tokenString, jwtSecret)
 		if err != nil {
 			log.Error("Token validation failed", zap.Error(err))
@@ -50,12 +78,57 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Store claims in context for later use
+		// Verify session user matches token user
+		if session.UserID != claims.UserID {
+			log.Error("Session user mismatch")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid session"})
+			c.Abort()
+			return
+		}
+
+		// Store claims, token, and session in context
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("roles", claims.Roles)
 		c.Set("org_id", claims.OrgID)
 		c.Set("permissions", claims.Permissions)
+		c.Set("token", tokenString)
+		c.Set("session", session)
+
+		c.Next()
+	}
+}
+
+// RateLimitMiddleware creates a middleware for rate limiting using Redis
+func RateLimitMiddleware(limiter *auth.RedisRateLimiter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		path := c.Request.URL.Path
+		key := fmt.Sprintf("%s:%s", ip, path)
+
+		allowed, remaining, resetTime, err := limiter.Allow(c.Request.Context(), key)
+		if err != nil {
+			log.Error("Rate limiter error", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			c.Abort()
+			return
+		}
+
+		if !allowed {
+			c.Header("X-RateLimit-Reset", resetTime.String())
+			c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":    "rate limit exceeded",
+				"reset_in": time.Until(resetTime).String(),
+			})
+			c.Abort()
+			return
+		}
+
+		// Add rate limit headers
+		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+		c.Header("X-RateLimit-Reset", resetTime.String())
 
 		c.Next()
 	}

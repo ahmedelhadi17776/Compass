@@ -8,42 +8,21 @@ export interface LoginCredentials {
 }
 
 export interface AuthResponse {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    username: string;
-    is_active: boolean;
-    is_superuser: boolean;
-    created_at: string;
-    updated_at: string;
-    mfa_enabled: boolean;
-    failed_login_attempts: number;
-    force_password_change: boolean;
-    max_sessions: number;
-  };
-  expires_at: string;
+  access_token: string;
+  token_type: string;
 }
 
 export interface User {
-  id: string;
+  id: number;
   username: string;
   email: string;
-  first_name: string;
-  last_name: string;
-  phone_number: string;
-  avatar_url: string;
-  bio: string;
-  timezone: string;
-  locale: string;
+  first_name?: string;
+  last_name?: string;
   is_active: boolean;
   is_superuser: boolean;
   created_at: string;
   updated_at: string;
-  mfa_enabled: boolean;
-  failed_login_attempts: number;
-  force_password_change: boolean;
-  max_sessions: number;
+  avatar_url?: string;
 }
 
 // API client
@@ -58,31 +37,35 @@ const authApi = {
       },
     });
 
-    const data = response.data.data;
-    if (data.token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+    if (response.data.data.Token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.Token}`;
     }
 
-    return data;
-  },
-
-  getMe: async (): Promise<User> => {
-    const response = await axios.get(`${API_URL}/api/users/profile`);
     return response.data.data;
   },
 
-  logout: async (): Promise<void> => {
-    await axios.post(`${API_URL}/auth/logout`, null);
-    delete axios.defaults.headers.common['Authorization'];
+  getMe: async (token: string): Promise<User> => {
+    const response = await axios.get(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   },
 
-  updateUser: async (userData: {
-    first_name?: string;
-    last_name?: string;
-    email?: string;
+  logout: async (token: string): Promise<void> => {
+    await axios.post(`${API_URL}/auth/logout`, null, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  updateUser: async (token: string, userData: {
+    first_name: string;
+    last_name: string;
+    email: string;
   }): Promise<User> => {
-    const response = await axios.patch(`${API_URL}/api/users/profile`, userData);
-    return response.data.data;
+    const response = await axios.patch(`${API_URL}/auth/me`, userData, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   },
 };
 

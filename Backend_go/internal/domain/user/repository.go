@@ -16,16 +16,11 @@ var (
 
 // UserFilter defines the filtering options for users
 type UserFilter struct {
-	IsActive    *bool
-	Email       *string
-	Username    *string
-	FirstName   *string
-	LastName    *string
-	PhoneNumber *string
-	Timezone    *string
-	Locale      *string
-	Page        int
-	PageSize    int
+	IsActive *bool
+	Email    *string
+	Username *string
+	Page     int
+	PageSize int
 }
 
 type Repository interface {
@@ -75,21 +70,6 @@ func (r *repository) FindAll(ctx context.Context, filter UserFilter) ([]User, in
 	}
 	if filter.Username != nil {
 		query = query.Where("username LIKE ?", "%"+*filter.Username+"%")
-	}
-	if filter.FirstName != nil {
-		query = query.Where("first_name LIKE ?", "%"+*filter.FirstName+"%")
-	}
-	if filter.LastName != nil {
-		query = query.Where("last_name LIKE ?", "%"+*filter.LastName+"%")
-	}
-	if filter.PhoneNumber != nil {
-		query = query.Where("phone_number LIKE ?", "%"+*filter.PhoneNumber+"%")
-	}
-	if filter.Timezone != nil {
-		query = query.Where("timezone = ?", *filter.Timezone)
-	}
-	if filter.Locale != nil {
-		query = query.Where("locale = ?", *filter.Locale)
 	}
 
 	err := query.Count(&total).Error

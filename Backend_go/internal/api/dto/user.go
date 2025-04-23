@@ -91,9 +91,10 @@ type LoginRequest struct {
 // LoginResponse represents the response after successful login
 // @Description Response containing authentication token and user information
 type LoginResponse struct {
-	Token     string       `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
-	User      UserResponse `json:"user"`
-	ExpiresAt time.Time    `json:"expires_at"`
+	Token     string          `json:"token"`
+	User      UserResponse    `json:"user"`
+	Session   SessionResponse `json:"session"`
+	ExpiresAt time.Time       `json:"expires_at"`
 }
 
 // TokenResponse represents a JWT token response
