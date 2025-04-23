@@ -5,6 +5,10 @@ import (
     "encoding/json"
     "fmt"
     "time"
+    "compress/gzip"
+    "strings"
+    "bytes"
+    "io"
 
     "github.com/go-redis/redis/v8"
     "github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
@@ -33,7 +37,15 @@ type RedisClient struct {
     client  *redis.Client
     metrics CacheMetrics
     ttls    map[string]int
+    contextTimeout time.Duration
+    useCompression bool
 }
+
+const (
+    ErrCacheNotFound   = "cache: key not found"
+    ErrCacheConnection = "cache: connection error"
+    ErrCacheTimeout    = "cache: operation timeout"
+)
 
 // NewRedisClient creates a new Redis client
 func NewRedisClient(addr, password string, db int) (*RedisClient, error) {
@@ -70,6 +82,7 @@ func NewRedisClient(addr, password string, db int) (*RedisClient, error) {
             "task_list":  600,   // 10 minutes
             "event_list": 600,   // 10 minutes
         },
+        contextTimeout: 5 * time.Second,
     }, nil
 }
 
@@ -78,9 +91,9 @@ func (r *RedisClient) Get(ctx context.Context, key string) (string, error) {
     val, err := r.client.Get(ctx, key).Result()
     if err != nil {
         if err == redis.Nil {
-            return "", nil
+            return "", fmt.Errorf("%s: %s", ErrCacheNotFound, key)
         }
-        return "", err
+        return "", fmt.Errorf("%s: %w", ErrCacheConnection, err)
     }
     return val, nil
 }
@@ -262,4 +275,180 @@ func (r *RedisClient) trackCacheEvent(hit bool, cacheType string) {
         typeMetrics.Misses++
     }
     r.metrics.ByType[cacheType] = typeMetrics
+}
+
+func (r *RedisClient) Close() error {
+    return r.client.Close()
+}
+
+func (r *RedisClient) HealthCheck(ctx context.Context) error {
+    status := r.client.Ping(ctx)
+    return status.Err()
+}
+
+func (r *RedisClient) MGet(ctx context.Context, keys []string) ([]string, error) {
+    results, err := r.client.MGet(ctx, keys...).Result()
+    if err != nil {
+        return nil, err
+    }
+    
+    strings := make([]string, len(results))
+    for i, result := range results {
+        if result != nil {
+            strings[i] = result.(string)
+        }
+    }
+    return strings, nil
+}
+
+func (r *RedisClient) MSet(ctx context.Context, values map[string]string) error {
+    pipe := r.client.Pipeline()
+    for key, value := range values {
+        pipe.Set(ctx, key, value, 0)
+    }
+    _, err := pipe.Exec(ctx)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
+func (r *RedisClient) SetWithTTL(ctx context.Context, key string, value string, ttl time.Duration) error {
+    err := r.client.Set(ctx, key, value, ttl).Err()
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
+func (r *RedisClient) GetWithTTL(ctx context.Context, key string) (string, time.Duration, error) {
+    val, err := r.client.Get(ctx, key).Result()
+    if err != nil {
+        if err == redis.Nil {
+            return "", 0, nil
+        }
+        return "", 0, err
+    }
+
+    ttl, err := r.client.TTL(ctx, key).Result()
+    if err != nil {
+        return "", 0, err
+    }
+
+    return val, ttl, nil
+}
+
+func (r *RedisClient) SetWithDefaultTTL(ctx context.Context, key string, value string) error {
+    ttl, exists := r.ttls["default"]
+    if !exists {
+        return fmt.Errorf("default TTL not set")
+    }
+    return r.SetWithTTL(ctx, key, value, time.Duration(ttl)*time.Second)
+}
+
+func (r *RedisClient) GetWithDefaultTTL(ctx context.Context, key string) (string, time.Duration, error) {
+    val, err := r.Get(ctx, key)
+    if err != nil {
+        return "", 0, err
+    }
+
+    ttl, exists := r.ttls["default"]
+    if !exists {
+        return "", 0, fmt.Errorf("default TTL not set")
+    }
+
+    return val, time.Duration(ttl) * time.Second, nil
+}
+
+
+func (r *RedisClient) SetWithCompression(ctx context.Context, key string, value string, ttl time.Duration) error {
+    if !r.useCompression {
+        return r.Set(ctx, key, value, ttl)
+    }
+    
+    var buf bytes.Buffer
+    gz := gzip.NewWriter(&buf)
+    
+    if _, err := gz.Write([]byte(value)); err != nil {
+        return fmt.Errorf("compression failed: %w", err)
+    }
+    
+    if err := gz.Close(); err != nil {
+        return err
+    }
+    
+    compressed := buf.String()
+    return r.Set(ctx, key, compressed, ttl)
+}
+
+func (r *RedisClient) GetWithDecompression(ctx context.Context, key string) (string, error) {
+    compressed, err := r.Get(ctx, key)
+    if err != nil {
+        return "", err
+    }
+    
+    if !r.useCompression {
+        return compressed, nil
+    }
+    
+    gr, err := gzip.NewReader(strings.NewReader(compressed))
+    if err != nil {
+        return "", fmt.Errorf("decompression failed: %w", err)
+    }
+    defer gr.Close()
+    
+    data, err := io.ReadAll(gr)
+    if err != nil {
+        return "", err
+    }
+    
+    return string(data), nil
+}
+
+
+func (r *RedisClient) GetPoolStats() *redis.PoolStats {
+    return r.client.PoolStats()
+}
+
+func (r *RedisClient) ExportMetrics() map[string]float64 {
+    stats := r.GetPoolStats()
+    metrics := map[string]float64{
+        "cache_hits":         float64(r.metrics.Hits),
+        "cache_misses":      float64(r.metrics.Misses),
+        "cache_hit_rate":    r.metrics.HitRate,
+        "cache_last_reset":  float64(r.metrics.LastReset),
+        "pool_total_conns":  float64(stats.TotalConns),
+        "pool_idle_conns":   float64(stats.IdleConns),
+        "pool_stale_conns":  float64(stats.StaleConns),
+    }
+    return metrics
+}
+
+func (r *RedisClient) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+    if r.contextTimeout > 0 {
+        return context.WithTimeout(ctx, r.contextTimeout)
+    }
+    return ctx, func() {}
+}
+
+
+func (r *RedisClient) withRetry(op func() error) error {
+    var lastErr error
+    for i := 0; i < 3; i++ {
+        if err := op(); err != nil {
+            lastErr = err
+            time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+            continue
+        }
+        return nil
+    }
+    return fmt.Errorf("operation failed after retries: %w", lastErr)
+}
+
+func (r *RedisClient) Increment(ctx context.Context, key string) (int64, error) {
+    return r.client.Incr(ctx, key).Result()
+}
+
+func (r *RedisClient) IncrementBy(ctx context.Context, key string, value int64) (int64, error) {
+    return r.client.IncrBy(ctx, key, value).Result()
 }
