@@ -21,7 +21,7 @@ func NewProjectRoutes(handler *handlers.ProjectHandler, jwtSecret string) *Proje
 }
 
 // RegisterRoutes registers all project-related routes
-func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
+func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.CacheMiddleware) {
 	// Create a project group with authentication middleware
 	projectGroup := router.Group("/api/projects")
 	projectGroup.Use(middleware.NewAuthMiddleware(pr.jwtSecret))
@@ -40,7 +40,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 409 {object} map[string]string "Project name already exists"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects [post]
-	projectGroup.POST("", middleware.RequirePermissions("projects:create"), pr.handler.CreateProject)
+	projectGroup.POST("", cache.CacheInvalidate("projects:*"), middleware.RequirePermissions("projects:create"), pr.handler.CreateProject)
 
 	// @Summary Get all projects
 	// @Description Get all projects with pagination and filtering
@@ -57,7 +57,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 403 {object} map[string]string "Insufficient permissions"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects [get]
-	projectGroup.GET("", middleware.RequirePermissions("projects:read"), pr.handler.ListProjects)
+	projectGroup.GET("", cache.CacheResponse(), middleware.RequirePermissions("projects:read"), pr.handler.ListProjects)
 
 	// @Summary Get a project by ID
 	// @Description Get detailed information about a specific project
@@ -73,7 +73,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Project not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id} [get]
-	projectGroup.GET("/:id", middleware.RequirePermissions("projects:read"), pr.handler.GetProject)
+	projectGroup.GET("/:id", cache.CacheResponse(), middleware.RequirePermissions("projects:read"), pr.handler.GetProject)
 
 	// @Summary Get detailed project information
 	// @Description Get detailed project information including members and task counts
@@ -89,7 +89,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Project not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id}/details [get]
-	projectGroup.GET("/:id/details", middleware.RequirePermissions("projects:read"), pr.handler.GetProjectDetails)
+	projectGroup.GET("/:id/details", cache.CacheResponse(), middleware.RequirePermissions("projects:read"), pr.handler.GetProjectDetails)
 
 	// @Summary Update a project
 	// @Description Update an existing project's information
@@ -107,7 +107,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 409 {object} map[string]string "Project name already exists"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id} [put]
-	projectGroup.PUT("/:id", middleware.RequirePermissions("projects:update"), pr.handler.UpdateProject)
+	projectGroup.PUT("/:id", cache.CacheInvalidate("projects:*"), middleware.RequirePermissions("projects:update"), pr.handler.UpdateProject)
 
 	// @Summary Delete a project
 	// @Description Delete an existing project
@@ -123,7 +123,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Project not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id} [delete]
-	projectGroup.DELETE("/:id", middleware.RequirePermissions("projects:delete"), pr.handler.DeleteProject)
+	projectGroup.DELETE("/:id", cache.CacheInvalidate("projects:*"), middleware.RequirePermissions("projects:delete"), pr.handler.DeleteProject)
 
 	// @Summary Add a member to a project
 	// @Description Add a new member to an existing project
@@ -140,7 +140,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Project not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id}/members [post]
-	projectGroup.POST("/:id/members", middleware.RequirePermissions("projects:manage_members"), pr.handler.AddProjectMember)
+	projectGroup.POST("/:id/members", cache.CacheInvalidate("projects:*"), middleware.RequirePermissions("projects:manage_members"), pr.handler.AddProjectMember)
 
 	// @Summary Remove a member from a project
 	// @Description Remove a member from an existing project
@@ -157,7 +157,7 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Project or member not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id}/members/{userId} [delete]
-	projectGroup.DELETE("/:id/members/:userId", middleware.RequirePermissions("projects:manage_members"), pr.handler.RemoveProjectMember)
+	projectGroup.DELETE("/:id/members/:userId", cache.CacheInvalidate("projects:*"), middleware.RequirePermissions("projects:manage_members"), pr.handler.RemoveProjectMember)
 
 	// @Summary Update project status
 	// @Description Update the status of an existing project
@@ -174,5 +174,5 @@ func (pr *ProjectRoutes) RegisterRoutes(router *gin.Engine) {
 	// @Failure 404 {object} map[string]string "Project not found"
 	// @Failure 500 {object} map[string]string "Internal server error"
 	// @Router /api/projects/{id}/status [put]
-	projectGroup.PUT("/:id/status", middleware.RequirePermissions("projects:update"), pr.handler.UpdateProjectStatus)
+	projectGroup.PUT("/:id/status", cache.CacheInvalidate("projects:*"), middleware.RequirePermissions("projects:update"), pr.handler.UpdateProjectStatus)
 }
