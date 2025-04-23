@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
 // Service defines the business logic interface for calendar events
@@ -78,9 +77,9 @@ func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventReques
 			EventID:    event.ID,
 			Freq:       req.RecurrenceRule.Freq,
 			Interval:   req.RecurrenceRule.Interval,
-			ByDay:      pq.StringArray(req.RecurrenceRule.ByDay),
-			ByMonth:    pq.Int64Array(convertToInt64(req.RecurrenceRule.ByMonth)),
-			ByMonthDay: pq.Int64Array(convertToInt64(req.RecurrenceRule.ByMonthDay)),
+			ByDay:      StringArray(req.RecurrenceRule.ByDay),
+			ByMonth:    Int64Array(convertToInt64(req.RecurrenceRule.ByMonth)),
+			ByMonthDay: Int64Array(convertToInt64(req.RecurrenceRule.ByMonthDay)),
 			Count:      req.RecurrenceRule.Count,
 			Until:      req.RecurrenceRule.Until,
 		}

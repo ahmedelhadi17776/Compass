@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"database/sql/driver"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,32 @@ const (
 	TransparencyTransparent Transparency = "transparent"
 )
 
+// StringArray represents a PostgreSQL string array type for Swagger documentation
+type StringArray []string
+
+// Value implements the driver.Valuer interface
+func (a StringArray) Value() (driver.Value, error) {
+	return pq.StringArray(a).Value()
+}
+
+// Scan implements the sql.Scanner interface
+func (a *StringArray) Scan(src interface{}) error {
+	return (*pq.StringArray)(a).Scan(src)
+}
+
+// Int64Array represents a PostgreSQL integer array type for Swagger documentation
+type Int64Array []int64
+
+// Value implements the driver.Valuer interface
+func (a Int64Array) Value() (driver.Value, error) {
+	return pq.Int64Array(a).Value()
+}
+
+// Scan implements the sql.Scanner interface
+func (a *Int64Array) Scan(src interface{}) error {
+	return (*pq.Int64Array)(a).Scan(src)
+}
+
 // CalendarEvent represents a calendar event or series
 type CalendarEvent struct {
 	ID           uuid.UUID    `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
@@ -83,9 +110,9 @@ type RecurrenceRule struct {
 	EventID    uuid.UUID      `json:"event_id" gorm:"type:uuid;not null;index:idx_recurrence_event"`
 	Freq       RecurrenceType `json:"freq" gorm:"type:varchar(50);not null;default:'None'"`
 	Interval   int            `json:"interval" gorm:"not null;default:1"`
-	ByDay      pq.StringArray `json:"by_day,omitempty" gorm:"type:varchar[]"`
-	ByMonth    pq.Int64Array  `json:"by_month,omitempty" gorm:"type:integer[]"`
-	ByMonthDay pq.Int64Array  `json:"by_month_day,omitempty" gorm:"type:integer[]"`
+	ByDay      StringArray    `json:"by_day,omitempty" gorm:"type:varchar[]"`
+	ByMonth    Int64Array     `json:"by_month,omitempty" gorm:"type:integer[]"`
+	ByMonthDay Int64Array     `json:"by_month_day,omitempty" gorm:"type:integer[]"`
 	Count      *int           `json:"count,omitempty"`
 	Until      *time.Time     `json:"until,omitempty"`
 	CreatedAt  time.Time      `json:"created_at" gorm:"not null;default:current_timestamp"`

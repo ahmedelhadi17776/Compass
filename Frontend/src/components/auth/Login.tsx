@@ -61,7 +61,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
   const [showPassword, setShowPassword] = React.useState<boolean>(false)
   const [rememberMe, setRememberMe] = React.useState<boolean>(false)
   const [formData, setFormData] = React.useState({
-    username: '',
+    email: '',
     password: '',
   });
 
@@ -188,8 +188,8 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                     id="email"
                     type="text"
                     placeholder="Enter your email or username"
-                    value={formData.username}
-                    onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                     disabled={loginMutation.isPending}
                     className="focus:border-transparent"
                   />

@@ -3,7 +3,7 @@ import { API_URL } from '@/config';
 
 // Types
 export interface LoginCredentials {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -28,22 +28,20 @@ export interface User {
 // API client
 const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const formData = new URLSearchParams();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
-    
-    const response = await axios.post(`${API_URL}/auth/login`, formData, {
+    const response = await axios.post(`${API_URL}/api/users/login`, {
+      email: credentials.email,
+      password: credentials.password
+    }, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
     });
 
-    // Set the token in axios defaults for future requests
-    if (response.data.access_token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
+    if (response.data.data.Token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.Token}`;
     }
 
-    return response.data;
+    return response.data.data;
   },
 
   getMe: async (token: string): Promise<User> => {
