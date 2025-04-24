@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown, ListFilter } from 'lucide-react';
+import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown } from 'lucide-react';
 import PriorityIndicator from './PriorityIndicator';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
@@ -14,13 +14,13 @@ import { useQuery } from '@tanstack/react-query';
 import authApi, { User } from '@/api/auth';
 import { Habit } from '@/components/todo/types-habit';
 import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/components/todo/types-todo';
-import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit } from '../hooks';
+import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit, useTodoLists, useCreateTodoList, useUpdateTodoList, useDeleteTodoList } from '../hooks';
 import { Separator } from '@/components/ui/separator';
 
 const TodoList: React.FC = () => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
-  const [editingTask, setEditingTask] = useState<Todo | null>(null);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [showTodoForm, setShowTodoForm] = useState(false);
   const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -30,32 +30,23 @@ const TodoList: React.FC = () => {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   
   // New state for managing multiple lists
-  const [currentListId, setCurrentListId] = useState<string>('default');
+  const [currentListId, setCurrentListId] = useState<string>('');
   const [showNewListInput, setShowNewListInput] = useState(false);
   const [newListName, setNewListName] = useState('');
   const newListInputRef = useRef<HTMLInputElement>(null);
   
-  // Mock data for lists - to be replaced with API data later
-  const todoLists = [
-    { id: 'default', name: 'Default List' },
-    { id: 'work', name: 'Work' },
-    { id: 'personal', name: 'Personal' },
-    { id: 'shopping', name: 'Shopping' },
-    { id: 'projects', name: 'Projects' }
-  ];
-
   // User authentication query
   const { data: user } = useQuery<User>({
     queryKey: ['user'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
-      return authApi.getMe(token);
+      return authApi.getMe();
     },
   });
 
   // Use the custom hooks
-  const { data: todoList, isLoading } = useTodos(user);
+  const { data: todoLists = [] } = useTodoLists(user);
   const { data: habits = [] } = useHabits(user);
   const createTodoMutation = useCreateTodo();
   const updateTodoMutation = useUpdateTodo();
@@ -65,60 +56,81 @@ const TodoList: React.FC = () => {
   const toggleHabitMutation = useToggleHabit();
   const deleteHabitMutation = useDeleteHabit();
   const updateHabitMutation = useUpdateHabit();
+  const createTodoListMutation = useCreateTodoList();
+  const updateTodoListMutation = useUpdateTodoList();
+  const deleteTodoListMutation = useDeleteTodoList();
+
+  // Set default list ID on initial load
+  React.useEffect(() => {
+    if (todoLists.length > 0 && !currentListId) {
+      const defaultList = todoLists.find(list => list.is_default);
+      setCurrentListId(defaultList?.id || todoLists[0].id);
+    }
+  }, [todoLists, currentListId]);
+
+  // Get current list and its todos
+  const currentList = todoLists.find(list => list.id === currentListId);
+  const todos = currentList?.todos || [];
 
   const handleEditHabit = (habit: Habit) => {
     setEditingHabit(habit);
-    setNewHabit(habit.habit_name);
+    setNewHabit(habit.title);
     setShowHabitInput(true);
   };
 
-  const handleEditTask = (task: Todo) => {
-    setEditingTask(task);
+  const handleEditTodo = (todo: Todo) => {
+    setEditingTodo(todo);
     setShowTodoForm(true);
   };
 
   const handleTodoFormSubmit = (formData: TodoFormData) => {
     if (!user) return;
 
-    if (editingTask) {
+    if (editingTodo) {
       const updates: Partial<Todo> = {
         ...formData,
-        due_date: formData.due_date?.toISOString(),
-        reminder_time: formData.reminder_time?.toISOString(),
-        // In future when backend supports multiple lists, we would add list_id: currentListId here
+        due_date: formData.due_date?.toISOString() || null,
+        reminder_time: formData.reminder_time?.toISOString() || null,
+        tags: formData.tags?.reduce((acc, tag) => ({ ...acc, [tag]: {} }), {}),
+        checklist: {},
+        is_completed: editingTodo.is_completed
       };
-      updateTodoMutation.mutate({ id: editingTask.id, updates });
+      updateTodoMutation.mutate({ id: editingTodo.id, updates });
     } else {
-      const newTodo: Omit<Todo, 'id' | 'created_at' | 'updated_at' | 'completion_date'> = {
+      const newTodo = {
         user_id: user.id,
+        list_id: currentListId === 'default' ? undefined : currentListId,
         title: formData.title,
         description: formData.description,
         status: TodoStatus.PENDING,
         priority: formData.priority,
         is_recurring: formData.is_recurring,
-        due_date: formData.due_date?.toISOString(),
-        reminder_time: formData.reminder_time?.toISOString(),
-        tags: formData.tags,
-        checklist: [],
-        // In future when backend supports multiple lists, we would add list_id: currentListId here
+        due_date: formData.due_date?.toISOString() || null,
+        reminder_time: formData.reminder_time?.toISOString() || null,
+        tags: formData.tags?.reduce((acc, tag) => ({ ...acc, [tag]: {} }), {}),
+        checklist: {},
+        is_completed: false,
+        linked_task_id: null,
+        linked_calendar_event_id: null,
+        recurrence_pattern: {}
       };
       createTodoMutation.mutate(newTodo);
     }
     setShowTodoForm(false);
-    setEditingTask(null);
+    setEditingTodo(null);
   };
 
   const handleToggleTodo = (todo: Todo) => {
-    toggleTodoStatus(todo);
+    toggleTodoStatus.mutate(todo);
   };
 
-  const handleDeleteTodo = (id: number) => {
+  const handleDeleteTodo = (id: string) => {
     deleteTodoMutation.mutate(id);
   };
 
   const renderTodoList = (todos: Todo[]) => {
     if (!todos || todos.length === 0) {
-      return <div className="text-sm text-muted-foreground">No tasks</div>;
+      return <div className="text-sm text-muted-foreground">No Todos</div>;
     }
 
     return (
@@ -129,13 +141,13 @@ const TodoList: React.FC = () => {
               key={todo.id}
               className={cn(
                 "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
-                todo.status === TodoStatus.COMPLETED && "bg-muted"
+                todo.is_completed && "bg-muted"
               )}
             >
               <div className="flex items-start gap-4">
                 <Checkbox
                   name={`todo-${todo.id}`}
-                  checked={todo.status === TodoStatus.COMPLETED}
+                  checked={todo.is_completed}
                   onChange={() => handleToggleTodo(todo)}
                   darkMode={isDarkMode}
                   className="mt-0.5"
@@ -144,14 +156,14 @@ const TodoList: React.FC = () => {
                   <div className="flex items-center">
                     <span className={cn(
                       "text-sm font-medium",
-                      todo.status === TodoStatus.COMPLETED && "line-through text-muted-foreground"
+                      todo.is_completed && "line-through text-muted-foreground"
                     )}>
                       {todo.title}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
-                    {todo.tags?.map((tag) => (
+                    {todo.tags && typeof todo.tags === 'object' && Object.keys(todo.tags).map((tag) => (
                       <Badge
                         key={tag}
                         variant="default"
@@ -161,22 +173,17 @@ const TodoList: React.FC = () => {
                       </Badge>
                     ))}
                   </div>
-                  {todo.checklist && todo.checklist.length > 0 && (
-                    <div className="mt-2">
+                  {todo.checklist && typeof todo.checklist === 'object' && Object.entries(todo.checklist).map(([id, item]) => (
+                    <div key={id} className="mt-2">
                       <Progress
-                        value={
-                          (todo.checklist.filter(item => item.completed).length /
-                            todo.checklist.length) *
-                          100
-                        }
+                        value={item.completed ? 100 : 0}
                         className="h-1"
                       />
                       <div className="mt-2 text-xs text-muted-foreground">
-                        {todo.checklist.filter(item => item.completed).length} of{" "}
-                        {todo.checklist.length} subtasks completed
+                        {item.completed ? "Completed" : "Not completed"}
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -188,7 +195,7 @@ const TodoList: React.FC = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-[160px]">
-                    <DropdownMenuItem onClick={() => handleEditTask(todo)}>
+                    <DropdownMenuItem onClick={() => handleEditTodo(todo)}>
                       Edit
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleDeleteTodo(todo.id)}>
@@ -255,17 +262,28 @@ const TodoList: React.FC = () => {
     }, 250);
   };
 
-  const filterTodos = (type: 'log' | 'thisWeek' | 'today' | 'done') => {
+  type TodoFilterType = 'log' | 'thisWeek' | 'today' | 'done';
+  
+  const filterTodos = (type: TodoFilterType): Todo[] => {
     // Ensure we have an array to work with
-    const todos = Array.isArray(todoList) ? todoList : [];
+    if (!Array.isArray(todos)) {
+      return [];
+    }
     
     const filtered = todos.filter(todo => {
-      if (type === 'done') {
-        return todo.status === TodoStatus.COMPLETED;
+      // Handle completed todos first
+      if (todo.is_completed) {
+        return type === 'done';
       }
 
-      if (!todo.due_date || todo.status === TodoStatus.COMPLETED) {
+      // For non-completed todos, never show in done section
+      if (type === 'done') {
         return false;
+      }
+
+      // If no due date, put it in the log
+      if (!todo.due_date) {
+        return type === 'log';
       }
       
       // Parse the due date string to a Date object
@@ -285,32 +303,27 @@ const TodoList: React.FC = () => {
       endOfWeek.setHours(23, 59, 59, 999);
 
       // Test each condition separately using timestamps for reliable comparison
-      const isPastDue = dueDate < today; // New condition for past due tasks
+      const isPastDue = dueDate < today;
       const isDueToday = dueDate >= today && dueDate <= endOfToday;
       const isDueThisWeek = dueDate > endOfToday && dueDate <= endOfWeek;
       const isDueLater = dueDate > endOfWeek;
       
-      let result = false;
       switch (type) {
         case 'today':
-          // Show both today's tasks and past due tasks in the Today column
-          result = isDueToday || isPastDue;
-          break;
+          return isDueToday || isPastDue;
         case 'thisWeek':
-          result = isDueThisWeek;
-          break;
+          return isDueThisWeek;
         case 'log':
-          result = isDueLater;
-          break;
+          return isDueLater || !todo.due_date;
+        default:
+          return false;
       }
-      
-      return result;
     });
 
     return filtered;
   };
 
-  const renderTodoColumn = (type: 'log' | 'thisWeek' | 'today' | 'done', title: string) => {
+  const renderTodoColumn = (type: TodoFilterType, title: string) => {
     const columnTodos = filterTodos(type);
 
     if (type === 'log' && (showHabitTracker || isFlipping)) {
@@ -529,38 +542,29 @@ const TodoList: React.FC = () => {
   // Add list selection handler
   const handleListChange = (listId: string) => {
     setCurrentListId(listId);
-    // In future implementation, this would fetch the todos for the selected list from the backend
   };
 
   // Add new list handler
   const handleAddNewList = () => {
     if (!newListName.trim()) return;
     
-    // Create a unique ID for the list (in a real app, this would come from the backend)
-    const listId = `list-${Date.now()}`;
+    createTodoListMutation.mutate({
+      name: newListName.trim(),
+      description: '',
+      is_default: false
+    });
     
-    // Add the new list to the todoLists array
-    const newList = {
-      id: listId,
-      name: newListName.trim()
-    };
-    
-    todoLists.push(newList);
-    
-    // Set the current list to the newly created one
-    setCurrentListId(listId);
-    
-    // Reset state
     setNewListName('');
     setShowNewListInput(false);
   };
 
+  // Add delete list handler
+  const handleDeleteList = (listId: string) => {
+    deleteTodoListMutation.mutate(listId);
+  };
+
   if (!user) {
     return <div>Please log in to view todos</div>;
-  }
-
-  if (isLoading) {
-    return <div>Loading todos...</div>;
   }
 
   return (
@@ -580,20 +584,36 @@ const TodoList: React.FC = () => {
               {todoLists.map(list => (
                 <DropdownMenuItem 
                   key={list.id}
-                  onClick={() => handleListChange(list.id)}
-                  className={cn(
-                    "cursor-pointer",
-                    currentListId === list.id && "bg-muted"
-                  )}
+                  className="flex items-center justify-between group"
                 >
-                  {list.name}
+                  <span
+                    onClick={() => handleListChange(list.id)}
+                    className={cn(
+                      "flex-1 cursor-pointer",
+                      currentListId === list.id && "bg-muted"
+                    )}
+                  >
+                    {list.name}
+                  </span>
+                  {!list.is_default && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteList(list.id);
+                      }}
+                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </DropdownMenuItem>
               ))}
               <DropdownMenuItem 
                 className="border-t mt-1 pt-1 cursor-pointer text-primary font-medium"
                 onClick={() => {
                   setShowNewListInput(true);
-                  // Focus the input after it's rendered
                   setTimeout(() => {
                     newListInputRef.current?.focus();
                   }, 0);
@@ -641,12 +661,12 @@ const TodoList: React.FC = () => {
           size="sm" 
           className="gap-2" 
           onClick={() => {
-            setEditingTask(null);
+            setEditingTodo(null);
             setShowTodoForm(true);
           }}
         >
           <Plus className="h-4 w-4" />
-          New Task
+          New Todo
         </Button>
       </div>
       {renderTodoColumn('log', 'Log')}
@@ -658,14 +678,14 @@ const TodoList: React.FC = () => {
         <TodoForm
           onClose={() => {
             setShowTodoForm(false);
-            setEditingTask(null);
+            setEditingTodo(null);
           }}
           user={user}
-          todo={editingTask || undefined}
+          todo={editingTodo || undefined}
           onSubmit={handleTodoFormSubmit}
           onDelete={handleDeleteTodo}
-          // Pass the current list ID to the form - to be implemented in TodoForm
           currentListId={currentListId}
+          listId={currentListId}
         />
       )}
     </div>

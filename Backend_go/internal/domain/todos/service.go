@@ -22,6 +22,10 @@ type Service interface {
 	FindByUserIDAndListID(ctx context.Context, userID uuid.UUID, listID uuid.UUID) ([]Todo, error)
 	CreateTodoList(ctx context.Context, list *TodoList) error
 	GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error)
+	UpdateTodoList(ctx context.Context, id uuid.UUID, input UpdateTodoListInput) (*TodoList, error)
+	DeleteTodoList(ctx context.Context, id uuid.UUID) error
+	GetTodoList(ctx context.Context, id uuid.UUID) (*TodoList, error)
+	GetAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error)
 }
 
 type CreateTodoInput struct {
@@ -313,4 +317,40 @@ func (s *service) CreateTodoList(ctx context.Context, list *TodoList) error {
 
 func (s *service) GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error) {
 	return s.repo.GetOrCreateDefaultList(ctx, userID)
+}
+
+func (s *service) UpdateTodoList(ctx context.Context, id uuid.UUID, input UpdateTodoListInput) (*TodoList, error) {
+	list, err := s.repo.FindTodoListByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if input.Name != nil {
+		list.Name = *input.Name
+	}
+	if input.Description != nil {
+		list.Description = *input.Description
+	}
+	if input.IsDefault != nil {
+		list.IsDefault = *input.IsDefault
+	}
+
+	err = s.repo.UpdateTodoList(ctx, list)
+	if err != nil {
+		return nil, err
+	}
+
+	return list, nil
+}
+
+func (s *service) DeleteTodoList(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteTodoList(ctx, id)
+}
+
+func (s *service) GetTodoList(ctx context.Context, id uuid.UUID) (*TodoList, error) {
+	return s.repo.FindTodoListByID(ctx, id)
+}
+
+func (s *service) GetAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error) {
+	return s.repo.FindAllTodoLists(ctx, userID)
 }

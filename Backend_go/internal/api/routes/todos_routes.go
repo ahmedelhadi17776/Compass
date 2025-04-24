@@ -28,6 +28,7 @@ func (r *TodosRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cache
 	// Read operations with caching
 	todos.GET("", cache.CacheResponse(), r.handler.ListTodos)
 	todos.GET("/:id", cache.CacheResponse(), r.handler.GetTodo)
+	todos.GET("/user/:user_id", cache.CacheResponse(), r.handler.GetTodosByUser)
 
 	// Write operations with cache invalidation
 	todos.POST("", cache.CacheInvalidate("todos:list:*"), r.handler.CreateTodo)
@@ -45,5 +46,13 @@ func (r *TodosRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cache
 	// Todo Lists routes
 	todoLists := router.Group("/api/todo-lists")
 	todoLists.Use(middleware.NewAuthMiddleware(r.jwtSecret))
+
+	// Read operations with caching
+	todoLists.GET("", cache.CacheResponse(), r.handler.GetAllTodoLists)
+	todoLists.GET("/:id", cache.CacheResponse(), r.handler.GetTodoList)
+
+	// Write operations with cache invalidation
 	todoLists.POST("", cache.CacheInvalidate("todo-lists:*"), r.handler.CreateTodoList)
+	todoLists.PUT("/:id", cache.CacheInvalidate("todo-lists:*"), r.handler.UpdateTodoList)
+	todoLists.DELETE("/:id", cache.CacheInvalidate("todo-lists:*"), r.handler.DeleteTodoList)
 }

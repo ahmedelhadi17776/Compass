@@ -542,3 +542,195 @@ func (h *TodoHandler) CreateTodoList(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"data": dto.TodoListToResponse(todoList)})
 }
+
+// GetTodosByUser godoc
+// @Summary Get todos by user ID
+// @Description Get all todos for a specific user
+// @Tags todos
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param user_id path string true "User ID" format(uuid)
+// @Success 200 {object} dto.UserTodosResponse "Todos retrieved successfully"
+// @Failure 400 {object} map[string]string "Invalid user ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/todos/user/{user_id} [get]
+func (h *TodoHandler) GetTodosByUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	// Get current user ID from context (set by auth middleware)
+	currentUserID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	// Only allow users to view their own todos
+	if currentUserID != userID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized to view other user's todos"})
+		return
+	}
+
+	todos, err := h.service.FindByUserID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := dto.UserTodosResponse{
+		Todos:      dto.TodosToResponse(todos),
+		TotalCount: int64(len(todos)),
+		Page:       1,
+		PageSize:   len(todos),
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+// GetTodoList godoc
+// @Summary Get a todo list by ID
+// @Description Get detailed information about a specific todo list
+// @Tags todo-lists
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Todo List ID" format(uuid)
+// @Success 200 {object} dto.TodoListResponse "Todo list details retrieved successfully"
+// @Failure 400 {object} map[string]string "Invalid todo list ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Todo list not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/todo-lists/{id} [get]
+func (h *TodoHandler) GetTodoList(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid todo list ID"})
+		return
+	}
+
+	list, err := h.service.GetTodoList(c.Request.Context(), id)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if err == todos.ErrTodoNotFound {
+			statusCode = http.StatusNotFound
+		}
+		c.JSON(statusCode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": dto.TodoListToResponse(list)})
+}
+
+// GetAllTodoLists godoc
+// @Summary Get all todo lists for a user
+// @Description Get all todo lists for the authenticated user
+// @Tags todo-lists
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} dto.TodoListsResponse "Todo lists retrieved successfully"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/todo-lists [get]
+func (h *TodoHandler) GetAllTodoLists(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	lists, err := h.service.GetAllTodoLists(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := dto.TodoListsResponse{
+		Lists: make([]dto.TodoListResponse, len(lists)),
+	}
+	for i, list := range lists {
+		response.Lists[i] = *dto.TodoListToResponse(&list)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+// UpdateTodoList godoc
+// @Summary Update a todo list
+// @Description Update an existing todo list's information
+// @Tags todo-lists
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Todo List ID" format(uuid)
+// @Param todoList body todos.UpdateTodoListInput true "Todo list update information"
+// @Success 200 {object} dto.TodoListResponse "Todo list updated successfully"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Todo list not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/todo-lists/{id} [put]
+func (h *TodoHandler) UpdateTodoList(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid todo list ID"})
+		return
+	}
+
+	var input todos.UpdateTodoListInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	list, err := h.service.UpdateTodoList(c.Request.Context(), id, input)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if err == todos.ErrTodoNotFound {
+			statusCode = http.StatusNotFound
+		}
+		c.JSON(statusCode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": dto.TodoListToResponse(list)})
+}
+
+// DeleteTodoList godoc
+// @Summary Delete a todo list
+// @Description Delete an existing todo list
+// @Tags todo-lists
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Todo List ID" format(uuid)
+// @Success 204 "Todo list deleted successfully"
+// @Failure 400 {object} map[string]string "Invalid todo list ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Todo list not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/todo-lists/{id} [delete]
+func (h *TodoHandler) DeleteTodoList(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid todo list ID"})
+		return
+	}
+
+	err = h.service.DeleteTodoList(c.Request.Context(), id)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if err == todos.ErrTodoNotFound {
+			statusCode = http.StatusNotFound
+		}
+		c.JSON(statusCode, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
