@@ -28,6 +28,10 @@ type TodoRepository interface {
 	CreateTodoList(ctx context.Context, list *TodoList) error
 	GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error)
 	FindDefaultListByUserID(ctx context.Context, userID uuid.UUID) (*TodoList, error)
+	UpdateTodoList(ctx context.Context, list *TodoList) error
+	DeleteTodoList(ctx context.Context, id uuid.UUID) error
+	FindTodoListByID(ctx context.Context, id uuid.UUID) (*TodoList, error)
+	FindAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error)
 }
 
 type todoRepository struct {
@@ -133,10 +137,31 @@ func (r *todoRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *todoRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error) {
 	var todos []Todo
-	result := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&todos)
+	result := r.db.WithContext(ctx).
+		Model(&Todo{}).
+		Where("user_id = ?", userID).
+		Find(&todos)
+
 	if result.Error != nil {
 		return nil, result.Error
 	}
+
+	// Initialize empty maps for any nil JSONB fields
+	for i := range todos {
+		if todos[i].RecurrencePattern == nil {
+			todos[i].RecurrencePattern = make(map[string]interface{})
+		}
+		if todos[i].Tags == nil {
+			todos[i].Tags = make(map[string]interface{})
+		}
+		if todos[i].Checklist == nil {
+			todos[i].Checklist = make(map[string]interface{})
+		}
+		if todos[i].AISuggestions == nil {
+			todos[i].AISuggestions = make(map[string]interface{})
+		}
+	}
+
 	return todos, nil
 }
 
@@ -220,4 +245,47 @@ func (r *todoRepository) FindDefaultListByUserID(ctx context.Context, userID uui
 		return nil, result.Error
 	}
 	return &list, nil
+}
+
+func (r *todoRepository) UpdateTodoList(ctx context.Context, list *TodoList) error {
+	result := r.db.WithContext(ctx).Save(list)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTodoNotFound
+	}
+	return nil
+}
+
+func (r *todoRepository) DeleteTodoList(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Delete(&TodoList{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTodoNotFound
+	}
+	return nil
+}
+
+func (r *todoRepository) FindTodoListByID(ctx context.Context, id uuid.UUID) (*TodoList, error) {
+	var list TodoList
+	result := r.db.WithContext(ctx).Preload("Todos").First(&list, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrTodoNotFound
+		}
+		return nil, result.Error
+	}
+	return &list, nil
+}
+
+func (r *todoRepository) FindAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error) {
+	var lists []TodoList
+	result := r.db.WithContext(ctx).Where("user_id = ?", userID).Preload("Todos").Find(&lists)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return lists, nil
 }

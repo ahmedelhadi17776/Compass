@@ -10,84 +10,92 @@ import { Label } from "../../ui/label";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from '@tanstack/react-query';
 import { User } from '@/api/auth';
-import { Todo, TodoFormData, TodoPriority, TodoStatus } from '@/components/todo/types-todo';
+import { Todo, TodoPriority } from '@/components/todo/types-todo';
 import { useCreateTodo, useDeleteTodo } from '../hooks';
 import './TodoForm.css';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface TodoFormProps {
   onClose: () => void;
   user: User;
   todo?: Todo;
-  onSubmit?: (formData: TodoFormData) => void;
-  onDelete?: (todoId: number) => void;
-  currentListId?: string;
+  onSubmit: (data: TodoFormData) => void;
+  onDelete: (id: string) => void;
+  currentListId: string;
+  listId: string;
 }
 
-const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDelete, currentListId = 'default' }) => {
+interface TodoFormData {
+  title: string;
+  description: string;
+  due_date: Date | undefined;
+  priority: TodoPriority;
+  reminder_time: Date | undefined;
+  is_recurring: boolean;
+  tags: string[];
+  list_id: string;
+}
+
+const TodoForm: React.FC<TodoFormProps> = ({
+  onClose,
+  user,
+  todo,
+  onSubmit,
+  onDelete,
+  currentListId,
+  listId
+}) => {
   const queryClient = useQueryClient();
   const [isClosing, setIsClosing] = useState(false);
-  const [formData, setFormData] = useState<Required<TodoFormData>>({
-    title: '',
-    description: '',
-    priority: TodoPriority.MEDIUM,
-    due_date: new Date(),
-    reminder_time: new Date(),
-    is_recurring: false,
-    tags: [],
-  });
-
-  // Initialize form with todo data if editing
-  useEffect(() => {
-    if (todo) {
-      setFormData({
-        title: todo.title || '',
-        description: todo.description || '',
-        priority: todo.priority || TodoPriority.MEDIUM,
-        due_date: todo.due_date ? new Date(todo.due_date) : new Date(),
-        reminder_time: todo.reminder_time ? new Date(todo.reminder_time) : new Date(),
-        is_recurring: todo.is_recurring || false,
-        tags: todo.tags || [],
-      });
-    }
-  }, [todo]);
+  const [title, setTitle] = useState(todo?.title || '');
+  const [description, setDescription] = useState(todo?.description || '');
+  const [priority, setPriority] = useState<TodoPriority>(todo?.priority || TodoPriority.MEDIUM);
+  const [dueDate, setDueDate] = useState<Date | undefined>(todo?.due_date ? new Date(todo.due_date) : undefined);
+  const [reminderTime, setReminderTime] = useState<Date | undefined>(todo?.reminder_time ? new Date(todo.reminder_time) : undefined);
+  const [isRecurring, setIsRecurring] = useState(todo?.is_recurring || false);
+  const [selectedTags, setSelectedTags] = useState<string[]>(todo?.tags ? Object.keys(todo.tags) : []);
+  const [newTag, setNewTag] = useState('');
+  const [showTagInput, setShowTagInput] = useState(false);
 
   const createTodoMutation = useCreateTodo();
   const deleteTodoMutation = useDeleteTodo();
 
-  const [newTag, setNewTag] = useState('');
-  const [showTagInput, setShowTagInput] = useState(false);
+  // Initialize form with todo data if editing
+  useEffect(() => {
+    if (todo) {
+      setTitle(todo.title || '');
+      setDescription(todo.description || '');
+      setPriority(todo.priority || TodoPriority.MEDIUM);
+      setDueDate(todo.due_date ? new Date(todo.due_date) : undefined);
+      setReminderTime(todo.reminder_time ? new Date(todo.reminder_time) : undefined);
+      setIsRecurring(todo.is_recurring || false);
+      setSelectedTags(todo.tags ? Object.keys(todo.tags) : []);
+    }
+  }, [todo]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsClosing(true);
-    
-    if (onSubmit) {
-      onSubmit(formData);
-      setTimeout(onClose, 300);
-    } else {
-      const newTodo = {
-        user_id: user.id,
-        title: formData.title,
-        description: formData.description,
-        status: TodoStatus.PENDING,
-        priority: formData.priority,
-        is_recurring: formData.is_recurring,
-        due_date: formData.due_date.toISOString(),
-        reminder_time: formData.reminder_time?.toISOString(),
-        tags: formData.tags || [],
-        checklist: [],
-      };
-      
-      createTodoMutation.mutate(newTodo, {
-        onSuccess: () => {
-          handleClose();
-        },
-        onError: (error) => {
-          console.error("Failed to create todo:", error);
-          setIsClosing(false);
-        }
-      });
-    }
+    if (!onSubmit) return;
+
+    const formData: TodoFormData = {
+      title,
+      description,
+      priority,
+      due_date: dueDate,
+      reminder_time: reminderTime,
+      is_recurring: isRecurring,
+      tags: selectedTags,
+      list_id: listId
+    };
+
+    onSubmit(formData);
+    onClose();
   };
 
   const handleClose = () => {
@@ -110,29 +118,22 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
   const handleAddTag = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTag.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...(prev.tags || []), newTag.trim()]
-      }));
+      setSelectedTags([...selectedTags, newTag.trim()]);
       setNewTag('');
       setShowTagInput(false);
     }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: (prev.tags || []).filter(tag => tag !== tagToRemove)
-    }));
+    setSelectedTags(selectedTags.filter(tag => tag !== tagToRemove));
   };
 
   return (
-    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 
-      ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
-    >
-      <div className={`bg-background rounded-lg shadow-xl w-full max-w-md p-6 relative 
-        ${isClosing ? 'animate-slide-out' : 'animate-slide-in'}`}
-      >
+    <div className={cn(
+      "fixed inset-0 z-50 flex items-center justify-center bg-black/50",
+      isClosing && "opacity-0 transition-opacity duration-300"
+    )}>
+      <div className="w-full max-w-md rounded-lg bg-card p-6">
         <button
           onClick={handleClose}
           className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
@@ -149,8 +150,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
             <Label htmlFor="title">Title</Label>
             <Input
               id="title"
-              value={formData.title}
-              onChange={e => setFormData(prev => ({ ...prev, title: e.target.value }))}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Todo title"
               required
             />
@@ -160,8 +161,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={formData.description || ''}
-              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Todo description"
               className="min-h-[100px]"
             />
@@ -172,8 +173,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
               <Label>Due Date</Label>
               <div className="flex gap-2">
                 <DatePicker
-                  selected={formData.due_date}
-                  onChange={(date: Date | null) => setFormData(prev => ({ ...prev, due_date: date || new Date() }))}
+                  selected={dueDate}
+                  onChange={(date: Date | null) => setDueDate(date || new Date())}
                   showTimeSelect
                   dateFormat="MMMM d, yyyy h:mm aa"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -185,8 +186,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
               <Label>Reminder</Label>
               <div className="flex gap-2">
                 <DatePicker
-                  selected={formData.reminder_time}
-                  onChange={(date: Date | null) => setFormData(prev => ({ ...prev, reminder_time: date || new Date() }))}
+                  selected={reminderTime}
+                  onChange={(date: Date | null) => setReminderTime(date || new Date())}
                   showTimeSelect
                   dateFormat="MMMM d, yyyy h:mm aa"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -198,33 +199,35 @@ const TodoForm: React.FC<TodoFormProps> = ({ onClose, user, todo, onSubmit, onDe
 
           <div className="space-y-2">
             <Label>Priority</Label>
-            <div className="flex gap-2">
-              {Object.values(TodoPriority).map((p) => (
-                <Button
-                  key={p}
-                  type="button"
-                  variant={formData.priority === p ? 'default' : 'outline'}
-                  onClick={() => setFormData(prev => ({ ...prev, priority: p }))}
-                  className={cn(
-                    'capitalize flex items-center gap-2',
-                    formData.priority === p && p === TodoPriority.HIGH && 'bg-red-500/20 hover:bg-red-500/30 text-red-500',
-                    formData.priority === p && p === TodoPriority.MEDIUM && 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500',
-                    formData.priority === p && p === TodoPriority.LOW && 'bg-green-500/20 hover:bg-green-500/30 text-green-500'
-                  )}
-                >
-                  {p === TodoPriority.HIGH && <ArrowUp className="h-4 w-4" />}
-                  {p === TodoPriority.MEDIUM && <Minus className="h-4 w-4" />}
-                  {p === TodoPriority.LOW && <ArrowDown className="h-4 w-4" />}
-                  {p}
-                </Button>
-              ))}
-            </div>
+            <Select
+              value={priority}
+              onValueChange={(value: TodoPriority) => setPriority(value)}
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {priority === TodoPriority.HIGH && <ArrowUp className="h-4 w-4 inline mr-2" />}
+                  {priority === TodoPriority.MEDIUM && <Minus className="h-4 w-4 inline mr-2" />}
+                  {priority === TodoPriority.LOW && <ArrowDown className="h-4 w-4 inline mr-2" />}
+                  {priority}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Object.values(TodoPriority).map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p === TodoPriority.HIGH && <ArrowUp className="h-4 w-4 inline mr-2" />}
+                    {p === TodoPriority.MEDIUM && <Minus className="h-4 w-4 inline mr-2" />}
+                    {p === TodoPriority.LOW && <ArrowDown className="h-4 w-4 inline mr-2" />}
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
             <Label>Tags</Label>
             <div className="flex flex-wrap gap-2">
-              {(formData.tags || []).map((tag) => (
+              {(selectedTags || []).map((tag) => (
                 <Badge key={tag} variant="outline">
                   {tag}
                   <button

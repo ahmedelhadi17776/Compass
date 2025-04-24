@@ -98,6 +98,13 @@ type TodoFilterRequest struct {
 	PageSize              int       `form:"page_size" example:"20"`
 }
 
+type UserTodosResponse struct {
+	Todos      []*TodoResponse `json:"todos"`
+	TotalCount int64           `json:"total_count"`
+	Page       int             `json:"page"`
+	PageSize   int             `json:"page_size"`
+}
+
 func TodoToResponse(t *todos.Todo) *TodoResponse {
 	return &TodoResponse{
 		ID:                    t.ID,

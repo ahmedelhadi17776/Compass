@@ -51,13 +51,13 @@ type Todo struct {
 	DueDate               *time.Time `gorm:"index"`
 	ReminderTime          *time.Time
 	IsRecurring           bool                   `gorm:"default:false;not null"`
-	RecurrencePattern     map[string]interface{} `gorm:"type:jsonb"`
-	Tags                  map[string]interface{} `gorm:"type:jsonb"`
-	Checklist             map[string]interface{} `gorm:"type:jsonb"`
+	RecurrencePattern     map[string]interface{} `gorm:"type:jsonb;default:'{}';serializer:json"`
+	Tags                  map[string]interface{} `gorm:"type:jsonb;default:'{}';serializer:json"`
+	Checklist             map[string]interface{} `gorm:"type:jsonb;default:'{}';serializer:json"`
 	LinkedTaskID          *uuid.UUID             `gorm:"type:uuid"`
 	LinkedCalendarEventID *uuid.UUID             `gorm:"type:uuid"`
 	AIGenerated           bool                   `gorm:"default:false;not null"`
-	AISuggestions         map[string]interface{} `gorm:"type:jsonb"`
+	AISuggestions         map[string]interface{} `gorm:"type:jsonb;default:'{}';serializer:json"`
 	CreatedAt             time.Time              `gorm:"not null;default:current_timestamp;index"`
 	UpdatedAt             time.Time              `gorm:"not null;default:current_timestamp;autoUpdateTime"`
 	List                  TodoList               `gorm:"foreignKey:ListID"` // Relationship to TodoList
