@@ -21,6 +21,7 @@ type Service interface {
 	FindByListID(ctx context.Context, listID uuid.UUID) ([]Todo, error)
 	FindByUserIDAndListID(ctx context.Context, userID uuid.UUID, listID uuid.UUID) ([]Todo, error)
 	CreateTodoList(ctx context.Context, list *TodoList) error
+	GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error)
 }
 
 type CreateTodoInput struct {
@@ -308,4 +309,8 @@ func (s *service) CreateTodoList(ctx context.Context, list *TodoList) error {
 	}
 
 	return s.repo.CreateTodoList(ctx, list)
+}
+
+func (s *service) GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error) {
+	return s.repo.GetOrCreateDefaultList(ctx, userID)
 }

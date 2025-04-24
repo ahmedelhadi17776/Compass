@@ -21,7 +21,7 @@ type CreateTodoRequest struct {
 	LinkedTaskID          *uuid.UUID             `json:"linked_task_id"`
 	LinkedCalendarEventID *uuid.UUID             `json:"linked_calendar_event_id"`
 	UserID                uuid.UUID              `json:"user_id"`
-	ListID                uuid.UUID              `json:"list_id"`
+	ListID                *uuid.UUID             `json:"list_id,omitempty"`
 	IsCompleted           bool                   `json:"is_completed"`
 	CompletedAt           *time.Time             `json:"completed_at"`
 }
