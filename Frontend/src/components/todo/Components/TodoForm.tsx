@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { X, Plus, ArrowUp, ArrowDown, Minus, Check } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
-import { Button } from "../../ui/button";
-import { Input } from "../../ui/input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "../../ui/textarea";
 import { Badge } from "../../ui/badge";
-import { Label } from "../../ui/label";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from '@tanstack/react-query';
 import { User } from '@/api/auth';
-import { Todo, TodoPriority } from '@/components/todo/types-todo';
+import { Todo, TodoPriority, TodoStatus } from '@/components/todo/types-todo';
 import { useCreateTodo, useDeleteTodo } from '../hooks';
 import './TodoForm.css';
 import {
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Checkbox from "@/components/ui/checkbox";
 
 interface TodoFormProps {
   onClose: () => void;
@@ -40,6 +41,8 @@ interface TodoFormData {
   is_recurring: boolean;
   tags: string[];
   list_id: string;
+  status: TodoStatus;
+  checklist?: { items: { title: string; completed: boolean }[] };
 }
 
 const TodoForm: React.FC<TodoFormProps> = ({
@@ -62,6 +65,11 @@ const TodoForm: React.FC<TodoFormProps> = ({
   const [selectedTags, setSelectedTags] = useState<string[]>(todo?.tags ? Object.keys(todo.tags) : []);
   const [newTag, setNewTag] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
+  const [checklistItems, setChecklistItems] = useState<{ title: string; completed: boolean }[]>(
+    todo?.checklist?.items || []
+  );
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [showChecklistInput, setShowChecklistInput] = useState(false);
 
   const createTodoMutation = useCreateTodo();
   const deleteTodoMutation = useDeleteTodo();
@@ -76,6 +84,7 @@ const TodoForm: React.FC<TodoFormProps> = ({
       setReminderTime(todo.reminder_time ? new Date(todo.reminder_time) : undefined);
       setIsRecurring(todo.is_recurring || false);
       setSelectedTags(todo.tags ? Object.keys(todo.tags) : []);
+      setChecklistItems(todo.checklist?.items || []);
     }
   }, [todo]);
 
@@ -91,7 +100,11 @@ const TodoForm: React.FC<TodoFormProps> = ({
       reminder_time: reminderTime,
       is_recurring: isRecurring,
       tags: selectedTags,
-      list_id: listId
+      list_id: listId,
+      status: TodoStatus.PENDING,
+      checklist: {
+        items: checklistItems
+      }
     };
 
     onSubmit(formData);
@@ -126,6 +139,27 @@ const TodoForm: React.FC<TodoFormProps> = ({
 
   const handleRemoveTag = (tagToRemove: string) => {
     setSelectedTags(selectedTags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleAddChecklistItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newChecklistItem.trim()) {
+      setChecklistItems([...checklistItems, { title: newChecklistItem.trim(), completed: false }]);
+      setNewChecklistItem('');
+      setShowChecklistInput(false);
+    }
+  };
+
+  const handleRemoveChecklistItem = (index: number) => {
+    setChecklistItems(checklistItems.filter((_, i) => i !== index));
+  };
+
+  const handleToggleChecklistItem = (index: number) => {
+    setChecklistItems(
+      checklistItems.map((item, i) =>
+        i === index ? { ...item, completed: !item.completed } : item
+      )
+    );
   };
 
   return (
@@ -267,6 +301,81 @@ const TodoForm: React.FC<TodoFormProps> = ({
                 >
                   <Plus className="h-4 w-4" />
                   Add Tag
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Checklist</Label>
+            <div className="space-y-2">
+              {checklistItems.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={item.completed}
+                    onChange={() => handleToggleChecklistItem(index)}
+                  />
+                  <span className={cn(
+                    "flex-1",
+                    item.completed && "line-through text-muted-foreground"
+                  )}>
+                    {item.title}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveChecklistItem(index)}
+                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              {showChecklistInput ? (
+                <form onSubmit={handleAddChecklistItem} className="flex gap-2">
+                  <Input
+                    value={newChecklistItem}
+                    onChange={(e) => setNewChecklistItem(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newChecklistItem.trim()) {
+                        e.preventDefault();
+                        handleAddChecklistItem(e);
+                      }
+                    }}
+                    placeholder="Add checklist item"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setShowChecklistInput(false);
+                      setNewChecklistItem('');
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleAddChecklistItem}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </form>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowChecklistInput(true)}
+                  className="w-full justify-center gap-1"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Checklist Item
                 </Button>
               )}
             </div>
