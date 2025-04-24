@@ -3,6 +3,7 @@ package todos
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/google/uuid"
@@ -25,6 +26,8 @@ type TodoRepository interface {
 	FindCompletedByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error)
 	FindUncompletedByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error)
 	CreateTodoList(ctx context.Context, list *TodoList) error
+	GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error)
+	FindDefaultListByUserID(ctx context.Context, userID uuid.UUID) (*TodoList, error)
 }
 
 type todoRepository struct {
@@ -175,4 +178,46 @@ func (r *todoRepository) FindUncompletedByUserID(ctx context.Context, userID uui
 
 func (r *todoRepository) CreateTodoList(ctx context.Context, list *TodoList) error {
 	return r.db.WithContext(ctx).Create(list).Error
+}
+
+func (r *todoRepository) GetOrCreateDefaultList(ctx context.Context, userID uuid.UUID) (*TodoList, error) {
+	// First try to find existing default list
+	list, err := r.FindDefaultListByUserID(ctx, userID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	// If found, return it
+	if list != nil {
+		return list, nil
+	}
+
+	// Create new default list
+	defaultList := &TodoList{
+		ID:          uuid.New(),
+		UserID:      userID,
+		Name:        "Default List",
+		Description: "Default todo list",
+		IsDefault:   true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := r.CreateTodoList(ctx, defaultList); err != nil {
+		return nil, err
+	}
+
+	return defaultList, nil
+}
+
+func (r *todoRepository) FindDefaultListByUserID(ctx context.Context, userID uuid.UUID) (*TodoList, error) {
+	var list TodoList
+	result := r.db.WithContext(ctx).Where("user_id = ? AND is_default = true", userID).First(&list)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, result.Error
+		}
+		return nil, result.Error
+	}
+	return &list, nil
 }

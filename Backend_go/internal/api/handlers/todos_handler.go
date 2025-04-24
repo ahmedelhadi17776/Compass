@@ -61,6 +61,19 @@ func (h *TodoHandler) CreateTodo(c *gin.Context) {
 		return
 	}
 
+	// Get or create default list if no list ID provided
+	var listID uuid.UUID
+	if req.ListID == nil {
+		defaultList, err := h.service.GetOrCreateDefaultList(c.Request.Context(), userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get default list"})
+			return
+		}
+		listID = defaultList.ID
+	} else {
+		listID = *req.ListID
+	}
+
 	input := todos.CreateTodoInput{
 		Title:                 req.Title,
 		Description:           req.Description,
@@ -75,7 +88,7 @@ func (h *TodoHandler) CreateTodo(c *gin.Context) {
 		LinkedTaskID:          req.LinkedTaskID,
 		LinkedCalendarEventID: req.LinkedCalendarEventID,
 		UserID:                userID,
-		ListID:                req.ListID,
+		ListID:                listID,
 		IsCompleted:           req.IsCompleted,
 	}
 
