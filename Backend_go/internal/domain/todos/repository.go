@@ -259,13 +259,29 @@ func (r *todoRepository) UpdateTodoList(ctx context.Context, list *TodoList) err
 }
 
 func (r *todoRepository) DeleteTodoList(ctx context.Context, id uuid.UUID) error {
-	result := r.db.WithContext(ctx).Delete(&TodoList{}, id)
-	if result.Error != nil {
-		return result.Error
+	// Start a transaction
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
-	if result.RowsAffected == 0 {
-		return ErrTodoNotFound
+
+	// Delete all todos associated with this list first
+	if err := tx.Where("list_id = ?", id).Delete(&Todo{}).Error; err != nil {
+		tx.Rollback()
+		return err
 	}
+
+	// Then delete the list itself
+	if err := tx.Delete(&TodoList{}, id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 

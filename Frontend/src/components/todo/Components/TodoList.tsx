@@ -92,12 +92,12 @@ const TodoList: React.FC = () => {
         due_date: formData.due_date?.toISOString() || null,
         reminder_time: formData.reminder_time?.toISOString() || null,
         tags: formData.tags?.reduce((acc, tag) => ({ ...acc, [tag]: {} }), {}),
-        checklist: {},
+        checklist: { items: formData.checklist?.items || [] },
         is_completed: editingTodo.is_completed
       };
       updateTodoMutation.mutate({ id: editingTodo.id, updates });
     } else {
-      const newTodo = {
+      const newTodo: Omit<Todo, "id" | "created_at" | "updated_at" | "completed_at"> = {
         user_id: user.id,
         list_id: currentListId === 'default' ? undefined : currentListId,
         title: formData.title,
@@ -108,7 +108,7 @@ const TodoList: React.FC = () => {
         due_date: formData.due_date?.toISOString() || null,
         reminder_time: formData.reminder_time?.toISOString() || null,
         tags: formData.tags?.reduce((acc, tag) => ({ ...acc, [tag]: {} }), {}),
-        checklist: {},
+        checklist: { items: formData.checklist?.items || [] },
         is_completed: false,
         linked_task_id: null,
         linked_calendar_event_id: null,
@@ -173,17 +173,51 @@ const TodoList: React.FC = () => {
                       </Badge>
                     ))}
                   </div>
-                  {todo.checklist && typeof todo.checklist === 'object' && Object.entries(todo.checklist).map(([id, item]) => (
-                    <div key={id} className="mt-2">
+                  {todo.checklist?.items && todo.checklist.items.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Checklist</span>
+                        <span>
+                          {todo.checklist.items.filter(item => item.completed).length}/{todo.checklist.items.length}
+                        </span>
+                      </div>
                       <Progress
-                        value={item.completed ? 100 : 0}
+                        value={(todo.checklist.items.filter(item => item.completed).length / todo.checklist.items.length) * 100}
                         className="h-1"
                       />
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {item.completed ? "Completed" : "Not completed"}
+                      <div className="space-y-1.5">
+                        {todo.checklist.items.map((item, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <Checkbox
+                              name={`todo-${todo.id}-checklist-${index}`}
+                              checked={item.completed}
+                              onChange={() => {
+                                const newChecklist = {
+                                  items: [...todo.checklist!.items]
+                                };
+                                newChecklist.items[index] = {
+                                  ...item,
+                                  completed: !item.completed
+                                };
+                                updateTodoMutation.mutate({
+                                  id: todo.id,
+                                  updates: { checklist: newChecklist }
+                                });
+                              }}
+                              darkMode={isDarkMode}
+                              className="h-3 w-3"
+                            />
+                            <span className={cn(
+                              "text-xs",
+                              item.completed && "line-through text-muted-foreground"
+                            )}>
+                              {item.title}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -585,14 +619,12 @@ const TodoList: React.FC = () => {
                 <DropdownMenuItem 
                   key={list.id}
                   className="flex items-center justify-between group"
+                  onClick={() => handleListChange(list.id)}
                 >
-                  <span
-                    onClick={() => handleListChange(list.id)}
-                    className={cn(
-                      "flex-1 cursor-pointer",
-                      currentListId === list.id && "bg-muted"
-                    )}
-                  >
+                  <span className={cn(
+                    "flex-1",
+                    currentListId === list.id && "font-medium"
+                  )}>
                     {list.name}
                   </span>
                   {!list.is_default && (
@@ -603,7 +635,7 @@ const TodoList: React.FC = () => {
                         e.stopPropagation();
                         handleDeleteList(list.id);
                       }}
-                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                      className="h-4 w-4 p-2 opacity-0 group-hover:opacity-100"
                     >
                       <X className="h-4 w-4" />
                     </Button>

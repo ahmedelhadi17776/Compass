@@ -11,9 +11,12 @@ export enum TodoStatus {
 }
 
 export interface ChecklistItem {
-  id: string;
   title: string;
   completed: boolean;
+}
+
+export interface Checklist {
+  items: ChecklistItem[];
 }
 
 export interface Todo {
@@ -27,9 +30,9 @@ export interface Todo {
   due_date?: string | null;
   reminder_time?: string | null;
   is_recurring: boolean;
-  recurrence_pattern?: Record<string, any>;
-  tags?: Record<string, any>;
-  checklist?: Record<string, any>;
+  recurrence_pattern?: Record<string, any> | null;
+  tags?: Record<string, any> | null;
+  checklist?: Checklist | null;
   linked_task_id?: string | null;
   linked_calendar_event_id?: string | null;
   is_completed: boolean;
