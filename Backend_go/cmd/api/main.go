@@ -20,6 +20,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/todos"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
@@ -141,6 +142,7 @@ func main() {
 	habitsRepo := habits.NewRepository(db)
 	calendarRepo := calendar.NewRepository(db.DB)
 	workflowRepo := workflow.NewRepository(db.DB, workflowLogger)
+	todosRepo := todos.NewTodoRepository(db)
 
 	// Initialize Redis
 	redisConfig := cache.NewConfigFromEnv(cfg)
@@ -168,6 +170,7 @@ func main() {
 		Repository: workflowRepo,
 		Logger:     workflowLogger,
 	})
+	todosService := todos.NewService(todosRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService, cfg.Auth.JWTSecret)
@@ -178,6 +181,7 @@ func main() {
 	habitsHandler := handlers.NewHabitsHandler(habitsService)
 	calendarHandler := handlers.NewCalendarHandler(calendarService)
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
+	todosHandler := handlers.NewTodoHandler(todosService)
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
@@ -260,6 +264,11 @@ func main() {
 	workflowRoutes := routes.NewWorkflowRoutes(workflowHandler, cfg.Auth.JWTSecret)
 	workflowRoutes.RegisterRoutes(router)
 	log.Info("Registered workflow routes at /api/workflows")
+
+	// Todos routes (protected)
+	todosRoutes := routes.NewTodosRoutes(todosHandler, cfg.Auth.JWTSecret)
+	todosRoutes.RegisterRoutes(router, cacheMiddleware)
+	log.Info("Registered todos routes at /api/todos")
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {
