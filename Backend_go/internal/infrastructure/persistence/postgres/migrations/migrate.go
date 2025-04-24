@@ -12,7 +12,6 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/todos"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
@@ -83,7 +82,6 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&workflow.WorkflowExecution{},
 			&workflow.WorkflowAgentLink{},
 			&workflow.WorkflowTransition{},
-			&todos.Todo{},
 		}
 
 		// Migrate each model

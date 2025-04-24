@@ -40,7 +40,7 @@ const authApi = {
     return response.data;
   },
   logout: async () => {
-    await axios.post(`${API_URL}/users/logout`);
+    await axios.post(`${API_URL}/auth/logout`);
   },
   getMe: async (): Promise<User> => {
     const response = await axios.get(`${API_URL}/users/profile`);

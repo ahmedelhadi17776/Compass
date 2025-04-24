@@ -72,7 +72,7 @@ const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    await axios.post(`${API_URL}/api/users/logout`, null);
+    await axios.post(`${API_URL}/auth/logout`, null);
     delete axios.defaults.headers.common['Authorization'];
   },
 
