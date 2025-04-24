@@ -1,0 +1,178 @@
+package todos
+
+import (
+	"context"
+	"errors"
+
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+var (
+	ErrTodoNotFound = errors.New("todo not found")
+)
+
+type TodoRepository interface {
+	Create(ctx context.Context, todo *Todo) error
+	FindByID(ctx context.Context, id uuid.UUID) (*Todo, error)
+	FindAll(ctx context.Context, filter TodoFilter) ([]Todo, int64, error)
+	Update(ctx context.Context, todo *Todo) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	FindByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error)
+	FindByListID(ctx context.Context, listID uuid.UUID) ([]Todo, error)
+	FindByUserIDAndListID(ctx context.Context, userID uuid.UUID, listID uuid.UUID) ([]Todo, error)
+	FindCompletedByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error)
+	FindUncompletedByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error)
+	CreateTodoList(ctx context.Context, list *TodoList) error
+}
+
+type todoRepository struct {
+	db *connection.Database
+}
+
+func NewTodoRepository(db *connection.Database) TodoRepository {
+	return &todoRepository{db: db}
+}
+
+func (r *todoRepository) Create(ctx context.Context, todo *Todo) error {
+	return r.db.WithContext(ctx).Create(todo).Error
+}
+
+func (r *todoRepository) FindByID(ctx context.Context, id uuid.UUID) (*Todo, error) {
+	var todo Todo
+	result := r.db.WithContext(ctx).First(&todo, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrTodoNotFound
+		}
+		return nil, result.Error
+	}
+	return &todo, nil
+}
+
+func (r *todoRepository) FindAll(ctx context.Context, filter TodoFilter) ([]Todo, int64, error) {
+	var todos []Todo
+	var total int64
+
+	query := r.db.WithContext(ctx)
+
+	// Apply filters
+	if filter.Status != nil {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.Priority != nil {
+		query = query.Where("priority = ?", filter.Priority)
+	}
+	if filter.IsCompleted != nil {
+		query = query.Where("is_completed = ?", *filter.IsCompleted)
+	}
+	if filter.DueDate != nil {
+		query = query.Where("due_date = ?", filter.DueDate)
+	}
+	if filter.ReminderTime != nil {
+		query = query.Where("reminder_time = ?", filter.ReminderTime)
+	}
+	if filter.IsRecurring != nil {
+		query = query.Where("is_recurring = ?", filter.IsRecurring)
+	}
+	if filter.Tags != nil {
+		query = query.Where("tags = ?", filter.Tags)
+	}
+	if filter.Checklist != nil {
+		query = query.Where("checklist = ?", filter.Checklist)
+	}
+	if filter.LinkedTaskID != nil {
+		query = query.Where("linked_task_id = ?", filter.LinkedTaskID)
+	}
+	if filter.LinkedCalendarEventID != nil {
+		query = query.Where("linked_calendar_event_id = ?", filter.LinkedCalendarEventID)
+	}
+
+	// Count total before pagination
+	err := query.Model(&Todo{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Apply pagination
+	query = query.Offset(filter.Page * filter.PageSize).Limit(filter.PageSize)
+
+	// Execute query
+	if err := query.Find(&todos).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return todos, total, nil
+}
+
+func (r *todoRepository) Update(ctx context.Context, todo *Todo) error {
+	result := r.db.WithContext(ctx).Save(todo)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTodoNotFound
+	}
+	return nil
+}
+
+func (r *todoRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Delete(&Todo{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTodoNotFound
+	}
+	return nil
+}
+
+func (r *todoRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error) {
+	var todos []Todo
+	result := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&todos)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return todos, nil
+}
+
+func (r *todoRepository) FindByListID(ctx context.Context, listID uuid.UUID) ([]Todo, error) {
+	var todos []Todo
+	result := r.db.WithContext(ctx).Where("list_id = ?", listID).Find(&todos)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return todos, nil
+}
+
+func (r *todoRepository) FindByUserIDAndListID(ctx context.Context, userID uuid.UUID, listID uuid.UUID) ([]Todo, error) {
+	var todos []Todo
+	result := r.db.WithContext(ctx).Where("user_id = ? AND list_id = ?", userID, listID).Find(&todos)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return todos, nil
+}
+
+func (r *todoRepository) FindCompletedByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error) {
+	var todos []Todo
+	result := r.db.WithContext(ctx).Where("user_id = ? AND is_completed = true", userID).Find(&todos)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return todos, nil
+}
+
+func (r *todoRepository) FindUncompletedByUserID(ctx context.Context, userID uuid.UUID) ([]Todo, error) {
+	var todos []Todo
+	result := r.db.WithContext(ctx).Where("user_id = ? AND is_completed = false", userID).Find(&todos)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return todos, nil
+}
+
+func (r *todoRepository) CreateTodoList(ctx context.Context, list *TodoList) error {
+	return r.db.WithContext(ctx).Create(list).Error
+}
