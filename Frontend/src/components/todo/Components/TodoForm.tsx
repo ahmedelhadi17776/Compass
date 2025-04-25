@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, ArrowUp, ArrowDown, Minus, Check } from 'lucide-react';
+import { X, Plus, ArrowUp, ArrowDown, Minus, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,7 @@ const TodoForm: React.FC<TodoFormProps> = ({
   );
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [showChecklistInput, setShowChecklistInput] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const createTodoMutation = useCreateTodo();
   const deleteTodoMutation = useDeleteTodo();
@@ -165,9 +166,14 @@ const TodoForm: React.FC<TodoFormProps> = ({
   return (
     <div className={cn(
       "fixed inset-0 z-50 flex items-center justify-center bg-black/50",
-      isClosing && "opacity-0 transition-opacity duration-300"
+      "animate-fade-in",
+      isClosing && "animate-fade-out"
     )}>
-      <div className="w-full max-w-md rounded-lg bg-card p-6">
+      <div className={cn(
+        "w-full max-w-md rounded-lg bg-card p-6 relative",
+        "animate-fade-in",
+        isClosing && "animate-fade-out"
+      )}>
         <button
           onClick={handleClose}
           className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
@@ -217,169 +223,193 @@ const TodoForm: React.FC<TodoFormProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label>Reminder</Label>
-              <div className="flex gap-2">
-                <DatePicker
-                  selected={reminderTime}
-                  onChange={(date: Date | null) => setReminderTime(date || new Date())}
-                  showTimeSelect
-                  dateFormat="MMMM d, yyyy h:mm aa"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholderText="Set reminder"
-                />
+              <Label>Priority</Label>
+              <Select
+                value={priority}
+                onValueChange={(value: TodoPriority) => setPriority(value)}
+              >
+                <SelectTrigger className="h-[38px]">
+                  <SelectValue>
+                    {priority === TodoPriority.HIGH && <ArrowUp className="h-4 w-4 inline mr-2" />}
+                    {priority === TodoPriority.MEDIUM && <Minus className="h-4 w-4 inline mr-2" />}
+                    {priority === TodoPriority.LOW && <ArrowDown className="h-4 w-4 inline mr-2" />}
+                    {priority}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(TodoPriority).map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p === TodoPriority.HIGH && <ArrowUp className="h-4 w-4 inline mr-2" />}
+                      {p === TodoPriority.MEDIUM && <Minus className="h-4 w-4 inline mr-2" />}
+                      {p === TodoPriority.LOW && <ArrowDown className="h-4 w-4 inline mr-2" />}
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full flex items-center justify-center gap-2"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Hide Advanced Options
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Show Advanced Options
+              </>
+            )}
+          </Button>
+
+          {showAdvanced && (
+            <div className="space-y-4 pt-4 border-t">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Reminder</Label>
+                  <div className="flex gap-2">
+                    <DatePicker
+                      selected={reminderTime}
+                      onChange={(date: Date | null) => setReminderTime(date || new Date())}
+                      showTimeSelect
+                      dateFormat="MMMM d, yyyy h:mm aa"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholderText="Set reminder"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tags</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedTags || []).map((tag) => (
+                      <Badge key={tag} variant="outline">
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-2 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {showTagInput ? (
+                      <form onSubmit={handleAddTag} className="flex gap-2">
+                        <Input
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newTag.trim()) {
+                              e.preventDefault();
+                              handleAddTag(e);
+                            }
+                          }}
+                          placeholder="Add tag"
+                          className="h-[38px]"
+                        />
+                        <Button type="button" variant="outline" className="h-[38px]" onClick={() => setShowTagInput(false)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </form>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowTagInput(true)}
+                        className="flex-1 h-[38px]"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Tag
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Checklist</Label>
+                <div className="space-y-2">
+                  {checklistItems.map((item, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={item.completed}
+                        onChange={() => handleToggleChecklistItem(index)}
+                      />
+                      <span className={cn(
+                        "flex-1",
+                        item.completed && "line-through text-muted-foreground"
+                      )}>
+                        {item.title}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveChecklistItem(index)}
+                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {showChecklistInput ? (
+                    <form onSubmit={handleAddChecklistItem} className="flex gap-2">
+                      <Input
+                        value={newChecklistItem}
+                        onChange={(e) => setNewChecklistItem(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newChecklistItem.trim()) {
+                            e.preventDefault();
+                            handleAddChecklistItem(e);
+                          }
+                        }}
+                        placeholder="Add checklist item"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setShowChecklistInput(false);
+                          setNewChecklistItem('');
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleAddChecklistItem}
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowChecklistInput(true)}
+                      className="w-full justify-center gap-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Checklist Item
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Priority</Label>
-            <Select
-              value={priority}
-              onValueChange={(value: TodoPriority) => setPriority(value)}
-            >
-              <SelectTrigger>
-                <SelectValue>
-                  {priority === TodoPriority.HIGH && <ArrowUp className="h-4 w-4 inline mr-2" />}
-                  {priority === TodoPriority.MEDIUM && <Minus className="h-4 w-4 inline mr-2" />}
-                  {priority === TodoPriority.LOW && <ArrowDown className="h-4 w-4 inline mr-2" />}
-                  {priority}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {Object.values(TodoPriority).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p === TodoPriority.HIGH && <ArrowUp className="h-4 w-4 inline mr-2" />}
-                    {p === TodoPriority.MEDIUM && <Minus className="h-4 w-4 inline mr-2" />}
-                    {p === TodoPriority.LOW && <ArrowDown className="h-4 w-4 inline mr-2" />}
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Tags</Label>
-            <div className="flex flex-wrap gap-2">
-              {(selectedTags || []).map((tag) => (
-                <Badge key={tag} variant="outline">
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag)}
-                    className="ml-2 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-              {showTagInput ? (
-                <form onSubmit={handleAddTag} className="flex gap-2">
-                  <Input
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newTag.trim()) {
-                        e.preventDefault();
-                        handleAddTag(e);
-                      }
-                    }}
-                    placeholder="Add tag"
-                    className="w-32"
-                  />
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowTagInput(false)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </form>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTagInput(true)}
-                  className="gap-1"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Tag
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Checklist</Label>
-            <div className="space-y-2">
-              {checklistItems.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Checkbox
-                    checked={item.completed}
-                    onChange={() => handleToggleChecklistItem(index)}
-                  />
-                  <span className={cn(
-                    "flex-1",
-                    item.completed && "line-through text-muted-foreground"
-                  )}>
-                    {item.title}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveChecklistItem(index)}
-                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              {showChecklistInput ? (
-                <form onSubmit={handleAddChecklistItem} className="flex gap-2">
-                  <Input
-                    value={newChecklistItem}
-                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newChecklistItem.trim()) {
-                        e.preventDefault();
-                        handleAddChecklistItem(e);
-                      }
-                    }}
-                    placeholder="Add checklist item"
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setShowChecklistInput(false);
-                      setNewChecklistItem('');
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleAddChecklistItem}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                </form>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowChecklistInput(true)}
-                  className="w-full justify-center gap-1"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Checklist Item
-                </Button>
-              )}
-            </div>
-          </div>
+          )}
 
           <div className="flex justify-between gap-3 mt-6">
             {todo && (
@@ -397,7 +427,7 @@ const TodoForm: React.FC<TodoFormProps> = ({
               <Button type="button" variant="outline" onClick={handleClose} className="px-4 py-2">
                 Cancel
               </Button>
-              <Button type="submit" className="px-4 py-2" disabled={createTodoMutation.isPending}>
+              <Button type="submit" variant="outline" className="px-4 py-2" disabled={createTodoMutation.isPending}>
                 {createTodoMutation.isPending ? 'Saving...' : todo ? 'Update Todo' : 'Create Todo'}
               </Button>
             </div>
