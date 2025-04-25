@@ -165,21 +165,26 @@ func (s *service) ResetDailyCompletions(ctx context.Context) (int64, error) {
 }
 
 func (s *service) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error) {
-	now := time.Now().UTC()
-	yesterday := now.AddDate(0, 0, -1)
-
 	// Get habits with active streaks
 	activeStreaks, err := s.repo.GetActiveStreaks(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch active streaks: %w", err)
 	}
 
+	now := time.Now().UTC()
+	yesterday := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, time.UTC)
+
 	var totalReset int64
 	for _, habit := range activeStreaks {
-		// Check if streak is broken
+		// Check if streak is broken (no completion yesterday or earlier)
 		if habit.LastCompletedDate == nil || habit.LastCompletedDate.Before(yesterday) {
+			lastDate := now
+			if habit.LastCompletedDate != nil {
+				lastDate = *habit.LastCompletedDate
+			}
+
 			// Before resetting, store the streak history
-			if err := s.repo.LogStreakHistory(ctx, habit.ID, habit.CurrentStreak, *habit.LastCompletedDate); err != nil {
+			if err := s.repo.LogStreakHistory(ctx, habit.ID, habit.CurrentStreak, lastDate); err != nil {
 				log.Printf("failed to log streak history for habit %s: %v", habit.ID, err)
 			}
 

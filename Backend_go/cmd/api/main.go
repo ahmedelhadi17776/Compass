@@ -26,6 +26,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/scheduler"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
@@ -171,6 +172,11 @@ func main() {
 		Logger:     workflowLogger,
 	})
 	todosService := todos.NewService(todosRepo)
+
+	// Initialize and start the scheduler
+	habitScheduler := scheduler.NewScheduler(habitsService, log)
+	habitScheduler.Start()
+	log.Info("Habit scheduler started successfully")
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService, cfg.Auth.JWTSecret)
