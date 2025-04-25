@@ -175,18 +175,18 @@ func (r *repository) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID u
 }
 
 func (r *repository) ResetDailyCompletions(ctx context.Context) (int64, error) {
+	// Use TIMEZONE function in postgres to ensure dates are compared in the user's timezone
 	result := r.db.WithContext(ctx).Model(&Habit{}).
-		Where("is_completed = ?", true).
+		Where("is_completed = ? AND DATE(last_completed_date AT TIME ZONE 'UTC') < DATE(NOW() AT TIME ZONE 'UTC')", true).
 		Update("is_completed", false)
 
 	return result.RowsAffected, result.Error
 }
 
 func (r *repository) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error) {
-	yesterday := time.Now().AddDate(0, 0, -1)
-
+	// Use TIMEZONE function in postgres to ensure dates are compared in the user's timezone
 	result := r.db.WithContext(ctx).Model(&Habit{}).
-		Where("current_streak > 0 AND (last_completed_date IS NULL OR last_completed_date < ?)", yesterday).
+		Where("current_streak > 0 AND (last_completed_date IS NULL OR DATE(last_completed_date AT TIME ZONE 'UTC') < DATE(NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day'))").
 		Updates(map[string]interface{}{
 			"current_streak": 0,
 		})
