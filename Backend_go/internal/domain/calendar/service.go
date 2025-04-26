@@ -127,47 +127,68 @@ func (s *service) generateOccurrences(event *CalendarEvent, rule *RecurrenceRule
 	var occurrences []*EventOccurrence
 	currentTime := event.StartTime
 
+	// Create map for faster day lookup
+	allowedDays := make(map[string]bool)
+	for _, day := range rule.ByDay {
+		allowedDays[day] = true
+	}
+
 	// Determine the end date for occurrence generation
 	var endDate time.Time
 	if rule.Until != nil {
 		endDate = *rule.Until
 	} else if rule.Count != nil {
 		// If count is specified, we'll generate that many occurrences
-		endDate = event.StartTime.AddDate(10, 0, 0) // Use 10 years as a reasonable maximum
+		endDate = event.StartTime.AddDate(1, 0, 0) // Use 1 year as maximum
 	} else {
 		// If neither until nor count is specified, generate occurrences for 1 year
 		endDate = event.StartTime.AddDate(1, 0, 0)
 	}
 
 	count := 0
+
+	// Find the first occurrence
+	// Adjust start time to the beginning of the week if it's not already an allowed day
+	startWeekday := strings.ToUpper(currentTime.Weekday().String()[:2])
+	if !allowedDays[startWeekday] {
+		// Find the next allowed day
+		for i := 0; i < 7; i++ {
+			currentTime = currentTime.AddDate(0, 0, 1)
+			dayStr := strings.ToUpper(currentTime.Weekday().String()[:2])
+			if allowedDays[dayStr] {
+				break
+			}
+		}
+	}
+
+	// Generate occurrences
 	for currentTime.Before(endDate) {
 		if rule.Count != nil && count >= *rule.Count {
 			break
 		}
 
-		// Check if this occurrence matches the recurrence pattern
-		if s.isValidOccurrence(currentTime, rule) {
+		dayStr := strings.ToUpper(currentTime.Weekday().String()[:2])
+		if allowedDays[dayStr] {
 			occurrence := &EventOccurrence{
 				EventID:        event.ID,
 				OccurrenceTime: currentTime,
 				Status:         OccurrenceStatusUpcoming,
+				CreatedAt:      time.Now(), // Add proper timestamps
+				UpdatedAt:      time.Now(),
 			}
 			occurrences = append(occurrences, occurrence)
 			count++
 		}
 
-		// Advance to next potential occurrence
-		switch rule.Freq {
-		case RecurrenceTypeDaily:
-			currentTime = currentTime.AddDate(0, 0, rule.Interval)
-		case RecurrenceTypeWeekly:
-			currentTime = currentTime.AddDate(0, 0, 7*rule.Interval)
-		case RecurrenceTypeBiweekly:
-			currentTime = currentTime.AddDate(0, 0, 14*rule.Interval)
-		case RecurrenceTypeMonthly:
-			currentTime = currentTime.AddDate(0, rule.Interval, 0)
-		case RecurrenceTypeYearly:
-			currentTime = currentTime.AddDate(rule.Interval, 0, 0)
+		// Move to next day
+		nextDay := currentTime.AddDate(0, 0, 1)
+
+		// If we're moving to a new week (Sunday to Monday)
+		if nextDay.Weekday() == time.Monday && rule.Interval > 1 {
+			// Skip to the next week based on interval
+			currentTime = nextDay.AddDate(0, 0, (rule.Interval-1)*7)
+		} else {
+			currentTime = nextDay
 		}
 	}
 
