@@ -371,6 +371,18 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 	// For each recurring event, generate and apply exceptions
 	for i, event := range events {
 		if len(event.RecurrenceRules) > 0 {
+			// Get stored occurrences from database
+			storedOccurrences, err := s.repo.GetOccurrences(ctx, event.ID, startTime, endTime)
+			if err != nil {
+				return nil, err
+			}
+
+			// Create a map of stored occurrences by time for quick lookup
+			storedOccMap := make(map[time.Time]EventOccurrence)
+			for _, occ := range storedOccurrences {
+				storedOccMap[occ.OccurrenceTime] = occ
+			}
+
 			// Generate occurrences based on recurrence rules
 			occurrences := s.generateOccurrences(&event, &event.RecurrenceRules[0])
 
@@ -379,6 +391,13 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 			for _, occ := range occurrences {
 				if (occ.OccurrenceTime.Equal(startTime) || occ.OccurrenceTime.After(startTime)) &&
 					(occ.OccurrenceTime.Equal(endTime) || occ.OccurrenceTime.Before(endTime)) {
+					// If we have a stored occurrence, use its data
+					if stored, exists := storedOccMap[occ.OccurrenceTime]; exists {
+						occ.ID = stored.ID
+						occ.CreatedAt = stored.CreatedAt
+						occ.UpdatedAt = stored.UpdatedAt
+						occ.Status = stored.Status
+					}
 					validOccurrences = append(validOccurrences, occ)
 				}
 			}
@@ -396,18 +415,33 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 			}
 
 			// Apply exceptions to occurrences
-			var finalOccurrences []EventOccurrence
+			var finalOccurrences []OccurrenceResponse
 			for _, occ := range validOccurrences {
 				if exception, exists := exceptionMap[occ.OccurrenceTime]; exists {
 					if exception.IsDeleted {
 						continue // Skip deleted occurrences
 					}
-					// Apply overrides
-					if exception.OverrideStartTime != nil {
-						occ.OccurrenceTime = *exception.OverrideStartTime
+
+					// Create response with overridden values from exception
+					occResponse := OccurrenceResponse{
+						EventOccurrence: *occ,
+						Title:           exception.OverrideTitle,
+						Description:     exception.OverrideDescription,
+						Location:        exception.OverrideLocation,
+						Color:           exception.OverrideColor,
+						Transparency:    exception.OverrideTransparency,
 					}
+
+					// Update occurrence time if overridden
+					if exception.OverrideStartTime != nil {
+						occResponse.OccurrenceTime = *exception.OverrideStartTime
+					}
+
+					finalOccurrences = append(finalOccurrences, occResponse)
+				} else {
+					// No exception exists, use the occurrence as is
+					finalOccurrences = append(finalOccurrences, OccurrenceResponse{EventOccurrence: *occ})
 				}
-				finalOccurrences = append(finalOccurrences, *occ)
 			}
 
 			events[i].Occurrences = finalOccurrences
