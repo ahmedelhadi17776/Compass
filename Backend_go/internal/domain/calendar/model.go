@@ -97,11 +97,11 @@ type CalendarEvent struct {
 	CreatedAt    time.Time    `json:"created_at" gorm:"not null;default:current_timestamp"`
 	UpdatedAt    time.Time    `json:"updated_at" gorm:"not null;default:current_timestamp"`
 
-	// Relationships (for preload fun) Todo: make the same with other models
-	RecurrenceRules []RecurrenceRule  `json:"recurrence_rules,omitempty" gorm:"foreignKey:EventID"`
-	Occurrences     []EventOccurrence `json:"occurrences,omitempty" gorm:"foreignKey:EventID"`
-	Exceptions      []EventException  `json:"exceptions,omitempty" gorm:"foreignKey:EventID"`
-	Reminders       []EventReminder   `json:"reminders,omitempty" gorm:"foreignKey:EventID"`
+	// Relationships (for preload fun)
+	RecurrenceRules []RecurrenceRule     `json:"recurrence_rules,omitempty" gorm:"foreignKey:EventID"`
+	Occurrences     []OccurrenceResponse `json:"occurrences,omitempty" gorm:"-"` // Use - to exclude from DB operations
+	Exceptions      []EventException     `json:"exceptions,omitempty" gorm:"foreignKey:EventID"`
+	Reminders       []EventReminder      `json:"reminders,omitempty" gorm:"foreignKey:EventID"`
 }
 
 // RecurrenceRule represents the recurrence pattern for a calendar event
@@ -127,6 +127,16 @@ type EventOccurrence struct {
 	Status         OccurrenceStatus `json:"status" gorm:"type:varchar(50);not null;default:'Upcoming'"`
 	CreatedAt      time.Time        `json:"created_at" gorm:"not null;default:current_timestamp"`
 	UpdatedAt      time.Time        `json:"updated_at" gorm:"not null;default:current_timestamp"`
+}
+
+// OccurrenceResponse represents an occurrence with its overridden values
+type OccurrenceResponse struct {
+	EventOccurrence
+	Title        *string       `json:"title,omitempty"`
+	Description  *string       `json:"description,omitempty"`
+	Location     *string       `json:"location,omitempty"`
+	Color        *string       `json:"color,omitempty"`
+	Transparency *Transparency `json:"transparency,omitempty"`
 }
 
 // EventException represents modifications to a specific occurrence
@@ -245,7 +255,8 @@ type UpdateCalendarEventRequest struct {
 }
 
 type CalendarEventResponse struct {
-	Event CalendarEvent `json:"event"`
+	Event       CalendarEvent        `json:"event"`
+	Occurrences []OccurrenceResponse `json:"occurrences,omitempty"`
 }
 
 type CalendarEventListResponse struct {
