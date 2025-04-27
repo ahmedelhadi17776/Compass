@@ -20,7 +20,7 @@ interface CalendarProps {
 
 const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<ViewType>('week');
+  const [currentView, setCurrentView] = useState<ViewType>('threeDays');
   const [showEventForm, setShowEventForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
@@ -35,14 +35,8 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
       case 'day':
         newDate.setDate(newDate.getDate() - 1);
         break;
-      case 'week':
-        newDate.setDate(newDate.getDate() - 7);
-        break;
       case 'threeDays':
         newDate.setDate(newDate.getDate() - 3);
-        break;
-      case 'month':
-        newDate.setMonth(newDate.getMonth() - 1);
         break;
     }
     setCurrentDate(newDate);
@@ -54,14 +48,8 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
       case 'day':
         newDate.setDate(newDate.getDate() + 1);
         break;
-      case 'week':
-        newDate.setDate(newDate.getDate() + 7);
-        break;
       case 'threeDays':
         newDate.setDate(newDate.getDate() + 3);
-        break;
-      case 'month':
-        newDate.setMonth(newDate.getMonth() + 1);
         break;
     }
     setCurrentDate(newDate);
@@ -83,12 +71,8 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
         return <DayView {...commonProps} />;
       case 'threeDays':
         return <ThreeDayView {...commonProps} />;
-      case 'week':
-        return <WeekView {...commonProps} />;
-      case 'month':
-        return <MonthView {...commonProps} />;
       default:
-        return <WeekView {...commonProps} />;
+        return <ThreeDayView {...commonProps} />;
     }
   };
 

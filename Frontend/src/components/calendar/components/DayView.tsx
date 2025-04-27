@@ -4,7 +4,7 @@ import './DayView.css';
 import { cn } from '@/lib/utils';
 import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
-import { useEvents, useUpdateEvent } from '@/components/calendar/hooks';
+import { useDayEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -26,7 +26,7 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     isError,
     error,
     refetch 
-  } = useEvents(user, date);
+  } = useDayEvents(user, date);
   
   const updateEventMutation = useUpdateEvent();
 
