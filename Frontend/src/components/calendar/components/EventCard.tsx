@@ -5,7 +5,9 @@ import './EventCard.css';
 import { CalendarEvent } from '../types';
 
 interface EventCardProps {
-  event: CalendarEvent;
+  event: CalendarEvent & {
+    occurrence_status?: 'Upcoming' | 'Cancelled' | 'Completed';
+  };
   onClick: (event: CalendarEvent) => void;
   onDragStart?: (event: CalendarEvent, e: React.DragEvent) => void;
   style?: React.CSSProperties;
@@ -30,9 +32,23 @@ const EventCard: React.FC<EventCardProps> = ({
     return `${startTime} - ${endTime}`;
   };
 
+  const getStatusColor = (status?: 'Upcoming' | 'Cancelled' | 'Completed') => {
+    switch (status) {
+      case 'Cancelled':
+        return 'text-red-500';
+      case 'Completed':
+        return 'text-green-500';
+      default:
+        return '';
+    }
+  };
+
   return (
     <div 
-      className="event-card"
+      className={cn(
+        "event-card",
+        event.occurrence_status === 'Cancelled' && "opacity-50"
+      )}
       draggable={!!onDragStart}
       onDragStart={handleDragStart}
       onClick={() => onClick(event)}
@@ -40,9 +56,14 @@ const EventCard: React.FC<EventCardProps> = ({
     >
       <div className="event-title">
         {event.title || 'Untitled'}
+        {event.occurrence_status && (
+          <span className={cn("ml-2 text-xs", getStatusColor(event.occurrence_status))}>
+            ({event.occurrence_status})
+          </span>
+        )}
       </div>
       <div className="event-time">
-        {formatTimeRange(event.start, event.end)}
+        {formatTimeRange(event.start_time, event.end_time)}
         {event.location && ` • ${event.location}`}
       </div>
     </div>
