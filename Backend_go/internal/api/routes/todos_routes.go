@@ -30,18 +30,18 @@ func (r *TodosRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cache
 	todos.GET("/:id", cache.CacheResponse(), r.handler.GetTodo)
 	todos.GET("/user/:user_id", cache.CacheResponse(), r.handler.GetTodosByUser)
 
-	// Write operations with cache invalidation
-	todos.POST("", cache.CacheInvalidate("todos:list:*"), r.handler.CreateTodo)
-	todos.PUT("/:id", cache.CacheInvalidate("todos:list:*", "todos:id:*"), r.handler.UpdateTodo)
-	todos.DELETE("/:id", cache.CacheInvalidate("todos:list:*", "todos:id:*"), r.handler.DeleteTodo)
+	// Write operations with cache invalidation - invalidate both todos and todo-lists
+	todos.POST("", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.CreateTodo)
+	todos.PUT("/:id", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.UpdateTodo)
+	todos.DELETE("/:id", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.DeleteTodo)
 
-	// Status and priority updates
-	todos.PATCH("/:id/status", cache.CacheInvalidate("todos:list:*", "todos:id:*"), r.handler.UpdateTodoStatus)
-	todos.PATCH("/:id/priority", cache.CacheInvalidate("todos:list:*", "todos:id:*"), r.handler.UpdateTodoPriority)
+	// Status and priority updates - invalidate both todos and todo-lists
+	todos.PATCH("/:id/status", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.UpdateTodoStatus)
+	todos.PATCH("/:id/priority", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.UpdateTodoPriority)
 
-	// Completion status
-	todos.PATCH("/:id/complete", cache.CacheInvalidate("todos:list:*", "todos:id:*"), r.handler.CompleteTodo)
-	todos.PATCH("/:id/uncomplete", cache.CacheInvalidate("todos:list:*", "todos:id:*"), r.handler.UncompleteTodo)
+	// Completion status - invalidate both todos and todo-lists
+	todos.PATCH("/:id/complete", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.CompleteTodo)
+	todos.PATCH("/:id/uncomplete", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.UncompleteTodo)
 
 	// Todo Lists routes
 	todoLists := router.Group("/api/todo-lists")
@@ -52,7 +52,7 @@ func (r *TodosRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cache
 	todoLists.GET("/:id", cache.CacheResponse(), r.handler.GetTodoList)
 
 	// Write operations with cache invalidation
-	todoLists.POST("", cache.CacheInvalidate("todo-lists:*"), r.handler.CreateTodoList)
-	todoLists.PUT("/:id", cache.CacheInvalidate("todo-lists:*"), r.handler.UpdateTodoList)
-	todoLists.DELETE("/:id", cache.CacheInvalidate("todo-lists:*"), r.handler.DeleteTodoList)
+	todoLists.POST("", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.CreateTodoList)
+	todoLists.PUT("/:id", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.UpdateTodoList)
+	todoLists.DELETE("/:id", cache.CacheInvalidate("todos:*", "todo-lists:*"), r.handler.DeleteTodoList)
 }
