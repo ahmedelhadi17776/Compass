@@ -38,6 +38,12 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
       case 'threeDays':
         newDate.setDate(newDate.getDate() - 3);
         break;
+      case 'week':
+        newDate.setDate(newDate.getDate() - 7);
+        break;
+      case 'month':
+        newDate.setMonth(newDate.getMonth() - 1);
+        break;
     }
     setCurrentDate(newDate);
   };
@@ -50,6 +56,12 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
         break;
       case 'threeDays':
         newDate.setDate(newDate.getDate() + 3);
+        break;
+      case 'week':
+        newDate.setDate(newDate.getDate() + 7);
+        break;
+      case 'month':
+        newDate.setMonth(newDate.getMonth() + 1);
         break;
     }
     setCurrentDate(newDate);
@@ -71,6 +83,10 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = 1 }) => 
         return <DayView {...commonProps} />;
       case 'threeDays':
         return <ThreeDayView {...commonProps} />;
+      case 'week':
+        return <WeekView {...commonProps} />;
+      case 'month':
+        return <MonthView {...commonProps} />;
       default:
         return <ThreeDayView {...commonProps} />;
     }
