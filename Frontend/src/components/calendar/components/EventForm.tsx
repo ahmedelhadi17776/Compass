@@ -14,9 +14,9 @@ interface EventFormProps {
 }
 
 const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
-  const createEvent = useCreateEvent(userId);
-  const updateEvent = useUpdateEvent(userId);
-  const deleteEvent = useDeleteEvent(userId);
+  const createEvent = useCreateEvent();
+  const updateEvent = useUpdateEvent();
+  const deleteEvent = useDeleteEvent();
   const [isClosing, setIsClosing] = useState(false);
 
   const statuses = [
@@ -53,10 +53,10 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
     description: task?.description || '',
     priority: task?.priority || 'Medium',
     location: task?.location || '',
-    start_date: task?.start || new Date(),
-    end_date: task?.end || new Date(Date.now() + 60 * 60000),
+    start_time: task?.start_time ? new Date(task?.start_time) : new Date(),
+    end_time: task?.end_time ? new Date(task?.end_time) : new Date(Date.now() + 60 * 60000),
     status: task?.status || 'Upcoming',
-    user_id: userId,
+    user_id: userId?.toString(),
     recurrence: (task?.recurrence || 'None') as RecurrenceType,
     recurrence_end_date: task?.recurrence_end_date || (task?.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
   });
@@ -65,9 +65,9 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
     if (task) {
       setFormData({
         ...task,
-        start_date: new Date(task.start),
-        end_date: new Date(task.end),
-        user_id: userId,
+        start_time: new Date(task.start_time),
+        end_time: new Date(task.end_time),
+        user_id: userId?.toString(),
         recurrence: (task.recurrence || 'None') as RecurrenceType,
         recurrence_end_date: task.recurrence_end_date ? new Date(task.recurrence_end_date) : (task.is_recurring ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined),
       });
@@ -81,8 +81,8 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
     try {
       const taskData = {
         ...formData,
-        start: formData.start_date,
-        end: formData.end_date,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
         is_recurring: formData.recurrence !== 'None',
         recurrence: formData.recurrence,
         recurrence_end_date: formData.recurrence !== 'None' && formData.recurrence_end_date ? new Date(formData.recurrence_end_date) : undefined,
@@ -211,8 +211,8 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
             <div>
               <label className="block text-sm font-medium text-gray-300">Start Time</label>
               <DatePicker
-                selected={formData.start_date}
-                onChange={(date: Date) => setFormData({ ...formData, start_date: date })}
+                selected={formData.start_time instanceof Date ? formData.start_time : null}
+                onChange={(date: Date) => setFormData({ ...formData, start_time: date })}
                 showTimeSelect
                 dateFormat="MMMM d, yyyy h:mm aa"
                 className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
@@ -222,12 +222,12 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
             <div>
               <label className="block text-sm font-medium text-gray-300">End Time</label>
               <DatePicker
-                selected={formData.end_date}
-                onChange={(date: Date) => setFormData({ ...formData, end_date: date })}
+                selected={formData.end_time instanceof Date ? formData.end_time : null}
+                onChange={(date: Date) => setFormData({ ...formData, end_time: date })}
                 showTimeSelect
                 dateFormat="MMMM d, yyyy h:mm aa"
                 className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                minDate={formData.start_date}
+                minDate={formData.start_time instanceof Date ? formData.start_time : null}
               />
             </div>
           </div>
@@ -256,7 +256,7 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId = 1 }) => {
                   onChange={(date: Date) => setFormData({ ...formData, recurrence_end_date: date })}
                   dateFormat="MMMM d, yyyy"
                   className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                  minDate={formData.start_date}
+                  minDate={formData.start_time instanceof Date ? formData.start_time : null}
                 />
               </div>
             )}

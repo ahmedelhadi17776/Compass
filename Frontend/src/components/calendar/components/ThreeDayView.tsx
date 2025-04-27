@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { format, isSameDay, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import './ThreeDayView.css';
@@ -6,6 +6,7 @@ import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
 import { useThreeDayEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ThreeDayViewProps {
   date: Date;
@@ -16,6 +17,7 @@ interface ThreeDayViewProps {
 const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
+  const { user } = useAuth();
 
   const { 
     data: events = [], 
@@ -23,34 +25,45 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     isError,
     error,
     refetch 
-  } = useThreeDayEvents(date, 1, { expand_recurring: true });
+  } = useThreeDayEvents(user, date);
   
-  const updateEventMutation = useUpdateEvent(1);
+  const updateEventMutation = useUpdateEvent();
 
-  React.useEffect(() => {
-    const timer = setInterval(() => {
+  useEffect(() => {
+    const updateTimeIndicator = () => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    };
 
-    return () => clearInterval(timer);
+    updateTimeIndicator();
+    const interval = setInterval(updateTimeIndicator, 60000); // Update every minute
+
+    return () => clearInterval(interval);
   }, []);
 
-  const getCurrentTimePosition = () => {
-    const hours = currentTime.getHours();
-    const minutes = currentTime.getMinutes();
-    return (hours * 60) + minutes;
-  };
+  // Expand recurring events into virtual events
+  const expandedEvents = events.flatMap(event => {
+    if (!event.occurrences || event.occurrences.length === 0) {
+      return [event];
+    }
 
-  const threeDayEvents = events.filter(event => {
-    const eventStart = new Date(event.start);
-    const startOfRange = new Date(date);
-    startOfRange.setHours(0, 0, 0, 0);
-    
-    const endOfRange = addDays(startOfRange, 2);
-    endOfRange.setHours(23, 59, 59, 999);
-    
-    return eventStart >= startOfRange && eventStart <= endOfRange;
+    return event.occurrences.map(occurrence => {
+      const occurrenceStart = new Date(occurrence.occurrence_time);
+      const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+      const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+
+      return {
+        ...event,
+        id: `${event.id}-${occurrence.id}`,
+        start_time: occurrenceStart,
+        end_time: occurrenceEnd,
+        occurrence_id: occurrence.id,
+        occurrence_status: occurrence.status,
+      };
+    });
   });
+
+  const days = [date, addDays(date, 1), addDays(date, 2)];
+  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
     setDraggingEvent(event);
@@ -67,11 +80,11 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
-    const newStart = new Date(draggingEvent.start);
+    const newStart = new Date(draggingEvent.start_time);
     newStart.setHours(hour);
     newStart.setMinutes(minutes);
 
-    const duration = draggingEvent.end.getTime() - draggingEvent.start.getTime();
+    const duration = draggingEvent.end_time.getTime() - draggingEvent.start_time.getTime();
     const newEnd = new Date(newStart.getTime() + duration);
 
     try {
@@ -79,8 +92,8 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
         eventId: draggingEvent.id,
         event: {
           ...draggingEvent,
-          start: newStart,
-          end: newEnd,
+          start_time: newStart,
+          end_time: newEnd,
         }
       });
     } catch (error) {
@@ -93,9 +106,6 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
   const getDurationInMinutes = (start: Date, end: Date): number => {
     return (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60);
   };
-
-  const timeSlots = Array.from({ length: 24 }, (_, i) => i);
-  const days = [date, addDays(date, 1), addDays(date, 2)];
 
   if (isLoading) {
     return (
@@ -208,9 +218,9 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
                         }}
                       />
                     )}
-                    {threeDayEvents
+                    {expandedEvents
                       .filter(event => {
-                        const eventStart = new Date(event.start);
+                        const eventStart = new Date(event.start_time);
                         const eventHour = eventStart.getHours();
                         return eventHour === hour && isSameDay(eventStart, day);
                       })
@@ -221,8 +231,8 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
                           onClick={onEventClick}
                           onDragStart={handleDragStart}
                           style={{
-                            height: `${getDurationInMinutes(event.start, event.end)}px`,
-                            top: `${new Date(event.start).getMinutes()}px`
+                            height: `${getDurationInMinutes(event.start_time, event.end_time)}px`,
+                            top: `${new Date(event.start_time).getMinutes()}px`
                           }}
                         />
                       ))}

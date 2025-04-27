@@ -3,15 +3,20 @@ export interface CalendarEvent {
   user_id: string;
   title: string;
   description: string;
-  event_type: 'None' | 'Task' | 'Meeting' | 'Todo' | 'Holiday' | 'Reminder';
+  event_type?: 'None' | 'Task' | 'Meeting' | 'Todo' | 'Holiday' | 'Reminder';
   start_time: Date;
   end_time: Date;
-  is_all_day: boolean;
+  is_all_day?: boolean;
   location?: string;
   color?: string;
-  transparency: 'opaque' | 'transparent';
-  created_at: Date;
-  updated_at: Date;
+  transparency?: 'opaque' | 'transparent';
+  created_at?: Date;
+  updated_at?: Date;
+  priority?: 'High' | 'Medium' | 'Low';
+  status?: 'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled' | 'Blocked' | 'Under Review' | 'Deferred';
+  is_recurring?: boolean;
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Biweekly' | 'Monthly' | 'Yearly' | 'Weekdays' | 'Custom';
+  recurrence_end_date?: Date;
   recurrence_rules?: RecurrenceRule[];
   occurrences?: OccurrenceResponse[];
   exceptions?: EventException[];
@@ -23,10 +28,15 @@ export interface CreateEventData {
   description: string;
   start_time: Date;
   end_time: Date;
-  is_all_day: boolean;
+  is_all_day?: boolean;
   location?: string;
   color?: string;
-  transparency: 'opaque' | 'transparent';
+  transparency?: 'opaque' | 'transparent';
+  priority?: 'High' | 'Medium' | 'Low';
+  status?: 'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled' | 'Blocked' | 'Under Review' | 'Deferred';
+  is_recurring?: boolean;
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Biweekly' | 'Monthly' | 'Yearly' | 'Weekdays' | 'Custom';
+  recurrence_end_date?: Date;
 }
 
 export interface RecurrenceRule {

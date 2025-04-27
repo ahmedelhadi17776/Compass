@@ -127,17 +127,23 @@ func (r *repository) ListEvents(ctx context.Context, filter EventFilter) ([]Cale
 
 	// Handle date range filtering for both single and recurring events
 	if filter.StartTime != nil && filter.EndTime != nil {
-		// Events that overlap with the date range:
-		// 1. Events that start within the range
-		// 2. Events that end within the range
-		// 3. Events that span across the range
+		// Create a subquery to find events with occurrences in the range
+		occurrenceSubquery := r.db.Model(&EventOccurrence{}).
+			Select("event_id").
+			Where("occurrence_time BETWEEN ? AND ?", filter.StartTime, filter.EndTime)
+
+		// Events that either:
+		// 1. Overlap with the date range directly (non-recurring events)
+		// 2. Have occurrences within the date range (recurring events)
 		query = query.Where(
-			"(start_time BETWEEN ? AND ?) OR "+
-				"(end_time BETWEEN ? AND ?) OR "+
-				"(start_time <= ? AND end_time >= ?)",
-			filter.StartTime, filter.EndTime,
-			filter.StartTime, filter.EndTime,
-			filter.StartTime, filter.EndTime,
+			r.db.Where(
+				"(start_time BETWEEN ? AND ?) OR "+
+					"(end_time BETWEEN ? AND ?) OR "+
+					"(start_time <= ? AND end_time >= ?)",
+				filter.StartTime, filter.EndTime,
+				filter.StartTime, filter.EndTime,
+				filter.StartTime, filter.EndTime,
+			).Or("id IN (?)", occurrenceSubquery),
 		)
 	}
 
