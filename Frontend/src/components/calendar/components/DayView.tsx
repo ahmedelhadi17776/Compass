@@ -4,8 +4,9 @@ import './DayView.css';
 import { cn } from '@/lib/utils';
 import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
-import { useDayEvents, useUpdateEvent } from '@/components/calendar/hooks';
+import { useEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/hooks/useAuth';
 
 interface DayViewProps {
   date: Date;
@@ -17,6 +18,7 @@ interface DayViewProps {
 const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const { user } = useAuth();
   
   const { 
     data: events = [], 
@@ -24,9 +26,9 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     isError,
     error,
     refetch 
-  } = useDayEvents(date, 1, { expand_recurring: true });
+  } = useEvents(user, date);
   
-  const updateEventMutation = useUpdateEvent(1);
+  const updateEventMutation = useUpdateEvent();
 
   useEffect(() => {
     const updateTimeIndicator = () => {
@@ -39,8 +41,30 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     return () => clearInterval(interval);
   }, []);
 
-  const todayEvents = events.filter(event => isSameDay(new Date(event.start), date));
-  const sortedEvents = todayEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  // Expand recurring events into virtual events
+  const expandedEvents = events.flatMap(event => {
+    if (!event.occurrences || event.occurrences.length === 0) {
+      return [event];
+    }
+
+    return event.occurrences.map(occurrence => {
+      const occurrenceStart = new Date(occurrence.occurrence_time);
+      const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+      const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+
+      return {
+        ...event,
+        id: `${event.id}-${occurrence.id}`,
+        start_time: occurrenceStart,
+        end_time: occurrenceEnd,
+        occurrence_id: occurrence.id,
+        occurrence_status: occurrence.status,
+      };
+    });
+  });
+
+  const todayEvents = expandedEvents.filter(event => isSameDay(new Date(event.start_time), date));
+  const sortedEvents = todayEvents.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
@@ -58,11 +82,11 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
-    const newStart = new Date(draggingEvent.start);
+    const newStart = new Date(draggingEvent.start_time);
     newStart.setHours(hour);
     newStart.setMinutes(minutes);
 
-    const duration = draggingEvent.end.getTime() - draggingEvent.start.getTime();
+    const duration = draggingEvent.end_time.getTime() - draggingEvent.start_time.getTime();
     const newEnd = new Date(newStart.getTime() + duration);
 
     try {
@@ -70,8 +94,8 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
         eventId: draggingEvent.id,
         event: {
           ...draggingEvent,
-          start: newStart,
-          end: newEnd,
+          start_time: newStart,
+          end_time: newEnd,
         }
       });
     } catch (error) {
@@ -147,7 +171,7 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
                   )}
                   {sortedEvents
                     .filter(event => {
-                      const eventStart = new Date(event.start);
+                      const eventStart = new Date(event.start_time);
                       return eventStart.getHours() === hour && isSameDay(eventStart, date);
                     })
                     .map(event => (
@@ -157,8 +181,8 @@ const DayView: React.FC<DayViewProps> = ({ date, onEventClick, onEventDrop, dark
                         onClick={onEventClick}
                         onDragStart={handleDragStart}
                         style={{
-                          top: `${new Date(event.start).getMinutes()}px`,
-                          height: `${getDurationInMinutes(new Date(event.start), new Date(event.end))}px`,
+                          top: `${new Date(event.start_time).getMinutes()}px`,
+                          height: `${getDurationInMinutes(new Date(event.start_time), new Date(event.end_time))}px`,
                         }}
                       />
                     ))}
