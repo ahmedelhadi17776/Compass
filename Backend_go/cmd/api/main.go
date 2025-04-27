@@ -258,7 +258,7 @@ func main() {
 
 	// Habits routes (protected)
 	habitsRoutes := routes.NewHabitsRoutes(habitsHandler, cfg.Auth.JWTSecret)
-	habitsRoutes.RegisterRoutes(router)
+	habitsRoutes.RegisterRoutes(router, cacheMiddleware)
 	log.Info("Registered habits routes at /habits")
 
 	// Calendar routes (protected)

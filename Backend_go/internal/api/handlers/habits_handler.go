@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -41,12 +42,19 @@ func (h *HabitsHandler) CreateHabit(c *gin.Context) {
 		return
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
 	input := habits.CreateHabitInput{
 		Title:       req.Title,
 		Description: req.Description,
 		StartDay:    req.StartDay,
 		EndDay:      req.EndDay,
-		UserID:      req.UserID,
+		UserID:      userID,
 	}
 
 	createdHabit, err := h.service.CreateHabit(c.Request.Context(), input)
