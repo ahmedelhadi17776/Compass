@@ -14,7 +14,6 @@ type CreateHabitRequest struct {
 	Description string     `json:"description" example:"A detailed habit description"`
 	StartDay    time.Time  `json:"start_day" example:"2024-01-01T00:00:00Z"`
 	EndDay      *time.Time `json:"end_day" example:"2024-01-01T00:00:00Z"`
-	UserID      uuid.UUID  `json:"user_id" binding:"required"`
 }
 
 // UpdateHabitRequest represents the request body for updating an existing habit

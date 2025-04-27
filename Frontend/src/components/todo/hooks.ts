@@ -65,7 +65,7 @@ export const useToggleTodoStatus = () => {
 export const useHabits = (user: User | undefined) => {
   return useQuery<Habit[]>({
     queryKey: ['habits', user?.id],
-    queryFn: () => user ? fetchHabits(user.id) : Promise.resolve([]),
+    queryFn: () => user ? fetchHabits() : Promise.resolve([]),
     enabled: !!user,
   });
 };
@@ -74,7 +74,6 @@ interface CreateHabitData {
   title: string;
   description: string;
   start_day: string;
-  user_id: string;
 }
 
 export const useCreateHabit = () => {

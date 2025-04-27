@@ -51,23 +51,15 @@ export const uncompleteTodo = async (id: string): Promise<Todo> => {
 };
 
 // Habit API functions
-export const fetchHabits = async (userId: string): Promise<Habit[]> => {
-  const response = await axios.get<{ data: Habit[] }>(`${API_BASE_URL}/api/habits/user/${userId}`);
-  
-  // Ensure we're returning an array from the data wrapper
-  if (!Array.isArray(response.data.data)) {
-    console.error('API did not return an array:', response.data);
-    return [];
-  }
-
-  return response.data.data;
+export const fetchHabits = async (): Promise<Habit[]> => {
+  const response = await axios.get<{ data: { habits: Habit[] } }>(`${API_BASE_URL}/api/habits`);
+  return response.data.data.habits;
 };
 
 interface CreateHabitData {
   title: string;
   description: string;
   start_day: string;
-  user_id: string;
 }
 
 export const createHabit = async (data: CreateHabitData) => {
