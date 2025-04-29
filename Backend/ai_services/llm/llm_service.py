@@ -6,8 +6,7 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai._streaming import Stream
 from Backend.core.config import settings
 from Backend.utils.logging_utils import get_logger
-from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
-from sqlalchemy.ext.asyncio import AsyncSession
+from Backend.mcp.client import MCPClient
 import os
 import time
 import json
@@ -19,11 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class LLMService:
-    def __init__(self, db_session: Optional[AsyncSession] = None):
-        self.db_session = db_session
-        self.model_repository = AIModelRepository(
-            db_session) if db_session else None
-
+    def __init__(self):
         # Use the GitHub token from environment variables
         self.github_token = os.environ.get(
             "GITHUB_TOKEN", settings.LLM_API_KEY)
@@ -44,51 +39,49 @@ class LLMService:
         self.conversation_history: List[ChatCompletionMessageParam] = []
         self.max_history_length = 10
         self._current_model_id: Optional[int] = None
+        self.mcp_client = MCPClient(settings.GO_BACKEND_URL)
 
     def _get_or_create_model(self) -> int:
-        """Get or create model ID from database."""
-        if not self.model_repository:
-            return 1  # Default model ID if no database
-
+        """Get or create model ID through MCP."""
         try:
-            model = self.model_repository.get_model_by_name_version(
-                name=self.model_name,
-                version="1.0"
-            )
+            # Get model info from Go backend through MCP
+            model_info = self.mcp_client.call_method("ai/model/info", {
+                "name": self.model_name,
+                "version": "1.0"
+            })
 
-            if not model:
-                model = self.model_repository.create_model({
-                    "name": self.model_name,
-                    "version": "1.0",
-                    "type": "text-generation",
-                    "provider": "OpenAI",
-                    "model_metadata": {
-                        "base_url": self.base_url,
-                        "max_history_length": self.max_history_length
-                    },
-                    "status": "active",
-                    "max_tokens": settings.LLM_MAX_TOKENS,
-                    "temperature": settings.LLM_TEMPERATURE
-                })
+            if model_info and "model_id" in model_info:
+                return int(model_info["model_id"])
 
-            # Safely convert SQLAlchemy Column to int
-            model_id = getattr(model, 'id', None)
-            return int(str(model_id)) if model_id is not None else 1
+            # Create model through MCP if it doesn't exist
+            model_info = self.mcp_client.call_method("ai/model/create", {
+                "name": self.model_name,
+                "version": "1.0",
+                "type": "text-generation",
+                "provider": "OpenAI",
+                "status": "active"
+            })
+
+            if model_info and "model_id" in model_info:
+                return int(model_info["model_id"])
+
+            raise ValueError("Failed to get valid model ID from MCP")
         except Exception as e:
-            logger.error(f"Error getting/creating AI model: {str(e)}")
+            logger.error(f"Error getting/creating model through MCP: {str(e)}")
             return 1
 
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
-        """Update model usage statistics."""
-        if self.model_repository and self._current_model_id:
+        """Update model usage statistics through MCP."""
+        if self._current_model_id:
             try:
-                await self.model_repository.update_model_stats(
-                    self._current_model_id,
-                    latency,
-                    success
-                )
+                await self.mcp_client.call_method("ai/model/stats/update", {
+                    "model_id": self._current_model_id,
+                    "latency": latency,
+                    "success": success
+                })
             except Exception as e:
-                logger.error(f"Error updating model stats: {str(e)}")
+                logger.error(
+                    f"Error updating model stats through MCP: {str(e)}")
 
     async def generate_response(
         self,
