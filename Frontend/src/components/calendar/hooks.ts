@@ -11,12 +11,14 @@ export const useEvents = (
   viewType: 'day' | 'threeDays' | 'week' | 'month' = 'month'
 ) => {
   const startTime = viewType === 'day' ? startOfDay(date) : 
-                   viewType === 'threeDays' ? startOfDay(date) : 
-                   startOfWeek(date, { weekStartsOn: 1 });
+                   viewType === 'threeDays' ? startOfDay(date) :
+                   viewType === 'week' ? startOfWeek(date, { weekStartsOn: 1 }) :
+                   startOfMonth(date);
                    
   const endTime = viewType === 'day' ? endOfDay(date) : 
-                 viewType === 'threeDays' ? endOfDay(addDays(date, 2)) : 
-                 endOfWeek(date, { weekStartsOn: 1 });
+                 viewType === 'threeDays' ? endOfDay(addDays(date, 2)) :
+                 viewType === 'week' ? endOfWeek(date, { weekStartsOn: 1 }) :
+                 endOfMonth(date);
 
   return useQuery<CalendarEvent[]>({
     queryKey: ['events', user?.id, startTime, endTime, viewType],
@@ -32,6 +34,14 @@ export const useDayEvents = (user: User | undefined, date: Date) => {
 
 export const useThreeDayEvents = (user: User | undefined, date: Date) => {
   return useEvents(user, date, 'threeDays');
+};
+
+export const useWeekEvents = (user: User | undefined, date: Date) => {
+  return useEvents(user, date, 'week');
+};
+
+export const useMonthEvents = (user: User | undefined, date: Date) => {
+  return useEvents(user, date, 'month');
 };
 
 export const useCreateEvent = () => {
