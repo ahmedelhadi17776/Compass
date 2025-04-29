@@ -1,12 +1,13 @@
-import React, { useEffect } from 'react';
-import { format, isSameDay, addDays } from 'date-fns';
+import React from 'react';
+import { format, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import './WeekView.css';
 import EventCard from './EventCard';
 import { CalendarEvent } from '../types';
 import { useWeekEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 interface WeekViewProps {
   date: Date;
@@ -17,52 +18,28 @@ interface WeekViewProps {
 const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => {
   const [draggingEvent, setDraggingEvent] = React.useState<CalendarEvent | null>(null);
   const [currentTime, setCurrentTime] = React.useState(new Date());
-  const { user } = useAuth();
 
   const { 
     data: events = [], 
     isLoading, 
     isError,
     error,
-    refetch 
-  } = useWeekEvents(user, date);
+    refetch,
+    isFetching 
+  } = useWeekEvents(date);
   
   const updateEventMutation = useUpdateEvent();
 
-  useEffect(() => {
-    const updateTimeIndicator = () => {
+  React.useEffect(() => {
+    const timer = setInterval(() => {
       setCurrentTime(new Date());
-    };
+    }, 60000); // Update every minute
 
-    updateTimeIndicator();
-    const interval = setInterval(updateTimeIndicator, 60000); // Update every minute
-
-    return () => clearInterval(interval);
+    return () => clearInterval(timer);
   }, []);
 
-  // Expand recurring events into virtual events
-  const expandedEvents = events.flatMap(event => {
-    if (!event.occurrences || event.occurrences.length === 0) {
-      return [event];
-    }
-
-    return event.occurrences.map(occurrence => {
-      const occurrenceStart = new Date(occurrence.occurrence_time);
-      const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
-      const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
-
-      return {
-        ...event,
-        id: `${event.id}-${occurrence.id}`,
-        start_time: occurrenceStart,
-        end_time: occurrenceEnd,
-        occurrence_id: occurrence.id,
-        occurrence_status: occurrence.status,
-      };
-    });
-  });
-
-  const days = [date, addDays(date, 1), addDays(date, 2), addDays(date, 3), addDays(date, 4), addDays(date, 5), addDays(date, 6)];
+  const weekStart = startOfWeek(date);
+  const days = [0, 1, 2, 3, 4, 5, 6].map(offset => addDays(weekStart, offset));
   const timeSlots = Array.from({ length: 24 }, (_, i) => i);
 
   const handleDragStart = (event: CalendarEvent, e: React.DragEvent) => {
@@ -80,11 +57,11 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const minutes = Math.floor(((e.clientY - rect.top) / rect.height) * 60);
     
-    const newStart = new Date(draggingEvent.start_time);
+    const newStart = new Date(draggingEvent.start);
     newStart.setHours(hour);
     newStart.setMinutes(minutes);
 
-    const duration = draggingEvent.end_time.getTime() - draggingEvent.start_time.getTime();
+    const duration = draggingEvent.end.getTime() - draggingEvent.start.getTime();
     const newEnd = new Date(newStart.getTime() + duration);
 
     try {
@@ -92,8 +69,8 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
         eventId: draggingEvent.id,
         event: {
           ...draggingEvent,
-          start_time: newStart,
-          end_time: newEnd,
+          start: newStart,
+          end: newEnd,
         }
       });
     } catch (error) {
@@ -157,15 +134,16 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
         )}>
           {error instanceof Error ? error.message : 'Failed to load events'}
         </div>
-        <button
+        <Button
           onClick={() => refetch()}
-          className={cn(
-            "px-4 py-2 rounded-md",
-            darkMode ? "bg-gray-800 text-white hover:bg-gray-700" : "bg-white text-gray-900 hover:bg-gray-50"
-          )}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          disabled={isFetching}
         >
-          Retry
-        </button>
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          {isFetching ? 'Retrying...' : 'Try Again'}
+        </Button>
       </div>
     );
   }
@@ -213,11 +191,10 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
                         }}
                       />
                     )}
-                    {expandedEvents
-                      .filter(event => {
-                        const eventStart = new Date(event.start_time);
-                        const eventHour = eventStart.getHours();
-                        return eventHour === hour && isSameDay(eventStart, day);
+                    {events
+                      .filter((event: CalendarEvent) => {
+                        const eventStart = new Date(event.start);
+                        return eventStart.getHours() === hour && isSameDay(eventStart, day);
                       })
                       .map((event: CalendarEvent) => (
                         <EventCard
@@ -226,8 +203,8 @@ const WeekView: React.FC<WeekViewProps> = ({ date, onEventClick, darkMode }) => 
                           onClick={onEventClick}
                           onDragStart={handleDragStart}
                           style={{
-                            height: `${getDurationInMinutes(new Date(event.start_time), new Date(event.end_time))}px`,
-                            top: `${new Date(event.start_time).getMinutes()}px`
+                            height: `${getDurationInMinutes(new Date(event.start), new Date(event.end))}px`,
+                            top: `${new Date(event.start).getMinutes()}px`
                           }}
                         />
                       ))}

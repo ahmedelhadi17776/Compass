@@ -1,11 +1,10 @@
 import React from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
 import './MonthView.css';
 import { CalendarEvent } from '../types';
 import { useMonthEvents, useUpdateEvent } from '@/components/calendar/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth';
 
 interface MonthViewProps {
   date: Date;
@@ -14,7 +13,6 @@ interface MonthViewProps {
 }
 
 const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) => {
-  const { user } = useAuth();
   const monthStart = startOfMonth(date);
   const monthEnd = endOfMonth(date);
   const calendarStart = startOfWeek(monthStart);
@@ -27,30 +25,22 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
     isError,
     error,
     refetch 
-  } = useMonthEvents(user, date);
+  } = useMonthEvents(date, 1, { expand_recurring: true });
 
+  const getEventsForDay = (day: Date) => {
+    return events.filter((event: CalendarEvent) => 
+      format(new Date(event.start), 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
+    );
+  };
 
-    // Expand recurring events into virtual events
-    const expandedEvents = events.flatMap(event => {
-      if (!event.occurrences || event.occurrences.length === 0) {
-        return [event];
-      }
-  
-      return event.occurrences.map(occurrence => {
-        const occurrenceStart = new Date(occurrence.occurrence_time);
-        const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
-        const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
-  
-        return {
-          ...event,
-          id: `${event.id}-${occurrence.id}`,
-          start_time: occurrenceStart,
-          end_time: occurrenceEnd,
-          occurrence_id: occurrence.id,
-          occurrence_status: occurrence.status,
-        };
-      });
-    });
+  const getPriorityEmoji = (priority: string): string => {
+    switch (priority) {
+      case 'HIGH': return '🔴';
+      case 'MEDIUM': return '🟡';
+      case 'LOW': return '🟢';
+      default: return '';
+    }
+  };
 
   if (isLoading) {
     return <div className="month-view"><Skeleton className="w-full h-full" /></div>;
@@ -104,22 +94,19 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
                 <span className="month-day-number">{format(day, 'd')}</span>
               </div>
               <div className="month-day-events">
-                {expandedEvents
-                  .filter(event => {
-                    const eventStart = new Date(event.start_time);
-                    return isSameDay(eventStart, day);
-                  })
-                  .map((event: CalendarEvent) => (
-                    <div 
-                      key={event.id}
+                {getEventsForDay(day).map((event: CalendarEvent) => (
+                  <div 
+                    key={event.id}
                     className={cn(
                       "month-event-pill",
+                      `priority-${event.priority}`,
                       darkMode && "dark"
                     )}
                     onClick={() => onEventClick(event)}
                   >
-                    <div className="month-event-time">{format(new Date(event.start_time), 'h:mm a')}</div>
+                    <div className="month-event-time">{format(new Date(event.start), 'h:mm a')}</div>
                     <div className="month-event-title">
+                      <span className="priority-emoji">{getPriorityEmoji(event.priority)}</span>
                       {event.title}
                     </div>
                   </div>
