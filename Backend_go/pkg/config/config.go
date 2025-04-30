@@ -23,7 +23,7 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port    int           `mapstructure:"port"`
+	Port    int           `mapstructure:"port" default:"8000"`
 	Mode    string        `mapstructure:"mode"`
 	Timeout time.Duration `mapstructure:"timeout"`
 }
