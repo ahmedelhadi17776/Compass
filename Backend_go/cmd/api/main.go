@@ -27,6 +27,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/scheduler"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/mcp"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
@@ -275,6 +276,45 @@ func main() {
 	todosRoutes := routes.NewTodosRoutes(todosHandler, cfg.Auth.JWTSecret)
 	todosRoutes.RegisterRoutes(router, cacheMiddleware)
 	log.Info("Registered todos routes at /api/todos")
+
+	// Initialize MCP client if API key is available
+	var mcpClient *mcp.Client
+	if apiKey := os.Getenv("MCP_API_KEY"); apiKey != "" {
+		var err error
+		mcpClient, err = mcp.NewClient(&mcp.Config{
+			APIKey: apiKey,
+			Debug:  cfg.Server.Mode != "production",
+		})
+		if err != nil {
+			log.Error("Failed to initialize MCP client", zap.Error(err))
+		}
+	} else {
+		log.Info("MCP_API_KEY not set, MCP features will be disabled")
+	}
+
+	// Add MCP middleware only if client is available
+	if mcpClient != nil {
+		router.Use(func(c *gin.Context) {
+			c.Set("mcp", mcpClient)
+			c.Next()
+		})
+
+		// Add MCP health check
+		router.GET("/health/mcp", func(c *gin.Context) {
+			if err := mcpClient.HealthCheck(); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{
+					"status":    "unhealthy",
+					"component": "mcp",
+					"error":     err.Error(),
+				})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status":    "healthy",
+				"component": "mcp",
+			})
+		})
+	}
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {

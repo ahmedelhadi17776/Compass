@@ -1,0 +1,8 @@
+{
+  "name": "wipeLogs",
+  "params": {
+    "arguments": {
+      "random_string": "test"
+    }
+  }
+} 
