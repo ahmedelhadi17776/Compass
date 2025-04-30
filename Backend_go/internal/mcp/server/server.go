@@ -38,6 +38,10 @@ func (s *MCPServer) AddTool(tool mcp.Tool, handler ToolHandler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Convert Parameters to InputSchema for client compatibility
+	paramsJSON, _ := json.Marshal(tool.Parameters)
+	tool.InputSchema = paramsJSON
+
 	s.tools[tool.Name] = tool
 	s.handlers[tool.Name] = handler
 }
@@ -67,36 +71,117 @@ func (s *MCPServer) HandleRequest(ctx context.Context, req mcp.CallToolRequest) 
 	return handler(ctx, req)
 }
 
+// HandleBatchRequest handles multiple tool calls in a single request
+func (s *MCPServer) HandleBatchRequest(ctx context.Context, req mcp.BatchToolRequest) (*mcp.BatchToolResult, error) {
+	results := make([]mcp.CallToolResult, len(req.Requests))
+
+	// Process each request in sequence
+	for i, request := range req.Requests {
+		result, err := s.HandleRequest(ctx, request)
+		if err != nil {
+			results[i] = *mcp.NewToolResultError(err.Error())
+		} else {
+			results[i] = *result
+		}
+	}
+
+	return mcp.NewBatchToolResult(results), nil
+}
+
 // ServeStdio serves the MCP server over standard IO
 func ServeStdio(s *MCPServer) error {
 	decoder := json.NewDecoder(os.Stdin)
 	encoder := json.NewEncoder(os.Stdout)
 
-	// Write server info
-	if err := encoder.Encode(map[string]interface{}{
-		"name":    s.Name,
-		"version": s.Version,
-		"tools":   s.GetTools(),
-	}); err != nil {
-		return fmt.Errorf("failed to encode server info: %w", err)
+	// Write initialization response in the format expected by Python MCP client
+	initResponse := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      0,
+		"result": map[string]interface{}{
+			"implementation": map[string]string{
+				"name":    s.Name,
+				"version": s.Version,
+			},
+			"toolsVersion": 1,
+		},
+	}
+	if err := encoder.Encode(initResponse); err != nil {
+		return fmt.Errorf("failed to encode init response: %w", err)
 	}
 
 	for {
-		var req mcp.CallToolRequest
-		if err := decoder.Decode(&req); err != nil {
+		// Decode the incoming request
+		var request map[string]interface{}
+		if err := decoder.Decode(&request); err != nil {
 			if err == io.EOF {
 				return nil
 			}
 			return fmt.Errorf("failed to decode request: %w", err)
 		}
 
-		result, err := s.HandleRequest(context.Background(), req)
-		if err != nil {
-			result = mcp.NewToolResultError(err.Error())
-		}
+		// Extract request ID and method
+		id, _ := request["id"].(float64)
+		method, _ := request["method"].(string)
 
-		if err := encoder.Encode(result); err != nil {
-			return fmt.Errorf("failed to encode response: %w", err)
+		// Handle different methods
+		switch method {
+		case "listTools":
+			tools := s.GetTools()
+			response := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      id,
+				"result": map[string]interface{}{
+					"tools": tools,
+				},
+			}
+			if err := encoder.Encode(response); err != nil {
+				return fmt.Errorf("failed to encode listTools response: %w", err)
+			}
+
+		case "callTool":
+			// Extract params from the request
+			paramsRaw, _ := request["params"].(map[string]interface{})
+			name, _ := paramsRaw["name"].(string)
+			paramsObj, _ := paramsRaw["params"].(map[string]interface{})
+			arguments, _ := paramsObj["arguments"].(map[string]interface{})
+
+			// Create a tool call request
+			req := mcp.CallToolRequest{
+				Name: name,
+				Params: mcp.ToolParameters{
+					Arguments: arguments,
+				},
+			}
+
+			// Handle the request
+			result, err := s.HandleRequest(context.Background(), req)
+			if err != nil {
+				result = mcp.NewToolResultError(err.Error())
+			}
+
+			// Send the response
+			response := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      id,
+				"result":  result,
+			}
+			if err := encoder.Encode(response); err != nil {
+				return fmt.Errorf("failed to encode callTool response: %w", err)
+			}
+
+		default:
+			// Handle unknown methods
+			response := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      id,
+				"error": map[string]interface{}{
+					"code":    -32601,
+					"message": fmt.Sprintf("method %q not found", method),
+				},
+			}
+			if err := encoder.Encode(response); err != nil {
+				return fmt.Errorf("failed to encode error response: %w", err)
+			}
 		}
 	}
 }

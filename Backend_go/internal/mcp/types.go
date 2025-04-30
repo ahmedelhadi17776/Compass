@@ -4,9 +4,10 @@ import "encoding/json"
 
 // Tool represents an MCP tool definition
 type Tool struct {
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Parameters  Parameters `json:"parameters"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  Parameters      `json:"parameters,omitempty"`
+	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 }
 
 // Parameters defines the structure of tool parameters
@@ -42,7 +43,10 @@ type CallToolResult struct {
 
 // NewToolResultText creates a new text result
 func NewToolResultText(text string) *CallToolResult {
-	content, _ := json.Marshal(text)
+	content, _ := json.Marshal(map[string]string{
+		"type": "text",
+		"text": text,
+	})
 	return &CallToolResult{
 		Type:    "text",
 		Content: content,
@@ -51,7 +55,10 @@ func NewToolResultText(text string) *CallToolResult {
 
 // NewToolResultError creates a new error result
 func NewToolResultError(err string) *CallToolResult {
-	content, _ := json.Marshal(err)
+	content, _ := json.Marshal(map[string]string{
+		"type": "error",
+		"text": err,
+	})
 	return &CallToolResult{
 		Type:    "error",
 		Content: content,
@@ -98,5 +105,22 @@ func Required() ParamOption {
 func Description(desc string) ParamOption {
 	return func(p *Property, _ *Tool, _ string) {
 		p.Description = desc
+	}
+}
+
+// BatchToolRequest represents a request to call multiple tools
+type BatchToolRequest struct {
+	Requests []CallToolRequest `json:"requests"`
+}
+
+// BatchToolResult represents the results of multiple tool calls
+type BatchToolResult struct {
+	Results []CallToolResult `json:"results"`
+}
+
+// NewBatchToolResult creates a new batch result
+func NewBatchToolResult(results []CallToolResult) *BatchToolResult {
+	return &BatchToolResult{
+		Results: results,
 	}
 }
