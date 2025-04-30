@@ -2,13 +2,15 @@ from typing import Dict, Any, Optional, Union, AsyncGenerator
 from Backend.app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_registry import ai_registry
-from Backend.mcp.client import MCPClient
+from Backend.mcp_py.client import MCPClient
 from Backend.core.config import settings
 import logging
 import json
 import time
 
 logger = logging.getLogger(__name__)
+
+mcp_client = MCPClient()
 
 
 class AIOrchestrator:
@@ -19,16 +21,20 @@ class AIOrchestrator:
         self.ai_registry = ai_registry
         self._conversation_histories: Dict[int, ConversationHistory] = {}
         self.max_history_length = 10
-        self.mcp_client = MCPClient(settings.GO_BACKEND_URL)
 
     async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
         """Process an AI request with MCP integration."""
         try:
-            # Get user context from Go backend
-            user_info = await self.mcp_client.get_user_info(str(user_id))
-
-            # Get conversation history
+            # Get conversation history first
             history = self._get_conversation_history(user_id)
+
+            # Get user context from MCP
+            try:
+                user_context = await mcp_client.get_user_context(str(user_id), domain or "default")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get user context from MCP: {str(e)}")
+                user_context = {}
 
             # Generate response using LLM
             response = await self.llm_service.generate_response(
@@ -36,7 +42,8 @@ class AIOrchestrator:
                 context={
                     "user_id": user_id,
                     "domain": domain,
-                    "conversation_history": history.get_messages()
+                    "conversation_history": history.get_messages(),
+                    "user_context": user_context
                 }
             )
 
@@ -51,8 +58,7 @@ class AIOrchestrator:
                     "description": "Process user request",
                     "rag_used": False,
                     "cached": False,
-                    "confidence": response.get("confidence", 0.0),
-                    "context_used": user_info
+                    "confidence": response.get("confidence", 0.0)
                 }
             else:
                 self._update_conversation_history(
@@ -64,9 +70,24 @@ class AIOrchestrator:
                     "description": "Process user request",
                     "rag_used": False,
                     "cached": False,
-                    "confidence": 0.0,
-                    "context_used": user_info
+                    "confidence": 0.0
                 }
+
+            # Send result to MCP for logging
+            try:
+                await mcp_client.call_method("ai/log/interaction", {
+                    "user_id": str(user_id),
+                    "domain": domain,
+                    "input": user_input,
+                    "output": result["response"],
+                    "metadata": {
+                        "intent": result["intent"],
+                        "confidence": result["confidence"],
+                        "rag_used": result["rag_used"]
+                    }
+                })
+            except Exception as e:
+                logger.warning(f"Failed to log interaction to MCP: {str(e)}")
 
             return result
 
