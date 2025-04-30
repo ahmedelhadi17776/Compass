@@ -239,8 +239,15 @@ func handleWipeLogs(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 }
 
 func handleRetrieveTodos(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	userID := req.Params.Arguments["user_id"].(string)
-	authToken := req.Params.Arguments["auth_token"].(string)
+	userID, ok := req.Params.Arguments["user_id"].(string)
+	if !ok {
+		return mcp.NewToolResultError("user_id is required and must be a string"), nil
+	}
+
+	authToken, ok := req.Params.Arguments["auth_token"].(string)
+	if !ok {
+		return mcp.NewToolResultError("auth_token is required and must be a string"), nil
+	}
 
 	// Create HTTP client
 	client := &http.Client{}
@@ -278,8 +285,15 @@ func handleRetrieveTodos(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 }
 
 func handleRetrieveHabits(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	userID := req.Params.Arguments["user_id"].(string)
-	authToken := req.Params.Arguments["auth_token"].(string)
+	userID, ok := req.Params.Arguments["user_id"].(string)
+	if !ok {
+		return mcp.NewToolResultError("user_id is required and must be a string"), nil
+	}
+
+	authToken, ok := req.Params.Arguments["auth_token"].(string)
+	if !ok {
+		return mcp.NewToolResultError("auth_token is required and must be a string"), nil
+	}
 
 	// Create HTTP client
 	client := &http.Client{}
