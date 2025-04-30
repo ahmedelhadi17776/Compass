@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile
+from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from fastapi.responses import StreamingResponse
@@ -7,14 +7,13 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from fastapi import Request, BackgroundTasks
 import json
 
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_orchestrator import AIOrchestrator
 from Backend.app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
 from Backend.core.config import settings
-from Backend.mcp.client import MCPClient
+from Backend.core.mcp_state import get_mcp_client
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -63,7 +62,6 @@ router = APIRouter(prefix="/ai", tags=["AI Services"])
 
 # Initialize services
 llm_service = LLMService()
-mcp_client = MCPClient(settings.GO_BACKEND_URL)
 
 
 @router.post("/process", response_model=AIResponse)
@@ -96,6 +94,11 @@ async def get_rag_stats(
 ):
     """Get RAG statistics for a specific domain through MCP."""
     try:
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
         result = await mcp_client.call_method("rag/stats", {
             "domain": domain
         })
@@ -112,6 +115,11 @@ async def update_rag_knowledge(
 ):
     """Update the RAG knowledge base for a domain through MCP."""
     try:
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
         result = await mcp_client.call_method("rag/update", {
             "domain": domain,
             "content": content
@@ -126,6 +134,11 @@ async def update_rag_knowledge(
 async def get_model_info():
     """Get information about the AI model configuration through MCP."""
     try:
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
         result = await mcp_client.call_method("ai/model/info", {})
         return result
     except Exception as e:
@@ -141,6 +154,11 @@ async def process_knowledge_base(
 ):
     """Process knowledge base files through MCP."""
     try:
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
         result = await mcp_client.call_method("rag/knowledge-base/process", {
             "domain": domain
         })
@@ -162,6 +180,11 @@ async def upload_pdf_to_knowledge_base(
         content = await file.read()
 
         # Send file to MCP
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
         result = await mcp_client.call_method("knowledge-base/upload", {
             "filename": file.filename,
             "content": content,
@@ -187,6 +210,11 @@ async def create_entity(
 ) -> AIResponse:
     """Create a new entity through MCP."""
     try:
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
         result = await mcp_client.call_method("entity/create", {
             "prompt": request.prompt,
             "domain": request.domain or "default"
