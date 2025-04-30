@@ -100,3 +100,20 @@ func Description(desc string) ParamOption {
 		p.Description = desc
 	}
 }
+
+// BatchToolRequest represents a request to call multiple tools
+type BatchToolRequest struct {
+	Requests []CallToolRequest `json:"requests"`
+}
+
+// BatchToolResult represents the results of multiple tool calls
+type BatchToolResult struct {
+	Results []CallToolResult `json:"results"`
+}
+
+// NewBatchToolResult creates a new batch result
+func NewBatchToolResult(results []CallToolResult) *BatchToolResult {
+	return &BatchToolResult{
+		Results: results,
+	}
+}

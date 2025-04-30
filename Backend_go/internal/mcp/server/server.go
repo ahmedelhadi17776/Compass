@@ -67,6 +67,23 @@ func (s *MCPServer) HandleRequest(ctx context.Context, req mcp.CallToolRequest) 
 	return handler(ctx, req)
 }
 
+// HandleBatchRequest handles multiple tool calls in a single request
+func (s *MCPServer) HandleBatchRequest(ctx context.Context, req mcp.BatchToolRequest) (*mcp.BatchToolResult, error) {
+	results := make([]mcp.CallToolResult, len(req.Requests))
+
+	// Process each request in sequence
+	for i, request := range req.Requests {
+		result, err := s.HandleRequest(ctx, request)
+		if err != nil {
+			results[i] = *mcp.NewToolResultError(err.Error())
+		} else {
+			results[i] = *result
+		}
+	}
+
+	return mcp.NewBatchToolResult(results), nil
+}
+
 // ServeStdio serves the MCP server over standard IO
 func ServeStdio(s *MCPServer) error {
 	decoder := json.NewDecoder(os.Stdin)
@@ -82,21 +99,42 @@ func ServeStdio(s *MCPServer) error {
 	}
 
 	for {
-		var req mcp.CallToolRequest
-		if err := decoder.Decode(&req); err != nil {
+		// Try to decode as batch request first
+		var batchReq mcp.BatchToolRequest
+		if err := decoder.Decode(&batchReq); err != nil {
 			if err == io.EOF {
 				return nil
 			}
-			return fmt.Errorf("failed to decode request: %w", err)
+			// If it's not a batch request, try single request
+			var req mcp.CallToolRequest
+			if err := decoder.Decode(&req); err != nil {
+				if err == io.EOF {
+					return nil
+				}
+				return fmt.Errorf("failed to decode request: %w", err)
+			}
+
+			result, err := s.HandleRequest(context.Background(), req)
+			if err != nil {
+				result = mcp.NewToolResultError(err.Error())
+			}
+
+			if err := encoder.Encode(result); err != nil {
+				return fmt.Errorf("failed to encode response: %w", err)
+			}
+			continue
 		}
 
-		result, err := s.HandleRequest(context.Background(), req)
-		if err != nil {
-			result = mcp.NewToolResultError(err.Error())
-		}
+		// Handle batch request
+		if len(batchReq.Requests) > 0 {
+			result, err := s.HandleBatchRequest(context.Background(), batchReq)
+			if err != nil {
+				return fmt.Errorf("failed to handle batch request: %w", err)
+			}
 
-		if err := encoder.Encode(result); err != nil {
-			return fmt.Errorf("failed to encode response: %w", err)
+			if err := encoder.Encode(result); err != nil {
+				return fmt.Errorf("failed to encode batch response: %w", err)
+			}
 		}
 	}
 }
