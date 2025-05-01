@@ -1,147 +1,142 @@
-# Copyright (C) 2024-2025 COMPASS team
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or (at your option)
-# any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-from Backend.api.cache_test_routes import router as cache_test_router
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-import redis.asyncio as redis
-import logging
-from Backend.core.config import settings
-from Backend.data_layer.database.connection import get_db
-from Backend.core.logging import setup_logging
-from Backend.celery_app import celery_app
-from Backend.middleware.rate_limiter import RateLimiterMiddleware
-from Backend.api.routes import router as api_router
-from Backend.api.todo_routes import router as todo_router
-from sqlalchemy import text
-from Backend.api.auth import router as auth_router
-from Backend.api.roles import router as role_router
-from Backend.api.workflows import router as workflow_router
 from Backend.api.ai_routes import router as ai_router
-from Backend.api.tasks import router as task_router
-from Backend.api.events import router as event_router
-from Backend.api.organizations import router as organization_router
-from Backend.api.projects import router as project_router
-from Backend.api.cache_routes import router as cache_router
-from Backend.api.daily_habits_routes import router as daily_habits_router
-from datetime import datetime
-from fastapi.middleware.cors import CORSMiddleware
+from Backend.core.config import settings
+from Backend.mcp_py.client import MCPClient
+from Backend.core.mcp_state import set_mcp_client
+from Backend.mcp_py.server import setup_mcp_server
+import uvicorn
+import logging
+import subprocess
+import os
+import sys
+import asyncio
+import threading
 
-# ✅ Set up structured logging
-setup_logging()
+logger = logging.getLogger(__name__)
 
-# ✅ Lifespan event: Handle startup/shutdown
+
+def run_mcp_server_subprocess(server_path, env):
+    """Run the MCP server as a subprocess in a thread-safe way."""
+    try:
+        process = subprocess.Popen(
+            [sys.executable, server_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=0,
+            universal_newlines=True,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+        )
+        logger.info(f"Started MCP server process with PID: {process.pid}")
+        return process
+    except Exception as e:
+        logger.error(f"Failed to start MCP server process: {str(e)}")
+        return None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 🔹 Connect to Redis
-    app.state.redis = await redis.from_url(
-        settings.REDIS_URL,
-        encoding="utf-8",
-        decode_responses=True
-    )
+    """Handle startup and shutdown events."""
+    # Startup
+    logger.info("Starting up COMPASS AI Service")
+    mcp_process = None
+    mcp_client = None
 
-    # 🔹 Test Database Connection
-    async for db in get_db():
-        try:
-            await db.execute(text("SELECT 1"))  # ✅ Wrap in text()
-            logging.info("✅ Database connected successfully.")
-        except Exception as e:
-            logging.error(f"❌ Database connection failed: {e}")
-        break  # Exit loop after first attempt
+    try:
+        # Start Python MCP server in background
+        logger.info("Starting MCP server...")
+
+        # Get the absolute path to the Backend directory
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        server_path = os.path.join(backend_dir, "mcp_py", "server.py")
+
+        # Set up environment with correct PYTHONPATH
+        env = os.environ.copy()
+        parent_dir = os.path.dirname(backend_dir)
+        env["PYTHONPATH"] = parent_dir
+
+        logger.info(f"Starting MCP server at: {server_path}")
+        logger.info(f"With PYTHONPATH: {env['PYTHONPATH']}")
+
+        # Use the dedicated function to start the server subprocess
+        mcp_process = run_mcp_server_subprocess(server_path, env)
+
+        if not mcp_process:
+            logger.error("Failed to start MCP server process")
+            raise RuntimeError("Failed to start MCP server")
+
+        logger.info("MCP server started")
+
+        # Wait a moment for the server to initialize
+        await asyncio.sleep(1)
+
+        # Initialize MCP client
+        mcp_client = MCPClient()
+        await mcp_client.connect_to_server(server_path)
+        set_mcp_client(mcp_client)
+        logger.info("MCP client initialized successfully")
+
+        # Setup MCP server routes
+        setup_mcp_server(app)
+        logger.info("MCP server routes initialized")
+
+        # Initialize any other startup services here
+        logger.info("AI Service initialized successfully")
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+        if mcp_process:
+            if sys.platform == "win32":
+                # On Windows, we need to use taskkill to terminate the process
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(mcp_process.pid)])
+                except Exception as kill_error:
+                    logger.error(
+                        f"Error terminating MCP process: {str(kill_error)}")
+            else:
+                mcp_process.terminate()
+        raise
 
     yield
 
-    # 🔹 Close Redis connection
-    await app.state.redis.close()
-    logging.info("🛑 Redis connection closed.")
+    # Shutdown
+    try:
+        if mcp_client:
+            await mcp_client.cleanup()
+            logger.info("MCP client closed successfully")
 
-# ✅ Initialize FastAPI app
+        if mcp_process:
+            if sys.platform == "win32":
+                # On Windows, we need to use taskkill to terminate the process
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(mcp_process.pid)])
+                except Exception as e:
+                    logger.error(f"Error terminating MCP process: {str(e)}")
+            else:
+                mcp_process.terminate()
+                mcp_process.wait(timeout=5)
+            logger.info("MCP server stopped successfully")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {str(e)}")
+
+    logger.info("Shutting down COMPASS AI Service")
+
 app = FastAPI(
-    title="COMPASS API",
-    version="1.0",
+    title="COMPASS AI Service",
+    description="AI Service for COMPASS platform",
+    version="1.0.0",
     lifespan=lifespan
 )
 
-# ✅ Middleware
-app.add_middleware(RateLimiterMiddleware)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# ✅ Include API Routes
-app.include_router(api_router)
-
-# Include authentication endpoints
-app.include_router(auth_router, prefix="/auth")
-app.include_router(role_router, prefix="/admin")
-
-app.include_router(organization_router,
-                   prefix="/organizations", tags=["organizations"])
-
-app.include_router(project_router, prefix="/projects", tags=["projects"])
-
-app.include_router(task_router, prefix="/tasks", tags=["tasks"])
-
-# Include events router
-app.include_router(event_router, prefix="/events", tags=["events"])
-
-# Include cache test routes
-app.include_router(cache_test_router)
-
-# Include Todo routes
-app.include_router(todo_router, prefix="/todos", tags=["todos"])
-
-# Include Daily Habits routes
-app.include_router(daily_habits_router,
-                   prefix="/daily-habits", tags=["daily-habits"])
-
-app.include_router(workflow_router)
-
+# Mount API routes
 app.include_router(ai_router)
 
-app.include_router(cache_router)
-
-
-# ✅ Root Health Check
-@app.get("/")
-async def health_check():
-    return {
-        "status": "OK",
-        "message": "COMPASS API is running!",
-        "celery_status": "Active",
-        "redis_status": "Connected"
-    }
-
-# Celery Task Status Endpoint
-
-
-@app.get("/tasks/{task_id}")
-async def get_task_status(task_id: str):
-    """
-    Get the status of a Celery task by its ID.
-    """
-    from Backend.celery_app.monitoring import get_task_status
-    return get_task_status(task_id)
-
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "Backend.main:app",
+        host=settings.api_host,
+        port=settings.api_port,
+        reload=True
+    )

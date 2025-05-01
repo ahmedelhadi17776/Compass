@@ -1,48 +1,18 @@
 import json
 import os
-from typing import Dict, Type, Any
-
-from Backend.data_layer.repositories.task_repository import TaskRepository
-from Backend.data_layer.repositories.todo_repository import TodoRepository
-from Backend.data_layer.repositories.daily_habits_repository import DailyHabitRepository
-from Backend.data_layer.repositories.base_repository import BaseRepository
-from Backend.orchestration.handlers.task_handler import TaskHandler
-from Backend.orchestration.handlers.todo_handler import TodoHandler
-from Backend.orchestration.handlers.habit_handler import HabitHandler
+from typing import Dict, Any, Optional
 
 
-def load_config(file_name):
+def load_config(file_name: str) -> Dict[str, Any]:
+    """Load configuration from a JSON file."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(os.path.dirname(
-        current_dir), "core", "configs", "domain_config.json")
-    with open(config_path, "r") as f:
-        return json.load(f)
-
-
-DOMAIN_CONFIG = load_config("domain_config.json")
-LLM_CONFIG = load_config("llm_config.json")
-CACHE_CONFIG = load_config("cache_config.json")
-LOGGING_CONFIG = load_config("logging_config.json")
-
-REPO_MAPPING = {
-    "tasks": TaskRepository,
-    "todos": TodoRepository,
-    "habits": DailyHabitRepository,
-    "base": BaseRepository
-}
-
-REPO_NAME_MAPPING = {
-    "TaskRepository": "tasks",
-    "TodoRepository": "todos",
-    "DailyHabitRepository": "habits",
-    "BaseRepository": "base"
-}
-
-HANDLER_MAPPING = {
-    "tasks": TaskHandler,
-    "todos": TodoHandler,
-    "habits": HabitHandler
-}
+        current_dir), "core", "configs", file_name)
+    try:
+        with open(config_path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 
 class AIRegistry:
@@ -55,39 +25,16 @@ class AIRegistry:
 
     def __init__(self):
         if not hasattr(self, 'initialized'):
-            self.repo_mapping = REPO_MAPPING
-            self.handler_mapping = HANDLER_MAPPING
-            self.domain_config = DOMAIN_CONFIG
-            self.cache_config = CACHE_CONFIG
-            self.llm_config = LLM_CONFIG
-            self.logging_config = LOGGING_CONFIG
-            self.domain_handlers = {}
+            self.domain_config = load_config("domain_config.json")
+            self.cache_config = load_config("cache_config.json")
+            self.llm_config = load_config("llm_config.json")
+            self.logging_config = load_config("logging_config.json")
             self.initialized = True
 
-    def register_domain(self, domain: str, handler: Any) -> None:
-        """Register a new domain handler."""
-        self.domain_handlers[domain] = handler
-
-    def get_repository(self, domain: str) -> Type:
-        """Get repository class for a domain."""
-        config = self.domain_config.get(domain, self.domain_config['default'])
-        repo_name = config['repository']
-        # Map repository name to domain name
-        domain_key = REPO_NAME_MAPPING.get(repo_name, "base")
-        return self.repo_mapping[domain_key]
-
     def get_prompt_template(self, domain: str, variant: str = "default") -> str:
-        """Get prompt template for a domain and intent variant.
-
-        Args:
-            domain: The domain to get a template for (e.g., 'tasks', 'todos')
-            variant: The template variant, usually matching the intent 
-                    (e.g., 'retrieve', 'analyze', 'plan', 'summarize')
-
-        Returns:
-            A template string that can be rendered with context data
-        """
-        config = self.domain_config.get(domain, self.domain_config['default'])
+        """Get prompt template for a domain and intent variant."""
+        config = self.domain_config.get(
+            domain, self.domain_config.get('default', {}))
         templates = config.get('prompt_templates', {})
 
         # First try to get the specific variant
@@ -98,7 +45,7 @@ class AIRegistry:
         if "default" in templates:
             return templates["default"]
 
-        # Fallback to a hardcoded generic template if nothing is found
+        # Fallback to a generic template
         return """
         User Input: {{ user_prompt }}
         Intent: {{ intent }} on {{ target }}
@@ -114,27 +61,27 @@ class AIRegistry:
         {{ rag_data }}
         """
 
-    def get_handler(self, domain: str, db_session) -> Any:
-        """Get domain-specific handler if registered."""
-        if domain in self.handler_mapping:
-            return self.handler_mapping[domain](db_session)
-        return None
+    def get_domain_config(self, domain: str) -> Dict[str, Any]:
+        """Get configuration for a specific domain."""
+        return self.domain_config.get(domain, self.domain_config.get("default", {}))
 
-    def get_domain_config(self, domain):
-        return self.domain_config.get(domain, self.domain_config["default"])
-
-    def get_llm_config(self):
+    def get_llm_config(self) -> Dict[str, Any]:
+        """Get LLM configuration."""
         return self.llm_config
 
-    def get_cache_config(self):
+    def get_cache_config(self) -> Dict[str, Any]:
+        """Get cache configuration."""
         return self.cache_config
 
-    def get_rag_settings(self, domain: str):
+    def get_rag_settings(self, domain: str) -> Dict[str, Any]:
+        """Get RAG settings for a specific domain."""
         domain_config = self.get_domain_config(domain)
         return domain_config.get("rag_settings", {})
 
-    def get_logging_config(self):
+    def get_logging_config(self) -> Dict[str, Any]:
+        """Get logging configuration."""
         return self.logging_config
 
 
+# Create singleton instance
 ai_registry = AIRegistry()

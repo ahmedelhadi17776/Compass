@@ -43,7 +43,6 @@ type Repository interface {
 	ResetStreak(ctx context.Context, habitID uuid.UUID) error
 	GetStreakHistory(ctx context.Context, habitID uuid.UUID) ([]StreakHistory, error)
 	UpdateStreakQuality(ctx context.Context, habitID uuid.UUID) error
-	IsStreakBroken(ctx context.Context, lastCompletedDate *time.Time) (bool, error)
 }
 
 type repository struct {
@@ -186,7 +185,6 @@ func (r *repository) ResetDailyCompletions(ctx context.Context) (int64, error) {
 
 func (r *repository) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error) {
 	// Use TIMEZONE function in postgres to ensure dates are compared in the user's timezone
-	// Align the timezone handling exactly like in ResetDailyCompletions
 	result := r.db.WithContext(ctx).Model(&Habit{}).
 		Where("current_streak > 0 AND (last_completed_date IS NULL OR DATE(last_completed_date AT TIME ZONE 'UTC') < DATE(NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day'))").
 		Updates(map[string]interface{}{
@@ -316,15 +314,4 @@ func (r *repository) UpdateStreakQuality(ctx context.Context, habitID uuid.UUID)
 	return r.db.WithContext(ctx).Model(&Habit{}).
 		Where("id = ?", habitID).
 		Update("streak_quality", quality).Error
-}
-
-func (r *repository) IsStreakBroken(ctx context.Context, lastCompletedDate *time.Time) (bool, error) {
-	if lastCompletedDate == nil {
-		return true, nil
-	}
-
-	var isBroken bool
-	query := `SELECT DATE(? AT TIME ZONE 'UTC') < DATE(NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day')`
-	err := r.db.WithContext(ctx).Raw(query, lastCompletedDate).Scan(&isBroken).Error
-	return isBroken, err
 }
