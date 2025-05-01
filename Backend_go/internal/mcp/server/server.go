@@ -16,25 +16,11 @@ type ToolHandler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult
 
 // MCPServer represents an MCP server
 type MCPServer struct {
-	Name         string
-	Version      string
-	tools        map[string]mcp.Tool
-	handlers     map[string]ToolHandler
-	capabilities ServerCapabilities
-	mu           sync.RWMutex
-}
-
-// ServerCapabilities represents the capabilities of the MCP server
-type ServerCapabilities struct {
-	Tools   bool `json:"tools"`
-	Logging bool `json:"logging"`
-}
-
-// SetCapabilities sets the server capabilities
-func (s *MCPServer) SetCapabilities(caps ServerCapabilities) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.capabilities = caps
+	Name     string
+	Version  string
+	tools    map[string]mcp.Tool
+	handlers map[string]ToolHandler
+	mu       sync.RWMutex
 }
 
 // NewMCPServer creates a new MCP server
