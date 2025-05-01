@@ -2,15 +2,13 @@ from typing import Dict, Any, Optional, Union, AsyncGenerator
 from Backend.app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_registry import ai_registry
-from Backend.mcp_py.client import MCPClient
+from Backend.core.mcp_state import get_mcp_client
 from Backend.core.config import settings
 import logging
 import json
 import time
 
 logger = logging.getLogger(__name__)
-
-mcp_client = MCPClient()
 
 
 class AIOrchestrator:
@@ -30,7 +28,13 @@ class AIOrchestrator:
 
             # Get user context from MCP
             try:
-                user_context = await mcp_client.get_user_context(str(user_id), domain or "default")
+                mcp_client = get_mcp_client()
+                if mcp_client:
+                    user_context = await mcp_client.get_user_context(str(user_id), domain or "default")
+                else:
+                    self.logger.warning(
+                        "MCP client not initialized, proceeding without user context")
+                    user_context = {}
             except Exception as e:
                 logger.warning(
                     f"Failed to get user context from MCP: {str(e)}")
@@ -75,17 +79,22 @@ class AIOrchestrator:
 
             # Send result to MCP for logging
             try:
-                await mcp_client.call_method("ai/log/interaction", {
-                    "user_id": str(user_id),
-                    "domain": domain,
-                    "input": user_input,
-                    "output": result["response"],
-                    "metadata": {
-                        "intent": result["intent"],
-                        "confidence": result["confidence"],
-                        "rag_used": result["rag_used"]
-                    }
-                })
+                mcp_client = get_mcp_client()
+                if mcp_client:
+                    await mcp_client.invoke_tool("ai.log.interaction", {
+                        "user_id": str(user_id),
+                        "domain": domain,
+                        "input": user_input,
+                        "output": result["response"],
+                        "metadata": {
+                            "intent": result["intent"],
+                            "confidence": result["confidence"],
+                            "rag_used": result["rag_used"]
+                        }
+                    })
+                else:
+                    self.logger.warning(
+                        "MCP client not initialized, skipping interaction logging")
             except Exception as e:
                 logger.warning(f"Failed to log interaction to MCP: {str(e)}")
 

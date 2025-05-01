@@ -159,6 +159,34 @@ class MCPClient:
                 "error": str(e)
             }
 
+    async def call_method(self, method_path: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Call a method/tool path on the MCP server.
+
+        This is a wrapper around invoke_tool to provide a more RESTful-like interface.
+
+        Args:
+            method_path: The path of the method to call (e.g., "ai/model/info")
+            parameters: Parameters to pass to the method
+
+        Returns:
+            Dict containing the response from the server
+        """
+        try:
+            # Convert path format to tool name format
+            # For example: "ai/model/info" -> "ai.model.info"
+            tool_name = method_path.replace("/", ".")
+
+            self.logger.info(
+                f"Converting method call {method_path} to tool {tool_name}")
+            return await self.invoke_tool(tool_name, parameters)
+        except Exception as e:
+            self.logger.error(
+                f"Error calling method {method_path}: {str(e)}", exc_info=True)
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+
     async def get_tools(self) -> List[Dict[str, Any]]:
         """Get list of available tools from the MCP server."""
         return [{"name": t.name, "description": t.description, "input_schema": t.input_schema} for t in self.tools]

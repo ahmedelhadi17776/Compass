@@ -10,8 +10,29 @@ import logging
 import subprocess
 import os
 import sys
+import asyncio
+import threading
 
 logger = logging.getLogger(__name__)
+
+
+def run_mcp_server_subprocess(server_path, env):
+    """Run the MCP server as a subprocess in a thread-safe way."""
+    try:
+        process = subprocess.Popen(
+            [sys.executable, server_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=0,
+            universal_newlines=True,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+        )
+        logger.info(f"Started MCP server process with PID: {process.pid}")
+        return process
+    except Exception as e:
+        logger.error(f"Failed to start MCP server process: {str(e)}")
+        return None
 
 
 @asynccontextmanager
@@ -38,16 +59,17 @@ async def lifespan(app: FastAPI):
         logger.info(f"Starting MCP server at: {server_path}")
         logger.info(f"With PYTHONPATH: {env['PYTHONPATH']}")
 
-        mcp_process = subprocess.Popen(
-            [sys.executable, server_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=0,
-            universal_newlines=True,
-            cwd=parent_dir,
-            env=env
-        )
+        # Use the dedicated function to start the server subprocess
+        mcp_process = run_mcp_server_subprocess(server_path, env)
+
+        if not mcp_process:
+            logger.error("Failed to start MCP server process")
+            raise RuntimeError("Failed to start MCP server")
+
         logger.info("MCP server started")
+
+        # Wait a moment for the server to initialize
+        await asyncio.sleep(1)
 
         # Initialize MCP client
         mcp_client = MCPClient()
@@ -64,7 +86,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
         if mcp_process:
-            mcp_process.terminate()
+            if sys.platform == "win32":
+                # On Windows, we need to use taskkill to terminate the process
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(mcp_process.pid)])
+                except Exception as kill_error:
+                    logger.error(
+                        f"Error terminating MCP process: {str(kill_error)}")
+            else:
+                mcp_process.terminate()
         raise
 
     yield
@@ -76,8 +107,16 @@ async def lifespan(app: FastAPI):
             logger.info("MCP client closed successfully")
 
         if mcp_process:
-            mcp_process.terminate()
-            mcp_process.wait(timeout=5)
+            if sys.platform == "win32":
+                # On Windows, we need to use taskkill to terminate the process
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(mcp_process.pid)])
+                except Exception as e:
+                    logger.error(f"Error terminating MCP process: {str(e)}")
+            else:
+                mcp_process.terminate()
+                mcp_process.wait(timeout=5)
             logger.info("MCP server stopped successfully")
     except Exception as e:
         logger.error(f"Error during shutdown: {str(e)}")

@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 import logging
 import os
 import shutil
-from pathlib import Path
 import json
+from pathlib import Path
 
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_orchestrator import AIOrchestrator
@@ -99,7 +99,7 @@ async def get_rag_stats(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.call_method("rag/stats", {
+        result = await mcp_client.invoke_tool("rag.stats", {
             "domain": domain
         })
         return result
@@ -120,7 +120,7 @@ async def update_rag_knowledge(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.call_method("rag/update", {
+        result = await mcp_client.invoke_tool("rag.update", {
             "domain": domain,
             "content": content
         })
@@ -139,7 +139,7 @@ async def get_model_info():
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.call_method("ai/model/info", {})
+        result = await mcp_client.invoke_tool("ai.model.info", {})
         return result
     except Exception as e:
         logger.error(f"Error getting model info through MCP: {str(e)}")
@@ -159,7 +159,7 @@ async def process_knowledge_base(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.call_method("rag/knowledge-base/process", {
+        result = await mcp_client.invoke_tool("rag.knowledge-base.process", {
             "domain": domain
         })
         return result
@@ -185,7 +185,7 @@ async def upload_pdf_to_knowledge_base(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.call_method("knowledge-base/upload", {
+        result = await mcp_client.invoke_tool("knowledge-base.upload", {
             "filename": file.filename,
             "content": content,
             "domain": domain
@@ -194,7 +194,7 @@ async def upload_pdf_to_knowledge_base(
         return ProcessPDFResponse(
             status="success",
             message=f"PDF processed successfully: {file.filename}",
-            processed_files=result.get("files", [])
+            processed_files=result.get("content", {}).get("files", [])
         )
     except Exception as e:
         logger.error(f"Error processing PDF through MCP: {str(e)}")
@@ -215,22 +215,32 @@ async def create_entity(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.call_method("entity/create", {
+        result = await mcp_client.invoke_tool("entity.create", {
             "prompt": request.prompt,
             "domain": request.domain or "default"
         })
 
+        response_content = {}
+        if isinstance(result.get("content"), str):
+            try:
+                response_content = json.loads(result["content"])
+            except:
+                response_content = {"response": result.get(
+                    "content", "Entity created")}
+        else:
+            response_content = result.get("content", {})
+
         return AIResponse(
-            response=result.get("response", "Entity created"),
-            intent=result.get("intent", "create"),
-            target=result.get("target", "unknown"),
-            description=result.get(
+            response=response_content.get("response", "Entity created"),
+            intent=response_content.get("intent", "create"),
+            target=response_content.get("target", "unknown"),
+            description=response_content.get(
                 "description", "Create entity from description"),
-            rag_used=result.get("rag_used", False),
-            cached=result.get("cached", False),
-            confidence=result.get("confidence", 0.9),
-            error=result.get("error", False),
-            error_message=result.get("error_message")
+            rag_used=response_content.get("rag_used", False),
+            cached=response_content.get("cached", False),
+            confidence=response_content.get("confidence", 0.9),
+            error=response_content.get("error", False),
+            error_message=response_content.get("error_message")
         )
     except Exception as e:
         logger.error(f"Error creating entity through MCP: {str(e)}")

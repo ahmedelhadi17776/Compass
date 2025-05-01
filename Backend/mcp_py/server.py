@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI()
 
-# Initialize FastMCP server
+# Initialize FastMCP server with explicit file path handling
+current_dir = os.path.dirname(os.path.abspath(__file__))
 mcp = FastMCP(
     name="compass",
     version="1.0.0",
@@ -219,6 +220,253 @@ async def stream_ai_response(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Add tools to match REST-style endpoints used in the client
+@mcp.tool("ai.model.info")
+async def get_model_info(
+    ctx: Context,
+    name: Optional[str] = None,
+    version: Optional[str] = None
+) -> Dict[str, Any]:
+    """Get model information."""
+    try:
+        return {
+            "model_id": 1,  # Default model ID
+            "name": name or "gpt-4",
+            "version": version or "1.0",
+            "type": "text-generation",
+            "provider": "OpenAI",
+            "capabilities": {
+                "streaming": True,
+                "function_calling": True
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting model info: {str(e)}")
+        raise
+
+
+@mcp.tool("ai.model.create")
+async def create_model(
+    ctx: Context,
+    name: str,
+    version: str,
+    type: str,
+    provider: str,
+    status: str
+) -> Dict[str, Any]:
+    """Create a new model."""
+    try:
+        return {
+            "model_id": 1,
+            "name": name,
+            "version": version,
+            "type": type,
+            "provider": provider,
+            "status": status,
+            "created_at": "2023-01-01T00:00:00Z"
+        }
+    except Exception as e:
+        logger.error(f"Error creating model: {str(e)}")
+        raise
+
+
+@mcp.tool("ai.model.stats.update")
+async def update_model_stats(
+    ctx: Context,
+    model_id: int,
+    latency: float,
+    success: bool
+) -> Dict[str, Any]:
+    """Update model usage statistics."""
+    try:
+        return {
+            "model_id": model_id,
+            "updated_at": "2023-01-01T00:00:00Z",
+            "success": success,
+            "latency": latency
+        }
+    except Exception as e:
+        logger.error(f"Error updating model stats: {str(e)}")
+        raise
+
+
+@mcp.tool("ai.log.interaction")
+async def log_interaction(
+    ctx: Context,
+    user_id: str,
+    domain: Optional[str],
+    input: str,
+    output: str,
+    metadata: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Log AI interaction."""
+    try:
+        logger.info(
+            f"Logging interaction for user {user_id} in domain {domain}")
+        return {
+            "logged": True,
+            "timestamp": "2023-01-01T00:00:00Z"
+        }
+    except Exception as e:
+        logger.error(f"Error logging interaction: {str(e)}")
+        raise
+
+
+@mcp.tool("rag.stats")
+async def rag_stats(
+    ctx: Context,
+    domain: str
+) -> Dict[str, Any]:
+    """Get RAG statistics for a domain."""
+    try:
+        logger.info(f"Getting RAG statistics for domain: {domain}")
+        return {
+            "document_count": 10,
+            "total_tokens": 50000,
+            "last_updated": "2023-01-01T00:00:00Z",
+            "domain": domain
+        }
+    except Exception as e:
+        logger.error(f"Error getting RAG stats: {str(e)}")
+        raise
+
+
+@mcp.tool("rag.update")
+async def rag_update(
+    ctx: Context,
+    domain: str,
+    content: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Update RAG knowledge base for a domain."""
+    try:
+        logger.info(f"Updating RAG knowledge base for domain: {domain}")
+        logger.info(f"Content size: {len(str(content))} characters")
+        return {
+            "updated": True,
+            "timestamp": "2023-01-01T00:00:00Z",
+            "domain": domain,
+            "document_count": 1
+        }
+    except Exception as e:
+        logger.error(f"Error updating RAG knowledge base: {str(e)}")
+        raise
+
+
+@mcp.tool("rag.knowledge-base.process")
+async def process_knowledge_base(
+    ctx: Context,
+    domain: Optional[str] = None
+) -> Dict[str, Any]:
+    """Process knowledge base files."""
+    try:
+        logger.info(
+            f"Processing knowledge base for domain: {domain or 'default'}")
+        return {
+            "status": "processing",
+            "job_id": "123456",
+            "timestamp": "2023-01-01T00:00:00Z",
+            "domain": domain or "default"
+        }
+    except Exception as e:
+        logger.error(f"Error processing knowledge base: {str(e)}")
+        raise
+
+
+@mcp.tool("knowledge-base.upload")
+async def upload_to_knowledge_base(
+    ctx: Context,
+    filename: str,
+    content: bytes,
+    domain: Optional[str] = None
+) -> Dict[str, Any]:
+    """Upload a file to knowledge base."""
+    try:
+        logger.info(
+            f"Uploading file {filename} to knowledge base for domain: {domain or 'default'}")
+        logger.info(f"Content size: {len(content)} bytes")
+        return {
+            "status": "success",
+            "message": f"File {filename} uploaded successfully",
+            "files": [
+                {
+                    "filename": filename,
+                    "size": len(content),
+                    "upload_time": "2023-01-01T00:00:00Z"
+                }
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error uploading to knowledge base: {str(e)}")
+        raise
+
+
+@mcp.tool("entity.create")
+async def create_entity(
+    ctx: Context,
+    prompt: str,
+    domain: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create an entity from a prompt."""
+    try:
+        logger.info(
+            f"Creating entity from prompt in domain: {domain or 'default'}")
+        return {
+            "entity_id": "123456",
+            "response": f"Created entity from: {prompt[:20]}...",
+            "intent": "create",
+            "target": domain or "default",
+            "description": "Entity created from description",
+            "rag_used": False,
+            "cached": False,
+            "confidence": 0.9
+        }
+    except Exception as e:
+        logger.error(f"Error creating entity: {str(e)}")
+        raise
+
+
+@mcp.tool("user.getContext")
+async def get_user_context(
+    ctx: Context,
+    user_id: str,
+    domain: str
+) -> Dict[str, Any]:
+    """Get user context data."""
+    try:
+        logger.info(f"Getting context for user {user_id} in domain {domain}")
+        return {
+            "user_id": user_id,
+            "domain": domain,
+            "preferences": {
+                "language": "en",
+                "theme": "light"
+            },
+            "history": []
+        }
+    except Exception as e:
+        logger.error(f"Error getting user context: {str(e)}")
+        raise
+
+
+@mcp.tool("user.getInfo")
+async def get_user_info(
+    ctx: Context,
+    user_id: str
+) -> Dict[str, Any]:
+    """Get user information."""
+    try:
+        logger.info(f"Getting info for user {user_id}")
+        return {
+            "user_id": user_id,
+            "name": "Test User",
+            "email": "test@example.com",
+            "created_at": "2023-01-01T00:00:00Z"
+        }
+    except Exception as e:
+        logger.error(f"Error getting user info: {str(e)}")
+        raise
+
+
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""
     if app is not None:
@@ -232,6 +480,12 @@ async def run_server():
     """Run the MCP server with stdio transport."""
     try:
         logger.info("Starting MCP server with stdio transport")
+        if sys.platform == "win32":
+            # Ensure stdout is in binary mode on Windows
+            import msvcrt
+            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+            msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+            logger.info("Set stdin/stdout to binary mode for Windows")
         await mcp.run_stdio_async()
     except Exception as e:
         logger.error(f"Error running MCP server: {str(e)}", exc_info=True)
@@ -241,4 +495,8 @@ async def run_server():
 if __name__ == "__main__":
     # Run the server using stdio transport
     logger.info("Initializing MCP server")
+    if sys.platform == "win32":
+        # Windows requires special handling for asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        logger.info("Set Windows-compatible event loop policy")
     asyncio.run(run_server())

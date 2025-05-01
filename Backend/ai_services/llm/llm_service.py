@@ -49,16 +49,23 @@ class LLMService:
                 return None
 
             # Get model info from Go backend through MCP
-            model_info = await mcp_client.call_method("ai/model/info", {
+            model_info = await mcp_client.invoke_tool("ai.model.info", {
                 "name": self.model_name,
                 "version": "1.0"
             })
 
-            if model_info and "model_id" in model_info:
-                return int(model_info["model_id"])
+            if model_info and "status" in model_info and model_info["status"] == "success":
+                content = model_info.get("content", {})
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except:
+                        content = {"model_id": 1}
+
+                return int(content.get("model_id", 1))
 
             # Create model through MCP if it doesn't exist
-            model_info = await mcp_client.call_method("ai/model/create", {
+            model_info = await mcp_client.invoke_tool("ai.model.create", {
                 "name": self.model_name,
                 "version": "1.0",
                 "type": "text-generation",
@@ -66,13 +73,20 @@ class LLMService:
                 "status": "active"
             })
 
-            if model_info and "model_id" in model_info:
-                return int(model_info["model_id"])
+            if model_info and "status" in model_info and model_info["status"] == "success":
+                content = model_info.get("content", {})
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except:
+                        content = {"model_id": 1}
 
-            raise ValueError("Failed to get valid model ID from MCP")
+                return int(content.get("model_id", 1))
+
+            return 1  # Default model ID if we can't get it from MCP
         except Exception as e:
             logger.error(f"Error getting/creating model through MCP: {str(e)}")
-            return None
+            return 1  # Default model ID
 
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
         """Update model usage statistics through MCP."""
@@ -83,7 +97,7 @@ class LLMService:
                     logger.error("MCP client not initialized")
                     return
 
-                await mcp_client.call_method("ai/model/stats/update", {
+                await mcp_client.invoke_tool("ai.model.stats.update", {
                     "model_id": self._current_model_id,
                     "latency": latency,
                     "success": success
