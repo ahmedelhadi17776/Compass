@@ -33,6 +33,12 @@ func main() {
 		"1.0.0",
 	)
 
+	// Set server capabilities
+	s.SetCapabilities(server.ServerCapabilities{
+		Tools:   true,
+		Logging: true,
+	})
+
 	// Add browser tools
 	browserLogs := mcp.Tool{
 		Name:        "getConsoleLogs",

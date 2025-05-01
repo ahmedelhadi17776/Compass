@@ -7,17 +7,38 @@ from Backend.core.config import settings
 from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator
 from fastapi.responses import StreamingResponse
 import logging
+import httpx
+import os
+import json
+import sys
+import asyncio
+from mcp.types import (
+    InitializeResult,
+    ServerCapabilities,
+    Implementation,
+    ToolsCapability,
+    LoggingCapability
+)
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('mcp_server.log')
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI()
 
-# Initialize FastMCP server with proper configuration
+# Initialize FastMCP server
 mcp = FastMCP(
-    name="compass-ai",
+    name="compass",
     version="1.0.0",
-    description="COMPASS AI Service MCP Server"
+    instructions="COMPASS AI Service MCP Server"
 )
 
 # Create SSE transport instance
@@ -25,6 +46,128 @@ sse = SseServerTransport("/mcp/sse")
 
 # Mount the SSE endpoint for MCP
 app.router.routes.append(Mount("/mcp/sse", app=sse.handle_post_message))
+
+# Constants
+GO_BACKEND_URL = f"http://{settings.api_host}:{settings.api_port}"
+HEADERS = {"Content-Type": "application/json"}
+
+
+@mcp.tool()
+async def create_user(user_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
+    """Create a new user in the system.
+
+    Args:
+        user_data: Dictionary containing user information
+            - username: str
+            - email: str
+            - password: str
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{GO_BACKEND_URL}/api/v1/users",
+                json=user_data,
+                headers=HEADERS
+            )
+            response.raise_for_status()
+            await ctx.info(f"Created user: {user_data['username']}")
+            return response.json()
+        except Exception as e:
+            await ctx.error(f"Failed to create user: {str(e)}")
+            raise
+
+
+@mcp.tool()
+async def get_user(user_id: str, ctx: Context) -> Dict[str, Any]:
+    """Get user information by ID.
+
+    Args:
+        user_id: The ID of the user to retrieve
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{GO_BACKEND_URL}/api/v1/users/{user_id}",
+                headers=HEADERS
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            await ctx.error(f"Failed to get user {user_id}: {str(e)}")
+            raise
+
+
+@mcp.tool()
+async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
+    """Create a new task.
+
+    Args:
+        task_data: Dictionary containing task information
+            - title: str
+            - description: str
+            - due_date: str (optional)
+            - priority: str (optional)
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{GO_BACKEND_URL}/api/v1/tasks",
+                json=task_data,
+                headers=HEADERS
+            )
+            response.raise_for_status()
+            await ctx.info(f"Created task: {task_data['title']}")
+            return response.json()
+        except Exception as e:
+            await ctx.error(f"Failed to create task: {str(e)}")
+            raise
+
+
+@mcp.tool()
+async def get_tasks(user_id: str, ctx: Context) -> Dict[str, Any]:
+    """Get all tasks for a user.
+
+    Args:
+        user_id: The ID of the user
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{GO_BACKEND_URL}/api/v1/tasks",
+                params={"user_id": user_id},
+                headers=HEADERS
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            await ctx.error(f"Failed to get tasks for user {user_id}: {str(e)}")
+            raise
+
+
+@mcp.tool()
+async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
+    """Create a new project.
+
+    Args:
+        project_data: Dictionary containing project information
+            - name: str
+            - description: str
+            - start_date: str (optional)
+            - end_date: str (optional)
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{GO_BACKEND_URL}/api/v1/projects",
+                json=project_data,
+                headers=HEADERS
+            )
+            response.raise_for_status()
+            await ctx.info(f"Created project: {project_data['name']}")
+            return response.json()
+        except Exception as e:
+            await ctx.error(f"Failed to create project: {str(e)}")
+            raise
 
 
 @mcp.tool("ai.process")
@@ -85,6 +228,17 @@ def setup_mcp_server(app: Optional[FastAPI] = None):
     return mcp
 
 
+async def run_server():
+    """Run the MCP server with stdio transport."""
+    try:
+        logger.info("Starting MCP server with stdio transport")
+        await mcp.run_stdio_async()
+    except Exception as e:
+        logger.error(f"Error running MCP server: {str(e)}", exc_info=True)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host=settings.API_HOST, port=settings.API_PORT)
+    # Run the server using stdio transport
+    logger.info("Initializing MCP server")
+    asyncio.run(run_server())
