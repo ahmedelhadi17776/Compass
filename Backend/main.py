@@ -15,38 +15,19 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-# Set Windows-compatible event loop policy at the module level
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy")
-
 
 def run_mcp_server_subprocess(server_path, env):
     """Run the MCP server as a subprocess in a thread-safe way."""
     try:
-        # For Windows, use a different approach that doesn't rely on asyncio's subprocess handling
-        if sys.platform == "win32":
-            # Start the process detached from the parent process
-            process = subprocess.Popen(
-                [sys.executable, server_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=0,
-                universal_newlines=True,
-                env=env,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-            )
-        else:
-            # For non-Windows platforms, use the original approach
-            process = subprocess.Popen(
-                [sys.executable, server_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=0,
-                universal_newlines=True,
-                env=env
-            )
-            
+        process = subprocess.Popen(
+            [sys.executable, server_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=0,
+            universal_newlines=True,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+        )
         logger.info(f"Started MCP server process with PID: {process.pid}")
         return process
     except Exception as e:

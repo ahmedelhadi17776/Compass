@@ -33,11 +33,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Set Windows-compatible event loop policy
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy in client")
-
 DEFAULT_MODEL = "gpt-4"
 
 
@@ -68,37 +63,6 @@ class MCPClient:
         self._connection_task = None
         self.tools: List[Tool] = []
         self.process: Optional[subprocess.Popen] = None
-        # Initialize with predefined tools for Windows fallback
-        self._init_default_tools()
-
-    def _init_default_tools(self):
-        """Initialize default tools for fallback mode."""
-        # These tools will be used if direct connection fails
-        self._default_tools = [
-            Tool(
-                name="ai.model.info",
-                description="Get model information",
-                input_schema={"type": "object", "properties": {}}
-            ),
-            Tool(
-                name="ai.process",
-                description="Process AI request",
-                input_schema={"type": "object", "properties": {}}
-            ),
-            Tool(
-                name="user.getInfo",
-                description="Get user information",
-                input_schema={"type": "object", "properties": {"user_id": {"type": "string"}}}
-            ),
-            Tool(
-                name="user.getContext",
-                description="Get user context",
-                input_schema={"type": "object", "properties": {
-                    "user_id": {"type": "string"},
-                    "domain": {"type": "string"}
-                }}
-            )
-        ]
 
     async def connect_to_server(self, server_script_path: str):
         """Connect to the MCP server."""
@@ -131,57 +95,33 @@ class MCPClient:
 
     async def _maintain_connection(self, server_params: StdioServerParameters):
         """Maintain the connection to the MCP server."""
-        retry_count = 0
-        max_retries = 3
-        
-        while self._running and retry_count < max_retries:
+        while self._running:
             try:
                 self.logger.info("Establishing connection to MCP server...")
 
-                if sys.platform == "win32":
-                    # Use a fallback approach for Windows
-                    # Wait for server to initialize
-                    await asyncio.sleep(2)
-                    
-                    # Use the predefined tools as fallback
-                    self.logger.info("Windows platform detected - using fallback mode")
-                    self.tools = self._default_tools
-                    self.logger.info(f"Initialized {len(self.tools)} default tools in fallback mode")
-                    
+                async with stdio_client(server_params) as (read, write):
+                    self.session = ClientSession(read, write)
+                    await self.session.initialize()
+                    self.logger.info("Connected to MCP server successfully")
+
+                    # Initialize tools
+                    tools_response = await self.session.list_tools()
+                    self.tools = [Tool(
+                        name=t.name,
+                        description=t.description or "",
+                        input_schema=t.inputSchema
+                    ) for t in tools_response.tools]
+                    self.logger.info(f"Initialized {len(self.tools)} tools")
+
                     # Keep connection alive until cleanup is called
                     while self._running:
                         await asyncio.sleep(1)
-                else:
-                    # For non-Windows, use the stdio_client as before
-                    async with stdio_client(server_params) as (read, write):
-                        self.session = ClientSession(read, write)
-                        await self.session.initialize()
-                        self.logger.info("Connected to MCP server successfully")
-
-                        # Initialize tools
-                        tools_response = await self.session.list_tools()
-                        self.tools = [Tool(
-                            name=t.name,
-                            description=t.description or "",
-                            input_schema=t.inputSchema
-                        ) for t in tools_response.tools]
-                        self.logger.info(f"Initialized {len(self.tools)} tools")
-
-                        # Keep connection alive until cleanup is called
-                        while self._running:
-                            await asyncio.sleep(1)
 
             except Exception as e:
                 self.logger.error(f"Connection error: {str(e)}", exc_info=True)
-                retry_count += 1
-                if self._running and retry_count < max_retries:
+                if self._running:
                     # Wait before retrying
                     await asyncio.sleep(5)
-                elif sys.platform == "win32":
-                    # On Windows, if we've retried enough times, just use the fallback mode
-                    self.logger.warning("Max retries reached. Using fallback mode for Windows.")
-                    self.tools = self._default_tools
-                    retry_count = max_retries  # Stop retrying
             finally:
                 if self.session:
                     self.session = None
@@ -201,77 +141,23 @@ class MCPClient:
 
     async def invoke_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Call a tool on the MCP server."""
-        if sys.platform == "win32" or not self.session:
-            # Windows or fallback mode - simulate responses
-            try:
-                self.logger.info(f"Simulating tool call {name} with args: {arguments}")
-                # Generate predefined responses for various tools
-                if name == "ai.model.info":
-                    return {
-                        "status": "success",
-                        "content": json.dumps({
-                            "model_id": 1,
-                            "name": "gpt-4",
-                            "version": "1.0",
-                            "type": "text-generation",
-                            "provider": "OpenAI",
-                            "capabilities": {
-                                "streaming": True,
-                                "function_calling": True
-                            }
-                        })
-                    }
-                elif name == "user.getInfo":
-                    return {
-                        "status": "success",
-                        "content": json.dumps({
-                            "user_id": arguments.get("user_id", "unknown"),
-                            "name": "Test User",
-                            "email": "test@example.com",
-                            "created_at": "2023-01-01T00:00:00Z"
-                        })
-                    }
-                elif name == "user.getContext":
-                    return {
-                        "status": "success",
-                        "content": json.dumps({
-                            "user_id": arguments.get("user_id", "unknown"),
-                            "domain": arguments.get("domain", "default"),
-                            "preferences": {
-                                "language": "en",
-                                "theme": "light"
-                            },
-                            "history": []
-                        })
-                    }
-                else:
-                    return {
-                        "status": "success",
-                        "content": f"Simulated response for {name}"
-                    }
-            except Exception as e:
-                self.logger.error(
-                    f"Error simulating tool {name}: {str(e)}", exc_info=True)
-                return {
-                    "status": "error",
-                    "error": str(e)
-                }
-        else:
-            # Regular mode with active session
-            try:
-                self.logger.info(f"Calling tool {name} with args: {arguments}")
-                result = await self.session.call_tool(name, arguments=arguments or {})
-                return {
-                    "status": "success",
-                    "content": str(result)
-                }
-            except Exception as e:
-                self.logger.error(
-                    f"Error calling tool {name}: {str(e)}", exc_info=True)
-                return {
-                    "status": "error",
-                    "error": str(e)
-                }
+        if not self.session:
+            raise RuntimeError("Not connected to MCP server")
+
+        try:
+            self.logger.info(f"Calling tool {name} with args: {arguments}")
+            result = await self.session.call_tool(name, arguments=arguments or {})
+            return {
+                "status": "success",
+                "content": str(result)
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Error calling tool {name}: {str(e)}", exc_info=True)
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     async def call_method(self, method_path: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Call a method/tool path on the MCP server.
@@ -351,7 +237,6 @@ class MCPClient:
         )
 
     async def call_tool(self, tool_name: str, tool_args: Dict[str, Any]):
-        if sys.platform == "win32" or not self.session:
-            return await self.invoke_tool(tool_name, tool_args)
-        else:
-            return await self.session.call_tool(tool_name, tool_args)
+        if not self.session:
+            raise RuntimeError("MCP session not initialized")
+        return await self.session.call_tool(tool_name, tool_args)

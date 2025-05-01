@@ -31,11 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Set Windows-compatible event loop policy
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy in server")
-
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -485,25 +480,13 @@ async def run_server():
     """Run the MCP server with stdio transport."""
     try:
         logger.info("Starting MCP server with stdio transport")
-        
         if sys.platform == "win32":
-            # Windows-specific setup
             # Ensure stdout is in binary mode on Windows
             import msvcrt
             msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
             msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
             logger.info("Set stdin/stdout to binary mode for Windows")
-            
-            # Use a custom loop explicitly for Windows
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(mcp.run_stdio_async())
-            finally:
-                loop.close()
-        else:
-            # Non-Windows platforms can use the standard approach
-            await mcp.run_stdio_async()
+        await mcp.run_stdio_async()
     except Exception as e:
         logger.error(f"Error running MCP server: {str(e)}", exc_info=True)
         sys.exit(1)

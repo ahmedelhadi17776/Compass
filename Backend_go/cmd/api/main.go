@@ -12,8 +12,10 @@ import (
 
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // swagger docs
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/mcp"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
@@ -27,7 +29,6 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/migrations"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/scheduler"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/mcp"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
@@ -190,6 +191,25 @@ func main() {
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 	todosHandler := handlers.NewTodoHandler(todosService)
 
+	// Initialize AI repository and service
+	aiLogger := logrus.New()
+	aiLogger.SetFormatter(&logrus.JSONFormatter{})
+	if cfg.Server.Mode == "production" {
+		aiLogger.SetLevel(logrus.InfoLevel)
+	} else {
+		aiLogger.SetLevel(logrus.DebugLevel)
+	}
+
+	aiRepo := ai.NewRepository(db, aiLogger)
+	aiService := ai.NewService(ai.ServiceConfig{
+		Repository: aiRepo,
+		Logger:     aiLogger,
+	})
+
+	// Initialize MCP handler and routes
+	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)
+	mcpRoutes := mcp.NewRoutes(mcpHandler)
+
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
 
@@ -277,44 +297,10 @@ func main() {
 	todosRoutes.RegisterRoutes(router, cacheMiddleware)
 	log.Info("Registered todos routes at /api/todos")
 
-	// Initialize MCP client if API key is available
-	var mcpClient *mcp.Client
-	if apiKey := os.Getenv("MCP_API_KEY"); apiKey != "" {
-		var err error
-		mcpClient, err = mcp.NewClient(&mcp.Config{
-			APIKey: apiKey,
-			Debug:  cfg.Server.Mode != "production",
-		})
-		if err != nil {
-			log.Error("Failed to initialize MCP client", zap.Error(err))
-		}
-	} else {
-		log.Info("MCP_API_KEY not set, MCP features will be disabled")
-	}
-
-	// Add MCP middleware only if client is available
-	if mcpClient != nil {
-		router.Use(func(c *gin.Context) {
-			c.Set("mcp", mcpClient)
-			c.Next()
-		})
-
-		// Add MCP health check
-		router.GET("/health/mcp", func(c *gin.Context) {
-			if err := mcpClient.HealthCheck(); err != nil {
-				c.JSON(http.StatusServiceUnavailable, gin.H{
-					"status":    "unhealthy",
-					"component": "mcp",
-					"error":     err.Error(),
-				})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{
-				"status":    "healthy",
-				"component": "mcp",
-			})
-		})
-	}
+	// Register MCP routes right before the "Debug: Print all registered routes" comment
+	// Register MCP routes (not protected by auth middleware)
+	mcpRoutes.RegisterRoutes(router.Group("/api"))
+	log.Info("Registered MCP routes at /api/mcp/*")
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {
