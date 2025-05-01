@@ -171,14 +171,17 @@ func (s *service) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error)
 		return 0, fmt.Errorf("failed to fetch active streaks: %w", err)
 	}
 
-	now := time.Now().UTC()
-	yesterday := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, time.UTC)
-
 	var totalReset int64
 	for _, habit := range activeStreaks {
-		// Check if streak is broken (no completion yesterday or earlier)
-		if habit.LastCompletedDate == nil || habit.LastCompletedDate.Before(yesterday) {
-			lastDate := now
+		// Check if streak is broken using timezone-aware database function
+		isBroken, err := s.repo.IsStreakBroken(ctx, habit.LastCompletedDate)
+		if err != nil {
+			log.Printf("failed to check if streak is broken for habit %s: %v", habit.ID, err)
+			continue
+		}
+
+		if isBroken {
+			lastDate := time.Now()
 			if habit.LastCompletedDate != nil {
 				lastDate = *habit.LastCompletedDate
 			}
