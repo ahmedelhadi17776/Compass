@@ -6,6 +6,7 @@ import (
 
 	"errors"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
@@ -33,9 +34,25 @@ func (MigrationRecord) TableName() string {
 	return "schema_migrations"
 }
 
+// Try to enable the pgvector extension if it exists
+// This will silently continue if the extension doesn't exist
+func tryEnablePgVector(db *gorm.DB, logger *zap.Logger) {
+	// Try to create the extension, but don't fail if it doesn't exist
+	err := db.Exec("CREATE EXTENSION IF NOT EXISTS vector").Error
+	if err != nil {
+		logger.Warn("Could not enable pgvector extension", zap.Error(err))
+		logger.Info("Vector operations will use text representation instead of native vector types")
+	} else {
+		logger.Info("Successfully enabled pgvector extension")
+	}
+}
+
 // AutoMigrate runs database migrations for all models
 func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 	logger.Info("Starting automatic database migration...")
+
+	// Try to enable pgvector if available
+	tryEnablePgVector(db.DB, logger)
 
 	// Enable UUID extension for PostgreSQL
 	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`).Error; err != nil {
@@ -84,6 +101,11 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&workflow.WorkflowAgentLink{},
 			&workflow.WorkflowTransition{},
 			&todos.Todo{},
+			&ai.Model{},
+			&ai.Interaction{},
+			&ai.Document{},
+			&ai.Chunk{},
+			&ai.UserContext{},
 		}
 
 		// Migrate each model
