@@ -271,45 +271,29 @@ class LLMService:
         logger.debug("Preparing messages for LLM")
         messages: List[ChatCompletionMessageParam] = []
 
-        # Add system message with domain context if available
-        if context and context.get("system_message"):
-            logger.debug("Adding system message from context")
-            system_message = context["system_message"]
-            if context.get("domain"):
-                system_message = f"Current domain: {context['domain']}\n{system_message}"
+        # Add system message with tool context if available
+        if context and context.get("system_prompt"):
+            logger.debug("Adding system message with tool context")
             messages.append({
                 "role": "system",
-                "content": system_message
+                "content": context["system_prompt"]
             })
         else:
-            logger.debug("Adding default empty system message")
+            logger.debug("Adding default system message")
             messages.append({
                 "role": "system",
-                "content": ""
+                "content": "You are a helpful AI assistant."
             })
 
-        # Get conversation history with domain context
+        # Get conversation history
         if context and context.get("conversation_history"):
-            logger.debug("Adding conversation history with domain context")
+            logger.debug("Adding conversation history")
             history = context["conversation_history"]
             if isinstance(history, list):
-                # Filter history to maintain domain context
-                domain_history = []
-                current_domain = context.get("domain")
+                messages.extend(history[-self.max_history_length:])
 
-                for msg in history[-self.max_history_length*2:]:
-                    if isinstance(msg, dict):
-                        # Keep messages from current domain or domain-independent messages
-                        msg_domain = msg.get("metadata", {}).get("domain")
-                        if not msg_domain or msg_domain == current_domain:
-                            domain_history.append(msg)
-
-                messages.extend(domain_history[-self.max_history_length:])
-                logger.debug(
-                    f"Added {len(domain_history[-self.max_history_length:])} domain-relevant history messages")
-
-        # Add current prompt with metadata
-        logger.debug("Adding current prompt with domain context")
+        # Add current prompt
+        logger.debug("Adding current prompt")
         messages.append({
             "role": "user",
             "content": prompt
@@ -317,11 +301,14 @@ class LLMService:
         return messages
 
     def _prepare_model_parameters(self, parameters: Optional[Dict] = None) -> Dict[str, Any]:
-        # Use the same parameters as in the GitHub API example
+        # Default parameters optimized for tool calling
         default_params = {
-            "temperature": settings.llm_temperature,
+            "temperature": 0.7,  # Balanced between creativity and precision
             "max_tokens": settings.llm_max_tokens,
-            "top_p": settings.llm_top_p,
+            "top_p": 0.95,  # High value for more focused responses
+            "presence_penalty": 0.0,  # No penalty for repeated tokens
+            "frequency_penalty": 0.0,  # No penalty for frequent tokens
+            "response_format": { "type": "text" }  # Ensure text output for tool parsing
         }
         if parameters:
             default_params.update(parameters)
