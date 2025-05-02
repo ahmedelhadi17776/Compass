@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends, Cookie
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from fastapi.responses import StreamingResponse
@@ -8,6 +8,7 @@ import os
 import shutil
 import json
 from pathlib import Path
+import uuid
 
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_orchestrator import AIOrchestrator
@@ -32,6 +33,7 @@ class AIRequest(BaseModel):
     domain: Optional[str] = None
     model_parameters: Optional[Dict] = None
     previous_messages: Optional[List[PreviousMessage]] = None
+    session_id: Optional[str] = None  # Add session ID field
 
 
 class AIResponse(BaseModel):
@@ -45,6 +47,7 @@ class AIResponse(BaseModel):
     confidence: float = 0.0
     error: Optional[bool] = None
     error_message: Optional[str] = None
+    session_id: Optional[str] = None  # Add session ID to response
 
 
 class FeedbackRequest(BaseModel):
@@ -64,22 +67,44 @@ router = APIRouter(prefix="/ai", tags=["AI Services"])
 # Initialize services
 llm_service = LLMService()
 
+# Store orchestrators by session ID for persistent conversations
+orchestrator_instances: Dict[str, AIOrchestrator] = {}
+
+
+def get_or_create_orchestrator(session_id: str) -> AIOrchestrator:
+    """Get an existing orchestrator or create a new one for the session."""
+    if session_id not in orchestrator_instances:
+        logger.info(f"Creating new orchestrator for session {session_id}")
+        orchestrator_instances[session_id] = AIOrchestrator()
+    return orchestrator_instances[session_id]
+
 
 @router.post("/process", response_model=AIResponse)
 async def process_ai_request(
     request: AIRequest,
+    session_id: Optional[str] = Cookie(None)
 ) -> AIResponse:
     """Process an AI request through MCP."""
     try:
-        orchestrator = AIOrchestrator()
+        # Get or create session ID
+        active_session_id = request.session_id or session_id or str(uuid.uuid4())
+        
+        # Get or create orchestrator for this session
+        orchestrator = get_or_create_orchestrator(active_session_id)
+        
+        # Map session ID to a numeric user ID for the orchestrator
+        # Use a hash of the session ID to get a consistent integer
+        user_id = int(hash(active_session_id) % 100000)
 
         # Process request
         result = await orchestrator.process_request(
             user_input=request.prompt,
-            user_id=1,  # Temporary user ID, will be replaced by MCP auth
+            user_id=user_id,  # Use the mapped user ID
             domain=request.domain or "default"
         )
-
+        
+        # Add session ID to response
+        result["session_id"] = active_session_id
         return AIResponse(**result)
     except Exception as e:
         logger.error(f"Error processing AI request: {str(e)}")
@@ -93,7 +118,8 @@ async def process_ai_request(
             cached=False,
             confidence=0.0,
             error=True,
-            error_message=str(e)
+            error_message=str(e),
+            session_id=request.session_id or session_id
         )
 
 
@@ -153,6 +179,17 @@ async def get_model_info():
     except Exception as e:
         logger.error(f"Error getting model info through MCP: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/clear-session")
+async def clear_session(session_id: str):
+    """Clear conversation history for a session."""
+    if session_id in orchestrator_instances:
+        orchestrator = orchestrator_instances[session_id]
+        user_id = int(hash(session_id) % 100000)
+        orchestrator.memory_manager.clear_memory(user_id)
+        return {"status": "success", "message": f"Session {session_id} cleared"}
+    return {"status": "not_found", "message": f"Session {session_id} not found"}
 
 
 @router.post("/rag/knowledge-base/process", response_model=Dict[str, Any], status_code=202)
@@ -216,9 +253,13 @@ async def upload_pdf_to_knowledge_base(
 @router.post("/entity/create", response_model=AIResponse)
 async def create_entity(
     request: AIRequest,
+    session_id: Optional[str] = Cookie(None)
 ) -> AIResponse:
     """Create a new entity through MCP."""
     try:
+        # Use session ID if provided
+        active_session_id = request.session_id or session_id or str(uuid.uuid4())
+        
         mcp_client = get_mcp_client()
         if not mcp_client:
             raise HTTPException(
@@ -249,7 +290,8 @@ async def create_entity(
             cached=response_content.get("cached", False),
             confidence=response_content.get("confidence", 0.9),
             error=response_content.get("error", False),
-            error_message=response_content.get("error_message")
+            error_message=response_content.get("error_message"),
+            session_id=active_session_id
         )
     except Exception as e:
         logger.error(f"Error creating entity through MCP: {str(e)}")
@@ -262,5 +304,6 @@ async def create_entity(
             cached=False,
             confidence=0.0,
             error=True,
-            error_message=str(e)
+            error_message=str(e),
+            session_id=request.session_id or session_id
         )

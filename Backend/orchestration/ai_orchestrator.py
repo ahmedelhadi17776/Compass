@@ -4,6 +4,8 @@ from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_registry import ai_registry
 from Backend.core.mcp_state import get_mcp_client
 from Backend.core.config import settings
+from Backend.orchestration.langchain_memory import ConversationMemoryManager
+from langchain.prompts import ChatPromptTemplate
 import logging
 import json
 import time
@@ -35,7 +37,7 @@ class AIOrchestrator:
         self.logger = logging.getLogger(__name__)
         self._current_model_id: Optional[int] = None
         self.ai_registry = ai_registry
-        self._conversation_histories: Dict[int, ConversationHistory] = {}
+        self.memory_manager = ConversationMemoryManager(max_history_length=10)
         self.max_history_length = 10
         self.mcp_client = get_mcp_client()
 
@@ -67,20 +69,20 @@ class AIOrchestrator:
     async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
         """Process an AI request with MCP integration."""
         try:
-            # Get conversation history
-            history = self._get_conversation_history(user_id)
+            # Get conversation history using LangChain memory
+            messages = self.memory_manager.get_langchain_messages(user_id)
 
             # Get available tools and format system prompt
             tools = await self._get_available_tools()
             formatted_tools = self._format_tools_for_prompt(tools)
             system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
 
-            # Generate initial LLM response
+            # Generate initial LLM response with LangChain chat history
             response = await self.llm_service.generate_response(
                 prompt=user_input,
                 context={
                     "system_prompt": system_prompt,
-                    "conversation_history": history.get_messages()
+                    "conversation_history": messages
                 }
             )
 
@@ -132,7 +134,7 @@ class AIOrchestrator:
                     final_response = final_response.get("text", "")
                     tool_info = last_tool_call
 
-            # Update conversation history
+            # Update conversation history with LangChain memory
             self._update_conversation_history(user_id, user_input, final_response)
 
             return {
@@ -173,13 +175,10 @@ class AIOrchestrator:
         return tool_calls
 
     def _get_conversation_history(self, user_id: int) -> ConversationHistory:
-        """Get or create conversation history for a user."""
-        if user_id not in self._conversation_histories:
-            self._conversation_histories[user_id] = ConversationHistory()
-        return self._conversation_histories[user_id]
+        """Get conversation history for a user using LangChain memory."""
+        return self.memory_manager.convert_to_chat_history(user_id)
 
     def _update_conversation_history(self, user_id: int, prompt: str, response: str) -> None:
-        """Update conversation history with new messages."""
-        history = self._get_conversation_history(user_id)
-        history.add_message(UserMessage(content=prompt))
-        history.add_message(AssistantMessage(content=response))
+        """Update conversation history with new messages using LangChain memory."""
+        self.memory_manager.add_user_message(user_id, prompt)
+        self.memory_manager.add_ai_message(user_id, response)
