@@ -472,6 +472,33 @@ async def get_user_info(
         raise
 
 
+@mcp.tool("todos.list")
+async def get_todos(
+    ctx: Context,
+    user_id: str,
+    status: Optional[str] = None,
+    priority: Optional[str] = None
+) -> Dict[str, Any]:
+    """Get todos for a user with optional filters."""
+    try:
+        logger.info(f"Getting todos for user {user_id}")
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {DEV_JWT_TOKEN}"  # Use same token as client
+            }
+                
+            response = await client.get(
+                f"{GO_BACKEND_URL}/api/todo-lists",
+                headers=headers
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.error(f"Error getting todos: {str(e)}")
+        raise
+
+
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""
     if app is not None:

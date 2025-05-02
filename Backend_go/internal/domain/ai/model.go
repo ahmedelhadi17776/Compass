@@ -84,7 +84,7 @@ type Chunk struct {
 	base.Model
 	DocumentID     uuid.UUID `json:"document_id" gorm:"index:idx_chunk_document;type:uuid"`
 	Content        string    `json:"content" gorm:"type:text"`
-	Embedding      string    `json:"embedding" gorm:"type:vector"`
+	Embedding      string    `json:"embedding" gorm:"type:text"`
 	StartOffset    int       `json:"start_offset"`
 	EndOffset      int       `json:"end_offset"`
 	TokenCount     int       `json:"token_count"`
