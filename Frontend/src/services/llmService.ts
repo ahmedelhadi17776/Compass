@@ -9,6 +9,7 @@ export interface LLMRequest {
   domain?: string;
   model_parameters?: Record<string, any>;
   previous_messages?: Array<{sender: string; text: string}>;
+  session_id?: string;
 }
 
 export interface LLMResponse {
@@ -21,20 +22,91 @@ export interface LLMResponse {
   confidence: number;
   error?: boolean;
   error_message?: string;
+  session_id?: string;
+  tool_used?: string;
+  tool_args?: Record<string, any>;
+  tool_success?: boolean;
 }
+
+// Local storage key for session ID
+const SESSION_ID_KEY = 'ai_conversation_session_id';
+
+// Helper to get or create a session ID
+const getOrCreateSessionId = (): string => {
+  const existingSessionId = localStorage.getItem(SESSION_ID_KEY);
+  if (existingSessionId) {
+    return existingSessionId;
+  }
+  
+  // Create a new UUID for the session
+  const newSessionId = crypto.randomUUID();
+  localStorage.setItem(SESSION_ID_KEY, newSessionId);
+  return newSessionId;
+};
 
 // LLM Service
 export const llmService = {
+  // Get current session ID
+  getSessionId: (): string => {
+    return getOrCreateSessionId();
+  },
+  
+  // Create a new session ID (useful for starting a new conversation)
+  createNewSession: (): string => {
+    const newSessionId = crypto.randomUUID();
+    localStorage.setItem(SESSION_ID_KEY, newSessionId);
+    return newSessionId;
+  },
+  
+  // Clear the current session
+  clearSession: async (): Promise<void> => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Authentication required');
+    
+    const sessionId = getOrCreateSessionId();
+    
+    try {
+      await axios.post(
+        `${PYTHON_API_URL}/ai/clear-session`,
+        { session_id: sessionId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Create a new session after clearing
+      llmService.createNewSession();
+    } catch (error) {
+      console.error('Failed to clear session:', error);
+      throw error;
+    }
+  },
+
   // Generate a response from the LLM
   generateResponse: async (request: LLMRequest): Promise<LLMResponse> => {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Authentication required');
 
+    // Ensure we have a session ID
+    const sessionId = request.session_id || getOrCreateSessionId();
+    const requestWithSession = {
+      ...request,
+      session_id: sessionId
+    };
+
     const response = await axios.post<LLMResponse>(
       `${PYTHON_API_URL}/ai/process`,
-      request,
-      { headers: { Authorization: `Bearer ${token}` } }
+      requestWithSession,
+      { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          Cookie: `session_id=${sessionId}`
+        }
+      }
     );
+    
+    // If we got a new session ID back, update our storage
+    if (response.data.session_id && response.data.session_id !== sessionId) {
+      localStorage.setItem(SESSION_ID_KEY, response.data.session_id);
+    }
     
     return response.data;
   },
@@ -43,17 +115,22 @@ export const llmService = {
   streamResponse: async function* (prompt: string, previousMessages?: Array<{sender: string; text: string}>) {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Authentication required');
+    
+    // Get the current session ID
+    const sessionId = getOrCreateSessionId();
 
     try {
       const response = await fetch(`${PYTHON_API_URL}/ai/process/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Cookie': `session_id=${sessionId}`
         },
         body: JSON.stringify({ 
           prompt,
-          previous_messages: previousMessages 
+          previous_messages: previousMessages,
+          session_id: sessionId
         }),
       });
 
@@ -118,6 +195,15 @@ export const useStreamingLLMResponse = () => {
     streamResponse: (prompt: string, previousMessages?: Array<{sender: string; text: string}>) => {
       return llmService.streamResponse(prompt, previousMessages);
     },
+  };
+};
+
+// Hook to manage conversation sessions
+export const useConversationSession = () => {
+  return {
+    getSessionId: llmService.getSessionId,
+    createNewSession: llmService.createNewSession,
+    clearSession: llmService.clearSession
   };
 };
 

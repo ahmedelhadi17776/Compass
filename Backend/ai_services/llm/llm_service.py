@@ -7,6 +7,8 @@ from openai._streaming import Stream
 from Backend.core.config import settings
 from Backend.utils.logging_utils import get_logger
 from Backend.core.mcp_state import get_mcp_client
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain.schema import format_document
 import os
 import time
 import json
@@ -36,8 +38,7 @@ class LLMService:
             base_url=self.base_url
         )
         self.model = self.model_name
-        self.conversation_history: List[ChatCompletionMessageParam] = []
-        self.max_history_length = 10
+        # Removing the conversation_history as we'll use LangChain memory instead
         self._current_model_id: Optional[int] = None
 
     async def _get_or_create_model(self) -> Optional[int]:
@@ -285,12 +286,23 @@ class LLMService:
                 "content": "You are a helpful AI assistant."
             })
 
-        # Get conversation history
+        # Process conversation history from LangChain memory
         if context and context.get("conversation_history"):
             logger.debug("Adding conversation history")
             history = context["conversation_history"]
-            if isinstance(history, list):
-                messages.extend(history[-self.max_history_length:])
+            
+            # If history is already in the format expected by OpenAI API
+            if isinstance(history, list) and all(isinstance(msg, dict) for msg in history):
+                for msg in history:
+                    if msg.get("role") in ["user", "assistant", "system"]:
+                        messages.append(msg)
+            # If history is in LangChain Message format
+            elif isinstance(history, list) and hasattr(history[0], "content") and hasattr(history[0], "role"):
+                for msg in history:
+                    messages.append({
+                        "role": msg.role,
+                        "content": msg.content
+                    })
 
         # Add current prompt
         logger.debug("Adding current prompt")
@@ -313,17 +325,6 @@ class LLMService:
         if parameters:
             default_params.update(parameters)
         return default_params
-
-    def _update_conversation_history(self, prompt: str, response: str) -> None:
-        self.conversation_history.append({"role": "user", "content": prompt})
-        self.conversation_history.append(
-            {"role": "assistant", "content": response})
-
-        if len(self.conversation_history) > self.max_history_length * 2:
-            self.conversation_history = self.conversation_history[-self.max_history_length * 2:]
-
-    async def clear_conversation_history(self) -> None:
-        self.conversation_history = []
 
     async def get_model_info(self) -> Dict:
         """Get model information and configuration."""
