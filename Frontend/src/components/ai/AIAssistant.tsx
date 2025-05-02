@@ -15,6 +15,7 @@ interface AIAssistantProps {
 export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isClearingMessages, setIsClearingMessages] = useState(false);
   
   // Use the shared chat context
   const { 
@@ -22,7 +23,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
     isLoading, 
     streamingText, 
     sendMessage, 
-    resetToDefault 
+    clearMessages 
   } = useChat();
   
   const scrollToBottom = () => {
@@ -39,6 +40,20 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
     
     await sendMessage(input);
     setInput("");
+  };
+
+  // Handle trash button click - properly await the async clearMessages function
+  const handleClearMessages = async () => {
+    if (isClearingMessages) return;
+    
+    try {
+      setIsClearingMessages(true);
+      await clearMessages();
+    } catch (error) {
+      console.error("Error clearing messages:", error);
+    } finally {
+      setIsClearingMessages(false);
+    }
   };
 
   const formatTimestamp = (date: Date) => {
@@ -116,10 +131,20 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={resetToDefault}
+                onClick={handleClearMessages}
+                disabled={isClearingMessages || isLoading}
                 className="h-8 w-8 p-0"
+                title="Clear conversation"
+                aria-label="Clear conversation"
               >
-                <Trash className="h-4 w-4" />
+                {isClearingMessages ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : (
+                  <Trash className="h-4 w-4" />
+                )}
               </Button>
             </div>
             
@@ -205,12 +230,12 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   className="ai-chat-input"
-                  disabled={isLoading}
+                  disabled={isLoading || isClearingMessages}
                 />
                 <Button 
                   type="submit" 
                   className="ai-send-button" 
-                  disabled={isLoading || !input.trim()}
+                  disabled={isLoading || isClearingMessages || !input.trim()}
                 >
                   {isLoading ? (
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
