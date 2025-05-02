@@ -40,6 +40,9 @@ if sys.platform == "win32":
 
 DEFAULT_MODEL = "gpt-4"
 
+# Hardcoded JWT token for development
+DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDFlMTVjMzEtNWRkYS00M2Q4LWFlYTUtMmQ2MDQ5OTM2YzFkIiwiZW1haWwiOiJhQGEuY29tIiwicm9sZXMiOlsidXNlciJdLCJvcmdfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJwZXJtaXNzaW9ucyI6WyJ0YXNrczpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIiwicHJvamVjdHM6cmVhZCIsIm9yZ2FuaXphdGlvbnM6cmVhZCJdLCJleHAiOjE3NDYyMzIzMjgsIm5iZiI6MTc0NjE0NTkyOCwiaWF0IjoxNzQ2MTQ1OTI4fQ.ZOe6Lt_APLcIO84DtfU_Vq6LhZjJwU1CcKIRdgf7dE0"
+
 
 @dataclass
 class Tool:
@@ -96,6 +99,15 @@ class MCPClient:
                 input_schema={"type": "object", "properties": {
                     "user_id": {"type": "string"},
                     "domain": {"type": "string"}
+                }}
+            ),
+            Tool(
+                name="todos.list",
+                description="Get todos for a user",
+                input_schema={"type": "object", "properties": {
+                    "user_id": {"type": "string"},
+                    "status": {"type": "string", "optional": True},
+                    "priority": {"type": "string", "optional": True}
                 }}
             )
         ]
@@ -205,7 +217,27 @@ class MCPClient:
             # Windows or fallback mode - simulate responses
             try:
                 self.logger.info(f"Simulating tool call {name} with args: {arguments}")
-                # Generate predefined responses for various tools
+                
+                # For todos.list, make an actual HTTP request instead of simulating
+                if name == "todos.list":
+                    import httpx
+                    async with httpx.AsyncClient() as client:
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {DEV_JWT_TOKEN}"
+                        }
+                        
+                        response = await client.get(
+                            f"http://{settings.api_host}:8000/api/todo-lists",
+                            headers=headers
+                        )
+                        response.raise_for_status()
+                        return {
+                            "status": "success",
+                            "content": json.dumps(response.json())
+                        }
+                
+                # Generate predefined responses for other tools
                 if name == "ai.model.info":
                     return {
                         "status": "success",
@@ -308,6 +340,15 @@ class MCPClient:
     async def get_user_info(self, user_id: str) -> Dict[str, Any]:
         """Get user information through MCP."""
         return await self.invoke_tool("user.getInfo", {"user_id": user_id})
+
+    async def get_todos(self, user_id: str, status: Optional[str] = None, priority: Optional[str] = None) -> Dict[str, Any]:
+        """Get todos for a user through MCP."""
+        params = {"user_id": user_id}
+        if status:
+            params["status"] = status
+        if priority:
+            params["priority"] = priority
+        return await self.invoke_tool("todos.list", params)
 
     async def get_user_context(self, user_id: str, domain: str) -> Dict[str, Any]:
         """Get user context through MCP."""

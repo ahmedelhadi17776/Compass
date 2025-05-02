@@ -31,6 +31,57 @@ class AIOrchestrator:
                 mcp_client = get_mcp_client()
                 if mcp_client:
                     user_context = await mcp_client.get_user_context(str(user_id), domain or "default")
+                    
+                    # If the request is about todos, handle it directly
+                    if "todo" in user_input.lower() and ("show" in user_input.lower() or "list" in user_input.lower() or "get" in user_input.lower()):
+                        todos_response = await mcp_client.get_todos(str(user_id))
+                        
+                        # Debug logging
+                        self.logger.info(f"Raw todos response: {todos_response}")
+                        
+                        # Parse the response
+                        if isinstance(todos_response, dict):
+                            content = todos_response.get("content", "{}")
+                            self.logger.info(f"Content from response: {content}")
+                            
+                            if isinstance(content, str):
+                                try:
+                                    todos_data = json.loads(content)
+                                    self.logger.info(f"Parsed todos data: {todos_data}")
+                                except:
+                                    todos_data = {"data": {"lists": []}}
+                            else:
+                                todos_data = content
+                                
+                            # Format the todos into a readable response
+                            todo_lists = todos_data.get("data", {}).get("lists", [])
+                            if not todo_lists:
+                                response_text = "You don't have any todo lists yet."
+                            else:
+                                response_text = "Here are your todo lists:\n\n"
+                                for todo_list in todo_lists:
+                                    response_text += f"- {todo_list.get('name', 'Untitled List')}\n"
+                                    if todo_list.get('description'):
+                                        response_text += f"   {todo_list['description']}\n"
+                                    todos = todo_list.get('todos', [])
+                                    if todos:
+                                        for todo in todos:
+                                            status = "[x]" if todo.get('is_completed') else "[ ]"
+                                            priority = "(High)" if todo.get('priority') == "high" else "(Med)" if todo.get('priority') == "medium" else "(Low)"
+                                            due_date = f" (Due: {todo.get('due_date').split('T')[0]})" if todo.get('due_date') else ""
+                                            response_text += f"   {status} {priority} {todo.get('title', 'Untitled Todo')}{due_date}\n"
+                                    response_text += "\n"
+                                    
+                            return {
+                                "response": response_text,
+                                "intent": "get_todos", 
+                                "target": "todos",
+                                "description": "Retrieved user todo lists",
+                                "rag_used": False,
+                                "cached": False,
+                                "confidence": 0.9,
+                                "raw_data": todos_data
+                            }
                 else:
                     self.logger.warning(
                         "MCP client not initialized, proceeding without user context")

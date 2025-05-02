@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { API_URL } from '@/config';
+import { API_URL, PYTHON_API_URL } from '@/config';
 
 // Types
 export interface LLMRequest {
@@ -31,7 +31,7 @@ export const llmService = {
     if (!token) throw new Error('Authentication required');
 
     const response = await axios.post<LLMResponse>(
-      `${API_URL}/ai/process`,
+      `${PYTHON_API_URL}/ai/process`,
       request,
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -45,7 +45,7 @@ export const llmService = {
     if (!token) throw new Error('Authentication required');
 
     try {
-      const response = await fetch(`${API_URL}/ai/process/stream`, {
+      const response = await fetch(`${PYTHON_API_URL}/ai/process/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
