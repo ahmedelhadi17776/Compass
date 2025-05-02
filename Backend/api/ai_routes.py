@@ -182,14 +182,32 @@ async def get_model_info():
 
 
 @router.post("/clear-session")
-async def clear_session(session_id: str):
+async def clear_session(
+    request: Request
+):
     """Clear conversation history for a session."""
-    if session_id in orchestrator_instances:
-        orchestrator = orchestrator_instances[session_id]
-        user_id = int(hash(session_id) % 100000)
-        orchestrator.memory_manager.clear_memory(user_id)
-        return {"status": "success", "message": f"Session {session_id} cleared"}
-    return {"status": "not_found", "message": f"Session {session_id} not found"}
+    try:
+        # Parse request body
+        data = await request.json()
+        session_id = data.get("session_id")
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Missing session_id in request body")
+            
+        if session_id in orchestrator_instances:
+            orchestrator = orchestrator_instances[session_id]
+            user_id = int(hash(session_id) % 100000)
+            orchestrator.memory_manager.clear_memory(user_id)
+            logger.info(f"Cleared conversation history for session {session_id}")
+            return {"status": "success", "message": f"Session {session_id} cleared"}
+        
+        logger.warning(f"Session {session_id} not found for clearing")
+        return {"status": "not_found", "message": f"Session {session_id} not found"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing session: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error clearing session: {str(e)}")
 
 
 @router.post("/rag/knowledge-base/process", response_model=Dict[str, Any], status_code=202)
