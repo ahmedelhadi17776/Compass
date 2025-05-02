@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Union, AsyncGenerator
+from typing import Dict, Any, Optional, Union, AsyncGenerator, List
 from Backend.app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
 from Backend.ai_services.llm.llm_service import LLMService
 from Backend.orchestration.ai_registry import ai_registry
@@ -10,6 +10,24 @@ import time
 
 logger = logging.getLogger(__name__)
 
+SYSTEM_PROMPT = """You are a helpful AI assistant with access to various tools. Your task is to:
+1. Understand the user's query
+2. Determine which tool(s) would be most helpful to answer their query
+3. Call the appropriate tool(s)
+4. Format and present the results in a helpful way
+
+Important: You have access to an authenticated context. DO NOT ask users for authentication - you already have access via JWT token.
+
+Available tools:
+{tools}
+
+When you need to use a tool, format your response like this:
+<tool_call>
+{{"name": "tool_name", "arguments": {{"arg1": "value1", "arg2": "value2"}}}}
+</tool_call>
+
+After getting tool results, provide your response in a natural, conversational way.
+"""
 
 class AIOrchestrator:
     def __init__(self):
@@ -19,141 +37,140 @@ class AIOrchestrator:
         self.ai_registry = ai_registry
         self._conversation_histories: Dict[int, ConversationHistory] = {}
         self.max_history_length = 10
+        self.mcp_client = get_mcp_client()
+
+    async def _get_available_tools(self) -> List[Dict[str, Any]]:
+        """Fetch available tools from MCP client."""
+        if self.mcp_client:
+            tools = await self.mcp_client.get_tools()
+            # Remove any auth-related parameters since we use JWT
+            for tool in tools:
+                if "input_schema" in tool and "properties" in tool["input_schema"]:
+                    # Remove user_id and auth-related parameters
+                    auth_params = ["user_id", "auth_token", "token"]
+                    for param in auth_params:
+                        if param in tool["input_schema"]["properties"]:
+                            tool["input_schema"]["properties"].pop(param)
+                    if "required" in tool["input_schema"]:
+                        tool["input_schema"]["required"] = [r for r in tool["input_schema"]["required"] if r not in auth_params]
+            return tools
+        return []
+
+    def _format_tools_for_prompt(self, tools: List[Dict[str, Any]]) -> str:
+        """Format tools into a string for the system prompt."""
+        tool_strings = []
+        for tool in tools:
+            tool_str = f"- {tool['name']}: {tool['description']}\n  Arguments: {json.dumps(tool['input_schema'])}"
+            tool_strings.append(tool_str)
+        return "\n".join(tool_strings)
 
     async def process_request(self, user_input: str, user_id: int, domain: Optional[str] = None) -> Dict[str, Any]:
         """Process an AI request with MCP integration."""
         try:
-            # Get conversation history first
+            # Get conversation history
             history = self._get_conversation_history(user_id)
 
-            # Get user context from MCP
-            try:
-                mcp_client = get_mcp_client()
-                if mcp_client:
-                    user_context = await mcp_client.get_user_context(str(user_id), domain or "default")
-                    
-                    # If the request is about todos, handle it directly
-                    if "todo" in user_input.lower() and ("show" in user_input.lower() or "list" in user_input.lower() or "get" in user_input.lower()):
-                        todos_response = await mcp_client.get_todos(str(user_id))
-                        
-                        # Debug logging
-                        self.logger.info(f"Raw todos response: {todos_response}")
-                        
-                        # Parse the response
-                        if isinstance(todos_response, dict):
-                            content = todos_response.get("content", "{}")
-                            self.logger.info(f"Content from response: {content}")
-                            
-                            if isinstance(content, str):
-                                try:
-                                    todos_data = json.loads(content)
-                                    self.logger.info(f"Parsed todos data: {todos_data}")
-                                except:
-                                    todos_data = {"data": {"lists": []}}
-                            else:
-                                todos_data = content
-                                
-                            # Format the todos into a readable response
-                            todo_lists = todos_data.get("data", {}).get("lists", [])
-                            if not todo_lists:
-                                response_text = "You don't have any todo lists yet."
-                            else:
-                                response_text = "Here are your todo lists:\n\n"
-                                for todo_list in todo_lists:
-                                    response_text += f"- {todo_list.get('name', 'Untitled List')}\n"
-                                    if todo_list.get('description'):
-                                        response_text += f"   {todo_list['description']}\n"
-                                    todos = todo_list.get('todos', [])
-                                    if todos:
-                                        for todo in todos:
-                                            status = "[x]" if todo.get('is_completed') else "[ ]"
-                                            priority = "(High)" if todo.get('priority') == "high" else "(Med)" if todo.get('priority') == "medium" else "(Low)"
-                                            due_date = f" (Due: {todo.get('due_date').split('T')[0]})" if todo.get('due_date') else ""
-                                            response_text += f"   {status} {priority} {todo.get('title', 'Untitled Todo')}{due_date}\n"
-                                    response_text += "\n"
-                                    
-                            return {
-                                "response": response_text,
-                                "intent": "get_todos", 
-                                "target": "todos",
-                                "description": "Retrieved user todo lists",
-                                "rag_used": False,
-                                "cached": False,
-                                "confidence": 0.9,
-                                "raw_data": todos_data
-                            }
-                else:
-                    self.logger.warning(
-                        "MCP client not initialized, proceeding without user context")
-                    user_context = {}
-            except Exception as e:
-                logger.warning(
-                    f"Failed to get user context from MCP: {str(e)}")
-                user_context = {}
+            # Get available tools and format system prompt
+            tools = await self._get_available_tools()
+            formatted_tools = self._format_tools_for_prompt(tools)
+            system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
 
-            # Generate response using LLM
+            # Generate initial LLM response
             response = await self.llm_service.generate_response(
                 prompt=user_input,
                 context={
-                    "user_id": user_id,
-                    "domain": domain,
-                    "conversation_history": history.get_messages(),
-                    "user_context": user_context
+                    "system_prompt": system_prompt,
+                    "conversation_history": history.get_messages()
                 }
             )
 
-            # Update conversation history
-            if isinstance(response, dict):
-                self._update_conversation_history(
-                    user_id, user_input, response.get("text", ""))
-                result = {
-                    "response": response.get("text", ""),
-                    "intent": "process",
-                    "target": domain or "default",
-                    "description": "Process user request",
-                    "rag_used": False,
-                    "cached": False,
-                    "confidence": response.get("confidence", 0.0)
-                }
-            else:
-                self._update_conversation_history(
-                    user_id, user_input, str(response))
-                result = {
-                    "response": str(response),
-                    "intent": "process",
-                    "target": domain or "default",
-                    "description": "Process user request",
-                    "rag_used": False,
-                    "cached": False,
-                    "confidence": 0.0
-                }
-
-            # Send result to MCP for logging
-            try:
-                mcp_client = get_mcp_client()
-                if mcp_client:
-                    await mcp_client.invoke_tool("ai.log.interaction", {
-                        "user_id": str(user_id),
-                        "domain": domain,
-                        "input": user_input,
-                        "output": result["response"],
-                        "metadata": {
-                            "intent": result["intent"],
-                            "confidence": result["confidence"],
-                            "rag_used": result["rag_used"]
+            # Extract tool calls if any
+            tool_calls = self._extract_tool_calls(response.get("text", ""))
+            
+            final_response = response.get("text", "")
+            tool_info = None
+            
+            # Process tool calls if present
+            if tool_calls:
+                tool_results = []
+                last_tool_call = None
+                for tool_call in tool_calls:
+                    try:
+                        result = await self.mcp_client.invoke_tool(
+                            tool_call["name"],
+                            tool_call["arguments"]
+                        )
+                        tool_results.append({
+                            "tool": tool_call["name"],
+                            "result": result
+                        })
+                        last_tool_call = {
+                            "name": tool_call["name"],
+                            "arguments": tool_call["arguments"],
+                            "success": True
                         }
-                    })
-                else:
-                    self.logger.warning(
-                        "MCP client not initialized, skipping interaction logging")
-            except Exception as e:
-                logger.warning(f"Failed to log interaction to MCP: {str(e)}")
+                    except Exception as e:
+                        self.logger.error(f"Tool call failed: {str(e)}")
+                        tool_results.append({
+                            "tool": tool_call["name"],
+                            "error": str(e)
+                        })
+                        last_tool_call = {
+                            "name": tool_call["name"],
+                            "arguments": tool_call["arguments"],
+                            "success": False
+                        }
 
-            return result
+                # Generate final response with tool results
+                if tool_results:
+                    final_response = await self.llm_service.generate_response(
+                        prompt=f"Based on the user query: {user_input}\nHere are the tool results: {json.dumps(tool_results, indent=2)}\nPlease provide a helpful response.",
+                        context={
+                            "system_prompt": "Format the tool results in a natural, helpful way for the user."
+                        }
+                    )
+                    final_response = final_response.get("text", "")
+                    tool_info = last_tool_call
+
+            # Update conversation history
+            self._update_conversation_history(user_id, user_input, final_response)
+
+            return {
+                "response": final_response,
+                "tool_used": tool_info["name"] if tool_info else None,
+                "tool_args": tool_info["arguments"] if tool_info else None,
+                "tool_success": tool_info["success"] if tool_info else None,
+                "description": "Process user request",
+                "rag_used": False,
+                "cached": False,
+                "confidence": response.get("confidence", 0.0)
+            }
 
         except Exception as e:
-            logger.error(f"Error in process_request: {str(e)}", exc_info=True)
+            self.logger.error(f"Error in process_request: {str(e)}", exc_info=True)
             raise
+
+    def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+        """Extract tool calls from LLM response."""
+        tool_calls = []
+        start_tag = "<tool_call>"
+        end_tag = "</tool_call>"
+        
+        while start_tag in text and end_tag in text:
+            start = text.find(start_tag) + len(start_tag)
+            end = text.find(end_tag)
+            if start > -1 and end > -1:
+                tool_call_text = text[start:end].strip()
+                try:
+                    tool_call = json.loads(tool_call_text)
+                    tool_calls.append(tool_call)
+                except json.JSONDecodeError:
+                    self.logger.error(f"Failed to parse tool call: {tool_call_text}")
+                text = text[end + len(end_tag):]
+            else:
+                break
+                
+        return tool_calls
 
     def _get_conversation_history(self, user_id: int) -> ConversationHistory:
         """Get or create conversation history for a user."""

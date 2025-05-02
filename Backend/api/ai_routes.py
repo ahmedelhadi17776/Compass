@@ -36,8 +36,9 @@ class AIRequest(BaseModel):
 
 class AIResponse(BaseModel):
     response: str
-    intent: Optional[str] = None
-    target: Optional[str] = None
+    tool_used: Optional[str] = None
+    tool_args: Optional[Dict[str, Any]] = None
+    tool_success: Optional[bool] = None
     description: Optional[str] = None
     rag_used: bool = False
     cached: bool = False
@@ -82,9 +83,17 @@ async def process_ai_request(
         return AIResponse(**result)
     except Exception as e:
         logger.error(f"Error processing AI request: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+        return AIResponse(
+            response=f"Error: {str(e)}",
+            tool_used=None,
+            tool_args=None,
+            tool_success=False,
+            description="Error processing request",
+            rag_used=False,
+            cached=False,
+            confidence=0.0,
+            error=True,
+            error_message=str(e)
         )
 
 
