@@ -1,10 +1,10 @@
 from typing import Dict, Any, Optional, Union, AsyncGenerator, List
-from Backend.app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
-from Backend.ai_services.llm.llm_service import LLMService
-from Backend.orchestration.ai_registry import ai_registry
-from Backend.core.mcp_state import get_mcp_client
-from Backend.core.config import settings
-from Backend.orchestration.langchain_memory import ConversationMemoryManager
+from app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
+from ai_services.llm.llm_service import LLMService
+from orchestration.ai_registry import ai_registry
+from core.mcp_state import get_mcp_client
+from core.config import settings
+from orchestration.langchain_memory import ConversationMemoryManager
 from langchain.prompts import ChatPromptTemplate
 import logging
 import json

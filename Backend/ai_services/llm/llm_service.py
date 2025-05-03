@@ -4,9 +4,9 @@ from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai._streaming import Stream
-from Backend.core.config import settings
-from Backend.utils.logging_utils import get_logger
-from Backend.core.mcp_state import get_mcp_client
+from core.config import settings
+from utils.logging_utils import get_logger
+from core.mcp_state import get_mcp_client
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain.schema import format_document
 import os

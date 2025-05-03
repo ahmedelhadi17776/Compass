@@ -1,4 +1,4 @@
-from Backend.ai_services.llm.llm_service import LLMService
+from ai_services.llm.llm_service import LLMService
 from typing import Dict, Optional, Any
 import json
 import logging

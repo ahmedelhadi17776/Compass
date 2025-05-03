@@ -2,14 +2,14 @@ from typing import Dict, List, Optional, Union, Any, cast, AsyncGenerator, Seque
 import chromadb
 from chromadb.config import Settings
 from chromadb.types import Where
-from Backend.core.config import settings
-from Backend.utils.logging_utils import get_logger
-from Backend.ai_services.llm.llm_service import LLMService
-from Backend.ai_services.embedding.embedding_service import EmbeddingService
-from Backend.ai_services.base.ai_service_base import AIServiceBase
-from Backend.data_layer.vector_db.chroma_client import ChromaClient
-from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
-from Backend.orchestration.ai_registry import ai_registry
+from core.config import settings
+from utils.logging_utils import get_logger
+from ai_services.llm.llm_service import LLMService
+from ai_services.embedding.embedding_service import EmbeddingService
+from ai_services.base.ai_service_base import AIServiceBase
+from data_layer.vector_db.chroma_client import ChromaClient
+from data_layer.repositories.ai_model_repository import AIModelRepository
+from orchestration.ai_registry import ai_registry
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from concurrent.futures import ThreadPoolExecutor

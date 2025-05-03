@@ -11,7 +11,7 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, System
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain.memory import ConversationBufferMemory, ConversationBufferWindowMemory
 from langchain_core.runnables import RunnableConfig
-from Backend.app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage, Message
+from app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage, Message
 
 logger = logging.getLogger(__name__)
 
