@@ -1,6 +1,6 @@
 """Module for storing global MCP client state."""
 from typing import Optional
-from Backend.mcp_py.client import MCPClient
+from mcp_py.client import MCPClient
 
 # Global MCP client instance
 mcp_client: Optional[MCPClient] = None

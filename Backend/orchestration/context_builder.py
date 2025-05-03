@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List
-from Backend.orchestration.ai_registry import ai_registry
+from orchestration.ai_registry import ai_registry
 import logging
 
 logger = logging.getLogger(__name__)

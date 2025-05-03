@@ -1,7 +1,7 @@
 from typing import List, Dict
-from Backend.core.config import settings
-from Backend.utils.logging_utils import get_logger
-from Backend.data_layer.vector_db.chroma_client import chroma_client
+from core.config import settings
+from utils.logging_utils import get_logger
+from data_layer.vector_db.chroma_client import chroma_client
 
 logger = get_logger(__name__)
 

@@ -10,11 +10,11 @@ import json
 from pathlib import Path
 import uuid
 
-from Backend.ai_services.llm.llm_service import LLMService
-from Backend.orchestration.ai_orchestrator import AIOrchestrator
-from Backend.app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
-from Backend.core.config import settings
-from Backend.core.mcp_state import get_mcp_client
+from ai_services.llm.llm_service import LLMService
+from orchestration.ai_orchestrator import AIOrchestrator
+from app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
+from core.config import settings
+from core.mcp_state import get_mcp_client
 
 # Set up logger
 logger = logging.getLogger(__name__)

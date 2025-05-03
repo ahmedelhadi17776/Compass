@@ -2,8 +2,8 @@ from fastapi import FastAPI, Request, HTTPException
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.sse import SseServerTransport
 from starlette.routing import Mount
-from Backend.orchestration.ai_orchestrator import AIOrchestrator
-from Backend.core.config import settings
+from orchestration.ai_orchestrator import AIOrchestrator
+from core.config import settings
 from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator
 from fastapi.responses import StreamingResponse
 import logging
@@ -19,6 +19,8 @@ from mcp.types import (
     ToolsCapability,
     LoggingCapability
 )
+import sys
+print("PYTHONPATH:", sys.path)
 
 # Configure logging
 logging.basicConfig(

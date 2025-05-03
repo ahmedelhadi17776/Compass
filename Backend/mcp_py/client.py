@@ -20,7 +20,7 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai._types import NotGiven
-from Backend.core.config import settings
+from core.config import settings
 
 # Configure logging
 logging.basicConfig(
