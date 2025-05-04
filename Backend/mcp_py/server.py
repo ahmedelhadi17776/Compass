@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Header
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.sse import SseServerTransport
 from starlette.routing import Mount
@@ -20,6 +20,10 @@ from mcp.types import (
 import sys
 from core.config import settings
 from orchestration.ai_orchestrator import AIOrchestrator
+import uuid
+
+# Hardcoded JWT token for development - only used as fallback
+DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjQxNDc5NCwibmJmIjoxNzQ2MzI4Mzk0LCJpYXQiOjE3NDYzMjgzOTR9.SxiV6WES1ndPqNBkk5g72hpeQtLOqwjRVP4eC_iVyss"
 
 print("PYTHONPATH:", sys.path)
 
@@ -47,14 +51,17 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 mcp = FastMCP(
     name="compass",
     version="1.0.0",
+    endpoint="/mcp",
+    prefix="/mcp",
     instructions="COMPASS AI Service MCP Server"
 )
 
 # Create SSE transport instance
-sse = SseServerTransport("/mcp/sse")
+sse_transport = SseServerTransport("/mcp/sse")
 
 # Mount the SSE endpoint for MCP
-app.router.routes.append(Mount("/mcp/sse", app=sse.handle_post_message))
+app.router.routes.append(
+    Mount("/mcp/sse", app=sse_transport.handle_post_message))
 
 # Constants
 GO_BACKEND_URL = f"http://{settings.api_host}:{settings.api_port}"
@@ -183,21 +190,45 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
 async def process_ai_request(
     ctx: Context,
     prompt: str,
-    user_id: str,
-    domain: Optional[str] = None
+    user_id: Optional[str] = None,
+    domain: Optional[str] = None,
+    authorization: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Process an AI request through MCP."""
+    """Process an AI request through MCP.
+
+    Args:
+        prompt: The user's prompt text
+        user_id: Optional user ID (UUID string)
+        domain: Optional domain context
+        authorization: Optional authorization token (Bearer token)
+    """
     try:
+        # Log warning for invalid authorization but don't block request
+        if not authorization or authorization == "Bearer undefined" or authorization == "Bearer null":
+            await ctx.warning("Missing or invalid authorization token - proceeding without authentication")
+            # Continue processing without blocking
+
         orchestrator = AIOrchestrator()
+        # Use UUID string directly, no conversion needed
+
+        # If authorization was provided, log it
+        if authorization and authorization not in ["Bearer undefined", "Bearer null"]:
+            await ctx.info(f"Processing request with provided authorization token")
+
+        # Process the request through orchestrator
         result = await orchestrator.process_request(
             user_input=prompt,
-            user_id=int(user_id),
-            domain=domain or "default"
+            # Use provided UUID or generate a new one
+            user_id=user_id or str(uuid.uuid4()),
+            domain=domain or "default",
+            auth_token=authorization
         )
+
         return result
     except Exception as e:
         logger.error(f"Error processing AI request: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        await ctx.error(f"Failed to process AI request: {str(e)}")
+        raise
 
 
 @mcp.tool("ai.stream")
@@ -230,26 +261,24 @@ async def stream_ai_response(
 
 # Add tools to match REST-style endpoints used in the client
 @mcp.tool("ai.model.info")
-async def get_model_info(
-    ctx: Context,
-    name: Optional[str] = None,
-    version: Optional[str] = None
-) -> Dict[str, Any]:
-    """Get model information."""
+async def get_model_info(ctx: Context) -> Dict[str, Any]:
+    """Get information about the AI model."""
     try:
         return {
-            "model_id": 1,  # Default model ID
-            "name": name or "gpt-4",
-            "version": version or "1.0",
+            "model_id": 1,
+            "name": "gpt-4o-mini",
+            "version": "1.0",
             "type": "text-generation",
             "provider": "OpenAI",
             "capabilities": {
                 "streaming": True,
-                "function_calling": True
+                "function_calling": True,
+                "tool_use": True
             }
         }
     except Exception as e:
         logger.error(f"Error getting model info: {str(e)}")
+        await ctx.error(f"Failed to get model info: {str(e)}")
         raise
 
 
@@ -461,45 +490,251 @@ async def get_user_info(
     ctx: Context,
     user_id: str
 ) -> Dict[str, Any]:
-    """Get user information."""
+    """Get user information from the Go backend."""
     try:
         logger.info(f"Getting info for user {user_id}")
-        return {
-            "user_id": user_id,
-            "name": "Test User",
-            "email": "test@example.com",
-            "created_at": "2023-01-01T00:00:00Z"
-        }
+
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {DEV_JWT_TOKEN}"
+            }
+
+            response = await client.get(
+                f"{GO_BACKEND_URL}/api/users/{user_id}",
+                headers=headers
+            )
+            response.raise_for_status()
+
+            # Return response data or fallback
+            try:
+                return response.json()
+            except:
+                # Fallback if response isn't valid JSON
+                return {
+                    "user_id": user_id,
+                    "name": "User",
+                    "email": "user@example.com"
+                }
+
     except Exception as e:
         logger.error(f"Error getting user info: {str(e)}")
-        raise
+        await ctx.error(f"Failed to get user info: {str(e)}")
+
+        # Return fallback data on error
+        return {
+            "user_id": user_id,
+            "name": "Unknown User",
+            "email": "unknown@example.com",
+            "error": str(e)
+        }
 
 
 @mcp.tool("todos.list")
 async def get_todos(
     ctx: Context,
-    user_id: str,
+    user_id: Optional[str] = None,
     status: Optional[str] = None,
-    priority: Optional[str] = None
+    priority: Optional[str] = None,
+    authorization: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Get todos for a user with optional filters."""
+    """Get todos for a user with optional filters.
+
+    Args:
+        user_id: Optional ID of the user
+        status: Optional todo status filter (completed, pending, etc.)
+        priority: Optional priority filter (high, medium, low)
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        A list of todos
+    """
     try:
-        logger.info(f"Getting todos for user {user_id}")
+        logger.info(
+            f"Getting todos for user {user_id or 'all'} with status={status}, priority={priority}")
+
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer "):
+            auth_token = authorization
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+
+        logger.debug(f"Using auth token: {auth_token[:20]}...")
+
         async with httpx.AsyncClient() as client:
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {DEV_JWT_TOKEN}"  # Use same token as client
+                "Authorization": auth_token
             }
-                
+
+            # Build query parameters
+            params = {}
+            if user_id:
+                params["user_id"] = user_id
+            if status:
+                params["status"] = status
+            if priority:
+                params["priority"] = priority
+
+            # Make request to Go backend
             response = await client.get(
                 f"{GO_BACKEND_URL}/api/todo-lists",
-                headers=headers
+                headers=headers,
+                params=params
             )
             response.raise_for_status()
+
+            # Log success
+            await ctx.info(f"Successfully retrieved todos from Go backend")
+
+            # Return JSON response
             return response.json()
+
     except Exception as e:
-        logger.error(f"Error getting todos: {str(e)}")
-        raise
+        error_msg = f"Error getting todos: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@mcp.tool("todos.create")
+async def create_todo(
+    ctx: Context,
+    title: str,
+    description: Optional[str] = None,
+    due_date: Optional[str] = None,
+    priority: Optional[str] = None,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new todo item.
+
+    Args:
+        title: Title of the todo item
+        description: Optional description
+        due_date: Optional due date (format: YYYY-MM-DD)
+        priority: Optional priority (high, medium, low)
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        The created todo item
+    """
+    try:
+        logger.info(f"Creating new todo: {title}")
+
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer "):
+            auth_token = authorization
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            }
+
+            # Prepare todo data
+            todo_data = {
+                "title": title,
+                "description": description or "",
+                "priority": priority or "medium"
+            }
+
+            if due_date:
+                todo_data["due_date"] = due_date
+
+            # Make request to Go backend
+            response = await client.post(
+                f"{GO_BACKEND_URL}/api/todos",
+                headers=headers,
+                json=todo_data
+            )
+            response.raise_for_status()
+
+            # Log success
+            await ctx.info(f"Successfully created todo: {title}")
+
+            # Return JSON response
+            return response.json()
+
+    except Exception as e:
+        error_msg = f"Error creating todo: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@mcp.tool("todos.update")
+async def update_todo(
+    ctx: Context,
+    todo_id: str,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Update an existing todo item.
+
+    Args:
+        todo_id: ID of the todo to update
+        title: Optional new title
+        description: Optional new description
+        status: Optional new status
+        priority: Optional new priority
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        The updated todo item
+    """
+    try:
+        logger.info(f"Updating todo with ID: {todo_id}")
+
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer "):
+            auth_token = authorization
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            }
+
+            # Prepare update data (only include non-None values)
+            update_data = {}
+            if title is not None:
+                update_data["title"] = title
+            if description is not None:
+                update_data["description"] = description
+            if status is not None:
+                update_data["status"] = status
+            if priority is not None:
+                update_data["priority"] = priority
+
+            # Make request to Go backend
+            response = await client.put(
+                f"{GO_BACKEND_URL}/api/todos/{todo_id}",
+                headers=headers,
+                json=update_data
+            )
+            response.raise_for_status()
+
+            # Log success
+            await ctx.info(f"Successfully updated todo {todo_id}")
+
+            # Return JSON response
+            return response.json()
+
+    except Exception as e:
+        error_msg = f"Error updating todo: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 def setup_mcp_server(app: Optional[FastAPI] = None):
@@ -507,7 +742,7 @@ def setup_mcp_server(app: Optional[FastAPI] = None):
     if app is not None:
         # Mount the SSE endpoint for MCP on the main app
         app.router.routes.append(
-            Mount("/mcp/sse", app=sse.handle_post_message))
+            Mount("/mcp/sse", app=sse_transport.handle_post_message))
     return mcp
 
 
@@ -515,7 +750,7 @@ async def run_server():
     """Run the MCP server with stdio transport."""
     try:
         logger.info("Starting MCP server with stdio transport")
-        
+
         if sys.platform == "win32":
             # Windows-specific setup
             # Ensure stdout is in binary mode on Windows
@@ -523,7 +758,7 @@ async def run_server():
             msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
             msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
             logger.info("Set stdin/stdout to binary mode for Windows")
-            
+
             # Use a custom loop explicitly for Windows
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
