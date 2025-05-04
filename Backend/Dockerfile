@@ -22,6 +22,9 @@ RUN pip install --upgrade pip && \
 # Copy project
 COPY . .
 
+# Install the package in development mode
+RUN pip install -e .
+
 # Copy .env file
 COPY .env .env
 
