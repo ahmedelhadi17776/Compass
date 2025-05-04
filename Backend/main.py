@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from Backend.api.ai_routes import router as ai_router
-from Backend.core.config import settings
-from Backend.mcp_py.client import MCPClient
-from Backend.core.mcp_state import set_mcp_client
-from Backend.mcp_py.server import setup_mcp_server
+from api.ai_routes import router as ai_router
+from core.config import settings
+from mcp_py.client import MCPClient
+from core.mcp_state import set_mcp_client
+from mcp_py.server import setup_mcp_server
 import uvicorn
 import logging
 import subprocess
@@ -35,6 +35,7 @@ def run_mcp_server_subprocess(server_path, env):
                 bufsize=0,
                 universal_newlines=True,
                 env=env,
+                cwd="/app",
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
             )
         else:
@@ -45,9 +46,10 @@ def run_mcp_server_subprocess(server_path, env):
                 stderr=subprocess.PIPE,
                 bufsize=0,
                 universal_newlines=True,
-                env=env
+                env=env,
+                cwd="/app"
             )
-            
+
         logger.info(f"Started MCP server process with PID: {process.pid}")
         return process
     except Exception as e:
@@ -73,8 +75,7 @@ async def lifespan(app: FastAPI):
 
         # Set up environment with correct PYTHONPATH
         env = os.environ.copy()
-        parent_dir = os.path.dirname(backend_dir)
-        env["PYTHONPATH"] = parent_dir
+        env["PYTHONPATH"] = "/app"
 
         logger.info(f"Starting MCP server at: {server_path}")
         logger.info(f"With PYTHONPATH: {env['PYTHONPATH']}")
@@ -164,7 +165,7 @@ app.include_router(ai_router)
 
 if __name__ == "__main__":
     uvicorn.run(
-        "Backend.main:app",
+        "main:app",
         host=settings.api_host,
         port=settings.api_port,
         reload=True
