@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends, Cookie
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, AsyncIterator
 from datetime import datetime
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 import logging
 import os
@@ -9,6 +9,7 @@ import shutil
 import json
 from pathlib import Path
 import uuid
+import asyncio
 
 from ai_services.llm.llm_service import LLMService
 from orchestration.ai_orchestrator import AIOrchestrator
@@ -429,4 +430,93 @@ async def create_entity(
             error=True,
             error_message=str(e),
             session_id=request.session_id or session_id
+        )
+
+
+@router.post("/process/stream")
+async def process_ai_request_stream(
+    request: AIRequest,
+    session_id: Optional[str] = Cookie(None)
+) -> StreamingResponse:
+    """Process an AI request and stream the response using Server-Sent Events (SSE)."""
+    try:
+        # Get or create session ID
+        active_session_id = request.session_id or session_id or str(
+            uuid.uuid4())
+
+        logger.info(
+            f"------- Received STREAMING request with session ID: {active_session_id} -------")
+        logger.info(
+            f"Streaming prompt: {request.prompt[:50]}{'...' if len(request.prompt) > 50 else ''}")
+
+        # Get or create orchestrator for this session
+        orchestrator = get_or_create_orchestrator(active_session_id)
+
+        # Map session ID to a numeric user ID for the orchestrator
+        # Use a hash of the session ID to get a consistent integer
+        user_id = int(hash(active_session_id) % 100000)
+        logger.info(f"Processing streaming request for user_id: {user_id}")
+
+        # Create the streaming response
+        async def event_generator():
+            """Generate SSE events from the LLM response."""
+            try:
+                token_count = 0
+                # Stream the response from the orchestrator
+                logger.info("Starting token stream from orchestrator")
+                async for token in orchestrator.process_request_stream(
+                    user_input=request.prompt,
+                    user_id=user_id,
+                    domain=request.domain or "default"
+                ):
+                    # Format as SSE event
+                    if token:
+                        token_count += 1
+                        if token_count % 10 == 0:
+                            logger.debug(
+                                f"Streamed {token_count} tokens so far")
+                        yield f"data: {json.dumps(token)}\n\n"
+                    # Add small delay to avoid overwhelming the client
+                    await asyncio.sleep(0.01)
+
+                logger.info(f"Stream complete - sent {token_count} tokens")
+                # Send completion event
+                yield f"data: [DONE]\n\n"
+            except Exception as e:
+                logger.error(
+                    f"Error in streaming response: {str(e)}", exc_info=True)
+                error_data = json.dumps({"error": str(e)})
+                yield f"data: {error_data}\n\n"
+                yield f"data: [DONE]\n\n"
+
+        # Return streaming response
+        logger.info("Initializing SSE streaming response")
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+                "X-Accel-Buffering": "no"  
+            }
+        )
+    except Exception as e:
+        logger.error(
+            f"Error setting up streaming AI request: {str(e)}", exc_info=True)
+        # Return error as an event stream for consistent error handling
+
+        async def error_generator():
+            error_data = json.dumps({"error": str(e)})
+            yield f"data: {error_data}\n\n"
+            yield f"data: [DONE]\n\n"
+
+        return StreamingResponse(
+            error_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream"
+            }
         )

@@ -1,5 +1,3 @@
-# Backend/mcp_integration/client.py
-
 from typing import Optional, Dict, Any, List, Callable, Awaitable, Union, AsyncIterator
 import logging
 import json
