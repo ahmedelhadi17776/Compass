@@ -108,8 +108,8 @@ async def init_mcp_server():
             env=os.environ.copy()
         )
 
-        # Wait for the server to start
-        server_init_wait = 3.0  # Seconds to wait for server initialization
+        # Wait for the server to start - increased wait time for better initialization
+        server_init_wait = 5.0
         logger.info(
             f"Waiting {server_init_wait} seconds for MCP server to initialize...")
         await asyncio.sleep(server_init_wait)
@@ -127,20 +127,30 @@ async def init_mcp_server():
         logger.info("Initializing MCP client")
         mcp_client = MCPClient()
 
-        # Connect to the server with retry logic
-        await mcp_client.connect_to_server(server_script_path, max_retries=3, retry_delay=2.0)
+        # Connect to the server with retry logic and increased retry delay
+        await mcp_client.connect_to_server(server_script_path, max_retries=5, retry_delay=3.0)
 
         # Store the MCP client in the global state
         set_mcp_client(mcp_client)
 
-        # Wait for tools to be registered and check
-        await asyncio.sleep(1.0)
-        tools = await mcp_client.get_tools()
-        if tools:
-            logger.info(f"MCP client initialized with {len(tools)} tools")
-        else:
-            logger.warning(
-                "MCP client initialized but no tools were registered")
+        # Wait longer for tools to be registered - increased from 1.0 to 5.0 seconds
+        logger.info("Waiting for tools to be registered...")
+        await asyncio.sleep(5.0)
+
+        # Try multiple times to get tools if not available on first attempt
+        max_tool_attempts = 3
+        for attempt in range(max_tool_attempts):
+            tools = await mcp_client.get_tools()
+            if tools:
+                logger.info(f"MCP client initialized with {len(tools)} tools")
+                break
+            elif attempt < max_tool_attempts - 1:
+                logger.warning(
+                    f"No tools found on attempt {attempt+1}, waiting before retry...")
+                await asyncio.sleep(2.0)
+            else:
+                logger.warning(
+                    "MCP client initialized but no tools were registered after multiple attempts")
 
         logger.info("MCP server integration complete")
 
