@@ -24,12 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Set Windows-compatible event loop policy
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy in client")
-
-
 class Tool:
     """Represents an MCP tool with its metadata."""
 

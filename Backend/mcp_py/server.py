@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException, Header
 from mcp.server.fastmcp import FastMCP, Context
-from mcp.server.sse import SseServerTransport
 from starlette.routing import Mount
 from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator
 from fastapi.responses import StreamingResponse
@@ -38,11 +37,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Set Windows-compatible event loop policy
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy in server")
-
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -55,13 +49,6 @@ mcp = FastMCP(
     prefix="/mcp",
     instructions="COMPASS AI Service MCP Server"
 )
-
-# Create SSE transport instance
-sse_transport = SseServerTransport("/mcp/sse")
-
-# Mount the SSE endpoint for MCP
-app.router.routes.append(
-    Mount("/mcp/sse", app=sse_transport.handle_post_message))
 
 # Add a diagnostic endpoint to check registered tools
 
@@ -108,10 +95,7 @@ async def mcp_diagnostic():
 # Define multiple backend URLs to try for Docker/non-Docker environments
 GO_BACKEND_URLS = [
     "http://api:8000",
-    "http://backend_go-api-1:8000",      
-    f"http://{settings.api_host}:8000",  
-    "http://localhost:8000",             
-    "http://127.0.0.1:8000",             
+    "http://backend_go-api-1:8000"      
 ]
 
 # Start with the first URL, will try others if this fails
@@ -212,24 +196,44 @@ async def try_backend_urls(client_func, endpoint: str, **kwargs) -> Dict[str, An
     }
 
 
-@mcp.tool()
+@mcp.tool("create.user")
 async def create_user(user_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
     """Create a new user in the system.
 
     Args:
         user_data: Dictionary containing user information
-            - username: str
             - email: str
+            - username: str 
             - password: str
+            - firstName: str (will be converted to first_name)
+            - lastName: str (will be converted to last_name)
+            - phoneNumber: str (will be converted to phone_number)
+            - timezone: str
+            - locale: str
     """
     try:
+        # Transform camelCase to snake_case for the Go backend
+        transformed_data = {
+            "email": user_data.get("email"),
+            "username": user_data.get("username"),
+            "password": user_data.get("password"),
+            "first_name": user_data.get("firstName"),
+            "last_name": user_data.get("lastName"),
+            "phone_number": user_data.get("phoneNumber"),
+            "timezone": user_data.get("timezone"),
+            "locale": user_data.get("locale")
+        }
+
+        # Remove None values
+        transformed_data = {k: v for k, v in transformed_data.items() if v is not None}
+
         async def post_func(client, url, **kwargs):
             return await client.post(url, **kwargs)
 
         return await try_backend_urls(
             post_func,
-            "/api/v1/users",
-            json=user_data,
+            "/api/users/register",
+            json=transformed_data,
             headers=HEADERS
         )
     except Exception as e:
@@ -237,12 +241,12 @@ async def create_user(user_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
         raise
 
 
-@mcp.tool()
-async def get_user(user_id: str, ctx: Context) -> Dict[str, Any]:
-    """Get user information by ID.
+@mcp.tool("check.health")
+async def check_health(ctx: Context) -> Dict[str, Any]:
+    """Check the health status of the system.
 
-    Args:
-        user_id: The ID of the user to retrieve
+    Returns:
+        Dict containing health check information
     """
     try:
         async def get_func(client, url, **kwargs):
@@ -250,11 +254,11 @@ async def get_user(user_id: str, ctx: Context) -> Dict[str, Any]:
 
         return await try_backend_urls(
             get_func,
-            f"/api/v1/users/{user_id}",
+            "/health",
             headers=HEADERS
         )
     except Exception as e:
-        await ctx.error(f"Failed to get user {user_id}: {str(e)}")
+        await ctx.error(f"Health check failed: {str(e)}")
         raise
 
 
@@ -330,93 +334,6 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
     except Exception as e:
         await ctx.error(f"Failed to create project: {str(e)}")
         raise
-
-
-@mcp.tool("ai.process")
-async def process_ai_request(
-    ctx: Context,
-    prompt: str,
-    user_id: Optional[str] = None,
-    domain: Optional[str] = None,
-    authorization: Optional[str] = None
-) -> Dict[str, Any]:
-    """Process an AI request through MCP.
-
-    Args:
-        prompt: The user's prompt text
-        user_id: Optional user ID (UUID string)
-        domain: Optional domain context
-        authorization: Optional authorization token (Bearer token)
-    """
-    try:
-        # Log warning for invalid authorization but don't block request
-        if not authorization or authorization == "Bearer undefined" or authorization == "Bearer null":
-            await ctx.warning("Missing or invalid authorization token - proceeding without authentication")
-            # Continue processing without blocking
-
-        orchestrator = AIOrchestrator()
-        # Use UUID string directly, no conversion needed
-
-        # If authorization was provided, log it
-        if authorization and authorization not in ["Bearer undefined", "Bearer null"]:
-            await ctx.info(f"Processing request with provided authorization token")
-
-        # Convert user_id string to integer if provided
-        user_id_int = None
-        if user_id:
-            try:
-                # Try to convert to int or use a hash of the UUID as a numeric ID
-                user_id_int = int(hash(user_id) % 100000)
-            except (ValueError, TypeError):
-                user_id_int = int(hash(str(user_id)) % 100000)
-                await ctx.warning(f"Converted string user_id to numeric ID: {user_id_int}")
-        else:
-            # Generate a default user ID if none provided
-            user_id_int = int(hash(str(uuid.uuid4())) % 100000)
-
-        # Process the request through orchestrator
-        result = await orchestrator.process_request(
-            user_input=prompt,
-            # Use numeric user ID for orchestrator
-            user_id=user_id_int,
-            domain=domain or "default",
-            auth_token=authorization
-        )
-
-        return result
-    except Exception as e:
-        logger.error(f"Error processing AI request: {str(e)}")
-        await ctx.error(f"Failed to process AI request: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.stream")
-async def stream_ai_response(
-    ctx: Context,
-    prompt: str,
-    user_id: str,
-    domain: Optional[str] = None
-) -> AsyncIterator[str]:
-    """Stream AI responses through MCP."""
-    try:
-        orchestrator = AIOrchestrator()
-        response = await orchestrator.llm_service.generate_response(
-            prompt=prompt,
-            context={"user_id": user_id, "domain": domain or "default"},
-            stream=True
-        )
-
-        if isinstance(response, AsyncGenerator):
-            async for chunk in response:
-                yield chunk
-        elif isinstance(response, dict):
-            yield response.get("text", "")
-        else:
-            yield str(response)
-    except Exception as e:
-        logger.error(f"Error streaming AI response: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 # Add tools to match REST-style endpoints used in the client
 @mcp.tool("ai.model.info")
@@ -1019,10 +936,6 @@ def setup_mcp_server(app: Optional[FastAPI] = None):
     # Log basic info
     logger.info(f"Setting up MCP server: {mcp.name}")
 
-    if app is not None:
-        # Mount the SSE endpoint for MCP on the main app
-        app.router.routes.append(
-            Mount("/mcp/sse", app=sse_transport.handle_post_message))
     return mcp
 
 
@@ -1030,25 +943,7 @@ async def run_server():
     """Run the MCP server with stdio transport."""
     try:
         logger.info("Starting MCP server with stdio transport")
-
-        if sys.platform == "win32":
-            # Windows-specific setup
-            # Ensure stdout is in binary mode on Windows
-            import msvcrt
-            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
-            msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-            logger.info("Set stdin/stdout to binary mode for Windows")
-
-            # Use a custom loop explicitly for Windows
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(mcp.run_stdio_async())
-            finally:
-                loop.close()
-        else:
-            # Non-Windows platforms can use the standard approach
-            await mcp.run_stdio_async()
+        await mcp.run_stdio_async()
     except Exception as e:
         logger.error(f"Error running MCP server: {str(e)}", exc_info=True)
         sys.exit(1)
@@ -1057,8 +952,4 @@ async def run_server():
 if __name__ == "__main__":
     # Run the server using stdio transport
     logger.info("Initializing MCP server")
-    if sys.platform == "win32":
-        # Windows requires special handling for asyncio
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        logger.info("Set Windows-compatible event loop policy")
     asyncio.run(run_server())
