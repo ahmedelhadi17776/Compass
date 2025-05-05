@@ -87,11 +87,12 @@ async def process_ai_request(
     """Process an AI request through MCP."""
     try:
         # Get or create session ID
-        active_session_id = request.session_id or session_id or str(uuid.uuid4())
-        
+        active_session_id = request.session_id or session_id or str(
+            uuid.uuid4())
+
         # Get or create orchestrator for this session
         orchestrator = get_or_create_orchestrator(active_session_id)
-        
+
         # Map session ID to a numeric user ID for the orchestrator
         # Use a hash of the session ID to get a consistent integer
         user_id = int(hash(active_session_id) % 100000)
@@ -102,7 +103,7 @@ async def process_ai_request(
             user_id=user_id,  # Use the mapped user ID
             domain=request.domain or "default"
         )
-        
+
         # Add session ID to response
         result["session_id"] = active_session_id
         return AIResponse(**result)
@@ -134,12 +135,32 @@ async def get_rag_stats(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.invoke_tool("rag.stats", {
+        result = await mcp_client.call_tool("rag.stats", {
             "domain": domain
         })
-        return result
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get(
+                "error", "Unknown error calling RAG stats tool")
+            logger.error(f"RAG stats tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Extract content from the result
+        content = result.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Could not parse RAG stats content as JSON: {content}")
+
+        return content
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting RAG stats through MCP: {str(e)}")
+        logger.error(
+            f"Error getting RAG stats through MCP: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -155,13 +176,33 @@ async def update_rag_knowledge(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.invoke_tool("rag.update", {
+        result = await mcp_client.call_tool("rag.update", {
             "domain": domain,
             "content": content
         })
-        return result
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get(
+                "error", "Unknown error updating RAG knowledge")
+            logger.error(f"RAG update tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Extract content from the result
+        content = result.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Could not parse RAG update content as JSON: {content}")
+
+        return content
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error updating RAG knowledge through MCP: {str(e)}")
+        logger.error(
+            f"Error updating RAG knowledge through MCP: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -174,10 +215,30 @@ async def get_model_info():
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.invoke_tool("ai.model.info", {})
-        return result
+        result = await mcp_client.call_tool("ai.model.info", {})
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get(
+                "error", "Unknown error getting model info")
+            logger.error(f"Model info tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Extract content from the result
+        content = result.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Could not parse model info content as JSON: {content}")
+
+        return content
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting model info through MCP: {str(e)}")
+        logger.error(
+            f"Error getting model info through MCP: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -190,24 +251,27 @@ async def clear_session(
         # Parse request body
         data = await request.json()
         session_id = data.get("session_id")
-        
+
         if not session_id:
-            raise HTTPException(status_code=400, detail="Missing session_id in request body")
-            
+            raise HTTPException(
+                status_code=400, detail="Missing session_id in request body")
+
         if session_id in orchestrator_instances:
             orchestrator = orchestrator_instances[session_id]
             user_id = int(hash(session_id) % 100000)
             orchestrator.memory_manager.clear_memory(user_id)
-            logger.info(f"Cleared conversation history for session {session_id}")
+            logger.info(
+                f"Cleared conversation history for session {session_id}")
             return {"status": "success", "message": f"Session {session_id} cleared"}
-        
+
         logger.warning(f"Session {session_id} not found for clearing")
         return {"status": "not_found", "message": f"Session {session_id} not found"}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error clearing session: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error clearing session: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error clearing session: {str(e)}")
 
 
 @router.post("/rag/knowledge-base/process", response_model=Dict[str, Any], status_code=202)
@@ -223,7 +287,7 @@ async def process_knowledge_base(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.invoke_tool("rag.knowledge-base.process", {
+        result = await mcp_client.call_tool("rag.knowledge-base.process", {
             "domain": domain
         })
         return result
@@ -249,19 +313,46 @@ async def upload_pdf_to_knowledge_base(
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.invoke_tool("knowledge-base.upload", {
+        result = await mcp_client.call_tool("knowledge-base.upload", {
             "filename": file.filename,
             "content": content,
             "domain": domain
         })
 
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get("error", "Unknown error uploading PDF")
+            logger.error(f"PDF upload tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Ensure content is properly parsed from the result
+        processed_files = []
+        content_data = result.get("content", {})
+
+        # Handle string content that might be JSON
+        if isinstance(content_data, str):
+            try:
+                content_data = json.loads(content_data)
+            except json.JSONDecodeError:
+                logger.error("Could not parse content as JSON")
+
+        # Extract files list from the content
+        if isinstance(content_data, dict) and "files" in content_data:
+            processed_files = content_data["files"]
+        elif isinstance(content_data, list):
+            # If content is already a list, assume it's the files list
+            processed_files = content_data
+
         return ProcessPDFResponse(
             status="success",
             message=f"PDF processed successfully: {file.filename}",
-            processed_files=result.get("content", {}).get("files", [])
+            processed_files=processed_files
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error processing PDF through MCP: {str(e)}")
+        logger.error(
+            f"Error processing PDF through MCP: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error processing PDF: {str(e)}"
@@ -276,47 +367,61 @@ async def create_entity(
     """Create a new entity through MCP."""
     try:
         # Use session ID if provided
-        active_session_id = request.session_id or session_id or str(uuid.uuid4())
-        
+        active_session_id = request.session_id or session_id or str(
+            uuid.uuid4())
+
         mcp_client = get_mcp_client()
         if not mcp_client:
             raise HTTPException(
                 status_code=503, detail="MCP client not initialized")
 
-        result = await mcp_client.invoke_tool("entity.create", {
+        result = await mcp_client.call_tool("entity.create", {
             "prompt": request.prompt,
             "domain": request.domain or "default"
         })
 
+        # Parse the response content properly
         response_content = {}
-        if isinstance(result.get("content"), str):
-            try:
-                response_content = json.loads(result["content"])
-            except:
-                response_content = {"response": result.get(
-                    "content", "Entity created")}
-        else:
-            response_content = result.get("content", {})
+        if isinstance(result, dict) and "content" in result:
+            content = result["content"]
+            if isinstance(content, str):
+                try:
+                    response_content = json.loads(content)
+                except json.JSONDecodeError:
+                    response_content = {"response": content}
+            elif isinstance(content, dict):
+                response_content = content
+
+        # Extract values with proper type handling
+        response_text = response_content.get("response", "Entity created") if isinstance(
+            response_content, dict) else "Entity created"
+        description = response_content.get("description", "Create entity from description") if isinstance(
+            response_content, dict) else "Create entity from description"
+        rag_used = bool(response_content.get("rag_used", False)
+                        ) if isinstance(response_content, dict) else False
+        cached = bool(response_content.get("cached", False)) if isinstance(
+            response_content, dict) else False
+        confidence = float(response_content.get("confidence", 0.9)) if isinstance(
+            response_content, dict) else 0.9
+        error = bool(response_content.get("error", False)) if isinstance(
+            response_content, dict) else False
+        error_message = response_content.get(
+            "error_message") if isinstance(response_content, dict) else None
 
         return AIResponse(
-            response=response_content.get("response", "Entity created"),
-            intent=response_content.get("intent", "create"),
-            target=response_content.get("target", "unknown"),
-            description=response_content.get(
-                "description", "Create entity from description"),
-            rag_used=response_content.get("rag_used", False),
-            cached=response_content.get("cached", False),
-            confidence=response_content.get("confidence", 0.9),
-            error=response_content.get("error", False),
-            error_message=response_content.get("error_message"),
+            response=response_text,
+            description=description,
+            rag_used=rag_used,
+            cached=cached,
+            confidence=confidence,
+            error=error,
+            error_message=error_message,
             session_id=active_session_id
         )
     except Exception as e:
         logger.error(f"Error creating entity through MCP: {str(e)}")
         return AIResponse(
             response=f"Error creating entity: {str(e)}",
-            intent="create",
-            target="unknown",
             description="Create entity from description",
             rag_used=False,
             cached=False,

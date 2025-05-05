@@ -50,23 +50,29 @@ class LLMService:
                 return None
 
             # Get model info from Go backend through MCP
-            model_info = await mcp_client.invoke_tool("ai.model.info", {
+            model_response = await mcp_client.call_tool("ai.model.info", {
                 "name": self.model_name,
                 "version": "1.0"
             })
 
-            if model_info and "status" in model_info and model_info["status"] == "success":
-                content = model_info.get("content", {})
+            # Check if the call was successful
+            if model_response and model_response.get("status") == "success":
+                content = model_response.get("content", {})
                 if isinstance(content, str):
                     try:
                         content = json.loads(content)
-                    except:
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Could not parse model info content as JSON: {content}")
                         content = {"model_id": 1}
 
-                return int(content.get("model_id", 1))
+                model_id = int(content.get("model_id", 1))
+                logger.info(f"Retrieved existing model ID: {model_id}")
+                return model_id
 
-            # Create model through MCP if it doesn't exist
-            model_info = await mcp_client.invoke_tool("ai.model.create", {
+            # Model not found, create a new one
+            logger.info(f"Creating new model for {self.model_name}")
+            create_response = await mcp_client.call_tool("ai.model.create", {
                 "name": self.model_name,
                 "version": "1.0",
                 "type": "text-generation",
@@ -74,38 +80,56 @@ class LLMService:
                 "status": "active"
             })
 
-            if model_info and "status" in model_info and model_info["status"] == "success":
-                content = model_info.get("content", {})
+            if create_response and create_response.get("status") == "success":
+                content = create_response.get("content", {})
                 if isinstance(content, str):
                     try:
                         content = json.loads(content)
-                    except:
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Could not parse model create content as JSON: {content}")
                         content = {"model_id": 1}
 
-                return int(content.get("model_id", 1))
+                model_id = int(content.get("model_id", 1))
+                logger.info(f"Created new model with ID: {model_id}")
+                return model_id
 
+            logger.warning(
+                "Failed to get or create model, using default model ID")
             return 1  # Default model ID if we can't get it from MCP
         except Exception as e:
-            logger.error(f"Error getting/creating model through MCP: {str(e)}")
+            logger.error(
+                f"Error getting/creating model through MCP: {str(e)}", exc_info=True)
             return 1  # Default model ID
 
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
         """Update model usage statistics through MCP."""
-        if self._current_model_id:
-            try:
-                mcp_client = get_mcp_client()
-                if not mcp_client:
-                    logger.error("MCP client not initialized")
-                    return
+        if not self._current_model_id:
+            logger.warning("No current model ID available for stats update")
+            return
 
-                await mcp_client.invoke_tool("ai.model.stats.update", {
-                    "model_id": self._current_model_id,
-                    "latency": latency,
-                    "success": success
-                })
-            except Exception as e:
-                logger.error(
-                    f"Error updating model stats through MCP: {str(e)}")
+        try:
+            mcp_client = get_mcp_client()
+            if not mcp_client:
+                logger.error("MCP client not initialized for stats update")
+                return
+
+            stats_response = await mcp_client.call_tool("ai.model.stats.update", {
+                "model_id": self._current_model_id,
+                "latency": latency,
+                "success": success
+            })
+
+            if stats_response and stats_response.get("status") == "success":
+                logger.debug(
+                    f"Updated model stats for model {self._current_model_id}")
+            else:
+                logger.warning(
+                    f"Failed to update model stats: {stats_response.get('error', 'Unknown error')}")
+
+        except Exception as e:
+            logger.error(f"Error updating model stats through MCP: {str(e)}")
+            # Continue execution even if stats update fails
 
     async def generate_response(
         self,
@@ -144,6 +168,7 @@ class LLMService:
                     "text": response["choices"][0]["message"]["content"],
                     "model": response.get("model", "unknown"),
                     "usage": response.get("usage", {}),
+                    "confidence": 0.9
                 }
 
                 # Update stats and log training data
@@ -155,13 +180,13 @@ class LLMService:
                 return result
             else:
                 logger.error("Invalid response format from LLM API")
-                return {"error": "Invalid response format", "text": ""}
+                return {"error": "Invalid response format", "text": "", "confidence": 0.0}
 
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
             if stream:
                 return self._create_error_generator(str(e))
-            return {"error": str(e), "text": ""}
+            return {"error": str(e), "text": "", "confidence": 0.0}
 
     async def _create_stream_generator(
         self,
@@ -290,7 +315,7 @@ class LLMService:
         if context and context.get("conversation_history"):
             logger.debug("Adding conversation history")
             history = context["conversation_history"]
-            
+
             # If history is already in the format expected by OpenAI API
             if isinstance(history, list) and all(isinstance(msg, dict) for msg in history):
                 for msg in history:
@@ -320,7 +345,8 @@ class LLMService:
             "top_p": 0.95,  # High value for more focused responses
             "presence_penalty": 0.0,  # No penalty for repeated tokens
             "frequency_penalty": 0.0,  # No penalty for frequent tokens
-            "response_format": { "type": "text" }  # Ensure text output for tool parsing
+            # Ensure text output for tool parsing
+            "response_format": {"type": "text"}
         }
         if parameters:
             default_params.update(parameters)
