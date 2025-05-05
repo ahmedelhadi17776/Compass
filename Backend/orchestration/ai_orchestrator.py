@@ -265,12 +265,22 @@ class AIOrchestrator:
                 if tool_results:
                     self.logger.info(
                         "Generating final response with tool results")
+                    
+                    # Log the exact tool results being sent to LLM
+                    self.logger.info(f"Tool results being sent to LLM for final response: {json.dumps(tool_results, indent=2)}")
+                    
+                    prompt_for_llm = f"Based on the user query: {user_input}\nHere are the tool results: {json.dumps(tool_results, indent=2)}\nPlease provide a helpful response."
+                    self.logger.info(f"Full prompt being sent to LLM: {prompt_for_llm}")
+                    
                     final_result = await self.llm_service.generate_response(
-                        prompt=f"Based on the user query: {user_input}\nHere are the tool results: {json.dumps(tool_results, indent=2)}\nPlease provide a helpful response.",
+                        prompt=prompt_for_llm,
                         context={
                             "system_prompt": "Format the tool results in a natural, helpful way for the user."
                         }
                     )
+                    # Log the LLM's response
+                    self.logger.info(f"LLM final response: {final_result}")
+                    
                     # Ensure this is also a dictionary
                     if isinstance(final_result, dict):
                         final_response = final_result.get("text", "")

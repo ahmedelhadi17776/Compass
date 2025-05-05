@@ -137,7 +137,7 @@ class MCPClient:
                     await self._initialize_tools()
                 except Exception as e:
                     self.logger.error(f"Error initializing tools: {str(e)}")
-                    self._add_mock_tools()
+                    self.tools = []
 
                 # Keep connection alive until cleanup is called
                 while self._running:
@@ -154,8 +154,7 @@ class MCPClient:
                         f"Retry attempt {retry_count}/{max_retries} in {retry_delay} seconds...")
                     await asyncio.sleep(retry_delay)
                 else:
-                    # Add mock tools on final retry failure
-                    self._add_mock_tools()
+                    self.tools = []
                     if retry_count >= max_retries:
                         self.logger.error(
                             f"Failed to connect after {max_retries} attempts")
@@ -183,105 +182,8 @@ class MCPClient:
             tool_names = [t.name for t in self.tools]
             self.logger.info(f"Available tools: {tool_names}")
         else:
-            self.logger.warning(
-                "No tools found in response. Adding mock tools.")
-            self._add_mock_tools()
-
-    def _add_mock_tools(self):
-        """Add mock tools when connection to server fails or no tools are available."""
-        self.logger.warning(
-            "Adding mock tools since server connection failed or no tools were found")
-
-        # Standard tools that should be available
-        mock_tools = [
-            Tool(
-                name="get_todos",
-                description="Get all todos for a user with optional filters",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "user_id": {"type": "string", "description": "User ID"},
-                        "status": {"type": "string", "description": "Todo status filter"},
-                        "priority": {"type": "string", "description": "Todo priority filter"}
-                    }
-                }
-            ),
-            Tool(
-                name="get_all_todos",
-                description="Get all todos for a user with optional filters",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "user_id": {"type": "string", "description": "User ID"},
-                        "status": {"type": "string", "description": "Todo status filter"},
-                        "priority": {"type": "string", "description": "Todo priority filter"}
-                    }
-                }
-            ),
-            Tool(
-                name="ai.process",
-                description="Process an AI request",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "prompt": {"type": "string", "description": "User prompt"},
-                        "user_id": {"type": "string", "description": "User ID"},
-                        "domain": {"type": "string", "description": "Domain context"}
-                    },
-                    "required": ["prompt"]
-                }
-            ),
-            Tool(
-                name="ai.model.info",
-                description="Get model information",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Model name"},
-                        "version": {"type": "string", "description": "Model version"}
-                    }
-                }
-            ),
-            Tool(
-                name="ai.model.create",
-                description="Create a new model",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Model name"},
-                        "version": {"type": "string", "description": "Model version"},
-                        "type": {"type": "string", "description": "Model type"},
-                        "provider": {"type": "string", "description": "Model provider"},
-                        "status": {"type": "string", "description": "Model status"}
-                    },
-                    "required": ["name", "version", "type", "provider", "status"]
-                }
-            ),
-            Tool(
-                name="ai.model.stats.update",
-                description="Update model usage statistics",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "model_id": {"type": "integer", "description": "Model ID"},
-                        "latency": {"type": "number", "description": "Latency in seconds"},
-                        "success": {"type": "boolean", "description": "Success status"}
-                    },
-                    "required": ["model_id", "latency", "success"]
-                }
-            )
-        ]
-
-        # Add mock tools to the list (avoid duplicates)
-        existing_names = {t.name for t in self.tools}
-        for tool in mock_tools:
-            if tool.name not in existing_names:
-                self.tools.append(tool)
-
-        self.logger.info(
-            f"Added {len(mock_tools)} mock tools. Total tools now: {len(self.tools)}")
-        self.logger.info(
-            f"Available tool names: {[t.name for t in self.tools]}")
+            self.logger.warning("No tools found in response.")
+            self.tools = []
 
     async def cleanup(self):
         """Clean up resources properly."""
@@ -389,39 +291,6 @@ class MCPClient:
 
                 if attempt <= retries:
                     await asyncio.sleep(1.0)  # Wait before retry
-                else:
-                    # On final failure, provide mock data for common tools
-                    if tool_name == "get_all_todos" or tool_name == "get_todos":
-                        self.logger.info(
-                            f"Returning mock data for {tool_name}")
-                        return {
-                            "status": "success",
-                            "content": {
-                                "todos": [
-                                    {"id": "1", "title": "Mock Todo 1",
-                                        "description": "This is a mock todo", "status": "pending"},
-                                    {"id": "2", "title": "Mock Todo 2",
-                                        "description": "Another mock todo", "status": "completed"}
-                                ],
-                                "mock": True
-                            }
-                        }
-                    elif tool_name == "ai.model.info":
-                        return {
-                            "status": "success",
-                            "content": {
-                                "model_id": 1,
-                                "name": "gpt-4o-mini",
-                                "version": "1.0",
-                                "type": "text-generation",
-                                "provider": "OpenAI",
-                                "capabilities": {
-                                    "streaming": True,
-                                    "function_calling": True,
-                                    "tool_use": True
-                                }
-                            }
-                        }
 
         # Return error if all retries failed
         return {

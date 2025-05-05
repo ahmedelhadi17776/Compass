@@ -64,7 +64,7 @@ app.router.routes.append(
     Mount("/mcp/sse", app=sse_transport.handle_post_message))
 
 # Use settings for API endpoint
-GO_BACKEND_URL = f"http://{settings.api_host}:{settings.api_port}"
+GO_BACKEND_URL = f"http://{settings.api_host}:8000"
 logger.info(f"Using backend URL: {GO_BACKEND_URL}")
 HEADERS = {"Content-Type": "application/json"}
 
@@ -612,7 +612,6 @@ async def get_todos(
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-# Add an alias for the get_todos function to support "get_all_todos" tool name
 @mcp.tool("get_all_todos")
 async def get_all_todos(
     ctx: Context,
@@ -627,21 +626,26 @@ async def get_all_todos(
             f"get_all_todos called with: user_id={user_id}, status={status}, priority={priority}")
         await ctx.info(f"get_all_todos called with: user_id={user_id}, status={status}, priority={priority}")
 
+        # Log the backend URL we're trying to connect to
+        logger.info(f"GO_BACKEND_URL is set to: {GO_BACKEND_URL}")
+
         # Get auth token from parameter or fall back to default
         auth_token = None
         if authorization and authorization.startswith("Bearer "):
             auth_token = authorization
+            logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info("Using default DEV_JWT_TOKEN for authorization")
 
-        logger.info(f"Using auth token: {auth_token[:20]}...")
+        logger.info(f"Authorization token being used (first 20 chars): {auth_token[:20]}...")
 
-        # Call directly to the backend instead of using the other tool to avoid any issues
         async with httpx.AsyncClient() as client:
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": auth_token
             }
+            logger.info(f"Request headers: {headers}")
 
             # Build query parameters
             params = {}
@@ -652,49 +656,73 @@ async def get_all_todos(
             if priority:
                 params["priority"] = priority
 
-            logger.info(
-                f"Making request to endpoint: {GO_BACKEND_URL}/api/todo-lists with params: {params}")
-            await ctx.info(f"Making request to endpoint: {GO_BACKEND_URL}/api/todo-lists")
+            full_url = f"{GO_BACKEND_URL}/api/todo-lists"
+            logger.info(f"Making request to: {full_url}")
+            logger.info(f"With query parameters: {params}")
+            await ctx.info(f"Making request to endpoint: {full_url}")
 
-            # Provide mock data for development if needed
             try:
                 # Make request to Go backend
                 response = await client.get(
-                    f"{GO_BACKEND_URL}/api/todo-lists",
+                    full_url,
                     headers=headers,
                     params=params,
                     timeout=10.0  # Add timeout to avoid hanging
                 )
+                
+                # Log the response status and headers
+                logger.info(f"Response status code: {response.status_code}")
+                logger.info(f"Response headers: {response.headers}")
+                
+                # Try to get response text for debugging
+                try:
+                    response_text = response.text
+                    logger.info(f"Raw response text: {response_text[:200]}...")  # First 200 chars
+                except Exception as text_e:
+                    logger.error(f"Could not get response text: {str(text_e)}")
+
                 response.raise_for_status()
                 result = response.json()
-                logger.info(
-                    f"Got response from todo-lists endpoint: {str(result)[:100]}...")
+                logger.info(f"Successfully parsed JSON response: {str(result)[:100]}...")
                 await ctx.info("Successfully retrieved todos data from backend")
                 return result
-            except httpx.RequestError as e:
-                logger.error(f"HTTP request failed: {str(e)}")
-                await ctx.error(f"Backend request failed: {str(e)}")
 
-                # Return mock data for development
-                mock_data = {
-                    "todos": [
-                        {"id": "1", "title": "Example Todo 1", "description": "This is a mock todo item",
-                            "status": "pending", "priority": "high"},
-                        {"id": "2", "title": "Example Todo 2", "description": "Another mock todo",
-                            "status": "completed", "priority": "medium"}
-                    ],
-                    "mock": True,
-                    "count": 2
-                }
-                logger.info("Returning mock data for development")
-                await ctx.warning("Returning mock data since backend connection failed")
-                return mock_data
+            except httpx.ConnectError as e:
+                error_msg = f"Failed to connect to backend at {full_url}: {str(e)}"
+                logger.error(error_msg)
+                logger.error(f"Connection Details: GO_BACKEND_URL={GO_BACKEND_URL}, Host={settings.api_host}")
+                # Try to ping the host
+                try:
+                    ping_response = await client.get(f"http://{settings.api_host}:8000/health", timeout=5.0)
+                    logger.error(f"Host ping response: {ping_response.status_code}")
+                except Exception as ping_e:
+                    logger.error(f"Host ping failed: {str(ping_e)}")
+                await ctx.error(error_msg)
+                return {"status": "error", "error": error_msg, "type": "connection_error"}
+
+            except httpx.HTTPStatusError as e:
+                error_msg = f"HTTP error {e.response.status_code} from backend: {str(e)}"
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"status": "error", "error": error_msg, "type": "http_error", "status_code": e.response.status_code}
+
+            except httpx.TimeoutException as e:
+                error_msg = f"Request to {full_url} timed out after 10 seconds"
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"status": "error", "error": error_msg, "type": "timeout"}
+
+            except json.JSONDecodeError as e:
+                error_msg = f"Failed to parse JSON response: {str(e)}"
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return {"status": "error", "error": error_msg, "type": "json_error"}
 
     except Exception as e:
-        logger.error(f"Error in get_all_todos: {str(e)}")
-        await ctx.error(f"Error in get_all_todos: {str(e)}")
-        # Return empty result instead of raising to avoid crashes
-        return {"todos": [], "error": str(e)}
+        error_msg = f"Error in get_all_todos: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "general_error"}
 
 
 @mcp.tool("todos.create")
