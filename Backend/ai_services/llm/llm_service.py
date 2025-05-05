@@ -6,9 +6,6 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai._streaming import Stream
 from core.config import settings
 from utils.logging_utils import get_logger
-from core.mcp_state import get_mcp_client
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain.schema import format_document
 import os
 import time
 import json
@@ -38,12 +35,12 @@ class LLMService:
             base_url=self.base_url
         )
         self.model = self.model_name
-        # Removing the conversation_history as we'll use LangChain memory instead
         self._current_model_id: Optional[int] = None
 
     async def _get_or_create_model(self) -> Optional[int]:
         """Get or create model ID through MCP."""
         try:
+            from core.mcp_state import get_mcp_client
             mcp_client = get_mcp_client()
             if not mcp_client:
                 logger.error("MCP client not initialized")
@@ -93,6 +90,7 @@ class LLMService:
         """Update model usage statistics through MCP."""
         if self._current_model_id:
             try:
+                from core.mcp_state import get_mcp_client
                 mcp_client = get_mcp_client()
                 if not mcp_client:
                     logger.error("MCP client not initialized")
@@ -286,7 +284,7 @@ class LLMService:
                 "content": "You are a helpful AI assistant."
             })
 
-        # Process conversation history from LangChain memory
+        # Process conversation history
         if context and context.get("conversation_history"):
             logger.debug("Adding conversation history")
             history = context["conversation_history"]
@@ -296,13 +294,6 @@ class LLMService:
                 for msg in history:
                     if msg.get("role") in ["user", "assistant", "system"]:
                         messages.append(msg)
-            # If history is in LangChain Message format
-            elif isinstance(history, list) and hasattr(history[0], "content") and hasattr(history[0], "role"):
-                for msg in history:
-                    messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
 
         # Add current prompt
         logger.debug("Adding current prompt")

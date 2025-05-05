@@ -1,784 +1,226 @@
-from fastapi import FastAPI, Request, HTTPException, Header
-from mcp.server.fastmcp import FastMCP, Context
-from mcp.server.sse import SseServerTransport
-from starlette.routing import Mount
-from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator
-from fastapi.responses import StreamingResponse
-import logging
+from typing import Any, List
 import httpx
-import os
-import json
-import sys
-import asyncio
-from mcp.types import (
-    InitializeResult,
-    ServerCapabilities,
-    Implementation,
-    ToolsCapability,
-    LoggingCapability
-)
-import sys
-from core.config import settings
-from orchestration.ai_orchestrator import AIOrchestrator
-import uuid
+from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
+from mcp.server.sse import SseServerTransport
+from starlette.requests import Request
+from starlette.routing import Mount, Route
+from mcp.server import Server
+import uvicorn
+from ai_services.llm.llm_service import LLMService
 
-# Hardcoded JWT token for development - only used as fallback
-DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjQxNDc5NCwibmJmIjoxNzQ2MzI4Mzk0LCJpYXQiOjE3NDYzMjgzOTR9.SxiV6WES1ndPqNBkk5g72hpeQtLOqwjRVP4eC_iVyss"
-
-print("PYTHONPATH:", sys.path)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('mcp_server.log')
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Set Windows-compatible event loop policy
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy in server")
-
-# Initialize FastAPI app
-app = FastAPI()
-
-# Initialize FastMCP server with explicit file path handling
-current_dir = os.path.dirname(os.path.abspath(__file__))
-mcp = FastMCP(
-    name="compass",
-    version="1.0.0",
-    endpoint="/mcp",
-    prefix="/mcp",
-    instructions="COMPASS AI Service MCP Server"
-)
-
-# Create SSE transport instance
-sse_transport = SseServerTransport("/mcp/sse")
-
-# Mount the SSE endpoint for MCP
-app.router.routes.append(
-    Mount("/mcp/sse", app=sse_transport.handle_post_message))
+# Initialize FastMCP server and LLM service
+mcp = FastMCP("llm-tools")
+llm_service = LLMService()
 
 # Constants
-GO_BACKEND_URL = f"http://{settings.api_host}:{settings.api_port}"
-HEADERS = {"Content-Type": "application/json"}
+NWS_API_BASE = "https://api.weather.gov"
+USER_AGENT = "weather-app/1.0"
+
+# Sample todos data
+TODOS = [
+    {"id": 1, "title": "Complete the MCP integration", "status": "in_progress"},
+    {"id": 2, "title": "Write documentation", "status": "pending"},
+    {"id": 3, "title": "Test the application", "status": "completed"},
+    {"id": 4, "title": "Deploy to production", "status": "pending"},
+    {"id": 5, "title": "Review pull requests", "status": "in_progress"}
+]
+
+async def make_nws_request(url: str) -> dict[str, Any] | None:
+    """Make a request to the NWS API with proper error handling."""
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/geo+json"
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, headers=headers, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return None
+
+
+def format_alert(feature: dict) -> str:
+    """Format an alert feature into a readable string."""
+    props = feature["properties"]
+    return f"""
+Event: {props.get('event', 'Unknown')}
+Area: {props.get('areaDesc', 'Unknown')}
+Severity: {props.get('severity', 'Unknown')}
+Description: {props.get('description', 'No description available')}
+Instructions: {props.get('instruction', 'No specific instructions provided')}
+"""
 
 
 @mcp.tool()
-async def create_user(user_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
-    """Create a new user in the system.
+async def get_alerts(state: str) -> str:
+    """Get weather alerts for a US state.
 
     Args:
-        user_data: Dictionary containing user information
-            - username: str
-            - email: str
-            - password: str
+        state: Two-letter US state code (e.g. CA, NY)
     """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                f"{GO_BACKEND_URL}/api/v1/users",
-                json=user_data,
-                headers=HEADERS
-            )
-            response.raise_for_status()
-            await ctx.info(f"Created user: {user_data['username']}")
-            return response.json()
-        except Exception as e:
-            await ctx.error(f"Failed to create user: {str(e)}")
-            raise
+    url = f"{NWS_API_BASE}/alerts/active/area/{state}"
+    data = await make_nws_request(url)
+
+    if not data or "features" not in data:
+        return "Unable to fetch alerts or no alerts found."
+
+    if not data["features"]:
+        return "No active alerts for this state."
+
+    alerts = [format_alert(feature) for feature in data["features"]]
+    return "\n---\n".join(alerts)
 
 
 @mcp.tool()
-async def get_user(user_id: str, ctx: Context) -> Dict[str, Any]:
-    """Get user information by ID.
+async def get_forecast(latitude: float, longitude: float) -> str:
+    """Get weather forecast for a location.
 
     Args:
-        user_id: The ID of the user to retrieve
+        latitude: Latitude of the location
+        longitude: Longitude of the location
     """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{GO_BACKEND_URL}/api/v1/users/{user_id}",
-                headers=HEADERS
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            await ctx.error(f"Failed to get user {user_id}: {str(e)}")
-            raise
+    # First get the forecast grid endpoint
+    points_url = f"{NWS_API_BASE}/points/{latitude},{longitude}"
+    points_data = await make_nws_request(points_url)
+
+    if not points_data:
+        return "Unable to fetch forecast data for this location."
+
+    # Get the forecast URL from the points response
+    forecast_url = points_data["properties"]["forecast"]
+    forecast_data = await make_nws_request(forecast_url)
+
+    if not forecast_data:
+        return "Unable to fetch detailed forecast."
+
+    # Format the periods into a readable forecast
+    periods = forecast_data["properties"]["periods"]
+    forecasts = []
+    for period in periods[:5]:  # Only show next 5 periods
+        forecast = f"""
+{period['name']}:
+Temperature: {period['temperature']}°{period['temperatureUnit']}
+Wind: {period['windSpeed']} {period['windDirection']}
+Forecast: {period['detailedForecast']}
+"""
+        forecasts.append(forecast)
+
+    return "\n---\n".join(forecasts)
 
 
 @mcp.tool()
-async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
-    """Create a new task.
+async def generate_text(prompt: str) -> str:
+    """Generate text using the LLM service.
 
     Args:
-        task_data: Dictionary containing task information
-            - title: str
-            - description: str
-            - due_date: str (optional)
-            - priority: str (optional)
+        prompt: The prompt to generate text from
     """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                f"{GO_BACKEND_URL}/api/v1/tasks",
-                json=task_data,
-                headers=HEADERS
-            )
-            response.raise_for_status()
-            await ctx.info(f"Created task: {task_data['title']}")
-            return response.json()
-        except Exception as e:
-            await ctx.error(f"Failed to create task: {str(e)}")
-            raise
+    response = await llm_service.generate_response(prompt=prompt)
+    if isinstance(response, dict) and "text" in response:
+        return response["text"]
+    return "Failed to generate response"
 
 
 @mcp.tool()
-async def get_tasks(user_id: str, ctx: Context) -> Dict[str, Any]:
-    """Get all tasks for a user.
+async def analyze_workflow(workflow_id: int, historical_data: list[dict]) -> str:
+    """Analyze workflow efficiency using LLM.
 
     Args:
-        user_id: The ID of the user
+        workflow_id: ID of the workflow to analyze
+        historical_data: List of historical workflow data
     """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{GO_BACKEND_URL}/api/v1/tasks",
-                params={"user_id": user_id},
-                headers=HEADERS
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            await ctx.error(f"Failed to get tasks for user {user_id}: {str(e)}")
-            raise
+    response = await llm_service.analyze_workflow(workflow_id, historical_data)
+    if isinstance(response, dict):
+        return f"""
+Efficiency Score: {response.get('efficiency_score', 0.0)}
+Bottlenecks: {', '.join(response.get('bottlenecks', []))}
+Recommendations: {', '.join(response.get('recommendations', []))}
+"""
+    return "Failed to analyze workflow"
 
 
 @mcp.tool()
-async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]:
-    """Create a new project.
+async def summarize_meeting(transcript: str, participants: list[str], duration: int) -> str:
+    """Generate meeting summary using LLM.
 
     Args:
-        project_data: Dictionary containing project information
-            - name: str
-            - description: str
-            - start_date: str (optional)
-            - end_date: str (optional)
+        transcript: Meeting transcript text
+        participants: List of participant names
+        duration: Meeting duration in minutes
     """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                f"{GO_BACKEND_URL}/api/v1/projects",
-                json=project_data,
-                headers=HEADERS
-            )
-            response.raise_for_status()
-            await ctx.info(f"Created project: {project_data['name']}")
-            return response.json()
-        except Exception as e:
-            await ctx.error(f"Failed to create project: {str(e)}")
-            raise
+    response = await llm_service.summarize_meeting(transcript, participants, duration)
+    if isinstance(response, dict):
+        return f"""
+Summary: {response.get('summary', '')}
+Action Items: {', '.join(response.get('action_items', []))}
+Key Points: {', '.join(response.get('key_points', []))}
+"""
+    return "Failed to summarize meeting"
 
 
-@mcp.tool("ai.process")
-async def process_ai_request(
-    ctx: Context,
-    prompt: str,
-    user_id: Optional[str] = None,
-    domain: Optional[str] = None,
-    authorization: Optional[str] = None
-) -> Dict[str, Any]:
-    """Process an AI request through MCP.
+@mcp.tool()
+async def get_todos(status: str = None) -> str:
+    """Get a list of todos, optionally filtered by status.
 
     Args:
-        prompt: The user's prompt text
-        user_id: Optional user ID (UUID string)
-        domain: Optional domain context
-        authorization: Optional authorization token (Bearer token)
+        status: Filter todos by status (pending, in_progress, completed). If None, returns all todos.
     """
-    try:
-        # Log warning for invalid authorization but don't block request
-        if not authorization or authorization == "Bearer undefined" or authorization == "Bearer null":
-            await ctx.warning("Missing or invalid authorization token - proceeding without authentication")
-            # Continue processing without blocking
-
-        orchestrator = AIOrchestrator()
-        # Use UUID string directly, no conversion needed
-
-        # If authorization was provided, log it
-        if authorization and authorization not in ["Bearer undefined", "Bearer null"]:
-            await ctx.info(f"Processing request with provided authorization token")
-
-        # Process the request through orchestrator
-        result = await orchestrator.process_request(
-            user_input=prompt,
-            # Use provided UUID or generate a new one
-            user_id=user_id or str(uuid.uuid4()),
-            domain=domain or "default",
-            auth_token=authorization
+    filtered_todos = TODOS
+    if status:
+        filtered_todos = [todo for todo in TODOS if todo["status"] == status]
+    
+    if not filtered_todos:
+        return "No todos found with the specified status."
+    
+    formatted_todos = []
+    for todo in filtered_todos:
+        formatted_todos.append(
+            f"ID: {todo['id']}\n"
+            f"Title: {todo['title']}\n"
+            f"Status: {todo['status']}\n"
         )
-
-        return result
-    except Exception as e:
-        logger.error(f"Error processing AI request: {str(e)}")
-        await ctx.error(f"Failed to process AI request: {str(e)}")
-        raise
+    
+    return "\n---\n".join(formatted_todos)
 
 
-@mcp.tool("ai.stream")
-async def stream_ai_response(
-    ctx: Context,
-    prompt: str,
-    user_id: str,
-    domain: Optional[str] = None
-) -> AsyncIterator[str]:
-    """Stream AI responses through MCP."""
-    try:
-        orchestrator = AIOrchestrator()
-        response = await orchestrator.llm_service.generate_response(
-            prompt=prompt,
-            context={"user_id": user_id, "domain": domain or "default"},
-            stream=True
-        )
+def create_starlette_app(mcp_server: Server, *, debug: bool = False) -> Starlette:
+    """Create a Starlette application that can serve the provided mcp server with SSE."""
+    sse = SseServerTransport("/messages/")
 
-        if isinstance(response, AsyncGenerator):
-            async for chunk in response:
-                yield chunk
-        elif isinstance(response, dict):
-            yield response.get("text", "")
-        else:
-            yield str(response)
-    except Exception as e:
-        logger.error(f"Error streaming AI response: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Add tools to match REST-style endpoints used in the client
-@mcp.tool("ai.model.info")
-async def get_model_info(ctx: Context) -> Dict[str, Any]:
-    """Get information about the AI model."""
-    try:
-        return {
-            "model_id": 1,
-            "name": "gpt-4o-mini",
-            "version": "1.0",
-            "type": "text-generation",
-            "provider": "OpenAI",
-            "capabilities": {
-                "streaming": True,
-                "function_calling": True,
-                "tool_use": True
-            }
-        }
-    except Exception as e:
-        logger.error(f"Error getting model info: {str(e)}")
-        await ctx.error(f"Failed to get model info: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.model.create")
-async def create_model(
-    ctx: Context,
-    name: str,
-    version: str,
-    type: str,
-    provider: str,
-    status: str
-) -> Dict[str, Any]:
-    """Create a new model."""
-    try:
-        return {
-            "model_id": 1,
-            "name": name,
-            "version": version,
-            "type": type,
-            "provider": provider,
-            "status": status,
-            "created_at": "2023-01-01T00:00:00Z"
-        }
-    except Exception as e:
-        logger.error(f"Error creating model: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.model.stats.update")
-async def update_model_stats(
-    ctx: Context,
-    model_id: int,
-    latency: float,
-    success: bool
-) -> Dict[str, Any]:
-    """Update model usage statistics."""
-    try:
-        return {
-            "model_id": model_id,
-            "updated_at": "2023-01-01T00:00:00Z",
-            "success": success,
-            "latency": latency
-        }
-    except Exception as e:
-        logger.error(f"Error updating model stats: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.log.interaction")
-async def log_interaction(
-    ctx: Context,
-    user_id: str,
-    domain: Optional[str],
-    input: str,
-    output: str,
-    metadata: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Log AI interaction."""
-    try:
-        logger.info(
-            f"Logging interaction for user {user_id} in domain {domain}")
-        return {
-            "logged": True,
-            "timestamp": "2023-01-01T00:00:00Z"
-        }
-    except Exception as e:
-        logger.error(f"Error logging interaction: {str(e)}")
-        raise
-
-
-@mcp.tool("rag.stats")
-async def rag_stats(
-    ctx: Context,
-    domain: str
-) -> Dict[str, Any]:
-    """Get RAG statistics for a domain."""
-    try:
-        logger.info(f"Getting RAG statistics for domain: {domain}")
-        return {
-            "document_count": 10,
-            "total_tokens": 50000,
-            "last_updated": "2023-01-01T00:00:00Z",
-            "domain": domain
-        }
-    except Exception as e:
-        logger.error(f"Error getting RAG stats: {str(e)}")
-        raise
-
-
-@mcp.tool("rag.update")
-async def rag_update(
-    ctx: Context,
-    domain: str,
-    content: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Update RAG knowledge base for a domain."""
-    try:
-        logger.info(f"Updating RAG knowledge base for domain: {domain}")
-        logger.info(f"Content size: {len(str(content))} characters")
-        return {
-            "updated": True,
-            "timestamp": "2023-01-01T00:00:00Z",
-            "domain": domain,
-            "document_count": 1
-        }
-    except Exception as e:
-        logger.error(f"Error updating RAG knowledge base: {str(e)}")
-        raise
-
-
-@mcp.tool("rag.knowledge-base.process")
-async def process_knowledge_base(
-    ctx: Context,
-    domain: Optional[str] = None
-) -> Dict[str, Any]:
-    """Process knowledge base files."""
-    try:
-        logger.info(
-            f"Processing knowledge base for domain: {domain or 'default'}")
-        return {
-            "status": "processing",
-            "job_id": "123456",
-            "timestamp": "2023-01-01T00:00:00Z",
-            "domain": domain or "default"
-        }
-    except Exception as e:
-        logger.error(f"Error processing knowledge base: {str(e)}")
-        raise
-
-
-@mcp.tool("knowledge-base.upload")
-async def upload_to_knowledge_base(
-    ctx: Context,
-    filename: str,
-    content: bytes,
-    domain: Optional[str] = None
-) -> Dict[str, Any]:
-    """Upload a file to knowledge base."""
-    try:
-        logger.info(
-            f"Uploading file {filename} to knowledge base for domain: {domain or 'default'}")
-        logger.info(f"Content size: {len(content)} bytes")
-        return {
-            "status": "success",
-            "message": f"File {filename} uploaded successfully",
-            "files": [
-                {
-                    "filename": filename,
-                    "size": len(content),
-                    "upload_time": "2023-01-01T00:00:00Z"
-                }
-            ]
-        }
-    except Exception as e:
-        logger.error(f"Error uploading to knowledge base: {str(e)}")
-        raise
-
-
-@mcp.tool("entity.create")
-async def create_entity(
-    ctx: Context,
-    prompt: str,
-    domain: Optional[str] = None
-) -> Dict[str, Any]:
-    """Create an entity from a prompt."""
-    try:
-        logger.info(
-            f"Creating entity from prompt in domain: {domain or 'default'}")
-        return {
-            "entity_id": "123456",
-            "response": f"Created entity from: {prompt[:20]}...",
-            "intent": "create",
-            "target": domain or "default",
-            "description": "Entity created from description",
-            "rag_used": False,
-            "cached": False,
-            "confidence": 0.9
-        }
-    except Exception as e:
-        logger.error(f"Error creating entity: {str(e)}")
-        raise
-
-
-@mcp.tool("user.getContext")
-async def get_user_context(
-    ctx: Context,
-    user_id: str,
-    domain: str
-) -> Dict[str, Any]:
-    """Get user context data."""
-    try:
-        logger.info(f"Getting context for user {user_id} in domain {domain}")
-        return {
-            "user_id": user_id,
-            "domain": domain,
-            "preferences": {
-                "language": "en",
-                "theme": "light"
-            },
-            "history": []
-        }
-    except Exception as e:
-        logger.error(f"Error getting user context: {str(e)}")
-        raise
-
-
-@mcp.tool("user.getInfo")
-async def get_user_info(
-    ctx: Context,
-    user_id: str
-) -> Dict[str, Any]:
-    """Get user information from the Go backend."""
-    try:
-        logger.info(f"Getting info for user {user_id}")
-
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {DEV_JWT_TOKEN}"
-            }
-
-            response = await client.get(
-                f"{GO_BACKEND_URL}/api/users/{user_id}",
-                headers=headers
+    async def handle_sse(request: Request) -> None:
+        async with sse.connect_sse(
+                request.scope,
+                request.receive,
+                request._send,  # noqa: SLF001
+        ) as (read_stream, write_stream):
+            await mcp_server.run(
+                read_stream,
+                write_stream,
+                mcp_server.create_initialization_options(),
             )
-            response.raise_for_status()
 
-            # Return response data or fallback
-            try:
-                return response.json()
-            except:
-                # Fallback if response isn't valid JSON
-                return {
-                    "user_id": user_id,
-                    "name": "User",
-                    "email": "user@example.com"
-                }
-
-    except Exception as e:
-        logger.error(f"Error getting user info: {str(e)}")
-        await ctx.error(f"Failed to get user info: {str(e)}")
-
-        # Return fallback data on error
-        return {
-            "user_id": user_id,
-            "name": "Unknown User",
-            "email": "unknown@example.com",
-            "error": str(e)
-        }
-
-
-@mcp.tool("todos.list")
-async def get_todos(
-    ctx: Context,
-    user_id: Optional[str] = None,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    authorization: Optional[str] = None
-) -> Dict[str, Any]:
-    """Get todos for a user with optional filters.
-
-    Args:
-        user_id: Optional ID of the user
-        status: Optional todo status filter (completed, pending, etc.)
-        priority: Optional priority filter (high, medium, low)
-        authorization: Optional authorization token (Bearer token)
-
-    Returns:
-        A list of todos
-    """
-    try:
-        logger.info(
-            f"Getting todos for user {user_id or 'all'} with status={status}, priority={priority}")
-
-        # Get auth token from parameter or fall back to default
-        auth_token = None
-        if authorization and authorization.startswith("Bearer "):
-            auth_token = authorization
-        else:
-            auth_token = f"Bearer {DEV_JWT_TOKEN}"
-
-        logger.debug(f"Using auth token: {auth_token[:20]}...")
-
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": auth_token
-            }
-
-            # Build query parameters
-            params = {}
-            if user_id:
-                params["user_id"] = user_id
-            if status:
-                params["status"] = status
-            if priority:
-                params["priority"] = priority
-
-            # Make request to Go backend
-            response = await client.get(
-                f"{GO_BACKEND_URL}/api/todo-lists",
-                headers=headers,
-                params=params
-            )
-            response.raise_for_status()
-
-            # Log success
-            await ctx.info(f"Successfully retrieved todos from Go backend")
-
-            # Return JSON response
-            return response.json()
-
-    except Exception as e:
-        error_msg = f"Error getting todos: {str(e)}"
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
-
-
-@mcp.tool("todos.create")
-async def create_todo(
-    ctx: Context,
-    title: str,
-    description: Optional[str] = None,
-    due_date: Optional[str] = None,
-    priority: Optional[str] = None,
-    authorization: Optional[str] = None
-) -> Dict[str, Any]:
-    """Create a new todo item.
-
-    Args:
-        title: Title of the todo item
-        description: Optional description
-        due_date: Optional due date (format: YYYY-MM-DD)
-        priority: Optional priority (high, medium, low)
-        authorization: Optional authorization token (Bearer token)
-
-    Returns:
-        The created todo item
-    """
-    try:
-        logger.info(f"Creating new todo: {title}")
-
-        # Get auth token from parameter or fall back to default
-        auth_token = None
-        if authorization and authorization.startswith("Bearer "):
-            auth_token = authorization
-        else:
-            auth_token = f"Bearer {DEV_JWT_TOKEN}"
-
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": auth_token
-            }
-
-            # Prepare todo data
-            todo_data = {
-                "title": title,
-                "description": description or "",
-                "priority": priority or "medium"
-            }
-
-            if due_date:
-                todo_data["due_date"] = due_date
-
-            # Make request to Go backend
-            response = await client.post(
-                f"{GO_BACKEND_URL}/api/todos",
-                headers=headers,
-                json=todo_data
-            )
-            response.raise_for_status()
-
-            # Log success
-            await ctx.info(f"Successfully created todo: {title}")
-
-            # Return JSON response
-            return response.json()
-
-    except Exception as e:
-        error_msg = f"Error creating todo: {str(e)}"
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
-
-
-@mcp.tool("todos.update")
-async def update_todo(
-    ctx: Context,
-    todo_id: str,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    authorization: Optional[str] = None
-) -> Dict[str, Any]:
-    """Update an existing todo item.
-
-    Args:
-        todo_id: ID of the todo to update
-        title: Optional new title
-        description: Optional new description
-        status: Optional new status
-        priority: Optional new priority
-        authorization: Optional authorization token (Bearer token)
-
-    Returns:
-        The updated todo item
-    """
-    try:
-        logger.info(f"Updating todo with ID: {todo_id}")
-
-        # Get auth token from parameter or fall back to default
-        auth_token = None
-        if authorization and authorization.startswith("Bearer "):
-            auth_token = authorization
-        else:
-            auth_token = f"Bearer {DEV_JWT_TOKEN}"
-
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": auth_token
-            }
-
-            # Prepare update data (only include non-None values)
-            update_data = {}
-            if title is not None:
-                update_data["title"] = title
-            if description is not None:
-                update_data["description"] = description
-            if status is not None:
-                update_data["status"] = status
-            if priority is not None:
-                update_data["priority"] = priority
-
-            # Make request to Go backend
-            response = await client.put(
-                f"{GO_BACKEND_URL}/api/todos/{todo_id}",
-                headers=headers,
-                json=update_data
-            )
-            response.raise_for_status()
-
-            # Log success
-            await ctx.info(f"Successfully updated todo {todo_id}")
-
-            # Return JSON response
-            return response.json()
-
-    except Exception as e:
-        error_msg = f"Error updating todo: {str(e)}"
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
-
-
-def setup_mcp_server(app: Optional[FastAPI] = None):
-    """Setup and return the MCP server instance"""
-    if app is not None:
-        # Mount the SSE endpoint for MCP on the main app
-        app.router.routes.append(
-            Mount("/mcp/sse", app=sse_transport.handle_post_message))
-    return mcp
-
-
-async def run_server():
-    """Run the MCP server with stdio transport."""
-    try:
-        logger.info("Starting MCP server with stdio transport")
-
-        if sys.platform == "win32":
-            # Windows-specific setup
-            # Ensure stdout is in binary mode on Windows
-            import msvcrt
-            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
-            msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-            logger.info("Set stdin/stdout to binary mode for Windows")
-
-            # Use a custom loop explicitly for Windows
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(mcp.run_stdio_async())
-            finally:
-                loop.close()
-        else:
-            # Non-Windows platforms can use the standard approach
-            await mcp.run_stdio_async()
-    except Exception as e:
-        logger.error(f"Error running MCP server: {str(e)}", exc_info=True)
-        sys.exit(1)
+    return Starlette(
+        debug=debug,
+        routes=[
+            Route("/sse", endpoint=handle_sse),
+            Mount("/messages/", app=sse.handle_post_message),
+        ],
+    )
 
 
 if __name__ == "__main__":
-    # Run the server using stdio transport
-    logger.info("Initializing MCP server")
-    if sys.platform == "win32":
-        # Windows requires special handling for asyncio
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        logger.info("Set Windows-compatible event loop policy")
-    asyncio.run(run_server())
+    mcp_server = mcp._mcp_server  # noqa: WPS437
+
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Run MCP SSE-based server')
+    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
+    parser.add_argument('--port', type=int, default=8002, help='Port to listen on')
+    args = parser.parse_args()
+
+    # Bind SSE request handling to MCP server
+    starlette_app = create_starlette_app(mcp_server, debug=True)
+
+    uvicorn.run(starlette_app, host=args.host, port=args.port)

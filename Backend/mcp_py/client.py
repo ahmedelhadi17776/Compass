@@ -1,166 +1,201 @@
-# Backend/mcp_integration/client.py
-
-from typing import Optional, Dict, Any, List
-import logging
+import asyncio
 import json
 import os
-import asyncio
-import sys
-from mcp.client.stdio import stdio_client
-from mcp.client.session import ClientSession
-from mcp import StdioServerParameters
-import threading
-from core.config import settings
+from typing import Optional
+from contextlib import AsyncExitStack
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('mcp_client.log')
-    ]
-)
-logger = logging.getLogger(__name__)
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
-# Set Windows-compatible event loop policy
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    logger.info("Set Windows-compatible event loop policy in client")
+from ai_services.llm.llm_service import LLMService
+from dotenv import load_dotenv
 
+load_dotenv()  # load environment variables from .env
 
 class MCPClient:
-    """Model Context Protocol client for communicating with MCP server."""
-
     def __init__(self):
-        """Initialize the MCP client."""
+        # Initialize session and client objects
         self.session: Optional[ClientSession] = None
-        self.logger = logger
-        self._running = False
-        self._connection_task = None
-        self.tools: List[Dict[str, Any]] = []
+        self.exit_stack = AsyncExitStack()
+        self.llm_service = LLMService()
 
-    async def connect_to_server(self, server_script_path: str):
-        """Connect to the MCP server."""
-        try:
-            # Validate server script path
-            if not os.path.exists(server_script_path):
-                raise ValueError(
-                    f"Server script not found at {server_script_path}")
+    async def connect_to_sse_server(self, server_url: str):
+        """Connect to an MCP server running with SSE transport"""
+        # Store the context managers so they stay alive
+        self._streams_context = sse_client(url=server_url)
+        streams = await self._streams_context.__aenter__()
 
-            self.logger.info(
-                f"Connecting to MCP server at {server_script_path}")
+        self._session_context = ClientSession(*streams)
+        self.session: ClientSession = await self._session_context.__aenter__()
 
-            # Create server parameters
-            server_params = StdioServerParameters(
-                command=sys.executable,
-                args=[server_script_path],
-                env=os.environ.copy()
-            )
+        # Initialize
+        await self.session.initialize()
 
-            # Start connection in background task
-            self._running = True
-            self._connection_task = asyncio.create_task(
-                self._maintain_connection(server_params))
-            self.logger.info("Started MCP client connection task")
-
-        except Exception as e:
-            self.logger.error(
-                f"Failed to connect to MCP server: {str(e)}", exc_info=True)
-            raise
-
-    async def _maintain_connection(self, server_params: StdioServerParameters):
-        """Maintain the connection to the MCP server."""
-        retry_count = 0
-        max_retries = 3
-
-        while self._running and retry_count < max_retries:
-            try:
-                self.logger.info("Establishing connection to MCP server...")
-
-                async with stdio_client(server_params) as (read, write):
-                    self.session = ClientSession(read, write)
-                    await self.session.initialize()
-                    self.logger.info("Connected to MCP server successfully")
-
-                    # Initialize tools
-                    tools_response = await self.session.list_tools()
-                    self.tools = [
-                        {
-                            "name": t.name,
-                            "description": t.description or "",
-                            "input_schema": t.inputSchema
-                        } for t in tools_response.tools
-                    ]
-                    self.logger.info(f"Initialized {len(self.tools)} tools")
-
-                    # Keep connection alive until cleanup is called
-                    while self._running:
-                        await asyncio.sleep(1)
-
-            except Exception as e:
-                self.logger.error(f"Connection error: {str(e)}", exc_info=True)
-                retry_count += 1
-                if self._running and retry_count < max_retries:
-                    # Wait before retrying
-                    await asyncio.sleep(5)
-            finally:
-                if self.session:
-                    self.session = None
+        # List available tools to verify connection
+        print("Initialized SSE client...")
+        print("Listing tools...")
+        response = await self.session.list_tools()
+        tools = response.tools
+        print("\nConnected to server with tools:", [tool.name for tool in tools])
 
     async def cleanup(self):
-        """Clean up resources."""
-        self.logger.info("Cleaning up MCP client...")
-        self._running = False
-        if self._connection_task:
-            try:
-                await self._connection_task
-            except Exception as e:
-                self.logger.error(
-                    f"Error during connection task cleanup: {str(e)}", exc_info=True)
-        self.session = None
-        self.logger.info("MCP client cleanup complete")
+        """Properly clean up the session and streams"""
+        if self._session_context:
+            await self._session_context.__aexit__(None, None, None)
+        if self._streams_context:
+            await self._streams_context.__aexit__(None, None, None)
 
-    async def get_tools(self) -> List[Dict[str, Any]]:
-        """Get list of available tools from the MCP server."""
-        return self.tools
+    async def process_query(self, query: str) -> str:
+        """Process a query using LLM service and available tools"""
+        response = await self.session.list_tools()
+        available_tools = [{ 
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.inputSchema
+        } for tool in response.tools]
 
-    async def call_tool(self, tool_name: str, tool_args: Optional[Dict[str, Any]] = None):
-        """Call a tool on the MCP server."""
-        if not self.session:
-            self.logger.error("No active session to call tool")
-            return {"status": "error", "error": "No active MCP session"}
+        # Create a system prompt that encourages tool usage
+        system_prompt = """You are a helpful AI assistant with access to several tools. 
+When a user asks for information that can be retrieved using one of your tools, YOU MUST USE THE APPROPRIATE TOOL.
+Do not make up responses or say you don't have access - use the tools available to you.
+When using tools, you must format your response as a JSON object with "tool_calls" array containing objects with "name" and "arguments" fields.
+
+Available tools:
+{}
+
+Example tool call format:
+{{"text": "I'll get that information for you.", "tool_calls": [{{"name": "get_todos", "arguments": {{"status": "pending"}}}}]}}
+
+Remember:
+1. Always use tools when they match the user's request
+2. Don't apologize for using tools
+3. Don't say you don't have access - use the tools
+4. Format the tool results nicely for the user""".format(
+            "\n".join(f"- {tool['name']}: {tool['description']}" for tool in available_tools)
+        )
+
+        # Initialize conversation messages
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": query
+            }
+        ]
+
+        # Initial LLM API call
+        response = await self.llm_service.generate_response(
+            prompt=query,
+            context={
+                "system_prompt": system_prompt,
+                "conversation_history": messages,
+                "tools": available_tools
+            }
+        )
+
+        # Process response and handle tool calls
+        final_text = []
 
         try:
-            # Log warning for invalid authentication tokens but proceed
-            if tool_args and "authorization" in tool_args:
-                auth = tool_args.get("authorization")
-                if not auth or auth == "Bearer undefined" or auth == "Bearer null":
-                    self.logger.warning(
-                        f"Missing or invalid authorization token: {auth} - proceeding without authentication")
-                    # Continue processing without blocking
+            # Try to parse response as JSON if it's a string
+            if isinstance(response, str):
+                response = json.loads(response)
+            
+            if isinstance(response, dict):
+                if "text" in response:
+                    final_text.append(response["text"])
+                
+                # Handle tool calls
+                if "tool_calls" in response:
+                    for tool_call in response["tool_calls"]:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call.get("arguments", {})
+                        
+                        # Execute tool call
+                        result = await self.session.call_tool(tool_name, tool_args)
+                        final_text.append(f"\nTool Result: {result.content}")
 
-            self.logger.info(
-                f"Calling tool {tool_name} with args: {tool_args}")
-            result = await self.session.call_tool(tool_name, arguments=tool_args or {})
+                        # Add messages to conversation history
+                        messages.extend([
+                            {
+                                "role": "assistant",
+                                "content": response["text"]
+                            },
+                            {
+                                "role": "system",
+                                "content": f"Tool {tool_name} returned: {result.content}"
+                            }
+                        ])
 
-            # Log successful response
-            if isinstance(result, dict):
-                result_str = str(result)[
-                    :100] + "..." if len(str(result)) > 100 else str(result)
+                        # Get final response to format tool results
+                        final_response = await self.llm_service.generate_response(
+                            prompt=f"Please format this tool result nicely: {result.content}",
+                            context={
+                                "system_prompt": system_prompt,
+                                "conversation_history": messages,
+                                "tools": available_tools
+                            }
+                        )
+                        
+                        if isinstance(final_response, dict) and "text" in final_response:
+                            final_text.append(final_response["text"])
+                        elif isinstance(final_response, str):
+                            final_text.append(final_response)
+                else:
+                    # If no tool calls but response has text, try to make a tool call based on the query
+                    if "todos" in query.lower():
+                        result = await self.session.call_tool("get_todos", {})
+                        final_text.append(f"\nTool Result: {result.content}")
             else:
-                result_str = str(result)[
-                    :100] + "..." if len(str(result)) > 100 else str(result)
-            self.logger.info(f"Tool {tool_name} returned: {result_str}")
+                final_text.append(str(response))
 
-            return {
-                "status": "success",
-                "content": str(result)
-            }
         except Exception as e:
-            self.logger.error(
-                f"Error calling tool {tool_name}: {str(e)}", exc_info=True)
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+            final_text.append(f"Error processing response: {str(e)}")
+            # Fallback to direct tool call for todo-related queries
+            if "todos" in query.lower():
+                try:
+                    result = await self.session.call_tool("get_todos", {})
+                    final_text.append(f"\nTool Result: {result.content}")
+                except Exception as e2:
+                    final_text.append(f"Error calling tool: {str(e2)}")
+
+        return "\n".join(final_text)
+
+    async def chat_loop(self):
+        """Run an interactive chat loop"""
+        print("\nMCP Client Started!")
+        print("Type your queries or 'quit' to exit.")
+        
+        while True:
+            try:
+                query = input("\nQuery: ").strip()
+                
+                if query.lower() == 'quit':
+                    break
+                    
+                response = await self.process_query(query)
+                print("\n" + response)
+                    
+            except Exception as e:
+                print(f"\nError: {str(e)}")
+
+
+async def main():
+    if len(sys.argv) < 2:
+        print("Usage: uv run client.py <URL of SSE MCP server (i.e. http://localhost:8080/sse)>")
+        sys.exit(1)
+
+    client = MCPClient()
+    try:
+        await client.connect_to_sse_server(server_url=sys.argv[1])
+        await client.chat_loop()
+    finally:
+        await client.cleanup()
+
+
+if __name__ == "__main__":
+    import sys
+    asyncio.run(main())
