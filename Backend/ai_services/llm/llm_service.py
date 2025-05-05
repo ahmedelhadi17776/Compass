@@ -251,23 +251,83 @@ class LLMService:
     async def _make_request(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the LLM API."""
         try:
-            logger.debug(f"Making request to endpoint: {endpoint}")
+            logger.info(f"[LLM] Making request to endpoint: {endpoint}")
             if endpoint == "chat/completions":
-                logger.debug("Processing chat completion request")
+                logger.info("[LLM] Processing chat completion request")
+
+                # Log important parameters
+                if "messages" in kwargs:
+                    messages = kwargs.get("messages", [])
+                    msg_count = len(messages)
+
+                    # Find system message if it exists
+                    system_msg = None
+                    for msg in messages:
+                        if msg.get("role") == "system":
+                            system_msg = msg
+                            break
+
+                    # Build preview safely with explicit checks
+                    if system_msg and isinstance(system_msg.get("content"), str):
+                        content = system_msg.get("content")
+                        if len(content) > 100:
+                            system_preview = content[:100] + "..."
+                        else:
+                            system_preview = content
+
+                        if len(system_preview) > 50:
+                            preview_to_log = system_preview[:50] + "..."
+                        else:
+                            preview_to_log = system_preview
+                    else:
+                        preview_to_log = "No system message"
+
+                    logger.info(
+                        f"[LLM] Request contains {msg_count} messages (system message: {preview_to_log})")
+
+                # Log other parameters
+                params_to_log = {k: v for k,
+                                 v in kwargs.items() if k != "messages"}
+                logger.info(f"[LLM] Using parameters: {params_to_log}")
+
+                # Record start time
+                start_time = time.time()
+                logger.info(
+                    f"[LLM] Sending request to {self.base_url} for model {self.model}")
+
                 response = await asyncio.to_thread(
                     self.client.chat.completions.create,
                     model=self.model,
                     messages=kwargs.get("messages", []),
                     **{k: v for k, v in kwargs.items() if k != "messages"}
                 )
-                logger.debug("Chat completion response received")
+
+                # Calculate duration
+                duration = time.time() - start_time
+                logger.info(
+                    f"[LLM] ✅ Response received in {duration:.3f} seconds")
+
+                # Log token usage
+                if response.usage:
+                    logger.info(
+                        f"[LLM] Token usage: {response.usage.prompt_tokens} prompt + {response.usage.completion_tokens} completion = {response.usage.total_tokens} total")
+
+                # Log response preview
+                content = response.choices[0].message.content if response.choices else "No content"
+                if content:
+                    content_preview = content[:100] + \
+                        "..." if len(content) > 100 else content
+                else:
+                    content_preview = "No content"
+                logger.info(f"[LLM] Response content: {content_preview}")
+
                 return {
                     "choices": [{"message": {"content": choice.message.content}} for choice in response.choices],
                     "model": response.model,
                     "usage": dict(response.usage) if response.usage else {}
                 }
             elif endpoint == "model_info":
-                logger.debug("Processing model info request")
+                logger.info("[LLM] Processing model info request")
                 return {
                     "model": self.model,
                     "capabilities": {
@@ -286,7 +346,8 @@ class LLMService:
                 }
             raise ValueError(f"Unknown endpoint: {endpoint}")
         except Exception as e:
-            logger.error(f"API request failed: {str(e)}", exc_info=True)
+            logger.error(
+                f"[LLM] ❌ API request failed: {str(e)}", exc_info=True)
             raise
 
     def _prepare_messages(

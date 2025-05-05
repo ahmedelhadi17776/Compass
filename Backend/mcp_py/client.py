@@ -11,6 +11,7 @@ from mcp.client.stdio import stdio_client
 from mcp.client.session import ClientSession
 from mcp import StdioServerParameters
 from core.config import settings
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -165,25 +166,87 @@ class MCPClient:
         if not self.session:
             raise RuntimeError("No active session to initialize tools")
 
-        tools_response = await self.session.list_tools()
-        self.logger.info(f"Raw tools response: {tools_response}")
+        # Add retry logic for tool initialization
+        max_retries = 3
+        retry_delay = 2.0
 
-        if hasattr(tools_response, 'tools') and tools_response.tools:
-            self.tools = [
-                Tool(
-                    name=t.name,
-                    description=t.description or "",
-                    input_schema=t.inputSchema
-                ) for t in tools_response.tools
-            ]
-            self.logger.info(f"Initialized {len(self.tools)} tools")
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(
+                    f"Attempting to initialize tools (attempt {attempt+1}/{max_retries})...")
+                tools_response = await self.session.list_tools()
+                self.logger.info(f"Raw tools response: {tools_response}")
 
-            # Log the names of the tools
-            tool_names = [t.name for t in self.tools]
-            self.logger.info(f"Available tools: {tool_names}")
-        else:
-            self.logger.warning("No tools found in response.")
-            self.tools = []
+                # Check if tools_response is None
+                if tools_response is None:
+                    self.logger.warning(
+                        f"Tools response is None on attempt {attempt+1}")
+                    if attempt < max_retries - 1:
+                        self.logger.info(
+                            f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                    continue
+
+                # Check if tools attribute exists and is not empty
+                if hasattr(tools_response, 'tools') and tools_response.tools:
+                    # Detailed logging about the tools received
+                    self.logger.info(
+                        f"Received {len(tools_response.tools)} tools from server")
+                    for i, tool in enumerate(tools_response.tools):
+                        tool_desc = tool.description if tool.description else ""
+                        desc_preview = tool_desc[:30] + \
+                            "..." if tool_desc else "(no description)"
+                        self.logger.info(
+                            f"Tool {i+1}: name={tool.name}, desc={desc_preview}")
+
+                    # Create Tool objects
+                    self.tools = [
+                        Tool(
+                            name=t.name,
+                            description=t.description or "",
+                            input_schema=t.inputSchema
+                        ) for t in tools_response.tools
+                    ]
+
+                    self.logger.info(
+                        f"Successfully initialized {len(self.tools)} tools")
+
+                    # Log the names of the tools
+                    tool_names = [t.name for t in self.tools]
+                    self.logger.info(f"Available tools: {tool_names}")
+                    return  # Success, exit the retry loop
+                else:
+                    # Log the structure of tools_response for debugging
+                    self.logger.warning("No tools found in response.")
+                    if hasattr(tools_response, 'tools'):
+                        self.logger.warning(
+                            f"tools attribute exists but contains {tools_response.tools}")
+                    else:
+                        self.logger.warning(
+                            f"tools attribute does not exist. Response type: {type(tools_response)}")
+                        self.logger.warning(
+                            f"Response attributes: {dir(tools_response)}")
+
+                    # Reset tools list
+                    self.tools = []
+
+                    if attempt < max_retries - 1:
+                        self.logger.info(
+                            f"Retrying tool initialization in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+            except Exception as e:
+                self.logger.error(
+                    f"Error initializing tools (attempt {attempt+1}): {str(e)}", exc_info=True)
+                self.tools = []
+                if attempt < max_retries - 1:
+                    self.logger.info(
+                        f"Retrying after error in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+
+        # If all retries fail
+        self.logger.error(
+            f"Failed to initialize tools after {max_retries} attempts")
+        self.tools = []
 
     async def cleanup(self):
         """Clean up resources properly."""
@@ -238,11 +301,15 @@ class MCPClient:
             Dictionary with status and content/error fields
         """
         if not self.session:
-            self.logger.error("No active session to call tool")
+            self.logger.error("[TOOL_CALL] No active session to call tool")
             return {"status": "error", "error": "No active MCP session"}
 
         attempt = 0
         last_exception = None
+
+        # Log the tool being called
+        self.logger.info(
+            f"[TOOL_CALL] Calling tool '{tool_name}' with args: {json.dumps(tool_args or {}, default=str)[:200]}...")
 
         while attempt <= retries:
             try:
@@ -251,10 +318,16 @@ class MCPClient:
                     auth = tool_args.get("authorization")
                     if not auth or auth == "Bearer undefined" or auth == "Bearer null":
                         self.logger.warning(
-                            f"Missing or invalid authorization token: {auth} - proceeding without authentication")
+                            f"[TOOL_CALL] Missing or invalid authorization token: {auth} - proceeding without authentication")
+                    else:
+                        # Only show beginning of token for security
+                        auth_preview = auth[:20] + \
+                            "..." if len(auth) > 20 else auth
+                        self.logger.info(
+                            f"[TOOL_CALL] Using authorization: {auth_preview}")
 
                 self.logger.info(
-                    f"Calling tool {tool_name} with args: {tool_args} (attempt {attempt+1}/{retries+1})")
+                    f"[TOOL_CALL] Executing tool '{tool_name}' (attempt {attempt+1}/{retries+1})")
 
                 # Check if the tool exists in our list of tools
                 tool_exists = False
@@ -265,20 +338,40 @@ class MCPClient:
 
                 if not tool_exists:
                     self.logger.warning(
-                        f"Tool '{tool_name}' not found in registered tools. Available tools: {[t.name for t in self.tools]}")
+                        f"[TOOL_CALL] Tool '{tool_name}' not found in registered tools. Available tools: {[t.name for t in self.tools]}")
+
+                # Record start time for latency tracking
+                start_time = time.time()
 
                 # Call the tool
+                self.logger.info(
+                    f"[TOOL_CALL] Sending request to server for tool '{tool_name}'")
                 result = await self.session.call_tool(tool_name, arguments=tool_args or {})
+
+                # Calculate and log latency
+                latency = time.time() - start_time
+                self.logger.info(
+                    f"[TOOL_CALL] Tool '{tool_name}' call completed in {latency:.3f} seconds")
 
                 # Log successful response
                 if isinstance(result, dict):
-                    result_str = str(result)[
-                        :100] + "..." if len(str(result)) > 100 else str(result)
-                else:
-                    result_str = str(result)[
-                        :100] + "..." if len(str(result)) > 100 else str(result)
-                self.logger.info(f"Tool {tool_name} returned: {result_str}")
+                    result_preview = str(
+                        result)[:100] + "..." if len(str(result)) > 100 else str(result)
+                    self.logger.info(
+                        f"[TOOL_CALL] Tool '{tool_name}' returned dict: {result_preview}")
 
+                    # Check for status field if present
+                    if "status" in result:
+                        self.logger.info(
+                            f"[TOOL_CALL] Response status: {result.get('status')}")
+                else:
+                    result_preview = str(
+                        result)[:100] + "..." if len(str(result)) > 100 else str(result)
+                    self.logger.info(
+                        f"[TOOL_CALL] Tool '{tool_name}' returned: {result_preview}")
+
+                self.logger.info(
+                    f"[TOOL_CALL] ✅ Successfully executed tool '{tool_name}'")
                 return {
                     "status": "success",
                     "content": result
@@ -287,12 +380,16 @@ class MCPClient:
                 attempt += 1
                 last_exception = e
                 self.logger.error(
-                    f"Error calling tool {tool_name} (attempt {attempt}/{retries+1}): {str(e)}")
+                    f"[TOOL_CALL] ❌ Error calling tool '{tool_name}' (attempt {attempt}/{retries+1}): {str(e)}")
 
                 if attempt <= retries:
+                    self.logger.info(
+                        f"[TOOL_CALL] Retrying tool '{tool_name}' in 1.0 seconds...")
                     await asyncio.sleep(1.0)  # Wait before retry
 
         # Return error if all retries failed
+        self.logger.error(
+            f"[TOOL_CALL] ❌ All attempts to call tool '{tool_name}' failed after {retries+1} tries")
         return {
             "status": "error",
             "error": str(last_exception) if last_exception else "Unknown error"
