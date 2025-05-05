@@ -137,7 +137,7 @@ class LLMService:
         context: Optional[Dict] = None,
         model_parameters: Optional[Dict] = None,
         stream: bool = False
-    ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
+    ) -> Union[Dict[str, Any], AsyncIterator[str]]:
         """Generate a response using the LLM."""
         try:
             logger.info("Starting LLM response generation")
@@ -151,7 +151,7 @@ class LLMService:
 
             if stream:
                 logger.info("Using streaming mode for response")
-                return self._create_stream_generator(prompt, messages, params, start_time)
+                return self._stream_response(prompt, messages, params, start_time)
 
             # Make the API request
             logger.debug("Making API request")
@@ -185,54 +185,79 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
             if stream:
-                return self._create_error_generator(str(e))
+                async def error_gen():
+                    yield f"Error: {str(e)}"
+                return error_gen()
             return {"error": str(e), "text": "", "confidence": 0.0}
 
-    async def _create_stream_generator(
+    async def _stream_response(
         self,
         prompt: str,
         messages: List[ChatCompletionMessageParam],
         params: Dict[str, Any],
         start_time: float
-    ) -> AsyncGenerator[str, None]:
-        """Create a streaming response generator."""
+    ) -> AsyncIterator[str]:
+        """Stream the response from the LLM token by token."""
+        logger.info("Starting streaming response")
         success = True
+        full_text = ""
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=True,
-                **params
-            )
+            # Create a wrapper function to convert sync to async
+            async def stream_openai_response():
+                # Set streaming parameter
+                stream_params = {**params, "stream": True}
 
-            full_text = []
-            async for chunk in self._stream_chunks(response):
-                if chunk.choices and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    full_text.append(content)
-                    yield content
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.chat.completions.create,
+                        model=self.model,
+                        messages=messages,
+                        stream=True,
+                        **{k: v for k, v in params.items() if k != "stream"}
+                    )
 
-            # Cache the complete response
-            complete_text = "".join(full_text)
-            result = {"text": complete_text}
-            await self.log_training_data(prompt, complete_text)
+                    logger.info("Stream created, yielding tokens")
 
-        except Exception as e:
-            success = False
-            logger.error(f"Error in stream generator: {str(e)}")
-            yield f"Error: {str(e)}"
-        finally:
+                    # Process each chunk in the stream
+                    for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content = chunk.choices[0].delta.content
+                            yield content
+                            # Small delay to avoid overwhelming the client
+                            await asyncio.sleep(0.01)
+
+                except Exception as e:
+                    logger.error(f"Error in OpenAI stream: {str(e)}")
+                    yield f"Error: {str(e)}"
+
+            # Create and return the async generator
+            generator = stream_openai_response()
+
+            # Collect the full response for training data
+            async for token in generator:
+                full_text += token
+                yield token
+
+            # Log the complete response for training data
+            await self.log_training_data(prompt, full_text)
+
+            # Update model stats
             latency = time.time() - start_time
             await self._update_model_stats(latency, success)
 
-    async def _create_error_generator(self, error_message: str) -> AsyncGenerator[str, None]:
+        except Exception as e:
+            success = False
+            logger.error(f"Error in streaming response: {str(e)}")
+            yield f"Error: {str(e)}"
+
+            # Update model stats with failure
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
+
+    async def _create_error_generator(self, error_message: str) -> AsyncIterator[str]:
         """Create an error response generator."""
         yield f"Error: {error_message}"
-
-    async def _stream_chunks(self, response: Stream[ChatCompletionChunk]) -> AsyncGenerator[ChatCompletionChunk, None]:
-        """Convert OpenAI stream to async iterator."""
-        for chunk in response:
-            yield chunk
 
     async def log_training_data(self, prompt: str, response: str):
         """Log training data with proper Unicode handling."""

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Union, AsyncGenerator, List
+from typing import Dict, Any, Optional, Union, AsyncGenerator, List, AsyncIterator, cast
 from app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
 from ai_services.llm.llm_service import LLMService
 from orchestration.ai_registry import ai_registry
@@ -263,13 +263,15 @@ class AIOrchestrator:
                 if tool_results:
                     self.logger.info(
                         "Generating final response with tool results")
-                    
+
                     # Log the exact tool results being sent to LLM
-                    self.logger.info(f"Tool results being sent to LLM for final response: {json.dumps(tool_results, indent=2)}")
-                    
+                    self.logger.info(
+                        f"Tool results being sent to LLM for final response: {json.dumps(tool_results, indent=2)}")
+
                     prompt_for_llm = f"Based on the user query: {user_input}\nHere are the tool results: {json.dumps(tool_results, indent=2)}\nPlease provide a helpful response."
-                    self.logger.info(f"Full prompt being sent to LLM: {prompt_for_llm}")
-                    
+                    self.logger.info(
+                        f"Full prompt being sent to LLM: {prompt_for_llm}")
+
                     final_result = await self.llm_service.generate_response(
                         prompt=prompt_for_llm,
                         context={
@@ -278,7 +280,7 @@ class AIOrchestrator:
                     )
                     # Log the LLM's response
                     self.logger.info(f"LLM final response: {final_result}")
-                    
+
                     # Ensure this is also a dictionary
                     if isinstance(final_result, dict):
                         final_response = final_result.get("text", "")
@@ -407,3 +409,178 @@ class AIOrchestrator:
             self.logger.error(
                 f"Error converting object to serializable form: {str(e)}")
             return str(obj)
+
+    async def process_request_stream(self, user_input: str, user_id: int, domain: Optional[str] = None, auth_token: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
+        """Process an AI request with MCP integration and stream the response tokens."""
+        try:
+            start_time = time.time()
+            self.logger.info(
+                f"Processing streaming request for user {user_id} in domain {domain or 'default'}")
+
+            # Get conversation history using LangChain memory
+            messages = self.memory_manager.get_langchain_messages(user_id)
+            self.logger.debug(
+                f"Retrieved {len(messages)} conversation history messages")
+
+            # Get available tools and format system prompt
+            tools = await self._get_available_tools()
+            formatted_tools = self._format_tools_for_prompt(tools)
+            system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+
+            # First, get complete response to check for tool calls - this approach preserves tool functionality
+            self.logger.info(
+                "Getting complete response to check for tool calls")
+            complete_response = await self.llm_service.generate_response(
+                prompt=user_input,
+                context={
+                    "system_prompt": system_prompt,
+                    "conversation_history": messages
+                },
+                stream=False  # Important: no streaming for tool detection
+            )
+
+            # Extract text from response
+            if not isinstance(complete_response, dict):
+                self.logger.error("Unexpected response type from LLM")
+                yield {"token": "Error: Unexpected response from AI service", "error": True}
+                return
+
+            response_text = complete_response.get("text", "")
+
+            # Check for tool calls
+            tool_calls = self._extract_tool_calls(response_text)
+            self.logger.info(
+                f"Extracted {len(tool_calls)} tool calls from response")
+
+            final_response = ""
+            tool_info = None
+
+            # Process tool calls if present, similar to original process_request
+            if tool_calls:
+                self.logger.info("Processing tool calls before streaming")
+                tool_results = []
+                last_tool_call = None
+
+                for idx, tool_call in enumerate(tool_calls):
+                    try:
+                        self.logger.info(
+                            f"Processing tool call {idx+1}/{len(tool_calls)}: {tool_call['name']}")
+
+                        # Add authorization if provided
+                        if auth_token:
+                            if "arguments" not in tool_call:
+                                tool_call["arguments"] = {}
+                            tool_call["arguments"]["authorization"] = auth_token
+
+                        # Get MCP client safely
+                        mcp_client = await self._get_mcp_client()
+                        if mcp_client is None:
+                            raise ValueError("MCP client is not available")
+
+                        # Execute the tool call with retry logic built into the client
+                        result = await mcp_client.call_tool(
+                            tool_call["name"],
+                            tool_call["arguments"]
+                        )
+
+                        # Process result
+                        if result.get("status") == "success":
+                            self.logger.info(
+                                f"Tool call {tool_call['name']} succeeded")
+                            content = result.get("content", {})
+                            content = self._make_serializable(content)
+                            tool_results.append({
+                                "tool": tool_call["name"],
+                                "result": content
+                            })
+                            last_tool_call = {
+                                "name": tool_call["name"],
+                                "arguments": tool_call["arguments"],
+                                "success": True
+                            }
+                        else:
+                            self.logger.warning(
+                                f"Tool call {tool_call['name']} failed: {result.get('error', 'Unknown error')}")
+                            tool_results.append({
+                                "tool": tool_call["name"],
+                                "error": result.get("error", "Unknown error")
+                            })
+                            last_tool_call = {
+                                "name": tool_call["name"],
+                                "arguments": tool_call["arguments"],
+                                "success": False
+                            }
+                    except Exception as e:
+                        self.logger.error(
+                            f"Tool call execution failed: {str(e)}")
+                        tool_results.append({
+                            "tool": tool_call["name"],
+                            "error": str(e)
+                        })
+                        last_tool_call = {
+                            "name": tool_call["name"],
+                            "arguments": tool_call["arguments"],
+                            "success": False
+                        }
+
+                # Generate streaming response with tool results
+                if tool_results:
+                    self.logger.info(
+                        "Generating streaming response with tool results")
+                    prompt_for_llm = f"Based on the user query: {user_input}\nHere are the tool results: {json.dumps(tool_results, indent=2)}\nPlease provide a helpful response."
+
+                    # Now use streaming for final response with tool results
+                    stream_generator = await self.llm_service.generate_response(
+                        prompt=prompt_for_llm,
+                        context={
+                            "system_prompt": "Format the tool results in a natural, helpful way for the user."
+                        },
+                        stream=True
+                    )
+
+                    tool_info = last_tool_call
+
+                    
+                    async for token in cast(AsyncIterator[str], stream_generator):
+                        final_response += token
+                        yield {"token": token, "tool_used": tool_info["name"] if tool_info else None}
+            else:
+                self.logger.info(
+                    "No tool calls detected, streaming direct response")
+
+                # Start streaming response
+                stream_generator = await self.llm_service.generate_response(
+                    prompt=user_input,
+                    context={
+                        "system_prompt": system_prompt,
+                        "conversation_history": messages
+                    },
+                    stream=True
+                )
+
+                # Stream tokens
+                async for token in cast(AsyncIterator[str], stream_generator):
+                    final_response += token
+                    yield {"token": token}
+
+            # Update conversation history with LangChain memory after streaming completes
+            if final_response:
+                self._update_conversation_history(
+                    user_id, user_input, final_response)
+
+            execution_time = time.time() - start_time
+            self.logger.info(
+                f"Streaming request processed in {execution_time:.2f} seconds")
+
+            # Send completion message with tool info if applicable
+            yield {
+                "token": "",
+                "complete": True,
+                "tool_used": tool_info["name"] if tool_info else None,
+                "tool_success": tool_info["success"] if tool_info else None
+            }
+
+        except Exception as e:
+            self.logger.error(
+                f"Error in process_request_stream: {str(e)}", exc_info=True)
+            yield {"token": f"I'm sorry, but I encountered an error: {str(e)}", "error": True}
