@@ -22,6 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 class Tool:
     """Represents an MCP tool with its metadata."""
 
@@ -305,12 +306,14 @@ class MCPClient:
 
         while attempt <= retries:
             try:
-                # Log warning for invalid authentication tokens but proceed
+                # Handle authentication properly
                 if tool_args and "authorization" in tool_args:
                     auth = tool_args.get("authorization")
                     if not auth or auth == "Bearer undefined" or auth == "Bearer null":
                         self.logger.warning(
                             f"[TOOL_CALL] Missing or invalid authorization token: {auth} - proceeding without authentication")
+                        # Remove invalid auth to prevent errors downstream
+                        tool_args.pop("authorization")
                     else:
                         # Only show beginning of token for security
                         auth_preview = auth[:20] + \

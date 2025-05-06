@@ -95,7 +95,7 @@ async def mcp_diagnostic():
 # Define multiple backend URLs to try for Docker/non-Docker environments
 GO_BACKEND_URLS = [
     "http://api:8000",
-    "http://backend_go-api-1:8000"      
+    "http://backend_go-api-1:8000"
 ]
 
 # Start with the first URL, will try others if this fails
@@ -225,7 +225,8 @@ async def create_user(user_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
         }
 
         # Remove None values
-        transformed_data = {k: v for k, v in transformed_data.items() if v is not None}
+        transformed_data = {k: v for k,
+                            v in transformed_data.items() if v is not None}
 
         async def post_func(client, url, **kwargs):
             return await client.post(url, **kwargs)
@@ -336,6 +337,8 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
         raise
 
 # Add tools to match REST-style endpoints used in the client
+
+
 @mcp.tool("ai.model.info")
 async def get_model_info(ctx: Context) -> Dict[str, Any]:
     """Get information about the AI model."""
@@ -628,10 +631,14 @@ async def get_todos(
     try:
         # Get auth token from parameter or fall back to default
         auth_token = None
-        if authorization and authorization.startswith("Bearer "):
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
             auth_token = authorization
+            logger.info(
+                f"Using provided authorization token: {authorization[:20]}...")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Build query parameters
         params = {}
@@ -677,15 +684,13 @@ async def get_all_todos(
 
         # Get auth token from parameter or fall back to default
         auth_token = None
-        if authorization and authorization.startswith("Bearer "):
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
             auth_token = authorization
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info("Using default DEV_JWT_TOKEN for authorization")
-
-        logger.info(
-            f"Authorization token being used (first 20 chars): {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Build query parameters
         params = {}

@@ -59,8 +59,18 @@ const authApi = {
     });
 
     const data = response.data.data;
-    if (data.token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+    
+    const token = data.token || data.access_token;
+    
+    if (token) {
+      // Set axios default headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Store token in localStorage with consistent name
+      localStorage.setItem('token', token);
+      console.log('Token saved:', token.substring(0, 15) + '...');
+    } else {
+      console.error('No token received in auth response');
     }
 
     return data;
