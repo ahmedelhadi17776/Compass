@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { API_URL } from '@/config';
+import { API_URL, PYTHON_API_URL } from '@/config';
 
 // Types
 export interface LLMRequest {
@@ -9,6 +9,7 @@ export interface LLMRequest {
   domain?: string;
   model_parameters?: Record<string, any>;
   previous_messages?: Array<{sender: string; text: string}>;
+  session_id?: string;
 }
 
 export interface LLMResponse {
@@ -21,20 +22,91 @@ export interface LLMResponse {
   confidence: number;
   error?: boolean;
   error_message?: string;
+  session_id?: string;
+  tool_used?: string;
+  tool_args?: Record<string, any>;
+  tool_success?: boolean;
 }
+
+// Local storage key for session ID
+const SESSION_ID_KEY = 'ai_conversation_session_id';
+
+// Helper to get or create a session ID
+const getOrCreateSessionId = (): string => {
+  const existingSessionId = localStorage.getItem(SESSION_ID_KEY);
+  if (existingSessionId) {
+    return existingSessionId;
+  }
+  
+  // Create a new UUID for the session
+  const newSessionId = crypto.randomUUID();
+  localStorage.setItem(SESSION_ID_KEY, newSessionId);
+  return newSessionId;
+};
 
 // LLM Service
 export const llmService = {
+  // Get current session ID
+  getSessionId: (): string => {
+    return getOrCreateSessionId();
+  },
+  
+  // Create a new session ID (useful for starting a new conversation)
+  createNewSession: (): string => {
+    const newSessionId = crypto.randomUUID();
+    localStorage.setItem(SESSION_ID_KEY, newSessionId);
+    return newSessionId;
+  },
+  
+  // Clear the current session
+  clearSession: async (): Promise<void> => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Authentication required');
+    
+    const sessionId = getOrCreateSessionId();
+    
+    try {
+      await axios.post(
+        `${PYTHON_API_URL}/ai/clear-session`,
+        { session_id: sessionId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Create a new session after clearing
+      llmService.createNewSession();
+    } catch (error) {
+      console.error('Failed to clear session:', error);
+      throw error;
+    }
+  },
+
   // Generate a response from the LLM
   generateResponse: async (request: LLMRequest): Promise<LLMResponse> => {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Authentication required');
 
+    // Ensure we have a session ID
+    const sessionId = request.session_id || getOrCreateSessionId();
+    const requestWithSession = {
+      ...request,
+      session_id: sessionId
+    };
+
     const response = await axios.post<LLMResponse>(
-      `${API_URL}/ai/process`,
-      request,
-      { headers: { Authorization: `Bearer ${token}` } }
+      `${PYTHON_API_URL}/ai/process`, 
+      requestWithSession,
+      { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          Cookie: `session_id=${sessionId}`
+        }
+      }
     );
+    
+    // If we got a new session ID back, update our storage
+    if (response.data.session_id && response.data.session_id !== sessionId) {
+      localStorage.setItem(SESSION_ID_KEY, response.data.session_id);
+    }
     
     return response.data;
   },
@@ -42,59 +114,126 @@ export const llmService = {
   // Stream response from the LLM
   streamResponse: async function* (prompt: string, previousMessages?: Array<{sender: string; text: string}>) {
     const token = localStorage.getItem('token');
-    if (!token) throw new Error('Authentication required');
+    if (!token) {
+      console.error("No authentication token found in localStorage");
+      yield JSON.stringify({ error: "Authentication required. Please log in again." });
+      return;
+    }
+    
+    // Get the current session ID
+    const sessionId = getOrCreateSessionId();
 
     try {
-      const response = await fetch(`${API_URL}/ai/process/stream`, {
+      console.log('Connecting to SSE endpoint:', `${PYTHON_API_URL}/ai/process/stream`);
+      console.log('With session ID:', sessionId);
+      console.log('Auth token available:', !!token);
+      console.log('Auth token preview:', token.substring(0, 10) + '...');
+      
+      // Set up fetch with proper headers for SSE
+      const response = await fetch(`${PYTHON_API_URL}/ai/process/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream',
         },
         body: JSON.stringify({ 
           prompt,
-          previous_messages: previousMessages 
+          previous_messages: previousMessages,
+          session_id: sessionId
         }),
       });
 
+      console.log('SSE response status:', response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('LLM API Error:', errorText);
+        console.error('LLM SSE Error:', errorText);
         yield JSON.stringify({ error: `Stream request failed: ${response.status} ${response.statusText}` });
         return;
       }
 
+      // Get response reader
       const reader = response.body?.getReader();
       if (!reader) {
+        console.error('Response body is not readable');
         yield JSON.stringify({ error: 'Response body is not readable' });
         return;
       }
 
+      console.log('SSE connection established, processing stream...');
       const decoder = new TextDecoder();
       
+      // Keep track of tool info
+      let toolInfo = {
+        name: null,
+        success: null
+      };
+      
+      // Process the stream
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('SSE stream complete');
+          break;
+        }
         
         const chunk = decoder.decode(value, { stream: true });
+        console.log('Received chunk:', chunk.substring(0, 50) + (chunk.length > 50 ? '...' : ''));
+        
         const lines = chunk.split('\n\n');
+        console.log(`Chunk contains ${lines.length} events`);
         
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.substring(6).trim();
             
             if (data === '[DONE]') {
-              console.log('Stream complete');
+              console.log('Stream complete event received');
               break;
             }
             
-            if (data.startsWith('Error:') || data.includes('"error"')) {
-              console.error('Stream error:', data);
-              yield JSON.stringify({ error: data.includes('{') ? JSON.parse(data).error : data });
-              return;
+            try {
+              // Parse the JSON data
+              const parsed = JSON.parse(data);
+              console.log('Parsed SSE data:', parsed);
+              
+              // Check for errors
+              if (parsed.error) {
+                console.error('Stream error:', parsed.error);
+                yield JSON.stringify({ error: parsed.error });
+                return;
+              }
+              
+              // Save tool info if present
+              if (parsed.tool_used) {
+                toolInfo.name = parsed.tool_used;
+                toolInfo.success = parsed.tool_success;
+                console.log('Tool used:', toolInfo);
+              }
+              
+              // Check for completion - don't yield this
+              if (parsed.complete) {
+                console.log('Completion signal received');
+                if (toolInfo.name) {
+                  console.log(`Completed processing with tool: ${toolInfo.name}, success: ${toolInfo.success}`);
+                }
+                continue;
+              }
+              
+              // Yield the token
+              if (parsed.token) {
+                console.log('Yielding token:', parsed.token.substring(0, 20) + (parsed.token.length > 20 ? '...' : ''));
+                yield parsed.token;
+              }
+            } catch (e) {
+              console.warn('Error parsing SSE data:', e, 'Raw data:', data);
+              // Handle non-JSON data
+              if (data && data !== '[DONE]') {
+                console.log('Yielding non-JSON data');
+                yield data;
+              }
             }
-            
-            if (data) yield data;
           }
         }
       }
@@ -118,6 +257,15 @@ export const useStreamingLLMResponse = () => {
     streamResponse: (prompt: string, previousMessages?: Array<{sender: string; text: string}>) => {
       return llmService.streamResponse(prompt, previousMessages);
     },
+  };
+};
+
+// Hook to manage conversation sessions
+export const useConversationSession = () => {
+  return {
+    getSessionId: llmService.getSessionId,
+    createNewSession: llmService.createNewSession,
+    clearSession: llmService.clearSession
   };
 };
 

@@ -19,10 +19,129 @@ func main() {
 		"1.0.0",
 	)
 
-	// Add unified resource retrieval tool
-	getResource := mcp.Tool{
-		Name:        "getUserResource",
-		Description: "Retrieve user resources (todos or habits)",
+	// Set server capabilities
+	s.SetCapabilities(server.ServerCapabilities{
+		Tools:   true,
+		Logging: true,
+	})
+
+	// Add browser tools
+	browserLogs := mcp.Tool{
+		Name:        "getConsoleLogs",
+		Description: "Check our browser logs",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(browserLogs, handleBrowserLogs)
+
+	browserErrors := mcp.Tool{
+		Name:        "getConsoleErrors",
+		Description: "Check our browsers console errors",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(browserErrors, handleBrowserErrors)
+
+	networkErrors := mcp.Tool{
+		Name:        "getNetworkErrorLogs",
+		Description: "Check our network ERROR logs",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(networkErrors, handleNetworkErrors)
+
+	networkSuccess := mcp.Tool{
+		Name:        "getNetworkSuccessLogs",
+		Description: "Check our network SUCCESS logs",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(networkSuccess, handleNetworkSuccess)
+
+	screenshot := mcp.Tool{
+		Name:        "takeScreenshot",
+		Description: "Take a screenshot of the current browser tab",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(screenshot, handleScreenshot)
+
+	selectedElement := mcp.Tool{
+		Name:        "getSelectedElement",
+		Description: "Get the selected element from the browser",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(selectedElement, handleSelectedElement)
+
+	wipeLogs := mcp.Tool{
+		Name:        "wipeLogs",
+		Description: "Wipe all browser logs from memory",
+		Parameters: mcp.Parameters{
+			Properties: map[string]mcp.Property{
+				"random_string": {
+					Description: "Dummy parameter for no-parameter tools",
+					Type:        "string",
+				},
+			},
+			Required: []string{"random_string"},
+			Type:     "object",
+		},
+	}
+	s.AddTool(wipeLogs, handleWipeLogs)
+
+	// Add retrieve todos tool
+	retrieveTodos := mcp.Tool{
+		Name:        "retrieveTodosByUser",
+		Description: "Retrieve todos for a specific user",
 		Parameters: mcp.Parameters{
 			Properties: map[string]mcp.Property{
 				"type": {

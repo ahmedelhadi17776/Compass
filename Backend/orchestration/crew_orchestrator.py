@@ -1,17 +1,17 @@
 from typing import Dict, List, Optional, Any, cast, Sequence, Union
 from crewai import Crew, Agent, Task
 from langchain.tools import Tool
-from Backend.agents.task_agents.task_analysis_agent import TaskAnalysisAgent
-from Backend.agents.task_agents.task_management_agent import TaskManagementAgent
-from Backend.agents.workflow_agents.workflow_optimization_agent import WorkflowOptimizationAgent
-from Backend.agents.productivity_agents.productivity_agent import ProductivityAgent
-from Backend.agents.collaboration_agents.collaboration_agent import CollaborationAgent
-from Backend.agents.resource_agents.resource_allocation_agent import ResourceAllocationAgent
-from Backend.orchestration.compass_task import CompassTask
-from Backend.utils.logging_utils import get_logger
-from Backend.data_layer.repositories.task_repository import TaskRepository
-from Backend.data_layer.database.connection import get_db
-from Backend.core.config import settings
+from agents.task_agents.task_analysis_agent import TaskAnalysisAgent
+from agents.task_agents.task_management_agent import TaskManagementAgent
+from agents.workflow_agents.workflow_optimization_agent import WorkflowOptimizationAgent
+from agents.productivity_agents.productivity_agent import ProductivityAgent
+from agents.collaboration_agents.collaboration_agent import CollaborationAgent
+from agents.resource_agents.resource_allocation_agent import ResourceAllocationAgent
+from orchestration.compass_task import CompassTask
+from utils.logging_utils import get_logger
+from data_layer.repositories.task_repository import TaskRepository
+from data_layer.database.connection import get_db
+from core.config import settings
 
 from datetime import datetime
 

@@ -7,10 +7,10 @@ from pathlib import Path
 # Add the project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from Backend.core.config import settings
-from Backend.utils.logging_utils import get_logger
+from core.config import settings
+from utils.logging_utils import get_logger
 import chromadb
-from Backend.ai_services.embedding.embedding_service import EmbeddingService
+from ai_services.embedding.embedding_service import EmbeddingService
 
 logger = get_logger(__name__)
 

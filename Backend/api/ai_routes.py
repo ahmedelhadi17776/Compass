@@ -1,29 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, List, Optional, Any, cast, Union
+from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends, Cookie, Header
+from typing import Dict, List, Optional, Any, Union, AsyncIterator
 from datetime import datetime
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 import logging
 import os
 import shutil
-from pathlib import Path
-from openai import OpenAI
-from openai.types.chat import ChatCompletionMessageParam, ChatCompletionUserMessageParam, ChatCompletionAssistantMessageParam
-from fastapi import Request, BackgroundTasks
-from sqlalchemy import Column
 import json
+from pathlib import Path
+import uuid
+import asyncio
 
-from Backend.data_layer.database.connection import get_db
-from Backend.app.schemas.task_schemas import TaskCreate, TaskResponse
-from Backend.services.ai_service import AIService
-from Backend.api.auth import get_current_user
-from Backend.data_layer.database.models.ai_interactions import AIAgentInteraction
-from Backend.ai_services.llm.llm_service import LLMService
-from Backend.data_layer.database.models.user import User
-from Backend.orchestration.ai_orchestrator import AIOrchestrator
-from Backend.app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
-
+from ai_services.llm.llm_service import LLMService
+from orchestration.ai_orchestrator import AIOrchestrator
+from app.schemas.message_schemas import UserMessage, AssistantMessage, ConversationHistory
+from core.config import settings
+from core.mcp_state import get_mcp_client
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -42,18 +34,21 @@ class AIRequest(BaseModel):
     domain: Optional[str] = None
     model_parameters: Optional[Dict] = None
     previous_messages: Optional[List[PreviousMessage]] = None
+    session_id: Optional[str] = None  # Add session ID field
 
 
 class AIResponse(BaseModel):
     response: str
-    intent: Optional[str] = None
-    target: Optional[str] = None
+    tool_used: Optional[str] = None
+    tool_args: Optional[Dict[str, Any]] = None
+    tool_success: Optional[bool] = None
     description: Optional[str] = None
     rag_used: bool = False
     cached: bool = False
     confidence: float = 0.0
     error: Optional[bool] = None
     error_message: Optional[str] = None
+    session_id: Optional[str] = None  # Add session ID to response
 
 
 class FeedbackRequest(BaseModel):
@@ -71,248 +66,112 @@ class ProcessPDFResponse(BaseModel):
 router = APIRouter(prefix="/ai", tags=["AI Services"])
 
 # Initialize services
-ai_service = AIService()
 llm_service = LLMService()
+
+# Store orchestrators by session ID for persistent conversations
+orchestrator_instances: Dict[str, AIOrchestrator] = {}
+
+
+def get_or_create_orchestrator(session_id: str) -> AIOrchestrator:
+    """Get an existing orchestrator or create a new one for the session."""
+    if session_id not in orchestrator_instances:
+        logger.info(f"Creating new orchestrator for session {session_id}")
+        orchestrator_instances[session_id] = AIOrchestrator()
+    return orchestrator_instances[session_id]
+
 
 @router.post("/process", response_model=AIResponse)
 async def process_ai_request(
     request: AIRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Process an AI request through the orchestration layer.
-
-    Flow:
-    1. Context Building
-    2. Reference Resolution
-    3. Intent Detection
-    4. Cache Check
-    5. RAG Processing
-    6. Template Rendering
-    7. LLM Response Generation
-    8. Result Caching
-    """
+    session_id: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
+) -> AIResponse:
+    """Process an AI request through MCP."""
     try:
-        orchestrator = AIOrchestrator(db)
+        # Get or create session ID
+        active_session_id = request.session_id or session_id or str(
+            uuid.uuid4())
 
-        # Get user ID safely
-        if not hasattr(current_user, 'id'):
-            raise ValueError("User ID is required")
+        # Log auth token for debugging (mask most of it)
+        if authorization:
+            masked_token = authorization[:15] + \
+                "..." if len(authorization) > 15 else authorization
+            logger.info(f"Received authorization token: {masked_token}")
+        else:
+            logger.warning("No authorization token received")
 
-        # Convert SQLAlchemy Column to string then int
-        user_id = int(str(getattr(current_user, 'id')))
+        # Get or create orchestrator for this session
+        orchestrator = get_or_create_orchestrator(active_session_id)
 
-        # Process previous messages
-        if request.previous_messages:
-            # Get or create conversation history
-            history = orchestrator._get_conversation_history(user_id)
+        # Map session ID to a numeric user ID for the orchestrator
+        # Use a hash of the session ID to get a consistent integer
+        user_id = int(hash(active_session_id) % 100000)
 
-            # Add messages to history
-            for msg in request.previous_messages:
-                if msg.sender == "user":
-                    history.add_message(UserMessage(content=str(msg.text)))
-                elif msg.sender == "assistant":
-                    history.add_message(
-                        AssistantMessage(content=str(msg.text)))
-
+        # Process request
         result = await orchestrator.process_request(
             user_input=request.prompt,
-            user_id=user_id,
-            domain=str(request.domain) if request.domain else None
+            user_id=user_id,  # Use the mapped user ID
+            domain=request.domain or "default",
+            auth_token=authorization  # Pass the authorization header
         )
 
-        # Transform the result to match AIResponse model
-        response_data = {
-            "response": result.get("response", ""),
-            "intent": result.get("intent"),
-            "target": result.get("target"),
-            "description": result.get("description"),
-            "rag_used": result.get("rag_used", False),
-            "cached": result.get("cached", False),
-            "confidence": result.get("confidence", 0.0),
-            "error": False,
-            "error_message": None
-        }
-
-        return AIResponse(**response_data)
+        # Add session ID to response
+        result["session_id"] = active_session_id
+        return AIResponse(**result)
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error processing AI request: {error_msg}")
+        logger.error(f"Error processing AI request: {str(e)}")
         return AIResponse(
-            response="",
-            error=True,
-            error_message=error_msg,
-            cached=False,
+            response=f"Error: {str(e)}",
+            tool_used=None,
+            tool_args=None,
+            tool_success=False,
+            description="Error processing request",
             rag_used=False,
-            confidence=0.0
+            cached=False,
+            confidence=0.0,
+            error=True,
+            error_message=str(e),
+            session_id=request.session_id or session_id
         )
-
-
-@router.post("/process/stream")
-async def process_ai_request_stream(
-    request: AIRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Stream AI responses for real-time interaction."""
-    try:
-        # Initialize the streaming response
-        orchestrator = AIOrchestrator(db)
-
-        # Get user ID safely
-        if not hasattr(current_user, 'id'):
-            raise ValueError("User ID is required")
-
-        # Convert SQLAlchemy Column to string then int
-        user_id = int(str(getattr(current_user, 'id')))
-
-        # Process previous messages if any
-        if request.previous_messages:
-            history = orchestrator._get_conversation_history(user_id)
-            for msg in request.previous_messages:
-                if msg.sender == "user":
-                    history.add_message(UserMessage(content=str(msg.text)))
-                elif msg.sender == "assistant":
-                    history.add_message(
-                        AssistantMessage(content=str(msg.text)))
-
-        async def stream_generator():
-            try:
-                # Check if this is an entity creation request
-                intent_result = await orchestrator.intent_detector.detect_intent(
-                    request.prompt, 
-                    {"tasks": {}, "todos": {}, "habits": {}, "default": {}}
-                )
-                
-                if intent_result.get("intent") == "create":
-                    # Handle entity creation
-                    entity_type = intent_result.get("target", "task")
-                    
-                    # First yield a confirmation message
-                    confirmation = f"Creating a new {entity_type} based on your description..."
-                    yield f"data: {json.dumps({'text': confirmation, 'done': False})}\n\n"
-                    
-                    # Process the entity creation
-                    creation_result = await orchestrator.process_entity_creation(request.prompt, user_id)
-                    
-                    # Yield the creation result
-                    result_message = creation_result.get("response", f"Created {entity_type} successfully")
-                    yield f"data: {json.dumps({'text': result_message, 'done': True, 'metadata': {'entity_type': entity_type, 'creation_result': creation_result}})}\n\n"
-                    
-                    yield "data: [DONE]\n\n"
-                    return
-                
-                # Use the orchestrator to process in streaming mode for non-creation intents
-                stream = await orchestrator.llm_service.generate_response(
-                    prompt=request.prompt,
-                    context={"user_id": user_id, "domain": request.domain} if request.domain else {
-                        "user_id": user_id},
-                    model_parameters=request.model_parameters,
-                    stream=True
-                )
-
-                async for chunk in stream:
-                    yield f"data: {chunk}\n\n"
-
-                yield "data: [DONE]\n\n"
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Error in stream: {error_msg}")
-                yield f"data: {json.dumps({'text': f'Error: {error_msg}', 'done': True, 'error': True})}\n\n"
-
-        return StreamingResponse(
-            stream_generator(),
-            media_type="text/event-stream"
-        )
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error setting up stream: {error_msg}")
-        return StreamingResponse(
-            iter([f"data: {json.dumps({'text': f'Error: {error_msg}', 'done': True, 'error': True})}\n\n"]),
-            media_type="text/event-stream"
-        )
-
-
-@router.get("/context/{user_id}")
-async def get_user_context(
-    user_id: int,
-    domains: Optional[List[str]] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get the full context for a user across specified domains."""
-    try:
-        orchestrator = AIOrchestrator(db)
-        context = await orchestrator.context_builder.get_full_context(user_id, domains)
-        return {"context": context}
-    except Exception as e:
-        logger.error(f"Error getting user context: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/feedback/{interaction_id}")
-async def submit_ai_feedback(
-    interaction_id: int,
-    feedback: FeedbackRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Submit feedback for an AI interaction."""
-    try:
-        return await ai_service.submit_feedback(
-            interaction_id=interaction_id,
-            feedback_score=feedback.feedback_score,
-            feedback_text=feedback.feedback_text,
-            db=db
-        )
-    except Exception as e:
-        logger.error(f"Error submitting feedback: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/cache/stats")
-async def get_cache_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get AI cache statistics."""
-    try:
-        orchestrator = AIOrchestrator(db)
-        cache_config = orchestrator.ai_registry.get_cache_config()
-        llm_cache_stats = {
-            "hits": orchestrator.llm_service.cache_hits,
-            "ttls": orchestrator.llm_service.cache_ttls,
-            "hit_threshold": orchestrator.llm_service.cache_hit_threshold
-        }
-        return {
-            "config": cache_config,
-            "enabled": cache_config.get("enabled", False),
-            "ttl_settings": cache_config.get("ttl_per_intent", {}),
-            "llm_cache_stats": llm_cache_stats
-        }
-    except Exception as e:
-        logger.error(f"Error getting cache stats: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/rag/stats/{domain}")
 async def get_rag_stats(
     domain: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
 ):
-    """Get RAG statistics for a specific domain."""
+    """Get RAG statistics for a specific domain through MCP."""
     try:
-        orchestrator = AIOrchestrator(db)
-        rag_settings = orchestrator.ai_registry.get_rag_settings(domain)
-        collection_stats = await orchestrator.rag_service.get_collection_stats(domain)
-        return {
-            "settings": rag_settings,
-            "collection_stats": collection_stats
-        }
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
+        result = await mcp_client.call_tool("rag.stats", {
+            "domain": domain
+        })
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get(
+                "error", "Unknown error calling RAG stats tool")
+            logger.error(f"RAG stats tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Extract content from the result
+        content = result.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Could not parse RAG stats content as JSON: {content}")
+
+        return content
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting RAG stats: {str(e)}")
+        logger.error(
+            f"Error getting RAG stats through MCP: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -320,43 +179,110 @@ async def get_rag_stats(
 async def update_rag_knowledge(
     domain: str,
     content: Dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
 ):
-    """Update the RAG knowledge base for a domain."""
+    """Update the RAG knowledge base for a domain through MCP."""
     try:
-        orchestrator = AIOrchestrator(db)
-        await orchestrator.rag_service.add_to_knowledge_base(
-            domain=domain,
-            content=content
-        )
-        return {"status": "success", "message": f"Knowledge base updated for domain: {domain}"}
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
+
+        result = await mcp_client.call_tool("rag.update", {
+            "domain": domain,
+            "content": content
+        })
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get(
+                "error", "Unknown error updating RAG knowledge")
+            logger.error(f"RAG update tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Extract content from the result
+        content = result.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Could not parse RAG update content as JSON: {content}")
+
+        return content
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error updating RAG knowledge: {str(e)}")
+        logger.error(
+            f"Error updating RAG knowledge through MCP: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/model/info")
-async def get_model_info(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get information about the AI model configuration."""
+async def get_model_info():
+    """Get information about the AI model configuration through MCP."""
     try:
-        orchestrator = AIOrchestrator(db)
-        model_id = await orchestrator._get_or_create_model()
-        if not model_id:
-            raise HTTPException(status_code=404, detail="Model not found")
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
 
-        model = await orchestrator.model_repository.get_model_by_id(model_id)
-        return {
-            "model_id": model_id,
-            "model_info": model.model_metadata if model else None,
-            "llm_config": orchestrator.ai_registry.llm_config
-        }
+        result = await mcp_client.call_tool("ai.model.info", {})
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get(
+                "error", "Unknown error getting model info")
+            logger.error(f"Model info tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Extract content from the result
+        content = result.get("content", {})
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Could not parse model info content as JSON: {content}")
+
+        return content
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting model info: {str(e)}")
+        logger.error(
+            f"Error getting model info through MCP: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/clear-session")
+async def clear_session(
+    request: Request
+):
+    """Clear conversation history for a session."""
+    try:
+        # Parse request body
+        data = await request.json()
+        session_id = data.get("session_id")
+
+        if not session_id:
+            raise HTTPException(
+                status_code=400, detail="Missing session_id in request body")
+
+        if session_id in orchestrator_instances:
+            orchestrator = orchestrator_instances[session_id]
+            user_id = int(hash(session_id) % 100000)
+            orchestrator.memory_manager.clear_memory(user_id)
+            logger.info(
+                f"Cleared conversation history for session {session_id}")
+            return {"status": "success", "message": f"Session {session_id} cleared"}
+
+        logger.warning(f"Session {session_id} not found for clearing")
+        return {"status": "not_found", "message": f"Session {session_id} not found"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing session: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error clearing session: {str(e)}")
 
 
 @router.post("/rag/knowledge-base/process", response_model=Dict[str, Any], status_code=202)
@@ -364,28 +290,20 @@ async def process_knowledge_base(
     request: Request,
     background_tasks: BackgroundTasks,
     domain: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
 ):
-    """Process knowledge base files into the RAG system."""
+    """Process knowledge base files through MCP."""
     try:
-        # Get the path to the knowledge base directory
-        kb_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "ai_services", "rag", "knowledge_base"
-        )
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
 
-        # Import the processor here to avoid circular imports
-        from Backend.ai_services.rag.knowledge_processor import process_knowledge_base
-
-        # Add task to background processing
-        background_tasks.add_task(process_knowledge_base, kb_dir)
-
-        return {
-            "status": "processing",
-            "message": "Knowledge base processing started in the background"
-        }
+        result = await mcp_client.call_tool("rag.knowledge-base.process", {
+            "domain": domain
+        })
+        return result
     except Exception as e:
-        logger.error(f"Error starting knowledge base processing: {str(e)}")
+        logger.error(f"Error processing knowledge base through MCP: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error processing knowledge base: {str(e)}")
 
@@ -394,34 +312,58 @@ async def process_knowledge_base(
 async def upload_pdf_to_knowledge_base(
     file: UploadFile = File(...),
     domain: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Upload a PDF file to the knowledge base."""
+) -> ProcessPDFResponse:
+    """Upload a PDF file to the knowledge base through MCP."""
     try:
-        # Create knowledge base directory if it doesn't exist
-        kb_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "ai_services", "rag", "knowledge_base"
-        )
-        os.makedirs(kb_dir, exist_ok=True)
+        # Read file content
+        content = await file.read()
 
-        # Save the uploaded file
-        file_path = os.path.join(kb_dir, file.filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Send file to MCP
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
 
-        # Process the PDF
-        from Backend.ai_services.rag.knowledge_processor import process_knowledge_base
-        result = await process_knowledge_base(kb_dir)
+        result = await mcp_client.call_tool("knowledge-base.upload", {
+            "filename": file.filename,
+            "content": content,
+            "domain": domain
+        })
+
+        # Check if the tool call was successful
+        if result.get("status") != "success":
+            error_message = result.get("error", "Unknown error uploading PDF")
+            logger.error(f"PDF upload tool error: {error_message}")
+            raise HTTPException(status_code=500, detail=error_message)
+
+        # Ensure content is properly parsed from the result
+        processed_files = []
+        content_data = result.get("content", {})
+
+        # Handle string content that might be JSON
+        if isinstance(content_data, str):
+            try:
+                content_data = json.loads(content_data)
+            except json.JSONDecodeError:
+                logger.error("Could not parse content as JSON")
+
+        # Extract files list from the content
+        if isinstance(content_data, dict) and "files" in content_data:
+            processed_files = content_data["files"]
+        elif isinstance(content_data, list):
+            # If content is already a list, assume it's the files list
+            processed_files = content_data
 
         return ProcessPDFResponse(
             status="success",
             message=f"PDF processed successfully: {file.filename}",
-            processed_files=result.get("files", [])
+            processed_files=processed_files
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error processing PDF: {str(e)}")
+        logger.error(
+            f"Error processing PDF through MCP: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error processing PDF: {str(e)}"
@@ -431,45 +373,172 @@ async def upload_pdf_to_knowledge_base(
 @router.post("/entity/create", response_model=AIResponse)
 async def create_entity(
     request: AIRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Create a new entity (task, todo, habit) from natural language description."""
+    session_id: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
+) -> AIResponse:
+    """Create a new entity through MCP."""
     try:
-        orchestrator = AIOrchestrator(db)
+        # Use session ID if provided
+        active_session_id = request.session_id or session_id or str(
+            uuid.uuid4())
 
-        # Get user ID safely
-        if not hasattr(current_user, 'id'):
-            raise ValueError("User ID is required")
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
 
-        # Convert SQLAlchemy Column to string then int
-        user_id = int(str(getattr(current_user, 'id')))
+        result = await mcp_client.call_tool("entity.create", {
+            "prompt": request.prompt,
+            "domain": request.domain or "default",
+            "authorization": authorization
+        })
 
-        # Process the entity creation
-        creation_result = await orchestrator.process_entity_creation(request.prompt, user_id)
-        
+        # Parse the response content properly
+        response_content = {}
+        if isinstance(result, dict) and "content" in result:
+            content = result["content"]
+            if isinstance(content, str):
+                try:
+                    response_content = json.loads(content)
+                except json.JSONDecodeError:
+                    response_content = {"response": content}
+            elif isinstance(content, dict):
+                response_content = content
+
+        # Extract values with proper type handling
+        response_text = response_content.get("response", "Entity created") if isinstance(
+            response_content, dict) else "Entity created"
+        description = response_content.get("description", "Create entity from description") if isinstance(
+            response_content, dict) else "Create entity from description"
+        rag_used = bool(response_content.get("rag_used", False)
+                        ) if isinstance(response_content, dict) else False
+        cached = bool(response_content.get("cached", False)) if isinstance(
+            response_content, dict) else False
+        confidence = float(response_content.get("confidence", 0.9)) if isinstance(
+            response_content, dict) else 0.9
+        error = bool(response_content.get("error", False)) if isinstance(
+            response_content, dict) else False
+        error_message = response_content.get(
+            "error_message") if isinstance(response_content, dict) else None
+
         return AIResponse(
-            response=creation_result.get("response", "Entity created"),
-            intent=creation_result.get("intent", "create"),
-            target=creation_result.get("target", "unknown"),
-            description=creation_result.get("description", "Create entity from description"),
-            rag_used=False,
-            cached=False,
-            confidence=creation_result.get("confidence", 0.9),
-            error=creation_result.get("error", False),
-            error_message=creation_result.get("error_message")
+            response=response_text,
+            description=description,
+            rag_used=rag_used,
+            cached=cached,
+            confidence=confidence,
+            error=error,
+            error_message=error_message,
+            session_id=active_session_id
         )
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error creating entity: {error_msg}")
+        logger.error(f"Error creating entity through MCP: {str(e)}")
         return AIResponse(
-            response=f"Error creating entity: {error_msg}",
-            intent="create",
-            target="unknown",
+            response=f"Error creating entity: {str(e)}",
             description="Create entity from description",
             rag_used=False,
             cached=False,
             confidence=0.0,
             error=True,
-            error_message=error_msg
+            error_message=str(e),
+            session_id=request.session_id or session_id
+        )
+
+
+@router.post("/process/stream")
+async def process_ai_request_stream(
+    request: AIRequest,
+    session_id: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
+) -> StreamingResponse:
+    """Process an AI request and stream the response using Server-Sent Events (SSE)."""
+    try:
+        # Get or create session ID
+        active_session_id = request.session_id or session_id or str(
+            uuid.uuid4())
+
+        logger.info(
+            f"------- Received STREAMING request with session ID: {active_session_id} -------")
+        logger.info(
+            f"Streaming prompt: {request.prompt[:50]}{'...' if len(request.prompt) > 50 else ''}")
+
+        # Log auth token for debugging (mask most of it)
+        if authorization:
+            masked_token = authorization[:15] + \
+                "..." if len(authorization) > 15 else authorization
+            logger.info(f"Received authorization token: {masked_token}")
+        else:
+            logger.warning("No authorization token received")
+
+        # Get or create orchestrator for this session
+        orchestrator = get_or_create_orchestrator(active_session_id)
+
+        # Map session ID to a numeric user ID for the orchestrator
+        # Use a hash of the session ID to get a consistent integer
+        user_id = int(hash(active_session_id) % 100000)
+        logger.info(f"Processing streaming request for user_id: {user_id}")
+
+        # Create the streaming response
+        async def event_generator():
+            """Generate SSE events from the LLM response."""
+            try:
+                token_count = 0
+                # Stream the response from the orchestrator
+                logger.info("Starting token stream from orchestrator")
+                async for token in orchestrator.process_request_stream(
+                    user_input=request.prompt,
+                    user_id=user_id,
+                    domain=request.domain or "default",
+                    auth_token=authorization  # Pass the authorization header
+                ):
+                    # Format as SSE event
+                    if token:
+                        token_count += 1
+                        if token_count % 10 == 0:
+                            logger.debug(
+                                f"Streamed {token_count} tokens so far")
+                        yield f"data: {json.dumps(token)}\n\n"
+                    # Add small delay to avoid overwhelming the client
+                    await asyncio.sleep(0.01)
+
+                logger.info(f"Stream complete - sent {token_count} tokens")
+                # Send completion event
+                yield f"data: [DONE]\n\n"
+            except Exception as e:
+                logger.error(
+                    f"Error in streaming response: {str(e)}", exc_info=True)
+                error_data = json.dumps({"error": str(e)})
+                yield f"data: {error_data}\n\n"
+                yield f"data: [DONE]\n\n"
+
+        # Return streaming response
+        logger.info("Initializing SSE streaming response")
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    except Exception as e:
+        logger.error(
+            f"Error setting up streaming AI request: {str(e)}", exc_info=True)
+        # Return error as an event stream for consistent error handling
+
+        async def error_generator():
+            error_data = json.dumps({"error": str(e)})
+            yield f"data: {error_data}\n\n"
+            yield f"data: [DONE]\n\n"
+
+        return StreamingResponse(
+            error_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream"
+            }
         )

@@ -639,11 +639,12 @@ func (h *TodoHandler) GetTodoList(c *gin.Context) {
 // @Router /api/todo-lists [get]
 func (h *TodoHandler) GetAllTodoLists(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
+
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return
 	}
-
+	
 	lists, err := h.service.GetAllTodoLists(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

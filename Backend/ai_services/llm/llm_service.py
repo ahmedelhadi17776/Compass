@@ -4,10 +4,11 @@ from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai._streaming import Stream
-from Backend.core.config import settings
-from Backend.utils.logging_utils import get_logger
-from Backend.data_layer.repositories.ai_model_repository import AIModelRepository
-from sqlalchemy.ext.asyncio import AsyncSession
+from core.config import settings
+from utils.logging_utils import get_logger
+from core.mcp_state import get_mcp_client
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain.schema import format_document
 import os
 import time
 import json
@@ -19,14 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 class LLMService:
-    def __init__(self, db_session: Optional[AsyncSession] = None):
-        self.db_session = db_session
-        self.model_repository = AIModelRepository(
-            db_session) if db_session else None
-
+    def __init__(self):
         # Use the GitHub token from environment variables
         self.github_token = os.environ.get(
-            "GITHUB_TOKEN", settings.LLM_API_KEY)
+            "GITHUB_TOKEN", settings.llm_api_key)
 
         # Force the correct base URL and model from settings
         self.base_url = "https://models.inference.ai.azure.com"
@@ -41,54 +38,98 @@ class LLMService:
             base_url=self.base_url
         )
         self.model = self.model_name
-        self.conversation_history: List[ChatCompletionMessageParam] = []
-        self.max_history_length = 10
+        # Removing the conversation_history as we'll use LangChain memory instead
         self._current_model_id: Optional[int] = None
 
-    def _get_or_create_model(self) -> int:
-        """Get or create model ID from database."""
-        if not self.model_repository:
-            return 1  # Default model ID if no database
-
+    async def _get_or_create_model(self) -> Optional[int]:
+        """Get or create model ID through MCP."""
         try:
-            model = self.model_repository.get_model_by_name_version(
-                name=self.model_name,
-                version="1.0"
-            )
+            mcp_client = get_mcp_client()
+            if not mcp_client:
+                logger.error("MCP client not initialized")
+                return None
 
-            if not model:
-                model = self.model_repository.create_model({
-                    "name": self.model_name,
-                    "version": "1.0",
-                    "type": "text-generation",
-                    "provider": "OpenAI",
-                    "model_metadata": {
-                        "base_url": self.base_url,
-                        "max_history_length": self.max_history_length
-                    },
-                    "status": "active",
-                    "max_tokens": settings.LLM_MAX_TOKENS,
-                    "temperature": settings.LLM_TEMPERATURE
-                })
+            # Get model info from Go backend through MCP
+            model_response = await mcp_client.call_tool("ai.model.info", {
+                "name": self.model_name,
+                "version": "1.0"
+            })
 
-            # Safely convert SQLAlchemy Column to int
-            model_id = getattr(model, 'id', None)
-            return int(str(model_id)) if model_id is not None else 1
+            # Check if the call was successful
+            if model_response and model_response.get("status") == "success":
+                content = model_response.get("content", {})
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Could not parse model info content as JSON: {content}")
+                        content = {"model_id": 1}
+
+                model_id = int(content.get("model_id", 1))
+                logger.info(f"Retrieved existing model ID: {model_id}")
+                return model_id
+
+            # Model not found, create a new one
+            logger.info(f"Creating new model for {self.model_name}")
+            create_response = await mcp_client.call_tool("ai.model.create", {
+                "name": self.model_name,
+                "version": "1.0",
+                "type": "text-generation",
+                "provider": "OpenAI",
+                "status": "active"
+            })
+
+            if create_response and create_response.get("status") == "success":
+                content = create_response.get("content", {})
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Could not parse model create content as JSON: {content}")
+                        content = {"model_id": 1}
+
+                model_id = int(content.get("model_id", 1))
+                logger.info(f"Created new model with ID: {model_id}")
+                return model_id
+
+            logger.warning(
+                "Failed to get or create model, using default model ID")
+            return 1  # Default model ID if we can't get it from MCP
         except Exception as e:
-            logger.error(f"Error getting/creating AI model: {str(e)}")
-            return 1
+            logger.error(
+                f"Error getting/creating model through MCP: {str(e)}", exc_info=True)
+            return 1  # Default model ID
 
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
-        """Update model usage statistics."""
-        if self.model_repository and self._current_model_id:
-            try:
-                await self.model_repository.update_model_stats(
-                    self._current_model_id,
-                    latency,
-                    success
-                )
-            except Exception as e:
-                logger.error(f"Error updating model stats: {str(e)}")
+        """Update model usage statistics through MCP."""
+        if not self._current_model_id:
+            logger.warning("No current model ID available for stats update")
+            return
+
+        try:
+            mcp_client = get_mcp_client()
+            if not mcp_client:
+                logger.error("MCP client not initialized for stats update")
+                return
+
+            stats_response = await mcp_client.call_tool("ai.model.stats.update", {
+                "model_id": self._current_model_id,
+                "latency": latency,
+                "success": success
+            })
+
+            if stats_response and stats_response.get("status") == "success":
+                logger.debug(
+                    f"Updated model stats for model {self._current_model_id}")
+            else:
+                logger.warning(
+                    f"Failed to update model stats: {stats_response.get('error', 'Unknown error')}")
+
+        except Exception as e:
+            logger.error(f"Error updating model stats through MCP: {str(e)}")
+            # Continue execution even if stats update fails
 
     async def generate_response(
         self,
@@ -96,7 +137,7 @@ class LLMService:
         context: Optional[Dict] = None,
         model_parameters: Optional[Dict] = None,
         stream: bool = False
-    ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
+    ) -> Union[Dict[str, Any], AsyncIterator[str]]:
         """Generate a response using the LLM."""
         try:
             logger.info("Starting LLM response generation")
@@ -110,7 +151,7 @@ class LLMService:
 
             if stream:
                 logger.info("Using streaming mode for response")
-                return self._create_stream_generator(prompt, messages, params, start_time)
+                return self._stream_response(prompt, messages, params, start_time)
 
             # Make the API request
             logger.debug("Making API request")
@@ -127,6 +168,7 @@ class LLMService:
                     "text": response["choices"][0]["message"]["content"],
                     "model": response.get("model", "unknown"),
                     "usage": response.get("usage", {}),
+                    "confidence": 0.9
                 }
 
                 # Update stats and log training data
@@ -138,59 +180,84 @@ class LLMService:
                 return result
             else:
                 logger.error("Invalid response format from LLM API")
-                return {"error": "Invalid response format", "text": ""}
+                return {"error": "Invalid response format", "text": "", "confidence": 0.0}
 
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
             if stream:
-                return self._create_error_generator(str(e))
-            return {"error": str(e), "text": ""}
+                async def error_gen():
+                    yield f"Error: {str(e)}"
+                return error_gen()
+            return {"error": str(e), "text": "", "confidence": 0.0}
 
-    async def _create_stream_generator(
+    async def _stream_response(
         self,
         prompt: str,
         messages: List[ChatCompletionMessageParam],
         params: Dict[str, Any],
         start_time: float
-    ) -> AsyncGenerator[str, None]:
-        """Create a streaming response generator."""
+    ) -> AsyncIterator[str]:
+        """Stream the response from the LLM token by token."""
+        logger.info("Starting streaming response")
         success = True
+        full_text = ""
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=True,
-                **params
-            )
+            # Create a wrapper function to convert sync to async
+            async def stream_openai_response():
+                # Set streaming parameter
+                stream_params = {**params, "stream": True}
 
-            full_text = []
-            async for chunk in self._stream_chunks(response):
-                if chunk.choices and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    full_text.append(content)
-                    yield content
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.chat.completions.create,
+                        model=self.model,
+                        messages=messages,
+                        stream=True,
+                        **{k: v for k, v in params.items() if k != "stream"}
+                    )
 
-            # Cache the complete response
-            complete_text = "".join(full_text)
-            result = {"text": complete_text}
-            await self.log_training_data(prompt, complete_text)
+                    logger.info("Stream created, yielding tokens")
 
-        except Exception as e:
-            success = False
-            logger.error(f"Error in stream generator: {str(e)}")
-            yield f"Error: {str(e)}"
-        finally:
+                    # Process each chunk in the stream
+                    for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content = chunk.choices[0].delta.content
+                            yield content
+                            # Small delay to avoid overwhelming the client
+                            await asyncio.sleep(0.01)
+
+                except Exception as e:
+                    logger.error(f"Error in OpenAI stream: {str(e)}")
+                    yield f"Error: {str(e)}"
+
+            # Create and return the async generator
+            generator = stream_openai_response()
+
+            # Collect the full response for training data
+            async for token in generator:
+                full_text += token
+                yield token
+
+            # Log the complete response for training data
+            await self.log_training_data(prompt, full_text)
+
+            # Update model stats
             latency = time.time() - start_time
             await self._update_model_stats(latency, success)
 
-    async def _create_error_generator(self, error_message: str) -> AsyncGenerator[str, None]:
+        except Exception as e:
+            success = False
+            logger.error(f"Error in streaming response: {str(e)}")
+            yield f"Error: {str(e)}"
+
+            # Update model stats with failure
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, success)
+
+    async def _create_error_generator(self, error_message: str) -> AsyncIterator[str]:
         """Create an error response generator."""
         yield f"Error: {error_message}"
-
-    async def _stream_chunks(self, response: Stream[ChatCompletionChunk]) -> AsyncGenerator[ChatCompletionChunk, None]:
-        """Convert OpenAI stream to async iterator."""
-        for chunk in response:
-            yield chunk
 
     async def log_training_data(self, prompt: str, response: str):
         """Log training data with proper Unicode handling."""
@@ -209,42 +276,103 @@ class LLMService:
     async def _make_request(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the LLM API."""
         try:
-            logger.debug(f"Making request to endpoint: {endpoint}")
+            logger.info(f"[LLM] Making request to endpoint: {endpoint}")
             if endpoint == "chat/completions":
-                logger.debug("Processing chat completion request")
+                logger.info("[LLM] Processing chat completion request")
+
+                # Log important parameters
+                if "messages" in kwargs:
+                    messages = kwargs.get("messages", [])
+                    msg_count = len(messages)
+
+                    # Find system message if it exists
+                    system_msg = None
+                    for msg in messages:
+                        if msg.get("role") == "system":
+                            system_msg = msg
+                            break
+
+                    # Build preview safely with explicit checks
+                    if system_msg and isinstance(system_msg.get("content"), str):
+                        content = system_msg.get("content")
+                        if len(content) > 100:
+                            system_preview = content[:100] + "..."
+                        else:
+                            system_preview = content
+
+                        if len(system_preview) > 50:
+                            preview_to_log = system_preview[:50] + "..."
+                        else:
+                            preview_to_log = system_preview
+                    else:
+                        preview_to_log = "No system message"
+
+                    logger.info(
+                        f"[LLM] Request contains {msg_count} messages (system message: {preview_to_log})")
+
+                # Log other parameters
+                params_to_log = {k: v for k,
+                                 v in kwargs.items() if k != "messages"}
+                logger.info(f"[LLM] Using parameters: {params_to_log}")
+
+                # Record start time
+                start_time = time.time()
+                logger.info(
+                    f"[LLM] Sending request to {self.base_url} for model {self.model}")
+
                 response = await asyncio.to_thread(
                     self.client.chat.completions.create,
                     model=self.model,
                     messages=kwargs.get("messages", []),
                     **{k: v for k, v in kwargs.items() if k != "messages"}
                 )
-                logger.debug("Chat completion response received")
+
+                # Calculate duration
+                duration = time.time() - start_time
+                logger.info(
+                    f"[LLM] ✅ Response received in {duration:.3f} seconds")
+
+                # Log token usage
+                if response.usage:
+                    logger.info(
+                        f"[LLM] Token usage: {response.usage.prompt_tokens} prompt + {response.usage.completion_tokens} completion = {response.usage.total_tokens} total")
+
+                # Log response preview
+                content = response.choices[0].message.content if response.choices else "No content"
+                if content:
+                    content_preview = content[:100] + \
+                        "..." if len(content) > 100 else content
+                else:
+                    content_preview = "No content"
+                logger.info(f"[LLM] Response content: {content_preview}")
+
                 return {
                     "choices": [{"message": {"content": choice.message.content}} for choice in response.choices],
                     "model": response.model,
                     "usage": dict(response.usage) if response.usage else {}
                 }
             elif endpoint == "model_info":
-                logger.debug("Processing model info request")
+                logger.info("[LLM] Processing model info request")
                 return {
                     "model": self.model,
                     "capabilities": {
                         "streaming": True,
                         "function_calling": True,
-                        "context_window": settings.LLM_MAX_TOKENS,
+                        "context_window": settings.llm_max_tokens,
                         "temperature_range": [0.0, 2.0]
                     },
                     "configuration": {
-                        "temperature": settings.LLM_TEMPERATURE,
-                        "max_tokens": settings.LLM_MAX_TOKENS,
-                        "top_p": settings.LLM_TOP_P,
-                        "min_p": settings.LLM_MIN_P,
-                        "top_k": settings.LLM_TOP_K
+                        "temperature": settings.llm_temperature,
+                        "max_tokens": settings.llm_max_tokens,
+                        "top_p": settings.llm_top_p,
+                        "min_p": settings.llm_min_p,
+                        "top_k": settings.llm_top_k
                     }
                 }
             raise ValueError(f"Unknown endpoint: {endpoint}")
         except Exception as e:
-            logger.error(f"API request failed: {str(e)}", exc_info=True)
+            logger.error(
+                f"[LLM] ❌ API request failed: {str(e)}", exc_info=True)
             raise
 
     def _prepare_messages(
@@ -255,77 +383,60 @@ class LLMService:
         logger.debug("Preparing messages for LLM")
         messages: List[ChatCompletionMessageParam] = []
 
-        # Add system message with domain context if available
-        if context and context.get("system_message"):
-            logger.debug("Adding system message from context")
-            system_message = context["system_message"]
-            if context.get("domain"):
-                system_message = f"Current domain: {context['domain']}\n{system_message}"
+        # Add system message with tool context if available
+        if context and context.get("system_prompt"):
+            logger.debug("Adding system message with tool context")
             messages.append({
                 "role": "system",
-                "content": system_message
+                "content": context["system_prompt"]
             })
         else:
-            logger.debug("Adding default empty system message")
+            logger.debug("Adding default system message")
             messages.append({
                 "role": "system",
-                "content": ""
+                "content": "You are a helpful AI assistant."
             })
 
-        # Get conversation history with domain context
+        # Process conversation history from LangChain memory
         if context and context.get("conversation_history"):
-            logger.debug("Adding conversation history with domain context")
+            logger.debug("Adding conversation history")
             history = context["conversation_history"]
-            if isinstance(history, list):
-                # Filter history to maintain domain context
-                domain_history = []
-                current_domain = context.get("domain")
 
-                for msg in history[-self.max_history_length*2:]:
-                    if isinstance(msg, dict):
-                        # Keep messages from current domain or domain-independent messages
-                        msg_domain = msg.get("metadata", {}).get("domain")
-                        if not msg_domain or msg_domain == current_domain:
-                            domain_history.append(msg)
+            # If history is already in the format expected by OpenAI API
+            if isinstance(history, list) and all(isinstance(msg, dict) for msg in history):
+                for msg in history:
+                    if msg.get("role") in ["user", "assistant", "system"]:
+                        messages.append(msg)
+            # If history is in LangChain Message format
+            elif isinstance(history, list) and hasattr(history[0], "content") and hasattr(history[0], "role"):
+                for msg in history:
+                    messages.append({
+                        "role": msg.role,
+                        "content": msg.content
+                    })
 
-                messages.extend(domain_history[-self.max_history_length:])
-                logger.debug(
-                    f"Added {len(domain_history[-self.max_history_length:])} domain-relevant history messages")
-
-        # Add current prompt with metadata
-        logger.debug("Adding current prompt with domain context")
-        user_message = {
+        # Add current prompt
+        logger.debug("Adding current prompt")
+        messages.append({
             "role": "user",
-            "content": prompt,
-            "metadata": {
-                "domain": context.get("domain") if context else None,
-                "timestamp": time.time()
-            }
-        }
-        messages.append(user_message)
+            "content": prompt
+        })
         return messages
 
     def _prepare_model_parameters(self, parameters: Optional[Dict] = None) -> Dict[str, Any]:
-        # Use the same parameters as in the GitHub API example
+        # Default parameters optimized for tool calling
         default_params = {
-            "temperature": settings.LLM_TEMPERATURE,
-            "max_tokens": settings.LLM_MAX_TOKENS,
-            "top_p": settings.LLM_TOP_P,
+            "temperature": 0.7,  # Balanced between creativity and precision
+            "max_tokens": settings.llm_max_tokens,
+            "top_p": 0.95,  # High value for more focused responses
+            "presence_penalty": 0.0,  # No penalty for repeated tokens
+            "frequency_penalty": 0.0,  # No penalty for frequent tokens
+            # Ensure text output for tool parsing
+            "response_format": {"type": "text"}
         }
         if parameters:
             default_params.update(parameters)
         return default_params
-
-    def _update_conversation_history(self, prompt: str, response: str) -> None:
-        self.conversation_history.append({"role": "user", "content": prompt})
-        self.conversation_history.append(
-            {"role": "assistant", "content": response})
-
-        if len(self.conversation_history) > self.max_history_length * 2:
-            self.conversation_history = self.conversation_history[-self.max_history_length * 2:]
-
-    async def clear_conversation_history(self) -> None:
-        self.conversation_history = []
 
     async def get_model_info(self) -> Dict:
         """Get model information and configuration."""

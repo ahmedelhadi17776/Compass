@@ -1,8 +1,8 @@
 from typing import Dict, Optional
 import aiohttp
-from Backend.core.config import settings
-from Backend.utils.logging_utils import get_logger
-from Backend.utils.cache_utils import cache_response
+from core.config import settings
+from utils.logging_utils import get_logger
+from utils.cache_utils import cache_response
 
 logger = get_logger(__name__)
 

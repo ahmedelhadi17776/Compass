@@ -6,7 +6,7 @@ from pathlib import Path
 import PyPDF2
 from concurrent.futures import ThreadPoolExecutor
 
-from Backend.ai_services.rag.rag_service import RAGService
+from ai_services.rag.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 

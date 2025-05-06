@@ -1,16 +1,21 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useNavigate } from "react-router-dom"
-import { 
-  Eye, EyeOff, 
-  BarChart2, Calendar, CheckSquare, 
-  Focus, Globe,
-  Sparkles, Command,
-  Compass
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Checkbox from '../ui/checkbox';
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Eye,
+  EyeOff,
+  BarChart2,
+  Calendar,
+  CheckSquare,
+  Focus,
+  Globe,
+  Sparkles,
+  Command,
+  Compass,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Checkbox from "../ui/checkbox";
 import {
   Card,
   CardContent,
@@ -18,25 +23,29 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
-import InfiniteScroll from '@/components/ui/infinitescrolling'
-import TitleBar from '@/components/layout/AuthTitleBar';
-import { useTheme } from '@/contexts/theme-provider';
-import { useAuth } from '@/hooks/useAuth';
-import { useMutation } from '@tanstack/react-query';
-import authApi, { LoginCredentials } from '@/api/auth';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
+import InfiniteScroll from "@/components/ui/infinitescrolling";
+import TitleBar from "@/components/layout/AuthTitleBar";
+import { useTheme } from "@/contexts/theme-provider";
+import { useAuth } from "@/hooks/useAuth";
+import { useMutation } from "@tanstack/react-query";
+import authApi, { LoginCredentials } from "@/api/auth";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   onLogin?: () => void;
 }
 
-const FeatureCard = ({ icon: Icon, title, description }: { 
-  icon: any, 
-  title: string, 
-  description: string,
+const FeatureCard = ({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: any;
+  title: string;
+  description: string;
 }) => (
   <div className="p-6 rounded-2xl backdrop-blur-sm border border-border/50 bg-card/50 shadow-lg transition-all duration-300 hover:bg-card/80">
     <div className="flex items-start gap-4">
@@ -56,72 +65,85 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { theme } = useTheme();
-  const isDarkMode = theme === 'dark';
-  const [isLoading, setIsLoading] = React.useState<boolean>(false)
-  const [showPassword, setShowPassword] = React.useState<boolean>(false)
-  const [rememberMe, setRememberMe] = React.useState<boolean>(false)
+  const isDarkMode = theme === "dark";
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [showPassword, setShowPassword] = React.useState<boolean>(false);
+  const [rememberMe, setRememberMe] = React.useState<boolean>(false);
   const [formData, setFormData] = React.useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
 
   const items = [
     {
-      content: <FeatureCard
-        icon={Sparkles}
-        title="AI-Powered Insights"
-        description="Get intelligent recommendations and insights powered by advanced AI"
-      />
+      content: (
+        <FeatureCard
+          icon={Sparkles}
+          title="AI-Powered Insights"
+          description="Get intelligent recommendations and insights powered by advanced AI"
+        />
+      ),
     },
     {
-      content: <FeatureCard
-        icon={BarChart2}
-        title="Advanced Analytics"
-        description="Track your progress with detailed analytics and visualizations"
-      />
+      content: (
+        <FeatureCard
+          icon={BarChart2}
+          title="Advanced Analytics"
+          description="Track your progress with detailed analytics and visualizations"
+        />
+      ),
     },
     {
-      content: <FeatureCard
-        icon={Calendar}
-        title="Smart Scheduling"
-        description="Optimize your time with AI-driven calendar management"
-      />
+      content: (
+        <FeatureCard
+          icon={Calendar}
+          title="Smart Scheduling"
+          description="Optimize your time with AI-driven calendar management"
+        />
+      ),
     },
     {
-      content: <FeatureCard
-        icon={CheckSquare}
-        title="Task Management"
-        description="Stay organized with intelligent task prioritization"
-      />
+      content: (
+        <FeatureCard
+          icon={CheckSquare}
+          title="Task Management"
+          description="Stay organized with intelligent task prioritization"
+        />
+      ),
     },
     {
-      content: <FeatureCard
-        icon={Focus}
-        title="Focus Mode"
-        description="Enhance productivity with distraction-free work sessions"
-      />
+      content: (
+        <FeatureCard
+          icon={Focus}
+          title="Focus Mode"
+          description="Enhance productivity with distraction-free work sessions"
+        />
+      ),
     },
     {
-      content: <FeatureCard
-        icon={Globe}
-        title="Global Sync"
-        description="Access your workspace from anywhere, anytime"
-      />
+      content: (
+        <FeatureCard
+          icon={Globe}
+          title="Global Sync"
+          description="Access your workspace from anywhere, anytime"
+        />
+      ),
     },
     {
-      content: <FeatureCard
-        icon={Command}
-        title="Command Center"
-        description="Control everything from a powerful command palette"
-      />
+      content: (
+        <FeatureCard
+          icon={Command}
+          title="Command Center"
+          description="Control everything from a powerful command palette"
+        />
+      ),
     },
   ];
 
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: (data) => {
-      localStorage.setItem('token', data.access_token);
-      navigate('/dashboard', { replace: true });
+      navigate("/dashboard", { replace: true });
       toast({
         title: "Success",
         description: "You have successfully logged in.",
@@ -135,12 +157,12 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
         variant: "destructive",
         duration: 1200,
       });
-    }
+    },
   });
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    
+
     loginMutation.mutate(formData);
   }
 
@@ -148,7 +170,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
       {/* Background pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-      
+
       <div className="relative container flex gap-12 items-center justify-center p-8">
         {/* Left side - Infinite Scroll */}
         <div className="flex-1 left-8 h-[600px] w-[440px]">
@@ -175,7 +197,9 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                 </div>
                 <span className="text-2xl font-bold">Compass</span>
               </div>
-              <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
+              <CardTitle className="text-2xl text-center">
+                Welcome back
+              </CardTitle>
               <CardDescription className="text-center">
                 Please enter your details to sign in.
               </CardDescription>
@@ -189,7 +213,12 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                     type="text"
                     placeholder="Enter your email or username"
                     value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        email: e.target.value,
+                      }))
+                    }
                     disabled={loginMutation.isPending}
                     className="focus:border-transparent"
                   />
@@ -202,7 +231,12 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                       value={formData.password}
-                      onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
                       disabled={loginMutation.isPending}
                       className="focus:border-transparent"
                     />
@@ -236,15 +270,18 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                       Remember for 30 days
                     </label>
                   </div>
-                  <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
+                  <a
+                    href="#"
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
                     Forgot password?
                   </a>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-4">
-                <Button 
-                  className="w-full bg-foreground text-background hover:bg-foreground/90" 
-                  type="submit" 
+                <Button
+                  className="w-full bg-foreground text-background hover:bg-foreground/90"
+                  type="submit"
                   disabled={loginMutation.isPending}
                 >
                   {loginMutation.isPending ? (
@@ -258,5 +295,5 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
