@@ -183,6 +183,18 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     setStreamingText(""); // Reset streaming text
 
     try {
+      // Get authentication token
+      const authToken = localStorage.getItem("token");
+      if (!authToken) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      // Log token for debugging (partial)
+      console.log(
+        "Using auth token (preview):",
+        authToken.substring(0, 10) + "..."
+      );
+
       // Get previous messages to maintain conversation context
       const previousMessages = getPreviousMessages();
 
@@ -197,7 +209,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
       addMessage(initialAssistantMessage);
 
-      // Use streaming response by explicitly calling streamResponse function
+      // Use streaming response
       console.log("Starting SSE streaming...");
       const stream = streamResponse(text, previousMessages);
 
@@ -247,10 +259,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
             if (tokenData.tool_used) {
               toolUsed = tokenData.tool_used;
               toolSuccess = tokenData.tool_success;
-              continue; 
+              continue;
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
 
         // Update streaming message
@@ -285,7 +296,10 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Sorry, I encountered an error while processing your request. Please try again later.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Sorry, I encountered an error while processing your request. Please try again later.",
         sender: "assistant",
         timestamp: new Date(),
       };

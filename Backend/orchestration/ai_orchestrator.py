@@ -416,6 +416,7 @@ class AIOrchestrator:
             start_time = time.time()
             self.logger.info(
                 f"Processing streaming request for user {user_id} in domain {domain or 'default'}")
+            self.logger.info(f"Auth token provided: {auth_token is not None}")
 
             # Get conversation history using LangChain memory
             messages = self.memory_manager.get_langchain_messages(user_id)
@@ -468,6 +469,8 @@ class AIOrchestrator:
 
                         # Add authorization if provided
                         if auth_token:
+                            self.logger.info(
+                                f"Adding auth token to tool call: {tool_call['name']}")
                             if "arguments" not in tool_call:
                                 tool_call["arguments"] = {}
                             tool_call["arguments"]["authorization"] = auth_token
@@ -540,7 +543,6 @@ class AIOrchestrator:
 
                     tool_info = last_tool_call
 
-                    
                     async for token in cast(AsyncIterator[str], stream_generator):
                         final_response += token
                         yield {"token": token, "tool_used": tool_info["name"] if tool_info else None}

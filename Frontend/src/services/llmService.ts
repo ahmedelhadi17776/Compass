@@ -114,7 +114,11 @@ export const llmService = {
   // Stream response from the LLM
   streamResponse: async function* (prompt: string, previousMessages?: Array<{sender: string; text: string}>) {
     const token = localStorage.getItem('token');
-    if (!token) throw new Error('Authentication required');
+    if (!token) {
+      console.error("No authentication token found in localStorage");
+      yield JSON.stringify({ error: "Authentication required. Please log in again." });
+      return;
+    }
     
     // Get the current session ID
     const sessionId = getOrCreateSessionId();
@@ -122,6 +126,8 @@ export const llmService = {
     try {
       console.log('Connecting to SSE endpoint:', `${PYTHON_API_URL}/ai/process/stream`);
       console.log('With session ID:', sessionId);
+      console.log('Auth token available:', !!token);
+      console.log('Auth token preview:', token.substring(0, 10) + '...');
       
       // Set up fetch with proper headers for SSE
       const response = await fetch(`${PYTHON_API_URL}/ai/process/stream`, {

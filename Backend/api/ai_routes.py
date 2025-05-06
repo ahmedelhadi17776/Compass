@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends, Cookie
+from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Request, BackgroundTasks, Depends, Cookie, Header
 from typing import Dict, List, Optional, Any, Union, AsyncIterator
 from datetime import datetime
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -83,13 +83,22 @@ def get_or_create_orchestrator(session_id: str) -> AIOrchestrator:
 @router.post("/process", response_model=AIResponse)
 async def process_ai_request(
     request: AIRequest,
-    session_id: Optional[str] = Cookie(None)
+    session_id: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
 ) -> AIResponse:
     """Process an AI request through MCP."""
     try:
         # Get or create session ID
         active_session_id = request.session_id or session_id or str(
             uuid.uuid4())
+
+        # Log auth token for debugging (mask most of it)
+        if authorization:
+            masked_token = authorization[:15] + \
+                "..." if len(authorization) > 15 else authorization
+            logger.info(f"Received authorization token: {masked_token}")
+        else:
+            logger.warning("No authorization token received")
 
         # Get or create orchestrator for this session
         orchestrator = get_or_create_orchestrator(active_session_id)
@@ -102,7 +111,8 @@ async def process_ai_request(
         result = await orchestrator.process_request(
             user_input=request.prompt,
             user_id=user_id,  # Use the mapped user ID
-            domain=request.domain or "default"
+            domain=request.domain or "default",
+            auth_token=authorization  # Pass the authorization header
         )
 
         # Add session ID to response
@@ -363,7 +373,8 @@ async def upload_pdf_to_knowledge_base(
 @router.post("/entity/create", response_model=AIResponse)
 async def create_entity(
     request: AIRequest,
-    session_id: Optional[str] = Cookie(None)
+    session_id: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
 ) -> AIResponse:
     """Create a new entity through MCP."""
     try:
@@ -378,7 +389,8 @@ async def create_entity(
 
         result = await mcp_client.call_tool("entity.create", {
             "prompt": request.prompt,
-            "domain": request.domain or "default"
+            "domain": request.domain or "default",
+            "authorization": authorization
         })
 
         # Parse the response content properly
@@ -436,7 +448,8 @@ async def create_entity(
 @router.post("/process/stream")
 async def process_ai_request_stream(
     request: AIRequest,
-    session_id: Optional[str] = Cookie(None)
+    session_id: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
 ) -> StreamingResponse:
     """Process an AI request and stream the response using Server-Sent Events (SSE)."""
     try:
@@ -448,6 +461,14 @@ async def process_ai_request_stream(
             f"------- Received STREAMING request with session ID: {active_session_id} -------")
         logger.info(
             f"Streaming prompt: {request.prompt[:50]}{'...' if len(request.prompt) > 50 else ''}")
+
+        # Log auth token for debugging (mask most of it)
+        if authorization:
+            masked_token = authorization[:15] + \
+                "..." if len(authorization) > 15 else authorization
+            logger.info(f"Received authorization token: {masked_token}")
+        else:
+            logger.warning("No authorization token received")
 
         # Get or create orchestrator for this session
         orchestrator = get_or_create_orchestrator(active_session_id)
@@ -467,7 +488,8 @@ async def process_ai_request_stream(
                 async for token in orchestrator.process_request_stream(
                     user_input=request.prompt,
                     user_id=user_id,
-                    domain=request.domain or "default"
+                    domain=request.domain or "default",
+                    auth_token=authorization  # Pass the authorization header
                 ):
                     # Format as SSE event
                     if token:
@@ -498,7 +520,7 @@ async def process_ai_request_stream(
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "Content-Type": "text/event-stream",
-                "X-Accel-Buffering": "no"  
+                "X-Accel-Buffering": "no"
             }
         )
     except Exception as e:
