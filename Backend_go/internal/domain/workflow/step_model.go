@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -40,29 +41,29 @@ type WorkflowStep struct {
 	Status      StepStatus `json:"status" gorm:"type:varchar(50);not null;default:'pending'"`
 
 	// Configuration
-	Config     map[string]interface{} `json:"config" gorm:"type:jsonb"`
-	Conditions map[string]interface{} `json:"conditions" gorm:"type:jsonb"`
-	Timeout    *int                   `json:"timeout"`
+	Config     datatypes.JSON `json:"config" gorm:"type:jsonb"`
+	Conditions datatypes.JSON `json:"conditions" gorm:"type:jsonb"`
+	Timeout    *int           `json:"timeout"`
 
 	// Execution Control
-	RetryConfig  map[string]interface{} `json:"retry_config" gorm:"type:jsonb"`
-	IsRequired   bool                   `json:"is_required" gorm:"default:true"`
-	AutoAdvance  bool                   `json:"auto_advance" gorm:"default:false"`
-	CanRevert    bool                   `json:"can_revert" gorm:"default:false"`
-	Dependencies []string               `json:"dependencies" gorm:"type:text[]"`
+	RetryConfig  datatypes.JSON `json:"retry_config" gorm:"type:jsonb"`
+	IsRequired   bool           `json:"is_required" gorm:"default:true"`
+	AutoAdvance  bool           `json:"auto_advance" gorm:"default:false"`
+	CanRevert    bool           `json:"can_revert" gorm:"default:false"`
+	Dependencies []string       `json:"dependencies" gorm:"type:text[]"`
 
 	// Version Control
 	Version           string     `json:"version" gorm:"type:varchar(50);default:'1.0.0'"`
 	PreviousVersionID *uuid.UUID `json:"previous_version_id" gorm:"type:uuid"`
 
 	// Performance Metrics
-	AverageExecutionTime float64                `json:"average_execution_time" gorm:"default:0.0"`
-	SuccessRate          float64                `json:"success_rate" gorm:"default:0.0"`
-	LastExecutionResult  map[string]interface{} `json:"last_execution_result" gorm:"type:jsonb"`
+	AverageExecutionTime float64        `json:"average_execution_time" gorm:"default:0.0"`
+	SuccessRate          float64        `json:"success_rate" gorm:"default:0.0"`
+	LastExecutionResult  datatypes.JSON `json:"last_execution_result" gorm:"type:jsonb"`
 
 	// Assignment & Notifications
-	AssignedTo         *uuid.UUID             `json:"assigned_to" gorm:"type:uuid"`
-	NotificationConfig map[string]interface{} `json:"notification_config" gorm:"type:jsonb"`
+	AssignedTo         *uuid.UUID     `json:"assigned_to" gorm:"type:uuid"`
+	NotificationConfig datatypes.JSON `json:"notification_config" gorm:"type:jsonb"`
 
 	CreatedAt time.Time `json:"created_at" gorm:"not null;default:current_timestamp"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"not null;default:current_timestamp"`
@@ -70,29 +71,29 @@ type WorkflowStep struct {
 
 // CreateWorkflowStepRequest represents the request body for creating a workflow step
 type CreateWorkflowStepRequest struct {
-	Name        string                 `json:"name" binding:"required"`
-	Description string                 `json:"description"`
-	StepType    StepType               `json:"step_type" binding:"required"`
-	StepOrder   int                    `json:"step_order" binding:"required"`
-	Config      map[string]interface{} `json:"config,omitempty"`
-	Conditions  map[string]interface{} `json:"conditions,omitempty"`
-	Timeout     *int                   `json:"timeout,omitempty"`
-	IsRequired  *bool                  `json:"is_required,omitempty"`
-	AssignedTo  *uuid.UUID             `json:"assigned_to,omitempty"`
+	Name        string         `json:"name" binding:"required"`
+	Description string         `json:"description"`
+	StepType    StepType       `json:"step_type" binding:"required"`
+	StepOrder   int            `json:"step_order" binding:"required"`
+	Config      datatypes.JSON `json:"config,omitempty"`
+	Conditions  datatypes.JSON `json:"conditions,omitempty"`
+	Timeout     *int           `json:"timeout,omitempty"`
+	IsRequired  *bool          `json:"is_required,omitempty"`
+	AssignedTo  *uuid.UUID     `json:"assigned_to,omitempty"`
 }
 
 // UpdateWorkflowStepRequest represents the request body for updating a workflow step
 type UpdateWorkflowStepRequest struct {
-	Name        *string                `json:"name,omitempty"`
-	Description *string                `json:"description,omitempty"`
-	StepType    *StepType              `json:"step_type,omitempty"`
-	StepOrder   *int                   `json:"step_order,omitempty"`
-	Status      *StepStatus            `json:"status,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
-	Conditions  map[string]interface{} `json:"conditions,omitempty"`
-	Timeout     *int                   `json:"timeout,omitempty"`
-	IsRequired  *bool                  `json:"is_required,omitempty"`
-	AssignedTo  *uuid.UUID             `json:"assigned_to,omitempty"`
+	Name        *string        `json:"name,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	StepType    *StepType      `json:"step_type,omitempty"`
+	StepOrder   *int           `json:"step_order,omitempty"`
+	Status      *StepStatus    `json:"status,omitempty"`
+	Config      datatypes.JSON `json:"config,omitempty"`
+	Conditions  datatypes.JSON `json:"conditions,omitempty"`
+	Timeout     *int           `json:"timeout,omitempty"`
+	IsRequired  *bool          `json:"is_required,omitempty"`
+	AssignedTo  *uuid.UUID     `json:"assigned_to,omitempty"`
 }
 
 // WorkflowStepResponse represents the response for step operations
