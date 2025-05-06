@@ -33,6 +33,7 @@ type Repository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByUsername(ctx context.Context, username string) (*User, error)
+	FindByProviderID(ctx context.Context, providerID, provider string) (*User, error)
 	FindAll(ctx context.Context, filter UserFilter) ([]User, int64, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -147,6 +148,18 @@ func (r *repository) FindByUsername(ctx context.Context, username string) (*User
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &user, nil
+}
+
+func (r *repository) FindByProviderID(ctx context.Context, providerID, provider string) (*User, error) {
+	var user User
+	result := r.db.WithContext(ctx).Where("provider_id = ? AND provider = ?", providerID, provider).First(&user)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
 		}
 		return nil, result.Error
 	}

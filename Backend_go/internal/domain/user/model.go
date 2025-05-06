@@ -40,6 +40,9 @@ type User struct {
 	FailedLoginAttempts int                    `json:"-" gorm:"default:0"`
 	AccountLockedUntil  *time.Time             `json:"-" gorm:"index:idx_user_locked"`
 	Preferences         map[string]interface{} `json:"preferences,omitempty" gorm:"type:jsonb"`
+	Provider            string                 `json:"provider,omitempty" gorm:"index:idx_user_provider"`
+	ProviderID          string                 `json:"provider_id,omitempty" gorm:"index:idx_user_provider_id"`
+	ProviderData        map[string]interface{} `json:"provider_data,omitempty" gorm:"type:jsonb"`
 }
 
 // CreateUserRequest represents the request body for user registration
