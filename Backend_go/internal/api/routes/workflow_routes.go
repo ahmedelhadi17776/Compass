@@ -33,9 +33,26 @@ func (wr *WorkflowRoutes) RegisterRoutes(router *gin.Engine) {
 	workflowGroup.PUT("/:id", wr.handler.UpdateWorkflow)
 	workflowGroup.DELETE("/:id", wr.handler.DeleteWorkflow)
 
+	// Workflow steps endpoints
+	workflowGroup.POST("/:id/steps", wr.handler.CreateWorkflowStep)
+	workflowGroup.GET("/:id/steps", wr.handler.ListWorkflowSteps)
+	workflowGroup.GET("/:id/steps/:stepId", wr.handler.GetWorkflowStep)
+	workflowGroup.PUT("/:id/steps/:stepId", wr.handler.UpdateWorkflowStep)
+	workflowGroup.DELETE("/:id/steps/:stepId", wr.handler.DeleteWorkflowStep)
+
+	// Workflow transitions endpoints
+	workflowGroup.POST("/:id/transitions", wr.handler.CreateTransition)
+	workflowGroup.GET("/:id/transitions", wr.handler.ListTransitions)
+	workflowGroup.GET("/:id/transitions/:transitionId", wr.handler.GetTransition)
+	workflowGroup.PUT("/:id/transitions/:transitionId", wr.handler.UpdateTransition)
+	workflowGroup.DELETE("/:id/transitions/:transitionId", wr.handler.DeleteTransition)
+
 	// Workflow execution operations
 	workflowGroup.POST("/:id/execute", wr.handler.ExecuteWorkflow)
-	workflowGroup.POST("/:id/cancel", wr.handler.CancelWorkflowExecution)
+	workflowGroup.POST("/executions/:executionId/cancel", wr.handler.CancelWorkflowExecution)
+	workflowGroup.GET("/executions/:executionId", wr.handler.GetWorkflowExecution)
+	workflowGroup.GET("/:id/executions", wr.handler.ListWorkflowExecutions)
+	workflowGroup.PUT("/step-executions/:executionId", wr.handler.UpdateStepExecution)
 
 	// Workflow analysis and optimization
 	workflowGroup.GET("/:id/analyze", wr.handler.AnalyzeWorkflow)

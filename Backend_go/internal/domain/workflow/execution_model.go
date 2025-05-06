@@ -4,63 +4,64 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 // WorkflowStepExecution represents the execution of a workflow step
 type WorkflowStepExecution struct {
-	ID                uuid.UUID              `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	ExecutionID       uuid.UUID              `json:"execution_id" gorm:"type:uuid;not null"`
-	StepID            uuid.UUID              `json:"step_id" gorm:"type:uuid;not null"`
-	Status            StepStatus             `json:"status" gorm:"type:varchar(50);not null;default:'pending'"`
-	ExecutionPriority int                    `json:"execution_priority" gorm:"default:0"`
-	ExecutionMetadata map[string]interface{} `json:"execution_metadata" gorm:"type:jsonb"`
-	StartedAt         time.Time              `json:"started_at" gorm:"not null;default:current_timestamp"`
-	UpdatedAt         time.Time              `json:"updated_at" gorm:"not null;default:current_timestamp"`
-	CompletedAt       *time.Time             `json:"completed_at"`
-	Result            map[string]interface{} `json:"result" gorm:"type:jsonb"`
-	Error             *string                `json:"error"`
+	ID                uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	ExecutionID       uuid.UUID      `json:"execution_id" gorm:"type:uuid;not null"`
+	StepID            uuid.UUID      `json:"step_id" gorm:"type:uuid;not null"`
+	Status            StepStatus     `json:"status" gorm:"type:varchar(50);not null;default:'pending'"`
+	ExecutionPriority int            `json:"execution_priority" gorm:"default:0"`
+	ExecutionMetadata datatypes.JSON `json:"execution_metadata" gorm:"type:jsonb"`
+	StartedAt         time.Time      `json:"started_at" gorm:"not null;default:current_timestamp"`
+	UpdatedAt         time.Time      `json:"updated_at" gorm:"not null;default:current_timestamp"`
+	CompletedAt       *time.Time     `json:"completed_at"`
+	Result            datatypes.JSON `json:"result" gorm:"type:jsonb"`
+	Error             *string        `json:"error"`
 }
 
 // WorkflowExecution represents the execution of a workflow
 type WorkflowExecution struct {
-	ID                uuid.UUID              `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	WorkflowID        uuid.UUID              `json:"workflow_id" gorm:"type:uuid;not null"`
-	Status            WorkflowStatus         `json:"status" gorm:"type:varchar(50);not null;default:'pending'"`
-	ExecutionPriority int                    `json:"execution_priority" gorm:"default:0"`
-	ExecutionMetadata map[string]interface{} `json:"execution_metadata" gorm:"type:jsonb"`
-	StartedAt         time.Time              `json:"started_at" gorm:"not null;default:current_timestamp"`
-	UpdatedAt         time.Time              `json:"updated_at" gorm:"not null;default:current_timestamp"`
-	CompletedAt       *time.Time             `json:"completed_at"`
-	Result            map[string]interface{} `json:"result" gorm:"type:jsonb"`
-	Error             *string                `json:"error"`
+	ID                uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	WorkflowID        uuid.UUID      `json:"workflow_id" gorm:"type:uuid;not null"`
+	Status            WorkflowStatus `json:"status" gorm:"type:varchar(50);not null;default:'pending'"`
+	ExecutionPriority int            `json:"execution_priority" gorm:"default:0"`
+	ExecutionMetadata datatypes.JSON `json:"execution_metadata" gorm:"type:jsonb"`
+	StartedAt         time.Time      `json:"started_at" gorm:"not null;default:current_timestamp"`
+	UpdatedAt         time.Time      `json:"updated_at" gorm:"not null;default:current_timestamp"`
+	CompletedAt       *time.Time     `json:"completed_at"`
+	Result            datatypes.JSON `json:"result" gorm:"type:jsonb"`
+	Error             *string        `json:"error"`
 }
 
 // WorkflowAgentLink represents a link between a workflow and an agent
 type WorkflowAgentLink struct {
-	ID                  uuid.UUID              `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	WorkflowID          uuid.UUID              `json:"workflow_id" gorm:"type:uuid;not null"`
-	AgentID             uuid.UUID              `json:"agent_id" gorm:"type:uuid;not null"`
-	InteractionType     string                 `json:"interaction_type" gorm:"type:varchar(100);not null"`
-	ConfidenceScore     *float64               `json:"confidence_score"`
-	InteractionMetadata map[string]interface{} `json:"interaction_metadata" gorm:"type:jsonb"`
-	CreatedAt           time.Time              `json:"created_at" gorm:"not null;default:current_timestamp"`
+	ID                  uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	WorkflowID          uuid.UUID      `json:"workflow_id" gorm:"type:uuid;not null"`
+	AgentID             uuid.UUID      `json:"agent_id" gorm:"type:uuid;not null"`
+	InteractionType     string         `json:"interaction_type" gorm:"type:varchar(100);not null"`
+	ConfidenceScore     *float64       `json:"confidence_score"`
+	InteractionMetadata datatypes.JSON `json:"interaction_metadata" gorm:"type:jsonb"`
+	CreatedAt           time.Time      `json:"created_at" gorm:"not null;default:current_timestamp"`
 }
 
 // CreateWorkflowExecutionRequest represents the request body for creating a workflow execution
 type CreateWorkflowExecutionRequest struct {
-	WorkflowID        uuid.UUID              `json:"workflow_id" binding:"required"`
-	ExecutionPriority *int                   `json:"execution_priority,omitempty"`
-	ExecutionMetadata map[string]interface{} `json:"execution_metadata,omitempty"`
+	WorkflowID        uuid.UUID      `json:"workflow_id" binding:"required"`
+	ExecutionPriority *int           `json:"execution_priority,omitempty"`
+	ExecutionMetadata datatypes.JSON `json:"execution_metadata,omitempty"`
 }
 
 // UpdateWorkflowExecutionRequest represents the request body for updating a workflow execution
 type UpdateWorkflowExecutionRequest struct {
-	Status            *WorkflowStatus        `json:"status,omitempty"`
-	ExecutionPriority *int                   `json:"execution_priority,omitempty"`
-	ExecutionMetadata map[string]interface{} `json:"execution_metadata,omitempty"`
-	Result            map[string]interface{} `json:"result,omitempty"`
-	Error             *string                `json:"error,omitempty"`
+	Status            *WorkflowStatus `json:"status,omitempty"`
+	ExecutionPriority *int            `json:"execution_priority,omitempty"`
+	ExecutionMetadata datatypes.JSON  `json:"execution_metadata,omitempty"`
+	Result            datatypes.JSON  `json:"result,omitempty"`
+	Error             *string         `json:"error,omitempty"`
 }
 
 // WorkflowExecutionResponse represents the response for execution operations

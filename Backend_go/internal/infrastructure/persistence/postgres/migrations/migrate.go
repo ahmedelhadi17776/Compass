@@ -98,6 +98,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&workflow.Workflow{},
 			&workflow.WorkflowStep{},
 			&workflow.WorkflowExecution{},
+			&workflow.WorkflowStepExecution{},
 			&workflow.WorkflowAgentLink{},
 			&workflow.WorkflowTransition{},
 			&todos.Todo{},
