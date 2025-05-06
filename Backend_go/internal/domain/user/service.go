@@ -13,31 +13,37 @@ import (
 
 // Input types
 type CreateUserInput struct {
-	Email       string                 `json:"email"`
-	Username    string                 `json:"username"`
-	Password    string                 `json:"password"`
-	FirstName   string                 `json:"first_name"`
-	LastName    string                 `json:"last_name"`
-	PhoneNumber string                 `json:"phone_number,omitempty"`
-	AvatarURL   string                 `json:"avatar_url,omitempty"`
-	Bio         string                 `json:"bio,omitempty"`
-	Timezone    string                 `json:"timezone,omitempty"`
-	Locale      string                 `json:"locale,omitempty"`
-	Preferences map[string]interface{} `json:"preferences,omitempty"`
+	Email        string                 `json:"email"`
+	Username     string                 `json:"username"`
+	Password     string                 `json:"password"`
+	FirstName    string                 `json:"first_name"`
+	LastName     string                 `json:"last_name"`
+	PhoneNumber  string                 `json:"phone_number,omitempty"`
+	AvatarURL    string                 `json:"avatar_url,omitempty"`
+	Bio          string                 `json:"bio,omitempty"`
+	Timezone     string                 `json:"timezone,omitempty"`
+	Locale       string                 `json:"locale,omitempty"`
+	Preferences  map[string]interface{} `json:"preferences,omitempty"`
+	Provider     string                 `json:"provider,omitempty"`
+	ProviderID   string                 `json:"provider_id,omitempty"`
+	ProviderData map[string]interface{} `json:"provider_data,omitempty"`
 }
 
 type UpdateUserInput struct {
-	Email       *string                `json:"email,omitempty"`
-	Username    *string                `json:"username,omitempty"`
-	Password    *string                `json:"password,omitempty"`
-	FirstName   *string                `json:"first_name,omitempty"`
-	LastName    *string                `json:"last_name,omitempty"`
-	PhoneNumber *string                `json:"phone_number,omitempty"`
-	AvatarURL   *string                `json:"avatar_url,omitempty"`
-	Bio         *string                `json:"bio,omitempty"`
-	Timezone    *string                `json:"timezone,omitempty"`
-	Locale      *string                `json:"locale,omitempty"`
-	Preferences map[string]interface{} `json:"preferences,omitempty"`
+	Email        *string                `json:"email,omitempty"`
+	Username     *string                `json:"username,omitempty"`
+	Password     *string                `json:"password,omitempty"`
+	FirstName    *string                `json:"first_name,omitempty"`
+	LastName     *string                `json:"last_name,omitempty"`
+	PhoneNumber  *string                `json:"phone_number,omitempty"`
+	AvatarURL    *string                `json:"avatar_url,omitempty"`
+	Bio          *string                `json:"bio,omitempty"`
+	Timezone     *string                `json:"timezone,omitempty"`
+	Locale       *string                `json:"locale,omitempty"`
+	Preferences  map[string]interface{} `json:"preferences,omitempty"`
+	Provider     *string                `json:"provider,omitempty"`
+	ProviderID   *string                `json:"provider_id,omitempty"`
+	ProviderData map[string]interface{} `json:"provider_data,omitempty"`
 }
 
 // Common errors
@@ -55,6 +61,7 @@ type Service interface {
 	GetUser(ctx context.Context, id uuid.UUID) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
+	FindUserByProviderID(ctx context.Context, providerID, provider string) (*User, error)
 	ListUsers(ctx context.Context, filter UserFilter) ([]User, int64, error)
 	UpdateUser(ctx context.Context, id uuid.UUID, input UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
@@ -182,6 +189,10 @@ func (s *service) GetUserByEmail(ctx context.Context, email string) (*User, erro
 
 func (s *service) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	return s.repo.FindByUsername(ctx, username)
+}
+
+func (s *service) FindUserByProviderID(ctx context.Context, providerID, provider string) (*User, error) {
+	return s.repo.FindByProviderID(ctx, providerID, provider)
 }
 
 func (s *service) ListUsers(ctx context.Context, filter UserFilter) ([]User, int64, error) {

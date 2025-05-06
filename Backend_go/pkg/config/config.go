@@ -53,9 +53,27 @@ type RedisConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret      string `mapstructure:"jwt_secret"`
-	JWTExpiryHours int    `mapstructure:"jwt_expiry_hours"`
-	JWTIssuer      string `mapstructure:"jwt_issuer"`
+	JWTSecret       string                    `mapstructure:"jwt_secret"`
+	JWTExpiryHours  int                       `mapstructure:"jwt_expiry_hours"`
+	JWTIssuer       string                    `mapstructure:"jwt_issuer"`
+	OAuth2          OAuth2Config              `mapstructure:"oauth2"`
+	OAuth2Providers map[string]ProviderConfig `mapstructure:"oauth2_providers"`
+}
+
+type OAuth2Config struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	CallbackURL  string `mapstructure:"callback_url"`
+	StateTimeout int    `mapstructure:"state_timeout"` // in minutes
+}
+
+type ProviderConfig struct {
+	ClientID     string   `mapstructure:"client_id"`
+	ClientSecret string   `mapstructure:"client_secret"`
+	RedirectURL  string   `mapstructure:"redirect_url"`
+	Scopes       []string `mapstructure:"scopes"`
+	AuthURL      string   `mapstructure:"auth_url"`
+	TokenURL     string   `mapstructure:"token_url"`
+	UserInfoURL  string   `mapstructure:"userinfo_url"`
 }
 
 type CORSConfig struct {
@@ -131,36 +149,51 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	// Override with environment variables if they exist
 	envVars := map[string]string{
-		"database.host":         "DB_HOST",
-		"database.port":         "DB_PORT",
-		"database.user":         "DB_USER",
-		"database.password":     "DB_PASSWORD",
-		"database.name":         "DB_NAME",
-		"database.sslmode":      "DB_SSLMODE",
-		"server.mode":           "SERVER_MODE",
-		"server.timeout":        "SERVER_TIMEOUT",
-		"redis.host":            "REDIS_HOST",
-		"redis.port":            "REDIS_PORT",
-		"redis.password":        "REDIS_PASSWORD",
-		"redis.db":              "REDIS_DB",
-		"auth.jwt_secret":       "JWT_SECRET",
-		"auth.jwt_issuer":       "JWT_ISSUER",
-		"auth.jwt_expiry_hours": "JWT_EXPIRY_HOURS",
-		"logging.level":         "LOG_LEVEL",
-		"logging.format":        "LOG_FORMAT",
+		"database.host":                          "DB_HOST",
+		"database.port":                          "DB_PORT",
+		"database.user":                          "DB_USER",
+		"database.password":                      "DB_PASSWORD",
+		"database.name":                          "DB_NAME",
+		"database.sslmode":                       "DB_SSLMODE",
+		"server.mode":                            "SERVER_MODE",
+		"server.timeout":                         "SERVER_TIMEOUT",
+		"redis.host":                             "REDIS_HOST",
+		"redis.port":                             "REDIS_PORT",
+		"redis.password":                         "REDIS_PASSWORD",
+		"redis.db":                               "REDIS_DB",
+		"auth.jwt_secret":                        "JWT_SECRET",
+		"auth.jwt_issuer":                        "JWT_ISSUER",
+		"auth.jwt_expiry_hours":                  "JWT_EXPIRY_HOURS",
+		"auth.oauth2.enabled":                    "OAUTH2_ENABLED",
+		"auth.oauth2.callback_url":               "OAUTH2_CALLBACK_URL",
+		"auth.oauth2.state_timeout":              "OAUTH2_STATE_TIMEOUT",
+		"auth.oauth2_providers.google.client_id": "OAUTH2_GOOGLE_CLIENT_ID",
+		"auth.oauth2_providers.google.client_secret": "OAUTH2_GOOGLE_CLIENT_SECRET",
+		"auth.oauth2_providers.google.redirect_url":  "OAUTH2_GOOGLE_REDIRECT_URL",
+		"auth.oauth2_providers.github.client_id":     "OAUTH2_GITHUB_CLIENT_ID",
+		"auth.oauth2_providers.github.client_secret": "OAUTH2_GITHUB_CLIENT_SECRET",
+		"auth.oauth2_providers.github.redirect_url":  "OAUTH2_GITHUB_REDIRECT_URL",
+		"logging.level":  "LOG_LEVEL",
+		"logging.format": "LOG_FORMAT",
 	}
 
 	for configKey, envVar := range envVars {
 		if value := os.Getenv(envVar); value != "" {
 			// Handle special cases for type conversion
 			switch envVar {
-			case "DB_PORT", "REDIS_PORT", "JWT_EXPIRY_HOURS":
+			case "DB_PORT", "REDIS_PORT", "JWT_EXPIRY_HOURS", "OAUTH2_STATE_TIMEOUT":
 				if intVal, err := strconv.Atoi(value); err == nil {
 					v.Set(configKey, intVal)
 				}
 			case "SERVER_TIMEOUT":
 				if d, err := time.ParseDuration(value); err == nil {
 					v.Set(configKey, d)
+				}
+			case "OAUTH2_ENABLED":
+				if value == "true" || value == "1" {
+					v.Set(configKey, true)
+				} else if value == "false" || value == "0" {
+					v.Set(configKey, false)
 				}
 			default:
 				v.Set(configKey, value)

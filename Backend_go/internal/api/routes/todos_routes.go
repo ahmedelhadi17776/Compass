@@ -45,7 +45,7 @@ func (r *TodosRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cache
 
 	// Todo Lists routes
 	todoLists := router.Group("/api/todo-lists")
-	//todoLists.Use(middleware.NewAuthMiddleware(r.jwtSecret))
+	todoLists.Use(middleware.NewAuthMiddleware(r.jwtSecret))
 
 	// Read operations with caching
 	todoLists.GET("", cache.CacheResponse(), r.handler.GetAllTodoLists)

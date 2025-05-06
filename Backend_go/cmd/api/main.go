@@ -95,6 +95,17 @@ func main() {
 	log.Info("Configuration loaded successfully")
 	log.Info("Server mode: " + cfg.Server.Mode)
 
+	// Log OAuth2 configuration
+	log.Info("OAuth2 configuration",
+		zap.Bool("enabled", cfg.Auth.OAuth2.Enabled),
+		zap.String("callback_url", cfg.Auth.OAuth2.CallbackURL),
+		zap.Int("state_timeout", cfg.Auth.OAuth2.StateTimeout),
+		zap.Int("providers_count", len(cfg.Auth.OAuth2Providers)))
+
+	for provider, _ := range cfg.Auth.OAuth2Providers {
+		log.Info("OAuth2 provider configured", zap.String("provider", provider))
+	}
+
 	// Set up Gin
 	if cfg.Server.Mode == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -175,6 +186,9 @@ func main() {
 	})
 	todosService := todos.NewService(todosRepo)
 
+	// Initialize OAuth2 service
+	oauthService := auth.NewOAuthService(cfg)
+
 	// Initialize and start the scheduler
 	habitScheduler := scheduler.NewScheduler(habitsService, log)
 	habitScheduler.Start()
@@ -190,6 +204,9 @@ func main() {
 	calendarHandler := handlers.NewCalendarHandler(calendarService)
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 	todosHandler := handlers.NewTodoHandler(todosService)
+
+	// Initialize OAuth2 handler with logger
+	oauthHandler := handlers.NewOAuthHandler(oauthService, userService, cfg.Auth.JWTSecret, log.Logger)
 
 	// Initialize AI repository and service
 	aiLogger := logrus.New()
@@ -301,6 +318,20 @@ func main() {
 	// Register MCP routes (not protected by auth middleware)
 	mcpRoutes.RegisterRoutes(router.Group("/api"))
 	log.Info("Registered MCP routes at /api/mcp/*")
+
+	// OAuth2 routes
+	if cfg.Auth.OAuth2.Enabled {
+		log.Info("Registering OAuth2 routes",
+			zap.Bool("enabled", cfg.Auth.OAuth2.Enabled))
+
+		oauthRoutes := routes.NewOAuthRoutes(oauthHandler, rateLimiter)
+		oauthRoutes.RegisterRoutes(router)
+
+		log.Info("OAuth2 routes registered successfully",
+			zap.String("path", "/api/auth/oauth"))
+	} else {
+		log.Warn("OAuth2 routes not registered because OAuth2 is disabled")
+	}
 
 	// Print all registered routes for debugging
 	for _, route := range router.Routes() {
