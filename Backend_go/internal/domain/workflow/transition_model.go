@@ -4,31 +4,32 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 // WorkflowTransition represents a transition between workflow steps
 type WorkflowTransition struct {
-	ID         uuid.UUID              `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	FromStepID uuid.UUID              `json:"from_step_id" gorm:"type:uuid;not null"`
-	ToStepID   uuid.UUID              `json:"to_step_id" gorm:"type:uuid;not null"`
-	Conditions map[string]interface{} `json:"conditions" gorm:"type:jsonb"`
-	Triggers   map[string]interface{} `json:"triggers" gorm:"type:jsonb"`
-	CreatedAt  time.Time              `json:"created_at" gorm:"not null;default:current_timestamp"`
+	ID         uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	FromStepID uuid.UUID      `json:"from_step_id" gorm:"type:uuid;not null"`
+	ToStepID   uuid.UUID      `json:"to_step_id" gorm:"type:uuid;not null"`
+	Conditions datatypes.JSON `json:"conditions" gorm:"type:jsonb"`
+	Triggers   datatypes.JSON `json:"triggers" gorm:"type:jsonb"`
+	CreatedAt  time.Time      `json:"created_at" gorm:"not null;default:current_timestamp"`
 }
 
 // CreateWorkflowTransitionRequest represents the request body for creating a workflow transition
 type CreateWorkflowTransitionRequest struct {
-	FromStepID uuid.UUID              `json:"from_step_id" binding:"required"`
-	ToStepID   uuid.UUID              `json:"to_step_id" binding:"required"`
-	Conditions map[string]interface{} `json:"conditions,omitempty"`
-	Triggers   map[string]interface{} `json:"triggers,omitempty"`
+	FromStepID uuid.UUID      `json:"from_step_id" binding:"required"`
+	ToStepID   uuid.UUID      `json:"to_step_id" binding:"required"`
+	Conditions datatypes.JSON `json:"conditions,omitempty"`
+	Triggers   datatypes.JSON `json:"triggers,omitempty"`
 }
 
 // UpdateWorkflowTransitionRequest represents the request body for updating a workflow transition
 type UpdateWorkflowTransitionRequest struct {
-	Conditions map[string]interface{} `json:"conditions,omitempty"`
-	Triggers   map[string]interface{} `json:"triggers,omitempty"`
+	Conditions datatypes.JSON `json:"conditions,omitempty"`
+	Triggers   datatypes.JSON `json:"triggers,omitempty"`
 }
 
 // WorkflowTransitionResponse represents the response for transition operations

@@ -37,6 +37,9 @@ type Service interface {
 	// Analysis and optimization
 	AnalyzeWorkflow(ctx context.Context, workflowID uuid.UUID) (map[string]interface{}, error)
 	OptimizeWorkflow(ctx context.Context, workflowID uuid.UUID) (map[string]interface{}, error)
+
+	GetRepo() Repository
+	GetExecutor() WorkflowExecutor
 }
 
 type service struct {
@@ -49,6 +52,7 @@ type service struct {
 type WorkflowExecutor interface {
 	ExecuteStep(ctx context.Context, step *WorkflowStep, execution *WorkflowStepExecution) error
 	ValidateTransition(ctx context.Context, fromStep, toStep *WorkflowStep) error
+	ProcessNextSteps(ctx context.Context, currentStep *WorkflowStep, execution *WorkflowStepExecution) error
 }
 
 // ServiceConfig holds the configuration for the workflow service
@@ -114,15 +118,17 @@ func (s *service) CreateWorkflow(ctx context.Context, req CreateWorkflowRequest,
 
 // UpdateWorkflow implements the workflow update logic
 func (s *service) UpdateWorkflow(ctx context.Context, id uuid.UUID, req UpdateWorkflowRequest) (*WorkflowResponse, error) {
-	s.logger.WithField("workflow_id", id).Info("Updating workflow")
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": id,
+	}).Info("Updating workflow")
 
 	workflow, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get workflow")
+		s.logger.WithError(err).Error("Failed to get workflow for update")
 		return nil, fmt.Errorf("failed to get workflow: %w", err)
 	}
 
-	// Update fields if provided in the request
+	// Update fields if they are provided
 	if req.Name != nil {
 		workflow.Name = *req.Name
 	}
@@ -148,7 +154,16 @@ func (s *service) UpdateWorkflow(ctx context.Context, id uuid.UUID, req UpdateWo
 		workflow.Tags = req.Tags
 	}
 
-	workflow.UpdatedAt = time.Now().UTC()
+	// Update the metadata to include update time
+	var metadata map[string]interface{}
+	if workflow.WorkflowMetadata != nil {
+		if err := json.Unmarshal(workflow.WorkflowMetadata, &metadata); err == nil {
+			metadata["updated_at"] = time.Now().UTC()
+			if metadataJSON, err := json.Marshal(metadata); err == nil {
+				workflow.WorkflowMetadata = datatypes.JSON(metadataJSON)
+			}
+		}
+	}
 
 	if err := s.repo.Update(ctx, workflow); err != nil {
 		s.logger.WithError(err).Error("Failed to update workflow")
@@ -160,12 +175,20 @@ func (s *service) UpdateWorkflow(ctx context.Context, id uuid.UUID, req UpdateWo
 
 // DeleteWorkflow implements the workflow deletion logic
 func (s *service) DeleteWorkflow(ctx context.Context, id uuid.UUID) error {
-	s.logger.WithField("workflow_id", id).Info("Deleting workflow")
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": id,
+	}).Info("Deleting workflow")
 
-	// First, cancel any active executions
+	// First check if workflow exists
+	_, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow: %w", err)
+	}
+
+	// Cancel any active executions
 	if err := s.repo.CancelActiveExecutions(ctx, id); err != nil {
 		s.logger.WithError(err).Error("Failed to cancel active executions")
-		return fmt.Errorf("failed to cancel active executions: %w", err)
+		// Continue with deletion even if cancellation fails
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -176,8 +199,12 @@ func (s *service) DeleteWorkflow(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// GetWorkflow retrieves a workflow by ID
+// GetWorkflow implements the workflow retrieval logic
 func (s *service) GetWorkflow(ctx context.Context, id uuid.UUID) (*WorkflowResponse, error) {
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": id,
+	}).Info("Getting workflow details")
+
 	workflow, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to get workflow")
@@ -187,8 +214,10 @@ func (s *service) GetWorkflow(ctx context.Context, id uuid.UUID) (*WorkflowRespo
 	return &WorkflowResponse{Workflow: workflow}, nil
 }
 
-// ListWorkflows retrieves workflows based on filter criteria
+// ListWorkflows implements the workflow listing logic
 func (s *service) ListWorkflows(ctx context.Context, filter *WorkflowFilter) (*WorkflowListResponse, error) {
+	s.logger.Info("Listing workflows")
+
 	workflows, total, err := s.repo.List(ctx, filter)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to list workflows")
@@ -201,21 +230,17 @@ func (s *service) ListWorkflows(ctx context.Context, filter *WorkflowFilter) (*W
 	}, nil
 }
 
-// AddWorkflowStep adds a new step to a workflow
+// AddWorkflowStep implements the step creation logic
 func (s *service) AddWorkflowStep(ctx context.Context, workflowID uuid.UUID, req CreateWorkflowStepRequest) (*WorkflowStepResponse, error) {
 	s.logger.WithFields(logrus.Fields{
 		"workflow_id": workflowID,
 		"step_name":   req.Name,
 	}).Info("Adding workflow step")
 
-	// Verify workflow exists and is in a valid state
+	// First check if workflow exists
 	workflow, err := s.repo.GetByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow: %w", err)
-	}
-
-	if workflow.Status != WorkflowStatusPending && workflow.Status != WorkflowStatusActive {
-		return nil, fmt.Errorf("cannot add steps to workflow in %s status", workflow.Status)
 	}
 
 	step := &WorkflowStep{
@@ -228,8 +253,11 @@ func (s *service) AddWorkflowStep(ctx context.Context, workflowID uuid.UUID, req
 		Status:      StepStatusPending,
 		Config:      req.Config,
 		Conditions:  req.Conditions,
-		Timeout:     req.Timeout,
-		IsRequired:  true,
+		IsRequired:  true, // Default to required
+	}
+
+	if req.Timeout != nil {
+		step.Timeout = req.Timeout
 	}
 
 	if req.IsRequired != nil {
@@ -245,18 +273,29 @@ func (s *service) AddWorkflowStep(ctx context.Context, workflowID uuid.UUID, req
 		return nil, fmt.Errorf("failed to create workflow step: %w", err)
 	}
 
+	// Update workflow updated_at timestamp
+	workflow.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, workflow); err != nil {
+		s.logger.WithError(err).Error("Failed to update workflow timestamp")
+		// Continue even if timestamp update fails
+	}
+
 	return &WorkflowStepResponse{Step: step}, nil
 }
 
-// UpdateWorkflowStep updates an existing workflow step
+// UpdateWorkflowStep implements the step update logic
 func (s *service) UpdateWorkflowStep(ctx context.Context, id uuid.UUID, req UpdateWorkflowStepRequest) (*WorkflowStepResponse, error) {
-	s.logger.WithField("step_id", id).Info("Updating workflow step")
+	s.logger.WithFields(logrus.Fields{
+		"step_id": id,
+	}).Info("Updating workflow step")
 
 	step, err := s.repo.GetStepByID(ctx, id)
 	if err != nil {
+		s.logger.WithError(err).Error("Failed to get workflow step for update")
 		return nil, fmt.Errorf("failed to get workflow step: %w", err)
 	}
 
+	// Update fields if they are provided
 	if req.Name != nil {
 		step.Name = *req.Name
 	}
@@ -293,23 +332,84 @@ func (s *service) UpdateWorkflowStep(ctx context.Context, id uuid.UUID, req Upda
 		return nil, fmt.Errorf("failed to update workflow step: %w", err)
 	}
 
+	// Update parent workflow updated_at timestamp
+	workflow, err := s.repo.GetByID(ctx, step.WorkflowID)
+	if err == nil {
+		workflow.UpdatedAt = time.Now()
+		_ = s.repo.Update(ctx, workflow) // Ignore error as this is a secondary operation
+	}
+
 	return &WorkflowStepResponse{Step: step}, nil
 }
 
-// DeleteWorkflowStep deletes a workflow step
+// DeleteWorkflowStep implements the step deletion logic
 func (s *service) DeleteWorkflowStep(ctx context.Context, id uuid.UUID) error {
-	s.logger.WithField("step_id", id).Info("Deleting workflow step")
+	s.logger.WithFields(logrus.Fields{
+		"step_id": id,
+	}).Info("Deleting workflow step")
+
+	// First check if step exists and get its workflow ID
+	step, err := s.repo.GetStepByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow step: %w", err)
+	}
+
+	// Check if there are any transitions using this step
+	transitions, _, err := s.repo.ListTransitions(ctx, &WorkflowTransitionFilter{
+		FromStepID: &id,
+	})
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list transitions from step")
+		// Continue with deletion even if transition check fails
+	}
+
+	// If there are transitions, delete them first
+	for _, transition := range transitions {
+		if err := s.repo.DeleteTransition(ctx, transition.ID); err != nil {
+			s.logger.WithError(err).WithField("transition_id", transition.ID).Error("Failed to delete transition")
+			// Continue with other transitions
+		}
+	}
+
+	// Also check transitions where this step is a target
+	toTransitions, _, err := s.repo.ListTransitions(ctx, &WorkflowTransitionFilter{
+		ToStepID: &id,
+	})
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list transitions to step")
+		// Continue with deletion even if transition check fails
+	}
+
+	// Delete transitions where this step is a target
+	for _, transition := range toTransitions {
+		if err := s.repo.DeleteTransition(ctx, transition.ID); err != nil {
+			s.logger.WithError(err).WithField("transition_id", transition.ID).Error("Failed to delete transition")
+			// Continue with other transitions
+		}
+	}
 
 	if err := s.repo.DeleteStep(ctx, id); err != nil {
 		s.logger.WithError(err).Error("Failed to delete workflow step")
 		return fmt.Errorf("failed to delete workflow step: %w", err)
 	}
 
+	// Update parent workflow updated_at timestamp
+	workflowID := step.WorkflowID
+	workflow, err := s.repo.GetByID(ctx, workflowID)
+	if err == nil {
+		workflow.UpdatedAt = time.Now()
+		_ = s.repo.Update(ctx, workflow) // Ignore error as this is a secondary operation
+	}
+
 	return nil
 }
 
-// GetWorkflowStep retrieves a workflow step by ID
+// GetWorkflowStep implements the step retrieval logic
 func (s *service) GetWorkflowStep(ctx context.Context, id uuid.UUID) (*WorkflowStepResponse, error) {
+	s.logger.WithFields(logrus.Fields{
+		"step_id": id,
+	}).Info("Getting workflow step details")
+
 	step, err := s.repo.GetStepByID(ctx, id)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to get workflow step")
@@ -319,8 +419,10 @@ func (s *service) GetWorkflowStep(ctx context.Context, id uuid.UUID) (*WorkflowS
 	return &WorkflowStepResponse{Step: step}, nil
 }
 
-// ListWorkflowSteps retrieves workflow steps based on filter criteria
+// ListWorkflowSteps implements the step listing logic
 func (s *service) ListWorkflowSteps(ctx context.Context, filter *WorkflowStepFilter) (*WorkflowStepListResponse, error) {
+	s.logger.Info("Listing workflow steps")
+
 	steps, total, err := s.repo.ListSteps(ctx, filter)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to list workflow steps")
@@ -333,25 +435,44 @@ func (s *service) ListWorkflowSteps(ctx context.Context, filter *WorkflowStepFil
 	}, nil
 }
 
-// ExecuteWorkflow starts the execution of a workflow
+// ExecuteWorkflow implements the workflow execution logic
 func (s *service) ExecuteWorkflow(ctx context.Context, workflowID uuid.UUID) (*WorkflowExecutionResponse, error) {
-	s.logger.WithField("workflow_id", workflowID).Info("Starting workflow execution")
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": workflowID,
+	}).Info("Executing workflow")
 
+	// Check if workflow exists
 	workflow, err := s.repo.GetByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow: %w", err)
 	}
 
-	// Create new execution record
+	// Update workflow status to active
+	if workflow.Status != WorkflowStatusActive {
+		err = s.repo.UpdateStatus(ctx, workflowID, WorkflowStatusActive)
+		if err != nil {
+			s.logger.WithError(err).Error("Failed to update workflow status to active")
+			return nil, fmt.Errorf("failed to update workflow status: %w", err)
+		}
+		workflow.Status = WorkflowStatusActive
+	}
+
+	// Create a new execution record
+	now := time.Now()
+	executionMetadata := map[string]interface{}{
+		"started_by": "system",
+		"version":    workflow.Version,
+	}
+	metadataJSON, _ := json.Marshal(executionMetadata)
+
 	execution := &WorkflowExecution{
-		ID:         uuid.New(),
-		WorkflowID: workflowID,
-		Status:     WorkflowStatusActive,
-		StartedAt:  time.Now().UTC(),
-		ExecutionMetadata: map[string]interface{}{
-			"started_by": workflow.CreatedBy.String(),
-			"version":    workflow.Version,
-		},
+		ID:                uuid.New(),
+		WorkflowID:        workflowID,
+		Status:            WorkflowStatusActive,
+		ExecutionPriority: 0, // Default priority
+		ExecutionMetadata: datatypes.JSON(metadataJSON),
+		StartedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	if err := s.repo.CreateExecution(ctx, execution); err != nil {
@@ -359,39 +480,58 @@ func (s *service) ExecuteWorkflow(ctx context.Context, workflowID uuid.UUID) (*W
 		return nil, fmt.Errorf("failed to create workflow execution: %w", err)
 	}
 
-	// Update workflow status
-	workflow.Status = WorkflowStatusActive
-	workflow.LastExecutedAt = &execution.StartedAt
-	if err := s.repo.Update(ctx, workflow); err != nil {
-		s.logger.WithError(err).Error("Failed to update workflow status")
-		return nil, fmt.Errorf("failed to update workflow status: %w", err)
+	// Find first step (lowest step order)
+	stepFilter := &WorkflowStepFilter{
+		WorkflowID: &workflowID,
 	}
-
-	return &WorkflowExecutionResponse{Execution: execution}, nil
-}
-
-// ExecuteWorkflowStep executes a specific step in a workflow
-func (s *service) ExecuteWorkflowStep(ctx context.Context, stepID uuid.UUID, executionID uuid.UUID) (*WorkflowStepExecution, error) {
-	s.logger.WithFields(logrus.Fields{
-		"step_id":      stepID,
-		"execution_id": executionID,
-	}).Info("Executing workflow step")
-
-	step, err := s.repo.GetStepByID(ctx, stepID)
+	steps, _, err := s.repo.ListSteps(ctx, stepFilter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow step: %w", err)
+		s.logger.WithError(err).Error("Failed to list workflow steps")
+		return nil, fmt.Errorf("failed to list workflow steps: %w", err)
 	}
+
+	if len(steps) == 0 {
+		// No steps to execute, mark workflow as completed
+		execution.Status = WorkflowStatusCompleted
+		completedTime := time.Now()
+		execution.CompletedAt = &completedTime
+		if err := s.repo.UpdateExecution(ctx, execution); err != nil {
+			s.logger.WithError(err).Error("Failed to update workflow execution")
+			// Continue even if update fails
+		}
+
+		// Update workflow status
+		if err := s.repo.UpdateStatus(ctx, workflowID, WorkflowStatusCompleted); err != nil {
+			s.logger.WithError(err).Error("Failed to update workflow status to completed")
+			// Continue even if update fails
+		}
+
+		return &WorkflowExecutionResponse{Execution: execution}, nil
+	}
+
+	// Find first step (assume steps are ordered by step_order)
+	firstStep := steps[0]
+	for _, step := range steps {
+		if step.StepOrder < firstStep.StepOrder {
+			firstStep = step
+		}
+	}
+
+	// Create execution for first step
+	stepMetadata := map[string]interface{}{
+		"auto_triggered": true,
+	}
+	stepMetadataJSON, _ := json.Marshal(stepMetadata)
 
 	stepExecution := &WorkflowStepExecution{
-		ID:          uuid.New(),
-		ExecutionID: executionID,
-		StepID:      stepID,
-		Status:      StepStatusActive,
-		StartedAt:   time.Now().UTC(),
-		ExecutionMetadata: map[string]interface{}{
-			"step_type": step.StepType,
-			"version":   step.Version,
-		},
+		ID:                uuid.New(),
+		ExecutionID:       execution.ID,
+		StepID:            firstStep.ID,
+		Status:            StepStatusPending,
+		ExecutionPriority: 0, // Default priority
+		ExecutionMetadata: datatypes.JSON(stepMetadataJSON),
+		StartedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	if err := s.repo.CreateStepExecution(ctx, stepExecution); err != nil {
@@ -399,40 +539,122 @@ func (s *service) ExecuteWorkflowStep(ctx context.Context, stepID uuid.UUID, exe
 		return nil, fmt.Errorf("failed to create step execution: %w", err)
 	}
 
-	// Execute the step using the executor
-	if err := s.executor.ExecuteStep(ctx, step, stepExecution); err != nil {
-		s.logger.WithError(err).Error("Failed to execute step")
-		stepExecution.Status = StepStatusFailed
-		errStr := err.Error()
-		stepExecution.Error = &errStr
-		stepExecution.CompletedAt = timePtr(time.Now().UTC())
-		_ = s.repo.UpdateStepExecution(ctx, stepExecution)
-		return nil, fmt.Errorf("failed to execute step: %w", err)
+	// Start step execution asynchronously if executor is available
+	if s.executor != nil {
+		go func() {
+			ctx := context.Background() // Use a new context for async execution
+			if err := s.executor.ExecuteStep(ctx, &firstStep, stepExecution); err != nil {
+				s.logger.WithError(err).Error("Failed to execute workflow step")
+				// Update step execution with error
+				stepExecution.Status = StepStatusFailed
+				errorStr := err.Error()
+				stepExecution.Error = &errorStr
+				_ = s.repo.UpdateStepExecution(ctx, stepExecution)
+			}
+		}()
+	}
+
+	return &WorkflowExecutionResponse{Execution: execution}, nil
+}
+
+// ExecuteWorkflowStep implements the step execution logic
+func (s *service) ExecuteWorkflowStep(ctx context.Context, stepID uuid.UUID, executionID uuid.UUID) (*WorkflowStepExecution, error) {
+	s.logger.WithFields(logrus.Fields{
+		"step_id":      stepID,
+		"execution_id": executionID,
+	}).Info("Executing workflow step")
+
+	// Verify the step exists
+	step, err := s.repo.GetStepByID(ctx, stepID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow step: %w", err)
+	}
+
+	// Verify the execution exists
+	execution, err := s.repo.GetExecutionByID(ctx, executionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
+	}
+
+	// Check if execution is active
+	if execution.Status != WorkflowStatusActive && execution.Status != WorkflowStatusPending {
+		return nil, fmt.Errorf("cannot execute step: workflow execution is not active")
+	}
+
+	// Create a new step execution
+	now := time.Now()
+	manualMetadata := map[string]interface{}{
+		"manually_triggered": true,
+	}
+	manualMetadataJSON, _ := json.Marshal(manualMetadata)
+
+	stepExecution := &WorkflowStepExecution{
+		ID:                uuid.New(),
+		ExecutionID:       executionID,
+		StepID:            stepID,
+		Status:            StepStatusActive,
+		ExecutionPriority: 0, // Default priority
+		ExecutionMetadata: datatypes.JSON(manualMetadataJSON),
+		StartedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	if err := s.repo.CreateStepExecution(ctx, stepExecution); err != nil {
+		s.logger.WithError(err).Error("Failed to create step execution")
+		return nil, fmt.Errorf("failed to create step execution: %w", err)
+	}
+
+	// Execute step if executor is available
+	if s.executor != nil {
+		if err := s.executor.ExecuteStep(ctx, step, stepExecution); err != nil {
+			s.logger.WithError(err).Error("Failed to execute workflow step")
+			// Update step execution with error
+			stepExecution.Status = StepStatusFailed
+			errorStr := err.Error()
+			stepExecution.Error = &errorStr
+			if err := s.repo.UpdateStepExecution(ctx, stepExecution); err != nil {
+				s.logger.WithError(err).Error("Failed to update step execution status")
+			}
+			return stepExecution, fmt.Errorf("failed to execute workflow step: %w", err)
+		}
 	}
 
 	return stepExecution, nil
 }
 
-// CancelWorkflowExecution cancels an active workflow execution
+// CancelWorkflowExecution implements the execution cancellation logic
 func (s *service) CancelWorkflowExecution(ctx context.Context, workflowID uuid.UUID) error {
-	s.logger.WithField("workflow_id", workflowID).Info("Cancelling workflow execution")
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": workflowID,
+	}).Info("Cancelling workflow execution")
 
+	// Check if workflow exists
+	_, err := s.repo.GetByID(ctx, workflowID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow: %w", err)
+	}
+
+	// Cancel active executions
 	if err := s.repo.CancelActiveExecutions(ctx, workflowID); err != nil {
-		s.logger.WithError(err).Error("Failed to cancel workflow execution")
-		return fmt.Errorf("failed to cancel workflow execution: %w", err)
+		s.logger.WithError(err).Error("Failed to cancel active executions")
+		return fmt.Errorf("failed to cancel active executions: %w", err)
 	}
 
 	// Update workflow status
 	if err := s.repo.UpdateStatus(ctx, workflowID, WorkflowStatusCancelled); err != nil {
-		s.logger.WithError(err).Error("Failed to update workflow status")
+		s.logger.WithError(err).Error("Failed to update workflow status to cancelled")
 		return fmt.Errorf("failed to update workflow status: %w", err)
 	}
 
 	return nil
 }
 
-// GetWorkflowExecution retrieves a workflow execution by ID
+// GetWorkflowExecution implements the execution retrieval logic
 func (s *service) GetWorkflowExecution(ctx context.Context, id uuid.UUID) (*WorkflowExecutionResponse, error) {
+	s.logger.WithFields(logrus.Fields{
+		"execution_id": id,
+	}).Info("Getting workflow execution details")
+
 	execution, err := s.repo.GetExecutionByID(ctx, id)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to get workflow execution")
@@ -442,8 +664,10 @@ func (s *service) GetWorkflowExecution(ctx context.Context, id uuid.UUID) (*Work
 	return &WorkflowExecutionResponse{Execution: execution}, nil
 }
 
-// ListWorkflowExecutions retrieves workflow executions based on filter criteria
+// ListWorkflowExecutions implements the execution listing logic
 func (s *service) ListWorkflowExecutions(ctx context.Context, filter *WorkflowExecutionFilter) (*WorkflowExecutionListResponse, error) {
+	s.logger.Info("Listing workflow executions")
+
 	executions, total, err := s.repo.ListExecutions(ctx, filter)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to list workflow executions")
@@ -456,118 +680,174 @@ func (s *service) ListWorkflowExecutions(ctx context.Context, filter *WorkflowEx
 	}, nil
 }
 
-// AnalyzeWorkflow performs analysis on a workflow
+// AnalyzeWorkflow implements the workflow analysis logic
 func (s *service) AnalyzeWorkflow(ctx context.Context, workflowID uuid.UUID) (map[string]interface{}, error) {
-	s.logger.WithField("workflow_id", workflowID).Info("Analyzing workflow")
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": workflowID,
+	}).Info("Analyzing workflow")
 
+	// Check if workflow exists
 	workflow, err := s.repo.GetByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow: %w", err)
 	}
 
-	// Get workflow executions for analysis
-	executions, _, err := s.repo.ListExecutions(ctx, &WorkflowExecutionFilter{
+	// Get workflow steps
+	stepFilter := &WorkflowStepFilter{
 		WorkflowID: &workflowID,
-	})
+	}
+	steps, _, err := s.repo.ListSteps(ctx, stepFilter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow executions: %w", err)
+		s.logger.WithError(err).Error("Failed to list workflow steps")
+		return nil, fmt.Errorf("failed to list workflow steps: %w", err)
 	}
 
-	// Perform analysis
+	// Get workflow executions
+	executionFilter := &WorkflowExecutionFilter{
+		WorkflowID: &workflowID,
+	}
+	executions, _, err := s.repo.ListExecutions(ctx, executionFilter)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list workflow executions")
+		return nil, fmt.Errorf("failed to list workflow executions: %w", err)
+	}
+
+	// Perform basic analysis
 	analysis := map[string]interface{}{
+		"workflow_id":          workflowID,
+		"name":                 workflow.Name,
+		"total_steps":          len(steps),
 		"total_executions":     len(executions),
 		"average_success_rate": workflow.SuccessRate,
-		"optimization_score":   workflow.OptimizationScore,
-		"bottlenecks":          workflow.BottleneckAnalysis,
-		"performance_metrics": map[string]interface{}{
-			"average_completion_time": workflow.AverageCompletionTime,
-			"estimated_vs_actual":     calculateEfficiencyRatio(workflow),
-		},
 	}
+
+	// Count executions by status
+	statusCounts := make(map[string]int)
+	for _, exec := range executions {
+		statusCounts[string(exec.Status)]++
+	}
+	analysis["executions_by_status"] = statusCounts
+
+	// Calculate step performance data
+	stepPerformance := make([]map[string]interface{}, 0, len(steps))
+	for _, step := range steps {
+		stepData := map[string]interface{}{
+			"step_id":                step.ID,
+			"name":                   step.Name,
+			"average_execution_time": step.AverageExecutionTime,
+			"success_rate":           step.SuccessRate,
+		}
+		stepPerformance = append(stepPerformance, stepData)
+	}
+	analysis["step_performance"] = stepPerformance
+
+	// Add performance metrics
+	analysis["average_completion_time"] = workflow.AverageCompletionTime
+	analysis["optimization_score"] = workflow.OptimizationScore
 
 	return analysis, nil
 }
 
-// OptimizeWorkflow performs optimization on a workflow
+// OptimizeWorkflow implements the workflow optimization logic
 func (s *service) OptimizeWorkflow(ctx context.Context, workflowID uuid.UUID) (map[string]interface{}, error) {
-	s.logger.WithField("workflow_id", workflowID).Info("Optimizing workflow")
+	s.logger.WithFields(logrus.Fields{
+		"workflow_id": workflowID,
+	}).Info("Optimizing workflow")
 
+	// First analyze the workflow
+	analysis, err := s.AnalyzeWorkflow(ctx, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze workflow: %w", err)
+	}
+
+	// Check if workflow exists
 	workflow, err := s.repo.GetByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow: %w", err)
 	}
 
-	// Update workflow status
-	workflow.Status = WorkflowStatusOptimizing
-	if err := s.repo.Update(ctx, workflow); err != nil {
-		return nil, fmt.Errorf("failed to update workflow status: %w", err)
+	// Set workflow status to optimizing
+	previousStatus := workflow.Status
+	if err := s.repo.UpdateStatus(ctx, workflowID, WorkflowStatusOptimizing); err != nil {
+		s.logger.WithError(err).Error("Failed to update workflow status to optimizing")
+		// Continue with optimization even if status update fails
 	}
 
-	// Perform optimization analysis
-	optimization := map[string]interface{}{
-		"optimization_score": calculateOptimizationScore(workflow),
-		"recommendations":    generateOptimizationRecommendations(workflow),
-		"metrics": map[string]interface{}{
-			"performance_impact": estimatePerformanceImpact(workflow),
-			"resource_savings":   estimateResourceSavings(workflow),
+	// Get workflow steps
+	stepFilter := &WorkflowStepFilter{
+		WorkflowID: &workflowID,
+	}
+	steps, _, err := s.repo.ListSteps(ctx, stepFilter)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list workflow steps")
+		return nil, fmt.Errorf("failed to list workflow steps: %w", err)
+	}
+
+	// Perform simple optimization: identify bottlenecks
+	bottlenecks := make([]map[string]interface{}, 0)
+	for _, step := range steps {
+		if step.AverageExecutionTime > 0 && step.AverageExecutionTime > float64(len(steps))*60 {
+			bottleneck := map[string]interface{}{
+				"step_id":                step.ID,
+				"name":                   step.Name,
+				"average_execution_time": step.AverageExecutionTime,
+				"recommendation":         "Consider parallelizing or optimizing this step",
+			}
+			bottlenecks = append(bottlenecks, bottleneck)
+		}
+	}
+
+	// Prepare optimization result
+	optimizationResult := map[string]interface{}{
+		"workflow_id": workflowID,
+		"analysis":    analysis,
+		"bottlenecks": bottlenecks,
+		"recommendations": []map[string]interface{}{
+			{
+				"type":        "general",
+				"description": "Consider implementing automatic retries for failed steps",
+			},
 		},
 	}
 
-	// Update workflow with optimization results
-	workflow.Status = WorkflowStatusActive
-	workflow.OptimizationScore = optimization["optimization_score"].(float64)
+	// Calculate optimization score (simple example)
+	optimizationScore := 0.8 // Base score
+	if len(bottlenecks) > 0 {
+		optimizationScore -= float64(len(bottlenecks)) * 0.1
+	}
+	if optimizationScore < 0.1 {
+		optimizationScore = 0.1
+	}
+
+	// Update workflow with optimization data
+	workflow.OptimizationScore = optimizationScore
+	bottleneckData, _ := json.Marshal(bottlenecks)
+	workflow.BottleneckAnalysis = datatypes.JSON(bottleneckData)
+
 	if err := s.repo.Update(ctx, workflow); err != nil {
-		return nil, fmt.Errorf("failed to update workflow with optimization results: %w", err)
+		s.logger.WithError(err).Error("Failed to update workflow with optimization data")
+		// Continue even if update fails
 	}
 
-	return optimization, nil
-}
-
-// Helper functions
-
-func timePtr(t time.Time) *time.Time {
-	return &t
-}
-
-func calculateEfficiencyRatio(w *Workflow) float64 {
-	if w.EstimatedDuration == nil || w.ActualDuration == nil || *w.EstimatedDuration == 0 {
-		return 0
-	}
-	return float64(*w.ActualDuration) / float64(*w.EstimatedDuration)
-}
-
-func calculateOptimizationScore(w *Workflow) float64 {
-	// Implementation of optimization score calculation
-	// This should take into account various metrics like execution time, success rate, etc.
-	return w.SuccessRate*0.4 + (1-calculateEfficiencyRatio(w))*0.6
-}
-
-func generateOptimizationRecommendations(w *Workflow) []string {
-	var recommendations []string
-
-	// Add recommendations based on workflow analysis
-	if w.SuccessRate < 0.8 {
-		recommendations = append(recommendations, "Consider adding more error handling and retry mechanisms")
-	}
-	if calculateEfficiencyRatio(w) > 1.2 {
-		recommendations = append(recommendations, "Workflow is taking longer than estimated, consider optimizing step execution")
-	}
-	if w.AIEnabled && w.AIConfidenceThreshold < 0.7 {
-		recommendations = append(recommendations, "Consider increasing AI confidence threshold for better accuracy")
+	// Set workflow status back to previous status
+	if err := s.repo.UpdateStatus(ctx, workflowID, previousStatus); err != nil {
+		s.logger.WithError(err).Error("Failed to restore workflow status")
+		// Continue even if status update fails
 	}
 
-	return recommendations
+	return optimizationResult, nil
 }
 
-func estimatePerformanceImpact(w *Workflow) float64 {
-	// Implementation of performance impact estimation
-	return (1 - w.SuccessRate) * calculateEfficiencyRatio(w)
+// Helper methods for handler implementations
+func (s *service) GetRepo() Repository {
+	return s.repo
 }
 
-func estimateResourceSavings(w *Workflow) float64 {
-	// Implementation of resource savings estimation
-	if w.EstimatedDuration == nil || w.ActualDuration == nil {
-		return 0
-	}
-	return float64(*w.EstimatedDuration-*w.ActualDuration) / float64(*w.EstimatedDuration)
+func (s *service) GetExecutor() WorkflowExecutor {
+	return s.executor
+}
+
+// ProcessNextSteps exposes the processNextSteps functionality from the executor
+func (e *DefaultWorkflowExecutor) ProcessNextSteps(ctx context.Context, currentStep *WorkflowStep, execution *WorkflowStepExecution) error {
+	return e.processNextSteps(ctx, currentStep, execution)
 }

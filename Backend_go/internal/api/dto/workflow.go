@@ -171,6 +171,15 @@ func WorkflowStepToResponse(s *workflow.WorkflowStep) *WorkflowStepResponse {
 		timeout = &i64
 	}
 
+	// Convert JSON fields to maps
+	var config, conditions map[string]interface{}
+	if len(s.Config) > 0 {
+		_ = json.Unmarshal(s.Config, &config)
+	}
+	if len(s.Conditions) > 0 {
+		_ = json.Unmarshal(s.Conditions, &conditions)
+	}
+
 	return &WorkflowStepResponse{
 		ID:          s.ID,
 		WorkflowID:  s.WorkflowID,
@@ -179,8 +188,8 @@ func WorkflowStepToResponse(s *workflow.WorkflowStep) *WorkflowStepResponse {
 		StepType:    string(s.StepType),
 		StepOrder:   s.StepOrder,
 		Status:      string(s.Status),
-		Config:      s.Config,
-		Conditions:  s.Conditions,
+		Config:      config,
+		Conditions:  conditions,
 		Timeout:     timeout,
 		IsRequired:  s.IsRequired,
 		AssignedTo:  s.AssignedTo,

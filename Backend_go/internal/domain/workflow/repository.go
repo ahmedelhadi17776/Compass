@@ -202,7 +202,10 @@ func (r *repository) ListSteps(ctx context.Context, filter *WorkflowStepFilter) 
 		query = query.Offset(offset).Limit(filter.PageSize)
 	}
 
-	err = query.Order("step_order asc").Find(&steps).Error
+	// Order by step_order for consistent retrieval
+	query = query.Order("step_order asc")
+
+	err = query.Find(&steps).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -318,7 +321,10 @@ func (r *repository) ListExecutions(ctx context.Context, filter *WorkflowExecuti
 		query = query.Offset(offset).Limit(filter.PageSize)
 	}
 
-	err = query.Order("started_at desc").Find(&executions).Error
+	// Order by started_at for most recent executions first
+	query = query.Order("started_at desc")
+
+	err = query.Find(&executions).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -327,48 +333,10 @@ func (r *repository) ListExecutions(ctx context.Context, filter *WorkflowExecuti
 }
 
 func (r *repository) CancelActiveExecutions(ctx context.Context, workflowID uuid.UUID) error {
-	tx := r.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-
-	// Update workflow executions
-	err := tx.Model(&WorkflowExecution{}).
-		Where("workflow_id = ? AND status IN ?", workflowID, []WorkflowStatus{WorkflowStatusPending, WorkflowStatusActive}).
-		Updates(map[string]interface{}{
-			"status":       WorkflowStatusCancelled,
-			"completed_at": gorm.Expr("NOW()"),
-		}).Error
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Get affected execution IDs
-	var executionIDs []uuid.UUID
-	err = tx.Model(&WorkflowExecution{}).
-		Where("workflow_id = ? AND status = ?", workflowID, WorkflowStatusCancelled).
-		Pluck("id", &executionIDs).Error
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if len(executionIDs) > 0 {
-		// Update step executions
-		err = tx.Model(&WorkflowStepExecution{}).
-			Where("execution_id IN ? AND status IN ?", executionIDs, []StepStatus{StepStatusPending, StepStatusActive}).
-			Updates(map[string]interface{}{
-				"status":       StepStatusSkipped,
-				"completed_at": gorm.Expr("NOW()"),
-			}).Error
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit().Error
+	// Marks all active executions as cancelled
+	return r.db.WithContext(ctx).Model(&WorkflowExecution{}).
+		Where("workflow_id = ? AND status IN ?", workflowID, []WorkflowStatus{WorkflowStatusActive, WorkflowStatusPending}).
+		Update("status", WorkflowStatusCancelled).Error
 }
 
 // Step execution operations
