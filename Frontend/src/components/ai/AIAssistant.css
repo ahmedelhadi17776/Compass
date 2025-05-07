@@ -1,3 +1,10 @@
+.ai-message-bubble,
+.ai-message-row,
+.ai-message-content {
+  transition: none !important;
+  animation: none !important;
+}
+
 .ai-chat-container {
   display: flex;
   flex-direction: column;

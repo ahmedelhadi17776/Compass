@@ -200,20 +200,12 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
       // Create placeholder message for streaming response
       const streamingMessageId = (Date.now() + 1).toString();
-      const initialAssistantMessage: Message = {
-        id: streamingMessageId,
-        text: "",
-        sender: "assistant",
-        timestamp: new Date(),
-      };
-
-      addMessage(initialAssistantMessage);
 
       // Use streaming response
       console.log("Starting SSE streaming...");
       const stream = streamResponse(text, previousMessages);
 
-      let fullResponse = "";
+      let currentText = "";
       let toolUsed: string | undefined;
       let toolSuccess: boolean | undefined;
 
@@ -226,34 +218,22 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
           try {
             const errorData = JSON.parse(token);
             if (errorData.error) {
-              setMessages((msgs) =>
-                msgs.map((msg) =>
-                  msg.id === streamingMessageId
-                    ? { ...msg, text: `Error: ${errorData.error}` }
-                    : msg
-                )
-              );
+              currentText = `Error: ${errorData.error}`;
+              setStreamingText(currentText);
               break;
             }
           } catch (e) {
             // If it's not JSON but contains "error", still treat as error
             if (token.toLowerCase().includes("error")) {
-              setMessages((msgs) =>
-                msgs.map((msg) =>
-                  msg.id === streamingMessageId ? { ...msg, text: token } : msg
-                )
-              );
+              currentText = token;
+              setStreamingText(currentText);
               break;
             }
           }
         }
 
         // Handle tool info if token is a JSON object
-        if (
-          typeof token === "string" &&
-          token.startsWith("{") &&
-          token.endsWith("}")
-        ) {
+        if (typeof token === "string" && token.startsWith("{") && token.endsWith("}")) {
           try {
             const tokenData = JSON.parse(token);
             if (tokenData.tool_used) {
@@ -264,46 +244,36 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
           } catch (e) {}
         }
 
-        // Update streaming message
-        fullResponse += token;
-        setStreamingText(fullResponse);
-
-        // Update the message in the list
-        setMessages((msgs) =>
-          msgs.map((msg) =>
-            msg.id === streamingMessageId ? { ...msg, text: fullResponse } : msg
-          )
-        );
+        // Update streaming text
+        currentText += token;
+        setStreamingText(currentText);
       }
 
       console.log("Streaming complete!");
 
-      // Final update to ensure we have the complete response with any tool info
-      setMessages((msgs) =>
-        msgs.map((msg) =>
-          msg.id === streamingMessageId
-            ? {
-                ...msg,
-                text: fullResponse,
-                timestamp: new Date(),
-                tool_used: toolUsed,
-                tool_success: toolSuccess,
-              }
-            : msg
-        )
-      );
+      // Only add the message to the list after streaming is complete
+      if (currentText) {
+        const finalMessage: Message = {
+          id: streamingMessageId,
+          text: currentText,
+          sender: "assistant",
+          timestamp: new Date(),
+          tool_used: toolUsed,
+          tool_success: toolSuccess,
+        };
+        addMessage(finalMessage);
+      }
+
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text:
-          error instanceof Error
-            ? error.message
-            : "Sorry, I encountered an error while processing your request. Please try again later.",
+        text: error instanceof Error
+          ? error.message
+          : "Sorry, I encountered an error while processing your request. Please try again later.",
         sender: "assistant",
         timestamp: new Date(),
       };
-
       addMessage(errorMessage);
     } finally {
       setIsLoading(false);

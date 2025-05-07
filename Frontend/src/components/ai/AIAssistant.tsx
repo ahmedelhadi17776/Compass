@@ -162,6 +162,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                       "ai-message-bubble",
                       message.sender === "user" ? "user" : "assistant"
                     )}
+                    style={{ transition: 'none' }}
                   >
                     {message.sender === "assistant" && (
                       <div className={cn("ai-avatar", "assistant")}>
@@ -185,7 +186,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
               ))}
               
               {/* Streaming message */}
-              {streamingText && (
+              {streamingText && !messages.some(m => m.text === streamingText) && (
                 <div className="ai-message-row assistant">
                   <div className="ai-message-bubble assistant">
                     <div className="ai-avatar assistant">
