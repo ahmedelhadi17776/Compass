@@ -249,7 +249,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         ))}
         
         {/* Streaming message */}
-        {streamingText && (
+        {streamingText && !messages.some(m => m.text === streamingText) && (
           <div className="flex justify-start">
             <div className={`max-w-[70%] rounded-lg p-2.5 ${
               isDarkTheme 
