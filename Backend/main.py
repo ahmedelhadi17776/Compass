@@ -1,24 +1,25 @@
+from data_layer.mongodb.lifecycle import mongodb_lifespan
+from core.config import settings
+from core.mcp_state import set_mcp_client, get_mcp_client
+from api.ai_routes import router as ai_router
+import pathlib
+from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi import FastAPI, Request, Depends, Cookie, HTTPException
+from typing import Dict, Any, Optional
+import logging
+import json
+import asyncio
+import os
 import sys
 import codecs
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 
-import os
-import asyncio
-import json
-import logging
-from typing import Dict, Any, Optional
-from fastapi import FastAPI, Request, Depends, Cookie, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
-import pathlib
 
 # Import the API routers directly
-from api.ai_routes import router as ai_router
-from core.mcp_state import set_mcp_client, get_mcp_client
-from core.config import settings
 
 # Configure logging
 logging.basicConfig(
@@ -31,19 +32,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize MCP client in lifespan context
+# Combine multiple lifecycle managers using nested context managers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize and manage resources."""
+    """Initialize and manage resources using multiple lifecycle managers."""
     try:
-        # Initialize the MCP server if enabled
-        if settings.mcp_enabled:
-            await init_mcp_server()
+        # Initialize MongoDB
+        async with mongodb_lifespan(app):
+            # Initialize the MCP server if enabled
+            if settings.mcp_enabled:
+                await init_mcp_server()
 
-        logger.info("Application started successfully")
-        yield
+            logger.info("Application started successfully")
+            yield
     finally:
         # Cleanup MCP client when app shuts down
         logger.info("Shutting down application...")
