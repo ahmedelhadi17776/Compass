@@ -214,7 +214,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         console.log("Received token:", token);
 
         // Check if token is an error
-        if (typeof token === "string" && token.includes("error")) {
+        if (typeof token === "string" && token.startsWith("{") && token.endsWith("}")) {
           try {
             const errorData = JSON.parse(token);
             if (errorData.error) {
@@ -223,12 +223,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
               break;
             }
           } catch (e) {
-            // If it's not JSON but contains "error", still treat as error
-            if (token.toLowerCase().includes("error")) {
-              currentText = token;
-              setStreamingText(currentText);
-              break;
-            }
           }
         }
 
