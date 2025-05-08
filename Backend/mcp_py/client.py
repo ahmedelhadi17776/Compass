@@ -366,7 +366,7 @@ class MCPClient:
                         f"[TOOL_CALL] Tool '{tool_name}' returned: {result_preview}")
 
                 self.logger.info(
-                    f"[TOOL_CALL] ✅ Successfully executed tool '{tool_name}'")
+                    f"[TOOL_CALL] Successfully executed tool '{tool_name}'")
                 return {
                     "status": "success",
                     "content": result
@@ -375,7 +375,7 @@ class MCPClient:
                 attempt += 1
                 last_exception = e
                 self.logger.error(
-                    f"[TOOL_CALL] ❌ Error calling tool '{tool_name}' (attempt {attempt}/{retries+1}): {str(e)}")
+                    f"[TOOL_CALL] Error calling tool '{tool_name}' (attempt {attempt}/{retries+1}): {str(e)}")
 
                 if attempt <= retries:
                     self.logger.info(
@@ -384,7 +384,7 @@ class MCPClient:
 
         # Return error if all retries failed
         self.logger.error(
-            f"[TOOL_CALL] ❌ All attempts to call tool '{tool_name}' failed after {retries+1} tries")
+            f"[TOOL_CALL] All attempts to call tool '{tool_name}' failed after {retries+1} tries")
         return {
             "status": "error",
             "error": str(last_exception) if last_exception else "Unknown error"

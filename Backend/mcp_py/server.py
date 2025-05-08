@@ -94,8 +94,10 @@ async def mcp_diagnostic():
 
 # Define multiple backend URLs to try for Docker/non-Docker environments
 GO_BACKEND_URLS = [
+    "http://localhost:8000",
     "http://api:8000",
     "http://backend_go-api-1:8000"
+
 ]
 
 # Start with the first URL, will try others if this fails
@@ -609,78 +611,38 @@ async def get_user_info(
         }
 
 
-@mcp.tool("todos.list")
-async def get_todos(
+@mcp.tool("get_items")
+async def get_items(
     ctx: Context,
+    item_type: str,  # "todos" or "habits"
     user_id: Optional[str] = None,
     status: Optional[str] = None,
     priority: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = None,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None
 ) -> Dict[str, Any]:
-    """Get todos for a user with optional filters.
-
+    """Get items (todos or habits) with optional filters.
+    
     Args:
-        user_id: Optional ID of the user
-        status: Optional todo status filter (completed, pending, etc.)
-        priority: Optional priority filter (high, medium, low)
+        item_type: Type of items to retrieve ("todos" or "habits")
+        user_id: Optional user ID to filter by
+        status: Optional status to filter by
+        priority: Optional priority to filter by
         authorization: Optional authorization token (Bearer token)
-
-    Returns:
-        A list of todos
+        page: Optional page number for pagination
+        page_size: Optional page size for pagination
     """
     try:
-        # Get auth token from parameter or fall back to default
-        auth_token = None
-        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
-            auth_token = authorization
-            logger.info(
-                f"Using provided authorization token: {authorization[:20]}...")
-        else:
-            auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(
-                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
-
-        # Build query parameters
-        params = {}
-        if user_id:
-            params["user_id"] = user_id
-        if status:
-            params["status"] = status
-        if priority:
-            params["priority"] = priority
-
-        async def get_func(client, url, **kwargs):
-            return await client.get(url, **kwargs)
-
-        return await try_backend_urls(
-            get_func,
-            "/api/todo-lists",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": auth_token
-            },
-            params=params
-        )
-    except Exception as e:
-        error_msg = f"Error getting todos: {str(e)}"
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        return {"status": "error", "error": error_msg, "type": "api_error"}
-
-
-@mcp.tool("get_all_todos")
-async def get_all_todos(
-    ctx: Context,
-    user_id: Optional[str] = None,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    authorization: Optional[str] = None
-) -> Dict[str, Any]:
-    """Alias for todos.list - Get todos for a user with optional filters."""
-    try:
         logger.info(
-            f"get_all_todos called with: user_id={user_id}, status={status}, priority={priority}")
-        await ctx.info(f"get_all_todos called with: user_id={user_id}, status={status}, priority={priority}")
+            f"get_items called with: type={item_type}, user_id={user_id}, status={status}, priority={priority}")
+        await ctx.info(f"get_items called with: type={item_type}, user_id={user_id}, status={status}, priority={priority}")
+
+        # Validate item type
+        if item_type not in ["todos", "habits"]:
+            error_msg = f"Invalid item type: {item_type}. Must be 'todos' or 'habits'"
+            logger.error(error_msg)
+            return {"status": "error", "error": error_msg, "type": "validation_error"}
 
         # Get auth token from parameter or fall back to default
         auth_token = None
@@ -700,15 +662,22 @@ async def get_all_todos(
             params["status"] = status
         if priority:
             params["priority"] = priority
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["page_size"] = page_size
 
         # Define the get function for try_backend_urls
         async def get_func(client, url, **kwargs):
             return await client.get(url, **kwargs)
 
+        # Determine endpoint based on item type
+        endpoint = "/api/todo-lists" if item_type == "todos" else "/api/habits"
+
         # Use the enhanced try_backend_urls function
         result = await try_backend_urls(
             get_func,
-            "/api/todo-lists",
+            endpoint,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": auth_token
@@ -718,14 +687,14 @@ async def get_all_todos(
 
         # Check if the result is an error
         if result.get("status") == "error":
-            await ctx.error(result.get("error", "Unknown error fetching todos"))
+            await ctx.error(result.get("error", f"Unknown error fetching {item_type}"))
         else:
-            await ctx.info("Successfully retrieved todos data from backend")
+            await ctx.info(f"Successfully retrieved {item_type} data from backend")
 
         return result
 
     except Exception as e:
-        error_msg = f"Error in get_all_todos: {str(e)}"
+        error_msg = f"Error in get_items: {str(e)}"
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "general_error"}
@@ -738,7 +707,9 @@ async def create_todo(
     description: Optional[str] = None,
     due_date: Optional[str] = None,
     priority: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = None,
+    user_id: Optional[str] = None,
+    list_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Create a new todo item.
 
@@ -748,6 +719,8 @@ async def create_todo(
         due_date: Optional due date (format: YYYY-MM-DD)
         priority: Optional priority (high, medium, low)
         authorization: Optional authorization token (Bearer token)
+        user_id: Optional user ID (will be extracted from token if not provided)
+        list_id: Optional list ID for the todo
 
     Returns:
         The created todo item
@@ -755,20 +728,31 @@ async def create_todo(
     try:
         # Get auth token from parameter or fall back to default
         auth_token = None
-        if authorization and authorization.startswith("Bearer "):
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
             auth_token = authorization
+            logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
-        # Prepare todo data
+        # Prepare todo data matching the Go backend's expected format
         todo_data = {
             "title": title,
             "description": description or "",
-            "priority": priority or "medium"
+            "priority": priority or "medium",
+            "status": "pending",
+            "is_completed": False,
+            "is_recurring": False,
+            "due_date": due_date,
+            "reminder_time": None,
+            "recurrence_pattern": {},
+            "tags": {},
+            "checklist": {"items": []},
+            "linked_task_id": None,
+            "linked_calendar_event_id": None,
+            "user_id": user_id,  # This will be required
+            "list_id": list_id   # This will be required
         }
-
-        if due_date:
-            todo_data["due_date"] = due_date
 
         async def post_func(client, url, **kwargs):
             return await client.post(url, **kwargs)
@@ -787,22 +771,81 @@ async def create_todo(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
-
-
-@mcp.tool("todos.update")
-async def update_todo(
+    
+@mcp.tool("habits.create")
+async def create_habit(
     ctx: Context,
-    todo_id: str,
+    title: str,
+    description: Optional[str] = None,
+    start_day: Optional[str] = None,
+    end_day: Optional[str] = None,
+    authorization: Optional[str] = None,
+    user_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new habit.
+
+    Args:
+        title: Title of the habit
+        description: Optional description
+        start_day: Optional start date (format: YYYY-MM-DD)
+        end_day: Optional end date (format: YYYY-MM-DD) 
+        authorization: Optional authorization token (Bearer token)
+        user_id: Optional user ID (will be extracted from token if not provided)
+
+    Returns:
+        The created habit
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # Prepare habit data matching the Go backend's expected format
+        habit_data = {
+            "title": title,
+            "description": description or "",
+            "start_day": start_day,
+            "end_day": end_day,
+            "user_id": user_id
+        }
+
+        async def post_func(client, url, **kwargs):
+            return await client.post(url, **kwargs)
+
+        return await try_backend_urls(
+            post_func,
+            "/api/habits",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            },
+            json=habit_data
+        )
+    except Exception as e:
+        error_msg = f"Error creating habit: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+@mcp.tool("todos.update_by_name")
+async def update_todo_by_name(
+    ctx: Context,
+    todo_name: str,
     title: Optional[str] = None,
     description: Optional[str] = None,
     status: Optional[str] = None,
     priority: Optional[str] = None,
     authorization: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Update an existing todo item.
+    """Update a todo by searching for its name rather than requiring its ID.
 
     Args:
-        todo_id: ID of the todo to update
+        todo_name: Name of the todo to update (will be matched against titles)
         title: Optional new title
         description: Optional new description
         status: Optional new status
@@ -810,54 +853,138 @@ async def update_todo(
         authorization: Optional authorization token (Bearer token)
 
     Returns:
-        The updated todo item
+        The updated todo item or error message if todo not found
     """
     try:
-        logger.info(f"Updating todo with ID: {todo_id}")
+        logger.info(f"===== TODOS.UPDATE_BY_NAME CALLED =====")
+        logger.info(f"Looking for todo with name: '{todo_name}'")
+        logger.info(f"Update parameters: title={title}, description={description}, status={status}, priority={priority}")
+        await ctx.info(f"Searching for todo with name: {todo_name}")
 
         # Get auth token from parameter or fall back to default
         auth_token = None
         if authorization and authorization.startswith("Bearer "):
             auth_token = authorization
+            logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info("Using default DEV_JWT_TOKEN for authorization")
 
-        async with httpx.AsyncClient() as client:
-            headers = {
+        # Step 1: Get all todos to find matching one
+        logger.info("Fetching all todos to find matching one")
+        get_items_result = await get_items(
+            ctx=ctx,
+            item_type="todos",
+            authorization=auth_token
+        )
+
+        if get_items_result.get("status") != "success":
+            error_message = get_items_result.get("error", "Failed to retrieve todos")
+            logger.error(f"Failed to retrieve todos: {error_message}")
+            await ctx.error(error_message)
+            return {"status": "error", "error": error_message}
+
+        # Extract todos from the response
+        todos_data = get_items_result.get("content", {})
+        logger.info(f"Received todos_data type: {type(todos_data)}")
+        
+        if isinstance(todos_data, str):
+            logger.info("Parsing string todos_data as JSON")
+            try:
+                todos_data = json.loads(todos_data)
+                logger.info("Successfully parsed todos_data")
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parse error: {str(e)}")
+                await ctx.error("Could not parse todos data as JSON")
+                return {"status": "error", "error": "Invalid todos data format"}
+        
+        # Check if we have data in the expected format
+        if not isinstance(todos_data, dict) or "data" not in todos_data:
+            logger.error(f"Unexpected todos_data format: {type(todos_data)}")
+            await ctx.error("Todos data not in expected format")
+            return {"status": "error", "error": "Todos data not in expected format"}
+        
+        todos_lists = todos_data.get("data", {}).get("Lists", [])
+        logger.info(f"Found {len(todos_lists)} todo lists")
+        if not todos_lists:
+            logger.error("No todo lists found")
+            await ctx.error("No todo lists found")
+            return {"status": "error", "error": "No todo lists found"}
+        
+        # Search all lists for matching todo
+        matching_todo = None
+        logger.info(f"Searching for todo with name containing: '{todo_name}'")
+        for todo_list in todos_lists:
+            todos = todo_list.get("Todos", [])
+            logger.info(f"Checking list with {len(todos)} todos")
+            for todo in todos:
+                todo_title = todo.get("Title", "")
+                logger.info(f"Comparing '{todo_name.lower()}' with '{todo_title.lower()}'")
+                if todo_name.lower() in todo_title.lower():
+                    matching_todo = todo
+                    logger.info(f"MATCH FOUND: {todo_title}")
+                    break
+            if matching_todo:
+                break
+
+        if not matching_todo:
+            error_message = f"No todo found with name similar to '{todo_name}'"
+            logger.error(error_message)
+            await ctx.error(error_message)
+            return {"status": "error", "error": error_message}
+
+        # Step 2: Update the found todo
+        todo_id = matching_todo.get("ID")
+        logger.info(f"Found matching todo with ID: {todo_id} and title: {matching_todo.get('Title')}")
+        await ctx.info(f"Found matching todo with ID: {todo_id}")
+
+        # Prepare update data
+        update_data = {
+            "title": title,
+            "description": description,
+            "status": status,
+            "priority": priority
+        }
+        # Remove None values
+        update_data = {k: v for k, v in update_data.items() if v is not None}
+        logger.info(f"Update data after filtering: {update_data}")
+
+        async def put_func(client, url, **kwargs):
+            return await client.put(url, **kwargs)
+
+        logger.info(f"Sending update request to /api/todos/{todo_id}")
+        update_result = await try_backend_urls(
+            put_func,
+            f"/api/todos/{todo_id}",
+            headers={
                 "Content-Type": "application/json",
                 "Authorization": auth_token
+            },
+            json=update_data
+        )
+
+        logger.info(f"Update result status: {update_result.get('status') if isinstance(update_result, dict) else 'unknown'}")
+        if update_result:
+            logger.info(f"Todo update successful")
+            await ctx.info(f"Successfully updated todo: {todo_name}")
+            return {
+                "status": "success",
+                "content": {
+                    "message": f"Successfully updated todo: {todo_name}",
+                    "todo": update_result
+                }
             }
-
-            # Prepare update data (only include non-None values)
-            update_data = {}
-            if title is not None:
-                update_data["title"] = title
-            if description is not None:
-                update_data["description"] = description
-            if status is not None:
-                update_data["status"] = status
-            if priority is not None:
-                update_data["priority"] = priority
-
-            # Make request to Go backend
-            response = await client.put(
-                f"{GO_BACKEND_URL}/api/todos/{todo_id}",
-                headers=headers,
-                json=update_data
-            )
-            response.raise_for_status()
-
-            # Log success
-            await ctx.info(f"Successfully updated todo {todo_id}")
-
-            # Return JSON response
-            return response.json()
+        else:
+            error_message = f"Failed to update todo: {todo_name}"
+            logger.error(error_message)
+            await ctx.error(error_message)
+            return {"status": "error", "error": error_message}
 
     except Exception as e:
-        error_msg = f"Error updating todo: {str(e)}"
+        error_msg = f"Error updating todo by name: {str(e)}"
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
+        return {"status": "error", "error": error_msg}
 
 
 @app.get("/api-test/jwt-check")
