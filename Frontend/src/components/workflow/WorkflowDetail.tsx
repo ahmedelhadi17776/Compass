@@ -119,7 +119,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
 
   const getStepIcon = (type: string, isCompleted: boolean = false) => {
     if (isCompleted) {
-      return <CheckCircle2 className="h-6 w-6 text-primary" />;
+      return <CheckCircle2 className="h-6 w-6 text-white" />;
     }
     
     switch (type) {
@@ -190,7 +190,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
 
   if (!workflow) {
     return (
-      <div className={cn("h-full flex flex-col p-4", darkMode ? "bg-gray-900 text-white" : "bg-background text-foreground")}>
+      <div className="flex flex-1 flex-col p-6 h-[calc(100vh-32px)] overflow-hidden">
         <p>Workflow not found</p>
       </div>
     );
@@ -215,20 +215,19 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
   const { horizontalLines, verticalLines, getConnectionPath } = calculateLineAnimations(groupedSteps, completedSteps);
 
   return (
-    <div className={cn("h-full flex flex-col p-4", darkMode ? "bg-gray-900 text-white" : "bg-background text-foreground")}>
-
+    <div className="flex flex-1 flex-col gap-4 p-6 h-[calc(100vh-32px)] overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center mt-4 mb-6 mx-4">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleBack}
-              className="p-0 h-8 w-8 mr-1"
-            >
-                <ChevronLeft className="h-5 w-5" />
-            </Button>
-          <h2 className="text-xl font-semibold">{workflow.name}</h2>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleBack}
+            className="p-0 h-8 w-8 mr-1"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h2 className="text-3xl font-bold tracking-tight">{workflow.name}</h2>
         </div>
 
         <div className="flex items-center gap-2">
@@ -243,262 +242,262 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
         </div>
       </div>
 
-      {/* Workflow Info Card */}
-      <Card className="mb-8 mx-4 shadow-md border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>Workflow Details</span>
-              <Badge variant="outline" className="text-xs">
-                {workflow.steps.length} steps
-              </Badge>
-              <Badge 
-                variant="outline" 
-                className={cn(
-                  "text-xs ml-1",
-                  completedSteps.length === workflow.steps.length 
-                    ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30"
-                    : "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30"
-                )}
-              >
-                {completedSteps.length === workflow.steps.length ? "Complete" : "In Progress"}
-              </Badge>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm mb-4">{workflow.description}</p>
-          
-          <div className="grid gap-4 grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Progress</span>
-                <span className="font-medium">{Math.round(progressPercentage)}%</span>
-              </div>
-              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                <motion.div 
-                  className={cn(
-                    "h-full rounded-full",
-                    completedSteps.length === workflow.steps.length
-                      ? "bg-emerald-500 dark:bg-emerald-500"
-                      : "bg-primary"
-                  )}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPercentage}%` }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{completedSteps.length}/{workflow.steps.length} steps completed</span>
-              </div>
-            </div>
-            
-            <div className="space-y-2 border-l pl-4">
-              <div className="flex items-center text-sm text-muted-foreground mb-1">
-                <Clock className="h-3.5 w-3.5 mr-1.5" />
-                <span>Last Modified:</span>
-              </div>
-              <div className="text-sm">{new Date(workflow.lastRun).toLocaleString()}</div>
-            </div>
+      {/* Main content container */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Workflow Status Bar - simplified to a single line */}
+        <div className="flex items-center justify-between mb-3 px-1 py-1.5">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              {workflow.steps.length} steps
+            </Badge>
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "text-xs",
+                completedSteps.length === workflow.steps.length 
+                  ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30"
+                  : "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30"
+              )}
+            >
+              {completedSteps.length === workflow.steps.length ? "Complete" : "In Progress"}
+            </Badge>
+            <span className="text-xs text-muted-foreground flex items-center">
+              <Clock className="h-3 w-3 mr-1 inline" />
+              {new Date(workflow.lastRun).toLocaleDateString()}
+            </span>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Horizontal ZigZag Roadmap */}
-      <div className="mt-6 mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-medium">Workflow Steps</h3>
-          <div className="flex items-center text-sm">
-            <span className="mr-2 text-muted-foreground">Completion Flow</span>
-            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium">{Math.round(progressPercentage)}%</span>
+            <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
               <motion.div 
-                className="h-full bg-primary rounded-full"
+                className={cn(
+                  "h-full rounded-full",
+                  completedSteps.length === workflow.steps.length
+                    ? "bg-emerald-500 dark:bg-emerald-500"
+                    : "bg-primary"
+                )}
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercentage}%` }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
               />
             </div>
+            <span className="text-xs text-muted-foreground">
+              {completedSteps.length}/{workflow.steps.length}
+            </span>
           </div>
         </div>
-        <div className="overflow-auto pb-8 max-h-[calc(100vh-320px)]">
-          {groupedSteps.map((rowSteps, rowIndex) => {
-            const isRtl = rowIndex % 2 !== 0; // Every odd row is right-to-left
-            // Don't reverse the steps array, we'll handle the visual order with flex-row-reverse
-            const sortedSteps = rowSteps;
-            
-            return (
-              <div key={`row-${rowIndex}`} className={`mb-16 relative ${rowIndex === 0 ? 'pt-4' : ''}`}>
-                {/* Background horizontal line for the row */}
-                <div 
-                  className="absolute h-1.5 bg-border dark:bg-muted rounded-full z-0 overflow-hidden"
-                  style={{
-                    top: 'calc(50% + 12px)', // Adjusted position
-                    left: '15%', // Pushed inward from left side
-                    right: '15%', // Pushed inward from right side
-                    transform: 'translateY(-50%)'
-                  }}
-                >
-                  {/* Animated horizontal line fill based on completion */}
-                  <motion.div 
-                    className="h-full bg-primary rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${horizontalLines[rowIndex]}%` }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                    style={{
-                      transformOrigin: isRtl ? 'right' : 'left',
-                      marginLeft: isRtl ? 'auto' : '0'
-                    }}
-                  />
-                </div>
-                
-                {/* Vertical connecting line to previous row */}
-                {rowIndex > 0 && (
+
+        {/* Workflow Steps Container */}
+        <div className="flex-1 bg-background border border-border rounded-xl overflow-hidden flex flex-col min-h-0">
+          <div className="p-4 border-b border-border flex items-center justify-between bg-card">
+            <h3 className="font-medium">Workflow Steps</h3>
+            <div className="flex items-center text-sm">
+              <span className="mr-2 text-muted-foreground">Completion Flow</span>
+              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-primary rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPercentage}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-auto p-4 min-h-0">
+            {groupedSteps.map((rowSteps, rowIndex) => {
+              const isRtl = rowIndex % 2 !== 0; // Every odd row is right-to-left
+              // Don't reverse the steps array, we'll handle the visual order with flex-row-reverse
+              const sortedSteps = rowSteps;
+              
+              return (
+                <div key={`row-${rowIndex}`} className={`mb-16 relative ${rowIndex === 0 ? 'pt-4' : ''}`}>
+                  {/* Background horizontal line for the row */}
                   <div 
-                    className="absolute w-1.5 bg-border dark:bg-muted rounded-full z-0 overflow-hidden"
+                    className="absolute h-1.5 bg-border dark:bg-muted rounded-full z-0 overflow-hidden"
                     style={{
-                      top: '-70px', // Connect to previous row
-                      height: '70px',
-                      // Position based on the previous row's direction, not current row
-                      // If previous row is LTR, connect from right side; if RTL, connect from left side
-                      left: `${(rowIndex-1) % 2 === 0 ? '85%' : '15%'}`,
-                      transform: 'translateX(-50%)'
+                      top: 'calc(50% + 12px)', // Adjusted position
+                      left: '15%', // Pushed inward from left side
+                      right: '15%', // Pushed inward from right side
+                      transform: 'translateY(-50%)'
                     }}
                   >
-                    {/* Animated vertical line fill based on completion */}
+                    {/* Animated horizontal line fill based on completion */}
                     <motion.div 
-                      className="w-full bg-primary rounded-full"
-                      initial={{ height: 0 }}
-                      animate={{ height: `${verticalLines[rowIndex-1]}%` }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                      style={{ transformOrigin: 'top' }}
+                      className="h-full bg-primary rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${horizontalLines[rowIndex]}%` }}
+                      transition={{ 
+                        duration: 0.5, 
+                        ease: "easeOut",
+                        // If there's a previous row, delay this row's animation slightly to create a sequence effect
+                        delay: rowIndex > 0 ? 0.05 * rowIndex : 0
+                      }}
+                      style={{
+                        transformOrigin: isRtl ? 'right' : 'left',
+                        marginLeft: isRtl ? 'auto' : '0'
+                      }}
                     />
                   </div>
-                )}
-                
-                <div className={`flex items-center justify-between px-4 relative ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {sortedSteps.map((step, colIndex) => {
-                    // Use simple index calculation since we're handling direction with CSS
-                    const actualIndex = colIndex;
-                    const stepIndex = rowIndex * 3 + actualIndex;
-                    const isCompleted = completedSteps.includes(step.id);
-                    const isExpanded = expandedStep === step.id;
-                    
-                    return (
+                  
+                  {/* Vertical connecting line to previous row */}
+                  {rowIndex > 0 && (
+                    <div 
+                      className="absolute w-1.5 bg-border dark:bg-muted rounded-full z-0 overflow-hidden"
+                      style={{
+                        top: '-70px', // Connect to previous row
+                        height: '70px',
+                        // Position based on the zigzag pattern - correctly align connection points
+                        // Apply different adjustments based on the direction:
+                        // - For LTR to RTL transitions (row 1 to 2): move right (+5px)
+                        // - For RTL to LTR transitions (row 2 to 3): move left (-5px)
+                        left: `calc(${(rowIndex-1) % 2 === 0 ? '85%' : '15%'} ${(rowIndex-1) % 2 === 0 ? '+' : '-'} 17px)`,
+                        transform: 'translateX(-50%)'
+                      }}
+                    >
+                      {/* Animated vertical line fill based on completion */}
                       <motion.div 
-                        key={step.id} 
-                        className="flex flex-col items-center relative z-10"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: stepIndex * 0.1 }}
-                        style={{ width: 'calc(27.33% - 1rem)' }}
-                      >
-                        {/* Step Node */}
+                        className="w-full bg-primary rounded-full"
+                        initial={{ height: 0 }}
+                        animate={{ height: `${verticalLines[rowIndex-1]}%` }}
+                        transition={{ 
+                          duration: 0.4, 
+                          ease: "easeOut",
+                          // Time the vertical animation to happen after the previous row's horizontal animation
+                          // but before the current row's horizontal animation
+                          delay: 0.05 * (rowIndex - 0.5)
+                        }}
+                        style={{ transformOrigin: 'top' }}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className={`flex items-center justify-between px-4 relative ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {sortedSteps.map((step, colIndex) => {
+                      // Use simple index calculation since we're handling direction with CSS
+                      const actualIndex = colIndex;
+                      const stepIndex = rowIndex * 3 + actualIndex;
+                      const isCompleted = completedSteps.includes(step.id);
+                      const isExpanded = expandedStep === step.id;
+                      
+                      return (
                         <motion.div 
-                          className={cn(
-                            "relative w-full p-5 rounded-xl shadow-md transition-all duration-200 mt-4",
-                            "bg-card border border-border",
-                            activeStep === step.id && `ring-2 ${getStepRingStyle(step.type)} ring-opacity-70`,
-                            isCompleted && "border-primary/30 dark:border-primary/30",
-                            "cursor-pointer group z-10"
-                          )}
-                          layout
-                          onClick={() => handleExpandStep(step.id)}
-                          whileHover={{ scale: 1.02, y: -2 }}
-                          transition={{ 
-                            layout: { duration: 0.2 },
-                            scale: { duration: 0.1 }
-                          }}
+                          key={step.id} 
+                          className="flex flex-col items-center relative z-10"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: stepIndex * 0.1 }}
+                          style={{ width: 'calc(27.33% - 1rem)' }}
                         >
-                          {/* Step Icon - Improved positioning and sizing */}
-                          <motion.div
+                          {/* Step Node */}
+                          <motion.div 
                             className={cn(
-                              "absolute top-0 rounded-full p-2.5 shadow-md border border-border",
-                              "bg-background group-hover:scale-110 transition-transform",
-                              isCompleted ? "bg-primary/10 dark:bg-primary/20 border-primary/30 dark:border-primary/30" : ""
+                              "relative w-full p-5 rounded-xl shadow-md transition-all duration-200 mt-4",
+                              "bg-card border border-border",
+                              activeStep === step.id && `ring-2 ${getStepRingStyle(step.type)} ring-opacity-70`,
+                              isCompleted && "border-primary/30 dark:border-primary/30",
+                              "cursor-pointer group z-10"
                             )}
-                            onClick={(e) => handleToggleStepCompletion(step.id, e)}
-                            style={{ 
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              zIndex: 30
+                            layout
+                            onClick={() => handleExpandStep(step.id)}
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            transition={{ 
+                              layout: { duration: 0.2 },
+                              scale: { duration: 0.1 }
                             }}
                           >
-                            {getStepIcon(step.type, isCompleted)}
-                          </motion.div>
-                          
-                          <div className="w-full pt-4">
-                            <div className="flex justify-between items-start">
-                              <h3 className={cn(
-                                "font-medium text-base text-card-foreground",
-                                isCompleted && "text-primary dark:text-primary"
-                              )}>{step.name}</h3>
-                              <Badge variant="outline" className={cn(
-                                "text-xs capitalize",
-                                getStepBadgeStyles(step.type)
-                              )}>
-                                {step.type}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1.5">{step.description}</p>
+                            {/* Step Icon - Improved positioning and sizing */}
+                            <motion.div
+                              className={cn(
+                                "absolute top-0 rounded-full p-2.5 shadow-md border border-border",
+                                "bg-background group-hover:scale-110 transition-transform",
+                                isCompleted ? "bg-emerald-600" : ""
+                              )}
+                              onClick={(e) => handleToggleStepCompletion(step.id, e)}
+                              style={{ 
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                zIndex: 30
+                              }}
+                            >
+                              {getStepIcon(step.type, isCompleted)}
+                            </motion.div>
                             
-                            {/* Expanded Actions - Only show when expanded */}
-                            {isExpanded && (
-                              <motion.div 
-                                className="mt-4 pt-3 border-t border-border flex justify-end gap-2"
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                              >
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        className="h-8 px-2.5 text-xs"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleToggleStepCompletion(step.id, e);
-                                        }}
-                                      >
-                                        <CheckIcon className="h-3.5 w-3.5 mr-1.5" />
-                                        {isCompleted ? "Mark Incomplete" : "Mark Complete"}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Toggle step completion status</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button 
-                                        size="sm" 
-                                        variant="ghost"
-                                        className="h-8 w-8 p-0 text-muted-foreground"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>More actions</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </motion.div>
-                            )}
-                          </div>
+                            <div className="w-full pt-4">
+                              <div className="flex justify-between items-start">
+                                <h3 className={cn(
+                                  "font-medium text-base text-card-foreground",
+                                  isCompleted && "text-primary dark:text-primary"
+                                )}>{step.name}</h3>
+                                <Badge variant="outline" className={cn(
+                                  "text-xs capitalize",
+                                  getStepBadgeStyles(step.type)
+                                )}>
+                                  {step.type}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1.5">{step.description}</p>
+                              
+                              {/* Expanded Actions - Only show when expanded */}
+                              {isExpanded && (
+                                <motion.div 
+                                  className="mt-4 pt-3 border-t border-border flex justify-end gap-2"
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                >
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline"
+                                          className="h-8 px-2.5 text-xs"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleStepCompletion(step.id, e);
+                                          }}
+                                        >
+                                          <CheckIcon className="h-3.5 w-3.5 mr-1.5" />
+                                          {isCompleted ? "Mark Incomplete" : "Mark Complete"}
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Toggle step completion status</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button 
+                                          size="sm" 
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 text-muted-foreground"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>More actions</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </motion.div>
+                              )}
+                            </div>
+                          </motion.div>
                         </motion.div>
-                      </motion.div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
