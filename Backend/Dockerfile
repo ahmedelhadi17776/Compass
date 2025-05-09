@@ -22,10 +22,13 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python dependencies with retry mechanism
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
+    # Split installation to make it more resilient to network issues
+    pip install --no-cache-dir --retries 5 --timeout 180 numpy && \
+    pip install --no-cache-dir --retries 5 --timeout 180 scipy==1.11.4 && \
+    pip install --no-cache-dir --retries 5 --timeout 180 -r requirements.txt && \
     # Ensure MongoDB requirements are installed
     pip install --no-cache-dir pymongo motor
 
