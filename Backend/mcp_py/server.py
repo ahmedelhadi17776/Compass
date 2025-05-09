@@ -338,185 +338,6 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
         await ctx.error(f"Failed to create project: {str(e)}")
         raise
 
-# Add tools to match REST-style endpoints used in the client
-
-
-@mcp.tool("ai.model.info")
-async def get_model_info(ctx: Context) -> Dict[str, Any]:
-    """Get information about the AI model."""
-    try:
-        return {
-            "model_id": 1,
-            "name": "gpt-4o-mini",
-            "version": "1.0",
-            "type": "text-generation",
-            "provider": "OpenAI",
-            "capabilities": {
-                "streaming": True,
-                "function_calling": True,
-                "tool_use": True
-            }
-        }
-    except Exception as e:
-        logger.error(f"Error getting model info: {str(e)}")
-        await ctx.error(f"Failed to get model info: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.model.create")
-async def create_model(
-    ctx: Context,
-    name: str,
-    version: str,
-    type: str,
-    provider: str,
-    status: str
-) -> Dict[str, Any]:
-    """Create a new model."""
-    try:
-        return {
-            "model_id": 1,
-            "name": name,
-            "version": version,
-            "type": type,
-            "provider": provider,
-            "status": status,
-            "created_at": "2023-01-01T00:00:00Z"
-        }
-    except Exception as e:
-        logger.error(f"Error creating model: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.model.stats.update")
-async def update_model_stats(
-    ctx: Context,
-    model_id: int,
-    latency: float,
-    success: bool
-) -> Dict[str, Any]:
-    """Update model usage statistics."""
-    try:
-        return {
-            "model_id": model_id,
-            "updated_at": "2023-01-01T00:00:00Z",
-            "success": success,
-            "latency": latency
-        }
-    except Exception as e:
-        logger.error(f"Error updating model stats: {str(e)}")
-        raise
-
-
-@mcp.tool("ai.log.interaction")
-async def log_interaction(
-    ctx: Context,
-    user_id: str,
-    domain: Optional[str],
-    input: str,
-    output: str,
-    metadata: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Log AI interaction."""
-    try:
-        logger.info(
-            f"Logging interaction for user {user_id} in domain {domain}")
-        return {
-            "logged": True,
-            "timestamp": "2023-01-01T00:00:00Z"
-        }
-    except Exception as e:
-        logger.error(f"Error logging interaction: {str(e)}")
-        raise
-
-
-@mcp.tool("rag.stats")
-async def rag_stats(
-    ctx: Context,
-    domain: str
-) -> Dict[str, Any]:
-    """Get RAG statistics for a domain."""
-    try:
-        logger.info(f"Getting RAG statistics for domain: {domain}")
-        return {
-            "document_count": 10,
-            "total_tokens": 50000,
-            "last_updated": "2023-01-01T00:00:00Z",
-            "domain": domain
-        }
-    except Exception as e:
-        logger.error(f"Error getting RAG stats: {str(e)}")
-        raise
-
-
-@mcp.tool("rag.update")
-async def rag_update(
-    ctx: Context,
-    domain: str,
-    content: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Update RAG knowledge base for a domain."""
-    try:
-        logger.info(f"Updating RAG knowledge base for domain: {domain}")
-        logger.info(f"Content size: {len(str(content))} characters")
-        return {
-            "updated": True,
-            "timestamp": "2023-01-01T00:00:00Z",
-            "domain": domain,
-            "document_count": 1
-        }
-    except Exception as e:
-        logger.error(f"Error updating RAG knowledge base: {str(e)}")
-        raise
-
-
-@mcp.tool("rag.knowledge-base.process")
-async def process_knowledge_base(
-    ctx: Context,
-    domain: Optional[str] = None
-) -> Dict[str, Any]:
-    """Process knowledge base files."""
-    try:
-        logger.info(
-            f"Processing knowledge base for domain: {domain or 'default'}")
-        return {
-            "status": "processing",
-            "job_id": "123456",
-            "timestamp": "2023-01-01T00:00:00Z",
-            "domain": domain or "default"
-        }
-    except Exception as e:
-        logger.error(f"Error processing knowledge base: {str(e)}")
-        raise
-
-
-@mcp.tool("knowledge-base.upload")
-async def upload_to_knowledge_base(
-    ctx: Context,
-    filename: str,
-    content: bytes,
-    domain: Optional[str] = None
-) -> Dict[str, Any]:
-    """Upload a file to knowledge base."""
-    try:
-        logger.info(
-            f"Uploading file {filename} to knowledge base for domain: {domain or 'default'}")
-        logger.info(f"Content size: {len(content)} bytes")
-        return {
-            "status": "success",
-            "message": f"File {filename} uploaded successfully",
-            "files": [
-                {
-                    "filename": filename,
-                    "size": len(content),
-                    "upload_time": "2023-01-01T00:00:00Z"
-                }
-            ]
-        }
-    except Exception as e:
-        logger.error(f"Error uploading to knowledge base: {str(e)}")
-        raise
-
 
 @mcp.tool("entity.create")
 async def create_entity(
@@ -623,7 +444,7 @@ async def get_items(
     page_size: Optional[int] = None
 ) -> Dict[str, Any]:
     """Get items (todos or habits) with optional filters.
-    
+
     Args:
         item_type: Type of items to retrieve ("todos" or "habits")
         user_id: Optional user ID to filter by
@@ -733,7 +554,8 @@ async def create_todo(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Prepare todo data matching the Go backend's expected format
         todo_data = {
@@ -771,7 +593,8 @@ async def create_todo(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
-    
+
+
 @mcp.tool("habits.create")
 async def create_habit(
     ctx: Context,
@@ -803,7 +626,8 @@ async def create_habit(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Prepare habit data matching the Go backend's expected format
         habit_data = {
@@ -832,6 +656,7 @@ async def create_habit(
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
+
 @mcp.tool("todos.update_by_name")
 async def update_todo_by_name(
     ctx: Context,
@@ -858,7 +683,8 @@ async def update_todo_by_name(
     try:
         logger.info(f"===== TODOS.UPDATE_BY_NAME CALLED =====")
         logger.info(f"Looking for todo with name: '{todo_name}'")
-        logger.info(f"Update parameters: title={title}, description={description}, status={status}, priority={priority}")
+        logger.info(
+            f"Update parameters: title={title}, description={description}, status={status}, priority={priority}")
         await ctx.info(f"Searching for todo with name: {todo_name}")
 
         # Get auth token from parameter or fall back to default
@@ -879,7 +705,8 @@ async def update_todo_by_name(
         )
 
         if get_items_result.get("status") != "success":
-            error_message = get_items_result.get("error", "Failed to retrieve todos")
+            error_message = get_items_result.get(
+                "error", "Failed to retrieve todos")
             logger.error(f"Failed to retrieve todos: {error_message}")
             await ctx.error(error_message)
             return {"status": "error", "error": error_message}
@@ -887,7 +714,7 @@ async def update_todo_by_name(
         # Extract todos from the response
         todos_data = get_items_result.get("content", {})
         logger.info(f"Received todos_data type: {type(todos_data)}")
-        
+
         if isinstance(todos_data, str):
             logger.info("Parsing string todos_data as JSON")
             try:
@@ -897,20 +724,20 @@ async def update_todo_by_name(
                 logger.error(f"JSON parse error: {str(e)}")
                 await ctx.error("Could not parse todos data as JSON")
                 return {"status": "error", "error": "Invalid todos data format"}
-        
+
         # Check if we have data in the expected format
         if not isinstance(todos_data, dict) or "data" not in todos_data:
             logger.error(f"Unexpected todos_data format: {type(todos_data)}")
             await ctx.error("Todos data not in expected format")
             return {"status": "error", "error": "Todos data not in expected format"}
-        
+
         todos_lists = todos_data.get("data", {}).get("Lists", [])
         logger.info(f"Found {len(todos_lists)} todo lists")
         if not todos_lists:
             logger.error("No todo lists found")
             await ctx.error("No todo lists found")
             return {"status": "error", "error": "No todo lists found"}
-        
+
         # Search all lists for matching todo
         matching_todo = None
         logger.info(f"Searching for todo with name containing: '{todo_name}'")
@@ -919,7 +746,8 @@ async def update_todo_by_name(
             logger.info(f"Checking list with {len(todos)} todos")
             for todo in todos:
                 todo_title = todo.get("Title", "")
-                logger.info(f"Comparing '{todo_name.lower()}' with '{todo_title.lower()}'")
+                logger.info(
+                    f"Comparing '{todo_name.lower()}' with '{todo_title.lower()}'")
                 if todo_name.lower() in todo_title.lower():
                     matching_todo = todo
                     logger.info(f"MATCH FOUND: {todo_title}")
@@ -935,7 +763,8 @@ async def update_todo_by_name(
 
         # Step 2: Update the found todo
         todo_id = matching_todo.get("ID")
-        logger.info(f"Found matching todo with ID: {todo_id} and title: {matching_todo.get('Title')}")
+        logger.info(
+            f"Found matching todo with ID: {todo_id} and title: {matching_todo.get('Title')}")
         await ctx.info(f"Found matching todo with ID: {todo_id}")
 
         # Prepare update data
@@ -963,7 +792,8 @@ async def update_todo_by_name(
             json=update_data
         )
 
-        logger.info(f"Update result status: {update_result.get('status') if isinstance(update_result, dict) else 'unknown'}")
+        logger.info(
+            f"Update result status: {update_result.get('status') if isinstance(update_result, dict) else 'unknown'}")
         if update_result:
             logger.info(f"Todo update successful")
             await ctx.info(f"Successfully updated todo: {todo_name}")

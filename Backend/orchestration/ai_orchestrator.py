@@ -10,6 +10,8 @@ import logging
 import json
 import time
 import asyncio
+from ai_services.base.mongo_client import get_mongo_client
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,9 @@ class AIOrchestrator:
         self.mcp_client = None
         self._init_lock = asyncio.Lock()
 
+        # MongoDB client for direct database operations
+        self.mongo_client = get_mongo_client()
+
         # We'll initialize the MCP client lazily when needed
         self.logger.info(
             "AIOrchestrator initialized with lazy MCP client loading")
@@ -153,10 +158,43 @@ class AIOrchestrator:
             self.logger.info(
                 f"Processing request for user {user_id} in domain {domain or 'default'}")
 
+            # Ensure user_id is a string for MongoDB
+            user_id_str = str(user_id)
+
+            # Create or get conversation in MongoDB
+            session_id = f"session_{user_id}"
+            conversation = self.mongo_client.get_conversation_by_session(
+                session_id)
+
+            if not conversation:
+                # Create new conversation
+                conversation = self.mongo_client.create_conversation(
+                    user_id=user_id_str,
+                    session_id=session_id,
+                    title=f"Conversation {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                    domain=domain or "default"
+                )
+                self.logger.info(
+                    f"Created new conversation with ID {conversation.id} for user {user_id}")
+            else:
+                self.logger.info(
+                    f"Using existing conversation with ID {conversation.id} for user {user_id}")
+
             # Get conversation history using LangChain memory
             messages = self.memory_manager.get_langchain_messages(user_id)
             self.logger.debug(
                 f"Retrieved {len(messages)} conversation history messages")
+
+            # Store user message in MongoDB
+            if conversation and conversation.id:
+                self.mongo_client.add_message_to_conversation(
+                    conversation_id=conversation.id,
+                    role="user",
+                    content=user_input,
+                    metadata={"domain": domain}
+                )
+                self.logger.info(
+                    f"Stored user message in conversation {conversation.id}")
 
             # Get available tools and format system prompt
             tools = await self._get_available_tools()
@@ -296,9 +334,40 @@ class AIOrchestrator:
             self._update_conversation_history(
                 user_id, user_input, final_response)
 
+            # Store assistant message in MongoDB
+            if conversation and conversation.id:
+                self.mongo_client.add_message_to_conversation(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=final_response,
+                    metadata={
+                        "tool_used": tool_info["name"] if tool_info else None}
+                )
+                self.logger.info(
+                    f"Stored assistant response in conversation {conversation.id}")
+
             execution_time = time.time() - start_time
             self.logger.info(
                 f"Request processed in {execution_time:.2f} seconds")
+
+            # Log model usage in MongoDB
+            try:
+                if hasattr(self.llm_service, "model_name"):
+                    self.mongo_client.log_model_usage(
+                        model_id="1",  # Default model ID
+                        model_name=self.llm_service.model_name,
+                        request_type="api_request",
+                        tokens_in=len(user_input),  # Approximation
+                        tokens_out=len(final_response),  # Approximation
+                        latency_ms=int(execution_time * 1000),
+                        success=True,
+                        user_id=user_id_str,
+                        session_id=session_id
+                    )
+                    self.logger.info(
+                        f"Logged model usage for request in MongoDB")
+            except Exception as e:
+                self.logger.error(f"Failed to log model usage: {str(e)}")
 
             return {
                 "response": final_response,
@@ -421,6 +490,39 @@ class AIOrchestrator:
             self.logger.info(
                 f"Processing streaming request for user {user_id} in domain {domain or 'default'}")
             self.logger.info(f"Auth token provided: {auth_token is not None}")
+
+            # Ensure user_id is a string for MongoDB
+            user_id_str = str(user_id)
+
+            # Create or get conversation in MongoDB
+            session_id = f"session_{user_id}"
+            conversation = self.mongo_client.get_conversation_by_session(
+                session_id)
+
+            if not conversation:
+                # Create new conversation
+                conversation = self.mongo_client.create_conversation(
+                    user_id=user_id_str,
+                    session_id=session_id,
+                    title=f"Conversation {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                    domain=domain or "default"
+                )
+                self.logger.info(
+                    f"Created new conversation with ID {conversation.id} for streaming")
+            else:
+                self.logger.info(
+                    f"Using existing conversation with ID {conversation.id} for streaming")
+
+            # Store user message in MongoDB
+            if conversation and conversation.id:
+                self.mongo_client.add_message_to_conversation(
+                    conversation_id=conversation.id,
+                    role="user",
+                    content=user_input,
+                    metadata={"domain": domain, "streaming": True}
+                )
+                self.logger.info(
+                    f"Stored user message for streaming in conversation {conversation.id}")
 
             # Get conversation history using LangChain memory
             messages = self.memory_manager.get_langchain_messages(user_id)
@@ -574,9 +676,45 @@ class AIOrchestrator:
                 self._update_conversation_history(
                     user_id, user_input, final_response)
 
+                # Store assistant message in MongoDB
+                if conversation and conversation.id:
+                    self.mongo_client.add_message_to_conversation(
+                        conversation_id=conversation.id,
+                        role="assistant",
+                        content=final_response,
+                        metadata={
+                            "tool_used": tool_info["name"] if tool_info else None,
+                            "streaming": True
+                        }
+                    )
+                    self.logger.info(
+                        f"Stored streaming assistant response in conversation {conversation.id}")
+
             execution_time = time.time() - start_time
             self.logger.info(
                 f"Streaming request processed in {execution_time:.2f} seconds")
+
+            # Log model usage in MongoDB
+            try:
+                if hasattr(self.llm_service, "model_name"):
+                    self.mongo_client.log_model_usage(
+                        model_id="1",  # Default model ID
+                        model_name=self.llm_service.model_name,
+                        request_type="streaming_request",
+                        tokens_in=len(user_input),  # Approximation
+                        # Approximation
+                        tokens_out=len(
+                            final_response) if final_response else 0,
+                        latency_ms=int(execution_time * 1000),
+                        success=True,
+                        user_id=user_id_str,
+                        session_id=session_id
+                    )
+                    self.logger.info(
+                        f"Logged model usage for streaming request in MongoDB")
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to log model usage for streaming: {str(e)}")
 
             # Send completion message with tool info if applicable
             yield {
