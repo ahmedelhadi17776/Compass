@@ -37,35 +37,52 @@ class MongoDBMessageHistory:
 
     def _init_conversation(self) -> None:
         """Initialize or retrieve the conversation."""
-        if self.conversation_id:
-            # Try to load existing conversation
-            conversation = self.mongo_client.conversation_repo.find_by_id(
-                self.conversation_id)
-            if not conversation:
-                # Conversation not found, create new one
-                logger.warning(
-                    f"Conversation ID {self.conversation_id} not found, creating new conversation")
-                self._create_new_conversation()
-        else:
-            # Try to find conversation by session ID
-            conversation = self.mongo_client.get_conversation_by_session(
-                self.session_id)
-            if not conversation:
-                # Conversation not found, create new one
-                self._create_new_conversation()
+        try:
+            if self.conversation_id:
+                # Try to load existing conversation
+                conversation = self.mongo_client.conversation_repo.find_by_id(
+                    self.conversation_id)
+                if not conversation:
+                    # Conversation not found, create new one
+                    logger.warning(
+                        f"Conversation ID {self.conversation_id} not found, creating new conversation")
+                    self._create_new_conversation()
             else:
-                # Found existing conversation
-                self.conversation_id = conversation.id
+                # Try to find conversation by session ID
+                conversation = self.mongo_client.get_conversation_by_session(
+                    self.session_id)
+                if not conversation:
+                    # Conversation not found, create new one
+                    self._create_new_conversation()
+                else:
+                    # Found existing conversation
+                    self.conversation_id = conversation.id
+                    logger.info(
+                        f"Found existing conversation with ID {self.conversation_id}")
+        except Exception as e:
+            logger.error(f"Error initializing conversation: {str(e)}")
+            # Create a new conversation as fallback
+            self._create_new_conversation()
 
     def _create_new_conversation(self) -> None:
         """Create a new conversation in MongoDB."""
-        conversation = self.mongo_client.create_conversation(
-            user_id=self.user_id,
-            session_id=self.session_id,
-            domain=self.domain
-        )
-        self.conversation_id = conversation.id
-        logger.info(f"Created new conversation with ID {self.conversation_id}")
+        try:
+            # Generate default title based on timestamp
+            default_title = f"Conversation {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+
+            conversation = self.mongo_client.create_conversation(
+                user_id=self.user_id,
+                session_id=self.session_id,
+                title=default_title,
+                domain=self.domain
+            )
+            self.conversation_id = conversation.id
+            logger.info(
+                f"Created new conversation with ID {self.conversation_id}")
+        except Exception as e:
+            logger.error(f"Failed to create new conversation: {str(e)}")
+            # Set a placeholder ID - will try to create again on next operation
+            self.conversation_id = None
 
     def _message_to_dict(self, message: BaseMessage) -> Dict[str, Any]:
         """Convert LangChain message to MongoDB dictionary."""
@@ -103,68 +120,92 @@ class MongoDBMessageHistory:
 
     def _load_messages(self) -> None:
         """Load messages from MongoDB into the messages attribute."""
-        if not self.conversation_id:
-            self.messages = []
-            return
+        try:
+            if not self.conversation_id:
+                self.messages = []
+                return
 
-        conversation = self.mongo_client.conversation_repo.find_by_id(
-            self.conversation_id)
-        if not conversation:
-            logger.warning(
-                f"Conversation ID {self.conversation_id} not found when retrieving messages")
-            self.messages = []
-            return
+            conversation = self.mongo_client.conversation_repo.find_by_id(
+                self.conversation_id)
+            if not conversation:
+                logger.warning(
+                    f"Conversation ID {self.conversation_id} not found when retrieving messages")
+                self.messages = []
+                return
 
-        self.messages = [self._dict_to_message(
-            msg) for msg in conversation.messages]
+            self.messages = [self._dict_to_message(
+                msg) for msg in conversation.messages]
+            logger.info(
+                f"Loaded {len(self.messages)} messages from conversation {self.conversation_id}")
+        except Exception as e:
+            logger.error(f"Error loading messages: {str(e)}")
+            self.messages = []
 
     def add_message(self, message: BaseMessage) -> None:
         """Add a message to the conversation."""
-        if not self.conversation_id:
-            self._init_conversation()
+        try:
+            # If no conversation ID, initialize or retry creation
+            if not self.conversation_id:
+                self._init_conversation()
 
-        if not self.conversation_id:
-            logger.error("Failed to initialize conversation ID")
-            return
+            # Check again after initialization
+            if not self.conversation_id:
+                logger.error("Failed to initialize conversation ID")
+                # Still add to local messages for in-memory usage
+                self.messages.append(message)
+                return
 
-        message_dict = self._message_to_dict(message)
-        updated = self.mongo_client.add_message_to_conversation(
-            conversation_id=self.conversation_id,
-            role=message_dict["role"],
-            content=message_dict["content"],
-            metadata=message_dict["metadata"]
-        )
+            message_dict = self._message_to_dict(message)
+            updated = self.mongo_client.add_message_to_conversation(
+                conversation_id=self.conversation_id,
+                role=message_dict["role"],
+                content=message_dict["content"],
+                metadata=message_dict["metadata"]
+            )
 
-        if not updated:
-            logger.error(
-                f"Failed to add message to conversation {self.conversation_id}")
-        else:
-            # Update the local messages list
+            if not updated:
+                logger.error(
+                    f"Failed to add message to conversation {self.conversation_id}")
+            else:
+                logger.info(
+                    f"Added message (role={message_dict['role']}) to conversation {self.conversation_id}")
+                # Update the local messages list
+                self.messages.append(message)
+        except Exception as e:
+            logger.error(f"Error adding message to conversation: {str(e)}")
+            # Still add to local messages for in-memory usage
             self.messages.append(message)
 
     def clear(self) -> None:
         """Clear all messages from the conversation."""
-        if not self.conversation_id:
-            return
+        try:
+            if not self.conversation_id:
+                self.messages = []
+                return
 
-        conversation = self.mongo_client.conversation_repo.find_by_id(
-            self.conversation_id)
-        if not conversation:
-            logger.warning(
-                f"Conversation ID {self.conversation_id} not found when clearing messages")
-            return
+            conversation = self.mongo_client.conversation_repo.find_by_id(
+                self.conversation_id)
+            if not conversation:
+                logger.warning(
+                    f"Conversation ID {self.conversation_id} not found when clearing messages")
+                self.messages = []
+                return
 
-        # Update the conversation with empty messages list
-        self.mongo_client.conversation_repo.update(
-            self.conversation_id,
-            {"messages": []}
-        )
+            # Update the conversation with empty messages list
+            self.mongo_client.conversation_repo.update(
+                self.conversation_id,
+                {"messages": []}
+            )
 
-        # Also clear the local messages
-        self.messages = []
+            # Also clear the local messages
+            self.messages = []
 
-        logger.info(
-            f"Cleared all messages from conversation {self.conversation_id}")
+            logger.info(
+                f"Cleared all messages from conversation {self.conversation_id}")
+        except Exception as e:
+            logger.error(f"Error clearing messages: {str(e)}")
+            # Clear local messages anyway
+            self.messages = []
 
 
 # Use a regular ChatMessageHistory as a wrapper for our custom implementation

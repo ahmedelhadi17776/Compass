@@ -15,14 +15,16 @@ from app.schemas.message_schemas import ConversationHistory, UserMessage, Assist
 
 logger = logging.getLogger(__name__)
 
+
 class ConversationMemoryManager:
     """Manages conversation memories for different users using LangChain."""
-    
+
     def __init__(self, max_history_length: int = 10):
         self.memories: Dict[int, ConversationBufferWindowMemory] = {}
         self.max_history_length = max_history_length
-        logger.info(f"Initialized ConversationMemoryManager with max_history_length={max_history_length}")
-    
+        logger.info(
+            f"Initialized ConversationMemoryManager with max_history_length={max_history_length}")
+
     def get_memory(self, user_id: int) -> ConversationBufferWindowMemory:
         """Get or create memory for a specific user."""
         if user_id not in self.memories:
@@ -33,30 +35,32 @@ class ConversationMemoryManager:
                 output_key="response"
             )
         return self.memories[user_id]
-    
+
     def add_user_message(self, user_id: int, content: str) -> None:
         """Add a user message to the conversation history."""
         memory = self.get_memory(user_id)
         memory.chat_memory.add_user_message(content)
-        logger.debug(f"Added user message for user_id={user_id}: {content[:50]}...")
-    
+        logger.debug(
+            f"Added user message for user_id={user_id}: {content[:50]}...")
+
     def add_ai_message(self, user_id: int, content: str) -> None:
         """Add an AI message to the conversation history."""
         memory = self.get_memory(user_id)
         memory.chat_memory.add_ai_message(content)
-        logger.debug(f"Added AI message for user_id={user_id}: {content[:50]}...")
-    
+        logger.debug(
+            f"Added AI message for user_id={user_id}: {content[:50]}...")
+
     def get_messages(self, user_id: int) -> List[BaseMessage]:
         """Get all messages for a user."""
         memory = self.get_memory(user_id)
         return memory.chat_memory.messages
-    
+
     def clear_memory(self, user_id: int) -> None:
         """Clear the conversation history for a user."""
         if user_id in self.memories:
             self.memories[user_id].clear()
             logger.debug(f"Cleared memory for user_id={user_id}")
-    
+
     def convert_to_chat_history(self, user_id: int) -> ConversationHistory:
         """Convert LangChain memory to app's ConversationHistory format."""
         history = ConversationHistory()
@@ -66,19 +70,20 @@ class ConversationMemoryManager:
             elif isinstance(message, AIMessage):
                 history.add_message(AssistantMessage(content=message.content))
         return history
-    
+
     def import_from_chat_history(self, user_id: int, history: ConversationHistory) -> None:
         """Import from app's ConversationHistory to LangChain memory."""
         memory = self.get_memory(user_id)
         memory.clear()
-        
+
         for msg in history.get_messages():
             if msg.role == "user":
                 memory.chat_memory.add_user_message(msg.content)
             elif msg.role == "assistant":
                 memory.chat_memory.add_ai_message(msg.content)
-        
-        logger.debug(f"Imported {len(history.get_messages())} messages for user_id={user_id}")
+
+        logger.debug(
+            f"Imported {len(history.get_messages())} messages for user_id={user_id}")
 
     def get_chain_config(self, user_id: int) -> RunnableConfig:
         """Get RunnableConfig to be used in LangChain chains."""
@@ -94,4 +99,4 @@ class ConversationMemoryManager:
                 messages.append({"role": "assistant", "content": msg.content})
             elif isinstance(msg, SystemMessage):
                 messages.append({"role": "system", "content": msg.content})
-        return messages 
+        return messages
