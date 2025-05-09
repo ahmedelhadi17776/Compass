@@ -1,12 +1,13 @@
 from typing import Dict, Any, List, Optional, Type
 from data_layer.mongodb.connection import get_collection, get_async_collection
 from data_layer.models.base_model import MongoBaseModel
-from data_layer.models.ai_model import AIModel, ModelUsage
+from data_layer.models.ai_model import AIModel, ModelUsage, ModelType, ModelProvider
 from data_layer.models.conversation import Conversation
 from data_layer.repos.base_repo import BaseMongoRepository
 from data_layer.repos.ai_model_repo import AIModelRepository, ModelUsageRepository
 from data_layer.repos.conversation_repo import ConversationRepository
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,79 @@ class MongoDBClient:
         self._ai_model_repo = AIModelRepository()
         self._model_usage_repo = ModelUsageRepository()
         self._conversation_repo = ConversationRepository()
+
+        # Ensure collections exist by creating sample data and then removing it
+        self._ensure_collections_exist()
+
+    def _ensure_collections_exist(self):
+        """Ensure all collections exist by creating and removing sample documents."""
+        try:
+            logger.info("Ensuring collections exist in MongoDB")
+
+            # Create sample AIModel through the repository methods
+            try:
+                # Use existing repository method to create a model
+                model = self._ai_model_repo.create_model(
+                    name="sample_model",
+                    version="0.0.1",
+                    provider=ModelProvider.OPENAI,
+                    type=ModelType.TEXT_GENERATION,
+                    status="inactive"
+                )
+                if model and model.id:
+                    # Delete the sample model
+                    self._ai_model_repo.delete(model.id)
+                    logger.info("AI models collection initialized")
+            except Exception as e:
+                logger.error(
+                    f"Error initializing AI models collection: {str(e)}")
+
+            # Create sample ModelUsage
+            try:
+                # Use existing repository method to log usage
+                usage_id = self._model_usage_repo.log_usage(
+                    model_id="sample",
+                    model_name="sample_model",
+                    request_type="test",
+                    tokens_in=0,
+                    tokens_out=0,
+                    latency_ms=0,
+                    success=True,
+                    error=None,
+                    user_id="sample_user",
+                    session_id="sample_session"
+                )
+                if usage_id:
+                    # Delete the sample usage
+                    self._model_usage_repo.delete(usage_id)
+                    logger.info("Model usage collection initialized")
+            except Exception as e:
+                logger.error(
+                    f"Error initializing model usage collection: {str(e)}")
+
+            # Create sample Conversation
+            try:
+                # Use existing repository method to create a conversation
+                now = datetime.utcnow()
+                conversation = self._conversation_repo.create_conversation(
+                    user_id="sample_user",
+                    session_id="sample_session",
+                    title="Sample Conversation",
+                    domain="test"
+                )
+
+                if conversation and conversation.id:
+                    # Delete the sample conversation
+                    self._conversation_repo.delete(conversation.id)
+                    logger.info("Conversations collection initialized")
+            except Exception as e:
+                logger.error(
+                    f"Error initializing conversations collection: {str(e)}")
+
+            logger.info("All collections successfully initialized")
+        except Exception as e:
+            logger.error(f"Error ensuring collections exist: {str(e)}")
+            # Don't raise exception to allow startup to continue
 
     @property
     def ai_model_repo(self) -> AIModelRepository:
