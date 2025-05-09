@@ -3,14 +3,15 @@ import logging
 import uuid
 from datetime import datetime
 from langchain.memory import ChatMessageHistory
-from langchain.schema import BaseChatMessageHistory, AIMessage, HumanMessage, SystemMessage, BaseMessage
+from langchain.schema import AIMessage, HumanMessage, SystemMessage, BaseMessage
 from ai_services.base.mongo_client import get_mongo_client
 from data_layer.models.conversation import Conversation
 
 logger = logging.getLogger(__name__)
 
 
-class MongoDBChatMessageHistory(BaseChatMessageHistory):
+# Create our own base class to avoid class conflicts
+class MongoDBMessageHistory:
     """MongoDB-backed chat message history implementation for LangChain."""
 
     def __init__(
@@ -166,16 +167,39 @@ class MongoDBChatMessageHistory(BaseChatMessageHistory):
             f"Cleared all messages from conversation {self.conversation_id}")
 
 
+# Use a regular ChatMessageHistory as a wrapper for our custom implementation
 def get_mongodb_memory(
     user_id: str,
     session_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     domain: Optional[str] = None
-) -> BaseChatMessageHistory:
-    """Get MongoDB-backed chat message history for LangChain memory."""
-    return MongoDBChatMessageHistory(
+) -> ChatMessageHistory:
+    """Get MongoDB-backed chat message history for LangChain memory.
+
+    We use a regular ChatMessageHistory wrapped around our MongoDB implementation
+    to avoid type conflicts between different versions of LangChain.
+    """
+    # Create our MongoDB-backed implementation
+    mongo_history = MongoDBMessageHistory(
         user_id=user_id,
         session_id=session_id,
         conversation_id=conversation_id,
         domain=domain
     )
+
+    # Create a regular ChatMessageHistory
+    chat_history = ChatMessageHistory()
+
+    # Copy existing messages
+    for message in mongo_history.messages:
+        if isinstance(message, HumanMessage):
+            # Extract content as string, ensuring it's the right type
+            content = str(message.content)
+            chat_history.add_user_message(content)
+        elif isinstance(message, AIMessage):
+            # Extract content as string, ensuring it's the right type
+            content = str(message.content)
+            chat_history.add_ai_message(content)
+        # Skip system messages as ChatMessageHistory doesn't support them
+
+    return chat_history

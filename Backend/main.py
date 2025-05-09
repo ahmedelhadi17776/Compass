@@ -17,22 +17,87 @@ import os
 import sys
 import codecs
 import datetime
+import io
+
+# Set up proper encoding for stdout/stderr
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 
+# Escape emojis and special characters in log messages
 
-# Import the API routers directly
 
-# Configure logging
+class EmojiSafeFormatter(logging.Formatter):
+    """Log formatter that makes emojis and special characters safe for console output."""
+
+    def format(self, record):
+        msg = super().format(record)
+        # Replace common emojis with text equivalents
+        replacements = {
+            '✅': '[OK]',
+            '❌': '[X]',
+            '⚠️': '[WARN]',
+            '🔄': '[REFRESH]',
+            '🚀': '[ROCKET]',
+            '📊': '[CHART]',
+            '🔍': '[SEARCH]',
+            '🔒': '[LOCK]'
+        }
+
+        for emoji, replacement in replacements.items():
+            msg = msg.replace(emoji, replacement)
+        return msg
+
+# Configure logging with Unicode safety
+
+
+class EncodingSafeHandler(logging.StreamHandler):
+    """Stream handler that handles encoding errors gracefully."""
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            # Use a safer approach to write to the stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except UnicodeEncodeError:
+            # Fall back to ascii with replacement if Unicode fails
+            try:
+                msg = self.format(record)
+                # Replace problematic characters
+                safe_msg = msg.encode('ascii', 'replace').decode('ascii')
+                stream = self.stream
+                stream.write(safe_msg + self.terminator)
+                self.flush()
+            except Exception:
+                self.handleError(record)
+        except Exception:
+            self.handleError(record)
+
+
+# Configure the root logger
+logger_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+formatter = EmojiSafeFormatter(logger_format)
+
+# Clear any existing handlers
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# Add new safe handlers
+console_handler = EncodingSafeHandler(sys.stdout)
+console_handler.setFormatter(formatter)
+
+file_handler = logging.FileHandler('compass.log', encoding='utf-8')
+file_handler.setFormatter(formatter)
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('compass.log')
-    ]
+    handlers=[console_handler, file_handler]
 )
+
 logger = logging.getLogger(__name__)
+logger.info("Logging initialized with emoji-safe configuration")
 
 # Combine multiple lifecycle managers using nested context managers
 
@@ -53,7 +118,7 @@ async def lifespan(app: FastAPI):
         # Cleanup MCP client when app shuts down
         logger.info("Shutting down application...")
         if settings.mcp_enabled:
-            await cleanup_mcp()
+            result = await cleanup_mcp()  # Ensure we await the result
         logger.info("All resources cleaned up")
 
 # Create FastAPI app with lifespan
@@ -177,8 +242,10 @@ async def cleanup_mcp():
             logger.info("MCP client resources cleaned up successfully")
         else:
             logger.info("No MCP client to clean up")
+        return True  # Return a value to ensure it's awaitable
     except Exception as e:
         logger.error(f"Error during MCP cleanup: {str(e)}", exc_info=True)
+        return False  # Return a value even in case of error
 
 # Root endpoint
 
