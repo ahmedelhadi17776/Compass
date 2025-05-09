@@ -1,4 +1,5 @@
 from data_layer.mongodb.lifecycle import mongodb_lifespan
+from data_layer.mongodb.connection import get_mongodb_client
 from core.config import settings
 from core.mcp_state import set_mcp_client, get_mcp_client
 from api.ai_routes import router as ai_router
@@ -15,6 +16,7 @@ import asyncio
 import os
 import sys
 import codecs
+import datetime
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 
@@ -190,7 +192,22 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint for Docker healthcheck."""
+    try:
+        # Check MongoDB connection
+        client = get_mongodb_client()
+        db = client.admin
+        server_info = db.command("ping")
+        mongodb_ok = server_info.get("ok") == 1.0
+    except Exception as e:
+        logger.error(f"MongoDB health check error: {str(e)}")
+        mongodb_ok = False
+
+    return {
+        "status": "healthy" if mongodb_ok else "degraded",
+        "mongodb": mongodb_ok,
+        "timestamp": datetime.datetime.utcnow().isoformat()
+    }
 
 if __name__ == "__main__":
     import uvicorn
