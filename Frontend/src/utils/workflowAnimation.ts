@@ -96,11 +96,6 @@ export function calculateLineAnimations(
     // Get the completion status of the previous row's horizontal line
     const prevRowCompletion = horizontalLines[actualRowIndex - 1];
     
-    // If the previous row isn't started or the current row is completed, we have special cases
-    if (prevRowCompletion === 0) {
-      return 0; // If previous row hasn't started, vertical line is also 0
-    }
-    
     // Get current and previous rows
     const prevRow = groupedSteps[actualRowIndex - 1];
     const currentRow = groupedSteps[actualRowIndex];
@@ -116,25 +111,57 @@ export function calculateLineAnimations(
     const prevRowConnectionStep = prevRow[prevRowConnectionIdx];
     const currentRowConnectionStep = currentRow[0]; // Always the first node in array for any row
     
+    // Check if either the first node of current row OR a node in the current row is completed
+    const isAnyCurrentRowStepCompleted = currentRow.some(step => completedSteps.includes(step.id));
+    
+    // Special case: When first and last nodes of workflow are completed
+    // This ensures the entire workflow path shows connected
+    if (rowIndex === 0 && completedSteps.length > 0) {
+      // Get first node of the entire workflow
+      const firstNode = groupedSteps[0][0];
+      
+      // Find last row and its last node
+      const lastRowIndex = groupedSteps.length - 1;
+      const lastRow = groupedSteps[lastRowIndex];
+      const lastNode = lastRow[lastRow.length - 1];
+      
+      // If both first and last nodes are completed, ensure all vertical connections show
+      if (completedSteps.includes(firstNode.id) && completedSteps.includes(lastNode.id)) {
+        return 100;
+      }
+    }
+    
+    // If the previous row isn't started, vertical line is also 0
+    if (prevRowCompletion === 0 && !isAnyCurrentRowStepCompleted) {
+      return 0; 
+    }
+    
     // If previous row is completed (100%)
     if (prevRowCompletion === 100) {
-      // If current row has started progress
-      if (currentRowCompletion > 0) {
+      // If any step in the current row is completed, show full vertical line
+      if (isAnyCurrentRowStepCompleted) {
         return 100; // Full vertical line
-      } else if (completedSteps.includes(prevRowConnectionStep.id)) {
-        // Previous row's connection point is completed, but current row hasn't started
-        return 50; // Halfway vertical line 
+      } else if (completedSteps.includes(prevRowConnectionStep.id) && completedSteps.includes(currentRowConnectionStep.id)) {
+        // Only show if both connection points are completed
+        return 100; // Full vertical line
       }
     }
     
     // If previous row is partially completed and the connection point is completed
     if (prevRowCompletion > 0 && completedSteps.includes(prevRowConnectionStep.id)) {
-      // Calculate a proportional value based on the progress of the current row
-      if (completedSteps.includes(currentRowConnectionStep.id)) {
-        return 100; // Complete the vertical connection if both ends are completed
-      } else {
+      // If any step in the current row is completed, show full vertical line
+      if (isAnyCurrentRowStepCompleted && completedSteps.includes(currentRowConnectionStep.id)) {
+        return 100; // Complete the vertical connection
+      } else if (completedSteps.includes(currentRowConnectionStep.id)) {
+        // Only show halfway if the current row's first node is also completed
         return 50; // Halfway vertical line
       }
+      return 0; // Don't show line unless there's a valid path
+    }
+    
+    // If current row has any completed steps but previous connection isn't completed
+    if (isAnyCurrentRowStepCompleted && completedSteps.includes(currentRowConnectionStep.id)) {
+      return 50; // Show halfway vertical line starting from the bottom
     }
     
     return 0;
