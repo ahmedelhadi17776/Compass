@@ -109,19 +109,20 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
   };
   
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col gap-4 p-6 h-[calc(100vh-32px)] overflow-hidden">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">AI Chat Assistant</h2>
+        <Tabs defaultValue={view}>
+          <TabsList>
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="reports">Reports & Insights</TabsTrigger>
+            <TabsTrigger value="agents">Agent Management</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      <Tabs defaultValue={view} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="chat">Chat</TabsTrigger>
-          <TabsTrigger value="reports">Reports & Insights</TabsTrigger>
-          <TabsTrigger value="agents">Agent Management</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="chat" className="space-y-4">
+      <Tabs defaultValue={view} className="flex-1 flex flex-col min-h-0">
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
           <div className="ai-chat-container">
             <div className="ai-chat-header">
               <div className="ai-chat-title">

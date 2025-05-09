@@ -9,14 +9,12 @@ from utils.logging_utils import get_logger
 from core.mcp_state import get_mcp_client
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain.schema import format_document
-from ai_services.base.mongo_client import get_mongo_client
 import os
 import time
 import json
 import asyncio
 import hashlib
 import logging
-from data_layer.models.ai_model import ModelType, ModelProvider
 
 logger = logging.getLogger(__name__)
 
@@ -40,71 +38,98 @@ class LLMService:
             base_url=self.base_url
         )
         self.model = self.model_name
+        # Removing the conversation_history as we'll use LangChain memory instead
+        self._current_model_id: Optional[int] = None
 
-        # MongoDB client for storing model data
-        self.mongo_client = get_mongo_client()
-
-        # Default model ID
-        self._current_model_id: Optional[str] = None
-
-        # Initialize model ID asynchronously in the background
-        asyncio.create_task(self._initialize_model_id())
-
-    async def _initialize_model_id(self) -> None:
-        """Initialize the model ID by getting or creating the model in MongoDB."""
+    async def _get_or_create_model(self) -> Optional[int]:
+        """Get or create model ID through MCP."""
         try:
-            # Check if model exists in MongoDB
-            existing_model = self.mongo_client.get_model_by_name_version(
-                name=self.model_name,
-                version="1.0"
-            )
+            mcp_client = get_mcp_client()
+            if not mcp_client:
+                logger.error("MCP client not initialized")
+                return None
 
-            if existing_model:
-                self._current_model_id = existing_model.id
-                logger.info(
-                    f"Found existing model in MongoDB with ID: {self._current_model_id}")
-            else:
-                # Create model in MongoDB
-                model = self.mongo_client.ai_model_repo.create_model(
-                    name=self.model_name,
-                    version="1.0",
-                    provider=ModelProvider.OPENAI,
-                    type=ModelType.TEXT_GENERATION,
-                    status="active",
-                    capabilities={
-                        "streaming": True,
-                        "function_calling": True
-                    }
-                )
-                self._current_model_id = model.id
-                logger.info(
-                    f"Created new model in MongoDB with ID: {self._current_model_id}")
+            # Get model info from Go backend through MCP
+            model_response = await mcp_client.call_tool("ai.model.info", {
+                "name": self.model_name,
+                "version": "1.0"
+            })
 
+            # Check if the call was successful
+            if model_response and model_response.get("status") == "success":
+                content = model_response.get("content", {})
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Could not parse model info content as JSON: {content}")
+                        content = {"model_id": 1}
+
+                model_id = int(content.get("model_id", 1))
+                logger.info(f"Retrieved existing model ID: {model_id}")
+                return model_id
+
+            # Model not found, create a new one
+            logger.info(f"Creating new model for {self.model_name}")
+            create_response = await mcp_client.call_tool("ai.model.create", {
+                "name": self.model_name,
+                "version": "1.0",
+                "type": "text-generation",
+                "provider": "OpenAI",
+                "status": "active"
+            })
+
+            if create_response and create_response.get("status") == "success":
+                content = create_response.get("content", {})
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Could not parse model create content as JSON: {content}")
+                        content = {"model_id": 1}
+
+                model_id = int(content.get("model_id", 1))
+                logger.info(f"Created new model with ID: {model_id}")
+                return model_id
+
+            logger.warning(
+                "Failed to get or create model, using default model ID")
+            return 1  # Default model ID if we can't get it from MCP
         except Exception as e:
-            logger.error(f"Failed to initialize model ID in MongoDB: {str(e)}")
-            # Create a fallback ID (will be used until proper initialization)
-            self._current_model_id = "temp_" + str(hash(self.model_name))[:8]
-            logger.info(f"Using fallback model ID: {self._current_model_id}")
+            logger.error(
+                f"Error getting/creating model through MCP: {str(e)}", exc_info=True)
+            return 1  # Default model ID
 
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
-        """Update model usage statistics in MongoDB."""
+        """Update model usage statistics through MCP."""
+        if not self._current_model_id:
+            logger.warning("No current model ID available for stats update")
+            return
+
         try:
-            # Store usage data in MongoDB
-            model_id = self._current_model_id or "unknown"
-            self.mongo_client.log_model_usage(
-                model_id=model_id,
-                model_name=self.model_name,
-                request_type="text_generation",
-                tokens_in=0,  # We could calculate this from input length
-                tokens_out=0,  # We could calculate this from output length
-                latency_ms=int(latency * 1000),
-                success=success,
-                error=None if success else "API error"
-            )
-            logger.info(
-                f"Logged model usage in MongoDB for model {self.model_name}")
+            mcp_client = get_mcp_client()
+            if not mcp_client:
+                logger.error("MCP client not initialized for stats update")
+                return
+
+            stats_response = await mcp_client.call_tool("ai.model.stats.update", {
+                "model_id": self._current_model_id,
+                "latency": latency,
+                "success": success
+            })
+
+            if stats_response and stats_response.get("status") == "success":
+                logger.debug(
+                    f"Updated model stats for model {self._current_model_id}")
+            else:
+                logger.warning(
+                    f"Failed to update model stats: {stats_response.get('error', 'Unknown error')}")
+
         except Exception as e:
-            logger.error(f"Failed to log model usage in MongoDB: {str(e)}")
+            logger.error(f"Error updating model stats through MCP: {str(e)}")
+            # Continue execution even if stats update fails
 
     async def generate_response(
         self,
@@ -328,9 +353,7 @@ class LLMService:
                 }
             elif endpoint == "model_info":
                 logger.info("[LLM] Processing model info request")
-
-                # Get model info from MongoDB instead of MCP
-                model_info = {
+                return {
                     "model": self.model,
                     "capabilities": {
                         "streaming": True,
@@ -346,23 +369,6 @@ class LLMService:
                         "top_k": settings.llm_top_k
                     }
                 }
-
-                # Try to add MongoDB model info if available
-                try:
-                    if self._current_model_id:
-                        model = self.mongo_client.ai_model_repo.find_by_id(
-                            self._current_model_id)
-                        if model:
-                            model_info["id"] = model.id
-                            model_info["version"] = model.version
-                            model_info["provider"] = model.provider.value
-                            model_info["capabilities"].update(
-                                model.capabilities)
-                except Exception as e:
-                    logger.error(
-                        f"Error retrieving model info from MongoDB: {str(e)}")
-
-                return model_info
             raise ValueError(f"Unknown endpoint: {endpoint}")
         except Exception as e:
             logger.error(

@@ -11,32 +11,16 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y build-essential gcc gnupg curl && \
-    # Install MongoDB tools
-    curl -fsSL https://pgp.mongodb.com/server-7.0.asc | \
-    gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor && \
-    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | \
-    tee /etc/apt/sources.list.d/mongodb-org-7.0.list && \
-    apt-get update && \
-    apt-get install -y mongodb-mongosh curl && \
-    apt-get clean && \
+    apt-get install -y build-essential gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies with retry mechanism
+# Install Python dependencies
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
-    # Split installation to make it more resilient to network issues
-    pip install --no-cache-dir --retries 5 --timeout 180 numpy && \
-    pip install --no-cache-dir --retries 5 --timeout 180 scipy==1.11.4 && \
-    pip install --no-cache-dir --retries 5 --timeout 180 -r requirements.txt && \
-    # Ensure MongoDB requirements are installed
-    pip install --no-cache-dir pymongo motor
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy project
 COPY . .
-
-# Make entrypoint script executable
-RUN chmod +x docker-entrypoint.sh
 
 # Install the package in development mode
 RUN pip install -e .
@@ -47,5 +31,5 @@ COPY .env .env
 # Expose the FastAPI port
 EXPOSE 8001
 
-# Set entrypoint
-ENTRYPOINT ["./docker-entrypoint.sh"] 
+# Run the FastAPI app with uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"] 

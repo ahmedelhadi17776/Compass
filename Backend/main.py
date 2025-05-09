@@ -1,124 +1,54 @@
-from data_layer.mongodb.lifecycle import mongodb_lifespan
-from data_layer.mongodb.connection import get_mongodb_client
-from core.config import settings
-from core.mcp_state import set_mcp_client, get_mcp_client
-from api.ai_routes import router as ai_router
-import pathlib
-from contextlib import asynccontextmanager
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi import FastAPI, Request, Depends, Cookie, HTTPException
-from typing import Dict, Any, Optional
-import logging
-import json
-import asyncio
-import os
 import sys
 import codecs
-import datetime
-import io
-
-# Set up proper encoding for stdout/stderr
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 
-# Escape emojis and special characters in log messages
+import os
+import asyncio
+import json
+import logging
+from typing import Dict, Any, Optional
+from fastapi import FastAPI, Request, Depends, Cookie, HTTPException
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+import pathlib
 
+# Import the API routers directly
+from api.ai_routes import router as ai_router
+from core.mcp_state import set_mcp_client, get_mcp_client
+from core.config import settings
 
-class EmojiSafeFormatter(logging.Formatter):
-    """Log formatter that makes emojis and special characters safe for console output."""
-
-    def format(self, record):
-        msg = super().format(record)
-        # Replace common emojis with text equivalents
-        replacements = {
-            '✅': '[OK]',
-            '❌': '[X]',
-            '⚠️': '[WARN]',
-            '🔄': '[REFRESH]',
-            '🚀': '[ROCKET]',
-            '📊': '[CHART]',
-            '🔍': '[SEARCH]',
-            '🔒': '[LOCK]'
-        }
-
-        for emoji, replacement in replacements.items():
-            msg = msg.replace(emoji, replacement)
-        return msg
-
-# Configure logging with Unicode safety
-
-
-class EncodingSafeHandler(logging.StreamHandler):
-    """Stream handler that handles encoding errors gracefully."""
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            stream = self.stream
-            # Use a safer approach to write to the stream
-            stream.write(msg + self.terminator)
-            self.flush()
-        except UnicodeEncodeError:
-            # Fall back to ascii with replacement if Unicode fails
-            try:
-                msg = self.format(record)
-                # Replace problematic characters
-                safe_msg = msg.encode('ascii', 'replace').decode('ascii')
-                stream = self.stream
-                stream.write(safe_msg + self.terminator)
-                self.flush()
-            except Exception:
-                self.handleError(record)
-        except Exception:
-            self.handleError(record)
-
-
-# Configure the root logger
-logger_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-formatter = EmojiSafeFormatter(logger_format)
-
-# Clear any existing handlers
-root_logger = logging.getLogger()
-for handler in root_logger.handlers[:]:
-    root_logger.removeHandler(handler)
-
-# Add new safe handlers
-console_handler = EncodingSafeHandler(sys.stdout)
-console_handler.setFormatter(formatter)
-
-file_handler = logging.FileHandler('compass.log', encoding='utf-8')
-file_handler.setFormatter(formatter)
-
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    handlers=[console_handler, file_handler]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('compass.log')
+    ]
 )
-
 logger = logging.getLogger(__name__)
-logger.info("Logging initialized with emoji-safe configuration")
 
-# Combine multiple lifecycle managers using nested context managers
+# Initialize MCP client in lifespan context
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize and manage resources using multiple lifecycle managers."""
+    """Initialize and manage resources."""
     try:
-        # Initialize MongoDB
-        async with mongodb_lifespan(app):
-            # Initialize the MCP server if enabled
-            if settings.mcp_enabled:
-                await init_mcp_server()
+        # Initialize the MCP server if enabled
+        if settings.mcp_enabled:
+            await init_mcp_server()
 
-            logger.info("Application started successfully")
-            yield
+        logger.info("Application started successfully")
+        yield
     finally:
         # Cleanup MCP client when app shuts down
         logger.info("Shutting down application...")
         if settings.mcp_enabled:
-            result = await cleanup_mcp()  # Ensure we await the result
+            await cleanup_mcp()
         logger.info("All resources cleaned up")
 
 # Create FastAPI app with lifespan
@@ -242,10 +172,8 @@ async def cleanup_mcp():
             logger.info("MCP client resources cleaned up successfully")
         else:
             logger.info("No MCP client to clean up")
-        return True  # Return a value to ensure it's awaitable
     except Exception as e:
         logger.error(f"Error during MCP cleanup: {str(e)}", exc_info=True)
-        return False  # Return a value even in case of error
 
 # Root endpoint
 
@@ -259,22 +187,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for Docker healthcheck."""
-    try:
-        # Check MongoDB connection
-        client = get_mongodb_client()
-        db = client.admin
-        server_info = db.command("ping")
-        mongodb_ok = server_info.get("ok") == 1.0
-    except Exception as e:
-        logger.error(f"MongoDB health check error: {str(e)}")
-        mongodb_ok = False
-
-    return {
-        "status": "healthy" if mongodb_ok else "degraded",
-        "mongodb": mongodb_ok,
-        "timestamp": datetime.datetime.utcnow().isoformat()
-    }
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn
