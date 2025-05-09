@@ -38,8 +38,23 @@ class LLMService:
             base_url=self.base_url
         )
         self.model = self.model_name
-        # Removing the conversation_history as we'll use LangChain memory instead
-        self._current_model_id: Optional[int] = None
+        # Default model ID
+        self._current_model_id: Optional[int] = 1  # Default to 1 to avoid None
+
+        # Initialize model ID asynchronously in the background
+        asyncio.create_task(self._initialize_model_id())
+
+    async def _initialize_model_id(self) -> None:
+        """Initialize the model ID in the background."""
+        try:
+            model_id = await self._get_or_create_model()
+            if model_id is not None:
+                self._current_model_id = model_id
+                logger.info(
+                    f"Model ID initialized to {self._current_model_id}")
+        except Exception as e:
+            logger.error(f"Failed to initialize model ID: {str(e)}")
+            # Keep the default value
 
     async def _get_or_create_model(self) -> Optional[int]:
         """Get or create model ID through MCP."""
@@ -143,6 +158,11 @@ class LLMService:
             logger.info("Starting LLM response generation")
             start_time = time.time()
 
+            # Initialize model ID if not yet set
+            if self._current_model_id is None:
+                self._current_model_id = await self._get_or_create_model()
+                logger.info(f"Initialized model ID: {self._current_model_id}")
+
             # Prepare messages and parameters
             logger.debug("Preparing messages and parameters")
             messages = self._prepare_messages(prompt, context)
@@ -203,6 +223,12 @@ class LLMService:
         full_text = ""
 
         try:
+            # Initialize model ID if not yet set
+            if self._current_model_id is None:
+                self._current_model_id = await self._get_or_create_model()
+                logger.info(
+                    f"Initialized model ID for streaming: {self._current_model_id}")
+
             # Create a wrapper function to convert sync to async
             async def stream_openai_response():
                 # Set streaming parameter
