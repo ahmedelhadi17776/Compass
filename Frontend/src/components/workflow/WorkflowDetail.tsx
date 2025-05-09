@@ -343,7 +343,12 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                     className="h-full bg-primary rounded-full"
                     initial={{ width: 0 }}
                     animate={{ width: `${horizontalLines[rowIndex]}%` }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    transition={{ 
+                      duration: 0.5, 
+                      ease: "easeOut",
+                      // If there's a previous row, delay this row's animation slightly to create a sequence effect
+                      delay: rowIndex > 0 ? 0.05 * rowIndex : 0
+                    }}
                     style={{
                       transformOrigin: isRtl ? 'right' : 'left',
                       marginLeft: isRtl ? 'auto' : '0'
@@ -358,8 +363,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                     style={{
                       top: '-70px', // Connect to previous row
                       height: '70px',
-                      // Position based on the previous row's direction, not current row
-                      // If previous row is LTR, connect from right side; if RTL, connect from left side
+                      // Position based on the zigzag pattern - correctly align connection points
                       left: `${(rowIndex-1) % 2 === 0 ? '85%' : '15%'}`,
                       transform: 'translateX(-50%)'
                     }}
@@ -369,7 +373,13 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                       className="w-full bg-primary rounded-full"
                       initial={{ height: 0 }}
                       animate={{ height: `${verticalLines[rowIndex-1]}%` }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      transition={{ 
+                        duration: 0.4, 
+                        ease: "easeOut",
+                        // Time the vertical animation to happen after the previous row's horizontal animation
+                        // but before the current row's horizontal animation
+                        delay: 0.05 * (rowIndex - 0.5)
+                      }}
                       style={{ transformOrigin: 'top' }}
                     />
                   </div>

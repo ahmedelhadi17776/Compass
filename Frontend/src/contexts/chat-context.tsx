@@ -7,7 +7,6 @@ import {
 } from "react";
 import {
   llmService,
-  useConversationSession,
   useStreamingLLMResponse,
 } from "@/services/llmService";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,13 +61,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const [messages, setMessages] = useState<Message[]>(defaultMessages);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [sessionId, setSessionId] = useState<string>("");
   const { streamResponse } = useStreamingLLMResponse();
-
-  // Initialize session ID on component mount
-  useEffect(() => {
-    setSessionId(llmService.getSessionId());
-  }, []);
 
   // Update default message when user data is available
   useEffect(() => {
@@ -122,9 +115,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       };
 
       setMessages([welcomeMessage]);
-
-      // Get the new session ID
-      setSessionId(llmService.getSessionId());
     } catch (error) {
       console.error("Error clearing chat session:", error);
     }
@@ -132,10 +122,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
   const startNewConversation = async () => {
     try {
-      // Create a new session ID
-      const newSessionId = llmService.createNewSession();
-      setSessionId(newSessionId);
-
       // Reset messages to default
       resetToDefault();
     } catch (error) {
