@@ -119,7 +119,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
 
   const getStepIcon = (type: string, isCompleted: boolean = false) => {
     if (isCompleted) {
-      return <CheckCircle2 className="h-6 w-6 text-primary" />;
+      return <CheckCircle2 className="h-6 w-6 text-white" />;
     }
     
     switch (type) {
@@ -364,7 +364,10 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                       top: '-70px', // Connect to previous row
                       height: '70px',
                       // Position based on the zigzag pattern - correctly align connection points
-                      left: `${(rowIndex-1) % 2 === 0 ? '85%' : '15%'}`,
+                      // Apply different adjustments based on the direction:
+                      // - For LTR to RTL transitions (row 1 to 2): move right (+5px)
+                      // - For RTL to LTR transitions (row 2 to 3): move left (-5px)
+                      left: `calc(${(rowIndex-1) % 2 === 0 ? '85%' : '15%'} ${(rowIndex-1) % 2 === 0 ? '+' : '-'} 17px)`,
                       transform: 'translateX(-50%)'
                     }}
                   >
@@ -424,7 +427,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
                             className={cn(
                               "absolute top-0 rounded-full p-2.5 shadow-md border border-border",
                               "bg-background group-hover:scale-110 transition-transform",
-                              isCompleted ? "bg-primary/10 dark:bg-primary/20 border-primary/30 dark:border-primary/30" : ""
+                              isCompleted ? "bg-emerald-600" : ""
                             )}
                             onClick={(e) => handleToggleStepCompletion(step.id, e)}
                             style={{ 
