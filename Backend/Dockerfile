@@ -47,5 +47,7 @@ COPY .env .env
 # Expose the FastAPI port
 EXPOSE 8001
 
+RUN mkdir -p /app/certs
+
 # Set entrypoint
 ENTRYPOINT ["./docker-entrypoint.sh"] 
