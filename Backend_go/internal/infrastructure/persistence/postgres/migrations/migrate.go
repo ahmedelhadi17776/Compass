@@ -6,7 +6,6 @@ import (
 
 	"errors"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
@@ -102,11 +101,10 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&workflow.WorkflowAgentLink{},
 			&workflow.WorkflowTransition{},
 			&todos.Todo{},
-			&ai.Model{},
-			&ai.Interaction{},
-			&ai.Document{},
-			&ai.Chunk{},
-			&ai.UserContext{},
+			&user.UserAnalytics{},
+			&user.SessionAnalytics{},
+			&task.TaskAnalytics{},
+			&calendar.EventAnalytics{},
 		}
 
 		// Migrate each model

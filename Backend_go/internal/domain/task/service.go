@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -13,6 +14,31 @@ var (
 	ErrDependencyFailed  = errors.New("dependencies not completed")
 )
 
+// Analytics types
+type RecordTaskActivityInput struct {
+	TaskID    uuid.UUID              `json:"task_id"`
+	UserID    uuid.UUID              `json:"user_id"`
+	Action    string                 `json:"action"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp time.Time              `json:"timestamp,omitempty"`
+}
+
+type TaskActivitySummary struct {
+	TaskID       uuid.UUID      `json:"task_id"`
+	ActionCounts map[string]int `json:"action_counts"`
+	StartTime    time.Time      `json:"start_time"`
+	EndTime      time.Time      `json:"end_time"`
+	TotalActions int            `json:"total_actions"`
+}
+
+type UserTaskActivitySummary struct {
+	UserID       uuid.UUID      `json:"user_id"`
+	ActionCounts map[string]int `json:"action_counts"`
+	StartTime    time.Time      `json:"start_time"`
+	EndTime      time.Time      `json:"end_time"`
+	TotalActions int            `json:"total_actions"`
+}
+
 type Service interface {
 	CreateTask(ctx context.Context, input CreateTaskInput) (*Task, error)
 	GetTask(ctx context.Context, id uuid.UUID) (*Task, error)
@@ -23,6 +49,13 @@ type Service interface {
 	GetTaskMetrics(ctx context.Context, id uuid.UUID) (*TaskMetrics, error)
 	GetProjectTasks(ctx context.Context, projectID uuid.UUID, filter TaskFilter) ([]Task, int64, error)
 	AssignTask(ctx context.Context, id uuid.UUID, assigneeID uuid.UUID) (*Task, error)
+
+	// Analytics methods
+	RecordTaskActivity(ctx context.Context, input RecordTaskActivityInput) error
+	GetTaskAnalytics(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]TaskAnalytics, int64, error)
+	GetUserTaskAnalytics(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]TaskAnalytics, int64, error)
+	GetTaskActivitySummary(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time) (*TaskActivitySummary, error)
+	GetUserTaskActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (*UserTaskActivitySummary, error)
 }
 
 type TaskMetrics struct {
@@ -118,6 +151,41 @@ func (s *service) CreateTask(ctx context.Context, input CreateTaskInput) (*Task,
 		return nil, err
 	}
 
+	// Record task creation activity with meaningful metadata
+	if callerID, ok := ctx.Value("user_id").(uuid.UUID); ok {
+		metadata := marshalTaskMetadata(map[string]interface{}{
+			"created_by":      callerID.String(),
+			"task_id":         task.ID.String(),
+			"title":           task.Title,
+			"status":          string(task.Status),
+			"priority":        string(task.Priority),
+			"project_id":      task.ProjectID.String(),
+			"organization_id": task.OrganizationID.String(),
+		})
+		analytics := &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    callerID,
+			Action:    "task_created",
+			Timestamp: time.Now(),
+			Metadata:  metadata,
+		}
+		_ = s.repo.RecordTaskActivity(ctx, analytics)
+	} else {
+		analytics := &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    task.CreatorID,
+			Action:    "task_created",
+			Timestamp: time.Now(),
+			Metadata: marshalTaskMetadata(map[string]interface{}{
+				"task_id": task.ID.String(),
+				"title":   task.Title,
+			}),
+		}
+		_ = s.repo.RecordTaskActivity(ctx, analytics)
+	}
+
 	return task, nil
 }
 
@@ -136,6 +204,15 @@ func (s *service) ListTasks(ctx context.Context, filter TaskFilter) ([]Task, int
 	return s.repo.FindAll(ctx, filter)
 }
 
+// Helper to marshal metadata
+func marshalTaskMetadata(data map[string]interface{}) string {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
 func (s *service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTaskInput) (*Task, error) {
 	task, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -145,52 +222,94 @@ func (s *service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		return nil, ErrTaskNotFound
 	}
 
+	// Store old values for change tracking
+	oldStatus := task.Status
+	oldAssignee := task.AssigneeID
+	oldDependencies := task.Dependencies
+
+	changed := false
+	var analyticsEvents []*TaskAnalytics
+	var callerID uuid.UUID
+	if v, ok := ctx.Value("user_id").(uuid.UUID); ok {
+		callerID = v
+	} else {
+		callerID = task.CreatorID
+	}
+
 	// Update fields if provided
-	if input.Title != nil {
+	if input.Title != nil && *input.Title != task.Title {
 		task.Title = *input.Title
+		changed = true
 	}
-	if input.Description != nil {
+	if input.Description != nil && *input.Description != task.Description {
 		task.Description = *input.Description
+		changed = true
 	}
-	if input.Status != nil {
-		if !input.Status.IsValid() {
-			return nil, ErrInvalidInput
-		}
-		if !isValidStatusTransition(task.Status, *input.Status) {
-			return nil, ErrInvalidTransition
-		}
+	if input.Status != nil && *input.Status != oldStatus {
 		task.Status = *input.Status
+		changed = true
+		metadata := marshalTaskMetadata(map[string]interface{}{
+			"old_status": string(oldStatus),
+			"new_status": string(*input.Status),
+			"updated_by": callerID.String(),
+			"task_id":    task.ID.String(),
+		})
+		analyticsEvents = append(analyticsEvents, &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    callerID,
+			Action:    "status_changed",
+			Timestamp: time.Now(),
+			Metadata:  metadata,
+		})
 	}
-	if input.Priority != nil {
-		if !input.Priority.IsValid() {
-			return nil, ErrInvalidInput
-		}
+	if input.Priority != nil && *input.Priority != task.Priority {
 		task.Priority = *input.Priority
+		changed = true
 	}
-	if input.AssigneeID != nil {
+	if input.AssigneeID != nil && (oldAssignee == nil || *input.AssigneeID != *oldAssignee) {
 		task.AssigneeID = input.AssigneeID
+		changed = true
+		metadata := marshalTaskMetadata(map[string]interface{}{
+			"old_assignee": func() string {
+				if oldAssignee != nil {
+					return oldAssignee.String()
+				} else {
+					return ""
+				}
+			}(),
+			"new_assignee": input.AssigneeID.String(),
+			"updated_by":   callerID.String(),
+			"task_id":      task.ID.String(),
+		})
+		analyticsEvents = append(analyticsEvents, &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    callerID,
+			Action:    "assignee_changed",
+			Timestamp: time.Now(),
+			Metadata:  metadata,
+		})
 	}
-	if input.ReviewerID != nil {
-		task.ReviewerID = input.ReviewerID
-	}
-	if input.CategoryID != nil {
-		task.CategoryID = input.CategoryID
-	}
-	if input.EstimatedHours != nil {
-		task.EstimatedHours = *input.EstimatedHours
-	}
-	if input.StartDate != nil {
-		task.StartDate = *input.StartDate
-	}
-	if input.Duration != nil {
-		task.Duration = input.Duration
-	}
-	if input.DueDate != nil {
-		task.DueDate = input.DueDate
-	}
-	if input.Dependencies != nil {
+	if input.Dependencies != nil && !equalUUIDSlices(input.Dependencies, oldDependencies) {
 		task.Dependencies = input.Dependencies
+		changed = true
+		metadata := marshalTaskMetadata(map[string]interface{}{
+			"old_dependencies": oldDependencies,
+			"new_dependencies": input.Dependencies,
+			"updated_by":       callerID.String(),
+			"task_id":          task.ID.String(),
+		})
+		analyticsEvents = append(analyticsEvents, &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    callerID,
+			Action:    "dependencies_changed",
+			Timestamp: time.Now(),
+			Metadata:  metadata,
+		})
 	}
+	// ... handle other fields as needed ...
 
 	task.UpdatedAt = time.Now()
 	err = s.repo.Update(ctx, task)
@@ -198,7 +317,46 @@ func (s *service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		return nil, err
 	}
 
+	if changed {
+		for _, event := range analyticsEvents {
+			_ = s.repo.RecordTaskActivity(ctx, event)
+		}
+	} else {
+		// No significant field changed, but still record a generic update event
+		metadata := marshalTaskMetadata(map[string]interface{}{
+			"updated_by": callerID.String(),
+			"task_id":    task.ID.String(),
+		})
+		analytics := &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    callerID,
+			Action:    "task_updated",
+			Timestamp: time.Now(),
+			Metadata:  metadata,
+		}
+		_ = s.repo.RecordTaskActivity(ctx, analytics)
+	}
+
 	return task, nil
+}
+
+// Helper to compare slices of UUIDs
+func equalUUIDSlices(a, b []uuid.UUID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := make(map[uuid.UUID]int)
+	for _, v := range a {
+		m[v]++
+	}
+	for _, v := range b {
+		if m[v] == 0 {
+			return false
+		}
+		m[v]--
+	}
+	return true
 }
 
 func (s *service) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status TaskStatus) (*Task, error) {
@@ -229,12 +387,32 @@ func (s *service) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status Tas
 		}
 	}
 
+	oldStatus := task.Status
 	task.Status = status
 	task.UpdatedAt = time.Now()
 
 	err = s.repo.Update(ctx, task)
 	if err != nil {
 		return nil, err
+	}
+
+	// Record status change activity
+	if callerID, ok := ctx.Value("user_id").(uuid.UUID); ok {
+		metadata := marshalTaskMetadata(map[string]interface{}{
+			"old_status": string(oldStatus),
+			"new_status": string(status),
+			"updated_by": callerID.String(),
+			"task_id":    task.ID.String(),
+		})
+		analytics := &TaskAnalytics{
+			ID:        uuid.New(),
+			TaskID:    task.ID,
+			UserID:    callerID,
+			Action:    "status_changed",
+			Timestamp: time.Now(),
+			Metadata:  metadata,
+		}
+		_ = s.repo.RecordTaskActivity(ctx, analytics)
 	}
 
 	return task, nil
@@ -249,7 +427,24 @@ func (s *service) DeleteTask(ctx context.Context, id uuid.UUID) error {
 		return ErrTaskNotFound
 	}
 
+	// Record deletion activity before deleting
+	if callerID, ok := ctx.Value("user_id").(uuid.UUID); ok {
+		s.recordTaskDeletion(ctx, task.ID, callerID)
+	}
+
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *service) recordTaskDeletion(ctx context.Context, taskID, userID uuid.UUID) {
+	analytics := &TaskAnalytics{
+		ID:        uuid.New(),
+		TaskID:    taskID,
+		UserID:    userID,
+		Action:    "task_deleted",
+		Timestamp: time.Now(),
+	}
+
+	_ = s.repo.RecordTaskActivity(ctx, analytics)
 }
 
 func (s *service) GetTaskMetrics(ctx context.Context, id uuid.UUID) (*TaskMetrics, error) {
@@ -392,6 +587,15 @@ func (s *service) AssignTask(ctx context.Context, id uuid.UUID, assigneeID uuid.
 		return nil, ErrTaskNotFound
 	}
 
+	// Check if the assignee is changing
+	oldAssigneeID := task.AssigneeID
+	var wasAssigned bool
+	var oldAssignee uuid.UUID
+	if oldAssigneeID != nil {
+		wasAssigned = true
+		oldAssignee = *oldAssigneeID
+	}
+
 	task.AssigneeID = &assigneeID
 	task.UpdatedAt = time.Now()
 
@@ -400,5 +604,128 @@ func (s *service) AssignTask(ctx context.Context, id uuid.UUID, assigneeID uuid.
 		return nil, err
 	}
 
+	// Record assignment activity
+	if callerID, ok := ctx.Value("user_id").(uuid.UUID); ok {
+		metadata := map[string]interface{}{
+			"new_assignee_id": assigneeID.String(),
+		}
+
+		if wasAssigned {
+			metadata["old_assignee_id"] = oldAssignee.String()
+		} else {
+			metadata["old_assignee_id"] = nil
+		}
+
+		s.recordTaskAssignment(ctx, task.ID, callerID, metadata)
+	}
+
 	return task, nil
+}
+
+func (s *service) recordTaskAssignment(ctx context.Context, taskID, userID uuid.UUID, metadata map[string]interface{}) {
+	metadataJSON, _ := json.Marshal(metadata)
+
+	analytics := &TaskAnalytics{
+		ID:        uuid.New(),
+		TaskID:    taskID,
+		UserID:    userID,
+		Action:    "task_assigned",
+		Timestamp: time.Now(),
+		Metadata:  string(metadataJSON),
+	}
+
+	_ = s.repo.RecordTaskActivity(ctx, analytics)
+}
+
+// Analytics implementation
+func (s *service) RecordTaskActivity(ctx context.Context, input RecordTaskActivityInput) error {
+	timestamp := input.Timestamp
+	if timestamp.IsZero() {
+		timestamp = time.Now()
+	}
+
+	metadata := ""
+	if input.Metadata != nil {
+		metadataJSON, err := json.Marshal(input.Metadata)
+		if err == nil {
+			metadata = string(metadataJSON)
+		}
+	}
+
+	analytics := &TaskAnalytics{
+		ID:        uuid.New(),
+		TaskID:    input.TaskID,
+		UserID:    input.UserID,
+		Action:    input.Action,
+		Timestamp: timestamp,
+		Metadata:  metadata,
+	}
+
+	return s.repo.RecordTaskActivity(ctx, analytics)
+}
+
+func (s *service) GetTaskAnalytics(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]TaskAnalytics, int64, error) {
+	filter := AnalyticsFilter{
+		TaskID:    &taskID,
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		Page:      page,
+		PageSize:  pageSize,
+	}
+
+	return s.repo.GetTaskAnalytics(ctx, filter)
+}
+
+func (s *service) GetUserTaskAnalytics(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]TaskAnalytics, int64, error) {
+	filter := AnalyticsFilter{
+		UserID:    &userID,
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		Page:      page,
+		PageSize:  pageSize,
+	}
+
+	return s.repo.GetTaskAnalytics(ctx, filter)
+}
+
+func (s *service) GetTaskActivitySummary(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time) (*TaskActivitySummary, error) {
+	actionCounts, err := s.repo.GetTaskActivitySummary(ctx, taskID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate total actions
+	totalActions := 0
+	for _, count := range actionCounts {
+		totalActions += count
+	}
+
+	return &TaskActivitySummary{
+		TaskID:       taskID,
+		ActionCounts: actionCounts,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		TotalActions: totalActions,
+	}, nil
+}
+
+func (s *service) GetUserTaskActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (*UserTaskActivitySummary, error) {
+	actionCounts, err := s.repo.GetUserTaskActivitySummary(ctx, userID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate total actions
+	totalActions := 0
+	for _, count := range actionCounts {
+		totalActions += count
+	}
+
+	return &UserTaskActivitySummary{
+		UserID:       userID,
+		ActionCounts: actionCounts,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		TotalActions: totalActions,
+	}, nil
 }
