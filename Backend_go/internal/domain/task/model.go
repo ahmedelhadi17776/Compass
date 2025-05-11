@@ -3,10 +3,6 @@ package task
 import (
 	"time"
 
-	"database/sql/driver"
-	"encoding/json"
-	"fmt"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -32,25 +28,6 @@ const (
 	TaskPriorityUrgent TaskPriority = "Urgent"
 )
 
-type UUIDSlice []uuid.UUID
-
-// Value implements the driver.Valuer interface for UUIDSlice
-func (u UUIDSlice) Value() (driver.Value, error) {
-	if len(u) == 0 {
-		return "[]", nil
-	}
-	return json.Marshal(u)
-}
-
-// Scan implements the sql.Scanner interface for UUIDSlice
-func (u *UUIDSlice) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return fmt.Errorf("failed to unmarshal UUIDSlice value: %v", value)
-	}
-	return json.Unmarshal(bytes, u)
-}
-
 // Task represents a task in the system
 type Task struct {
 	ID             uuid.UUID    `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
@@ -74,9 +51,9 @@ type Task struct {
 	Duration       *float64   `json:"duration,omitempty"`
 	DueDate        *time.Time `json:"due_date,omitempty" gorm:"index:idx_task_dates"`
 
-	Dependencies    UUIDSlice `json:"dependencies" gorm:"type:jsonb"`
-	HealthScore     *float64  `json:"health_score,omitempty"`
-	ComplexityScore *float64  `json:"complexity_score,omitempty"`
+	Dependencies    []uuid.UUID `json:"dependencies" gorm:"-"`
+	HealthScore     *float64    `json:"health_score,omitempty"`
+	ComplexityScore *float64    `json:"complexity_score,omitempty"`
 
 	// Additional metadata
 	AIMetadata      map[string]interface{} `json:"ai_metadata,omitempty" gorm:"type:jsonb"`
@@ -198,4 +175,18 @@ func (t *Task) BeforeCreate(tx *gorm.DB) error {
 func (t *Task) BeforeUpdate(tx *gorm.DB) error {
 	t.UpdatedAt = time.Now()
 	return t.Validate()
+}
+
+type TaskFilter struct {
+	OrganizationID *uuid.UUID
+	ProjectID      *uuid.UUID
+	Status         *TaskStatus
+	Priority       *TaskPriority
+	AssigneeID     *uuid.UUID
+	CreatorID      *uuid.UUID
+	ReviewerID     *uuid.UUID
+	StartDate      *time.Time
+	EndDate        *time.Time
+	Page           int
+	PageSize       int
 }

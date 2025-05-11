@@ -37,16 +37,4 @@ func (r *TaskRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.CacheM
 	tasks.DELETE("/:id", cache.CacheInvalidate("tasks:list:*", "tasks:id:*"), r.handler.DeleteTask)
 	tasks.PATCH("/:id/status", cache.CacheInvalidate("tasks:list:*", "tasks:id:*"), r.handler.UpdateTaskStatus)
 	tasks.PATCH("/:id/assign", cache.CacheInvalidate("tasks:list:*", "tasks:id:*"), r.handler.AssignTask)
-
-	// Task analytics routes
-	analytics := tasks.Group("/analytics")
-
-	// User-specific analytics
-	analytics.GET("/user", r.handler.GetUserTaskAnalytics)
-	analytics.GET("/user/summary", r.handler.GetUserTaskActivitySummary)
-
-	// Task-specific analytics
-	tasks.GET("/:id/analytics", r.handler.GetTaskAnalytics)
-	tasks.GET("/:id/analytics/summary", r.handler.GetTaskActivitySummary)
-	tasks.POST("/:id/analytics/record", r.handler.RecordTaskActivity)
 }

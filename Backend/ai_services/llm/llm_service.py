@@ -47,8 +47,8 @@ class LLMService:
         # Default model ID
         self._current_model_id: Optional[str] = None
 
-        # Instead, create a flag to indicate initialization is needed
-        self._model_initialized = False
+        # Initialize model ID asynchronously in the background
+        asyncio.create_task(self._initialize_model_id())
 
     async def _initialize_model_id(self) -> None:
         """Initialize the model ID by getting or creating the model in MongoDB."""
@@ -89,9 +89,6 @@ class LLMService:
     async def _update_model_stats(self, latency: float, success: bool = True) -> None:
         """Update model usage statistics in MongoDB."""
         try:
-            # Ensure model is initialized
-            await self.ensure_model_initialized()
-
             # Store usage data in MongoDB
             model_id = self._current_model_id or "unknown"
             self.mongo_client.log_model_usage(
@@ -118,9 +115,6 @@ class LLMService:
     ) -> Union[Dict[str, Any], AsyncIterator[str]]:
         """Generate a response using the LLM."""
         try:
-            # Ensure model is initialized
-            await self.ensure_model_initialized()
-
             logger.info("Starting LLM response generation")
             start_time = time.time()
 
@@ -511,9 +505,3 @@ class LLMService:
         """Close the LLM service."""
         # No active connections to close in OpenAI client
         pass
-
-    async def ensure_model_initialized(self) -> None:
-        """Ensure the model ID is initialized before using it."""
-        if not self._model_initialized:
-            await self._initialize_model_id()
-            self._model_initialized = True

@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Todo, TodosResponse, TodoList, TodoListsResponse, CreateTodoListInput, UpdateTodoListInput } from './types-todo';
 import { Habit } from './types-habit';
 
-const API_BASE_URL = 'https://localhost:8000';
+const API_BASE_URL = 'http://localhost:8000';
 // Todo API functions
 export const fetchTodos = async (userId: string, listId?: string): Promise<Todo[]> => {
   const url = listId ? 
