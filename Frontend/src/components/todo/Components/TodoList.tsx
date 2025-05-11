@@ -46,7 +46,7 @@ const TodoList: React.FC = () => {
   });
 
   // Use the custom hooks
-  const { data: todoLists = [] } = useTodoLists(user);
+  const { data: todoLists = [], refetch: refetchTodoLists } = useTodoLists(user);
   const { data: habits = [] } = useHabits(user);
   const createTodoMutation = useCreateTodo();
   const updateTodoMutation = useUpdateTodo();
@@ -59,6 +59,13 @@ const TodoList: React.FC = () => {
   const createTodoListMutation = useCreateTodoList();
   const updateTodoListMutation = useUpdateTodoList();
   const deleteTodoListMutation = useDeleteTodoList();
+
+  // Refetch todos when component mounts
+  React.useEffect(() => {
+    if (user) {
+      refetchTodoLists();
+    }
+  }, [user]);
 
   // Set default list ID on initial load
   React.useEffect(() => {

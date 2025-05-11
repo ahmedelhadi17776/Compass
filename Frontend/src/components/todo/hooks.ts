@@ -10,6 +10,9 @@ export const useTodos = (user: User | undefined) => {
     queryKey: ['todos', user?.id],
     queryFn: () => user ? fetchTodos(user.id) : Promise.resolve([]),
     enabled: !!user,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 };
 
@@ -128,6 +131,9 @@ export const useTodoLists = (user: User | undefined) => {
     queryKey: ['todoLists', user?.id],
     queryFn: fetchTodoLists,
     enabled: !!user,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 };
 
