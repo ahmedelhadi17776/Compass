@@ -79,62 +79,6 @@ def get_or_create_orchestrator(session_id: str) -> AIOrchestrator:
         orchestrator_instances[session_id] = AIOrchestrator()
     return orchestrator_instances[session_id]
 
-
-@router.post("/process", response_model=AIResponse)
-async def process_ai_request(
-    request: AIRequest,
-    session_id: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None)
-) -> AIResponse:
-    """Process an AI request through MCP."""
-    try:
-        # Get or create session ID
-        active_session_id = request.session_id or session_id or str(
-            uuid.uuid4())
-
-        # Log auth token for debugging (mask most of it)
-        if authorization:
-            masked_token = authorization[:15] + \
-                "..." if len(authorization) > 15 else authorization
-            logger.info(f"Received authorization token: {masked_token}")
-        else:
-            logger.warning("No authorization token received")
-
-        # Get or create orchestrator for this session
-        orchestrator = get_or_create_orchestrator(active_session_id)
-
-        # Map session ID to a numeric user ID for the orchestrator
-        # Use a hash of the session ID to get a consistent integer
-        user_id = int(hash(active_session_id) % 100000)
-
-        # Process request
-        result = await orchestrator.process_request(
-            user_input=request.prompt,
-            user_id=user_id,  # Use the mapped user ID
-            domain=request.domain or "default",
-            auth_token=authorization  # Pass the authorization header
-        )
-
-        # Add session ID to response
-        result["session_id"] = active_session_id
-        return AIResponse(**result)
-    except Exception as e:
-        logger.error(f"Error processing AI request: {str(e)}")
-        return AIResponse(
-            response=f"Error: {str(e)}",
-            tool_used=None,
-            tool_args=None,
-            tool_success=False,
-            description="Error processing request",
-            rag_used=False,
-            cached=False,
-            confidence=0.0,
-            error=True,
-            error_message=str(e),
-            session_id=request.session_id or session_id
-        )
-
-
 @router.get("/rag/stats/{domain}")
 async def get_rag_stats(
     domain: str,
