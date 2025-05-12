@@ -49,6 +49,20 @@ func (ur *UserRoutes) RegisterRoutes(router *gin.Engine) {
 			protected.GET("/sessions", ur.userHandler.GetUserSessions)
 			protected.POST("/sessions/:id/revoke", ur.userHandler.RevokeSession)
 			protected.POST("/logout", ur.userHandler.Logout)
+
+			// Analytics routes
+			analyticsGroup := protected.Group("/analytics")
+			{
+				// User activity
+				analyticsGroup.GET("/activity", ur.userHandler.GetUserActivity)
+				analyticsGroup.POST("/record", ur.userHandler.RecordUserActivity)
+
+				// Session activity
+				analyticsGroup.GET("/sessions", ur.userHandler.GetSessionActivity)
+
+				// Summary
+				analyticsGroup.GET("/summary", ur.userHandler.GetUserActivitySummary)
+			}
 		}
 	}
 }
