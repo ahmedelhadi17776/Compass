@@ -19,6 +19,7 @@ from mcp.types import (
 import sys
 from core.config import settings
 from orchestration.ai_orchestrator import AIOrchestrator
+from orchestration.todo_operations import smart_update_todo
 import uuid
 
 # Hardcoded JWT token for development - only used as fallback
@@ -338,7 +339,6 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
         await ctx.error(f"Failed to create project: {str(e)}")
         raise
 
-
 @mcp.tool("entity.create")
 async def create_entity(
     ctx: Context,
@@ -362,30 +362,6 @@ async def create_entity(
     except Exception as e:
         logger.error(f"Error creating entity: {str(e)}")
         raise
-
-
-@mcp.tool("user.getContext")
-async def get_user_context(
-    ctx: Context,
-    user_id: str,
-    domain: str
-) -> Dict[str, Any]:
-    """Get user context data."""
-    try:
-        logger.info(f"Getting context for user {user_id} in domain {domain}")
-        return {
-            "user_id": user_id,
-            "domain": domain,
-            "preferences": {
-                "language": "en",
-                "theme": "light"
-            },
-            "history": []
-        }
-    except Exception as e:
-        logger.error(f"Error getting user context: {str(e)}")
-        raise
-
 
 @mcp.tool("user.getInfo")
 async def get_user_info(
@@ -436,28 +412,31 @@ async def get_user_info(
 async def get_items(
     ctx: Context,
     item_type: str,  # "todos" or "habits"
-    user_id: Optional[str] = None,
     status: Optional[str] = None,
     priority: Optional[str] = None,
     authorization: Optional[str] = None,
     page: Optional[int] = None,
-    page_size: Optional[int] = None
+    page_size: Optional[int] = None,
+    user_id: Optional[str] = None  # Moved to end to de-emphasize
 ) -> Dict[str, Any]:
     """Get items (todos or habits) with optional filters.
 
     Args:
         item_type: Type of items to retrieve ("todos" or "habits")
-        user_id: Optional user ID to filter by
         status: Optional status to filter by
         priority: Optional priority to filter by
         authorization: Optional authorization token (Bearer token)
         page: Optional page number for pagination
         page_size: Optional page size for pagination
+        user_id: Optional user ID to filter by (not required - will use token's user)
+
+    Returns:
+        The list of items matching the filters
     """
     try:
         logger.info(
-            f"get_items called with: type={item_type}, user_id={user_id}, status={status}, priority={priority}")
-        await ctx.info(f"get_items called with: type={item_type}, user_id={user_id}, status={status}, priority={priority}")
+            f"get_items called with: type={item_type}, status={status}, priority={priority}")
+        await ctx.info(f"get_items called with: type={item_type}, status={status}, priority={priority}")
 
         # Validate item type
         if item_type not in ["todos", "habits"]:
@@ -475,10 +454,8 @@ async def get_items(
             logger.info(
                 f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
-        # Build query parameters
+        # Build query parameters - only include if provided
         params = {}
-        if user_id:
-            params["user_id"] = user_id
         if status:
             params["status"] = status
         if priority:
@@ -487,6 +464,8 @@ async def get_items(
             params["page"] = page
         if page_size is not None:
             params["page_size"] = page_size
+        if user_id:  # Only include user_id if explicitly provided
+            params["user_id"] = user_id
 
         # Define the get function for try_backend_urls
         async def get_func(client, url, **kwargs):
@@ -656,166 +635,24 @@ async def create_habit(
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
-
-@mcp.tool("todos.update_by_name")
-async def update_todo_by_name(
+@mcp.tool("todos.smartUpdate")
+async def smart_update_todo_handler(
     ctx: Context,
-    todo_name: str,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    authorization: Optional[str] = None
+    edit_request: str,
+    authorization: Optional[str] = None,
+    user_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Update a todo by searching for its name rather than requiring its ID.
+    """Intelligently update a todo item based on the user's description.
 
     Args:
-        todo_name: Name of the todo to update (will be matched against titles)
-        title: Optional new title
-        description: Optional new description
-        status: Optional new status
-        priority: Optional new priority
+        edit_request: User's request describing what to edit (e.g., "change the due date of my shopping task to tomorrow")
         authorization: Optional authorization token (Bearer token)
+        user_id: Optional user ID (will be extracted from token if not provided)
 
     Returns:
-        The updated todo item or error message if todo not found
+        The updated todo item
     """
-    try:
-        logger.info(f"===== TODOS.UPDATE_BY_NAME CALLED =====")
-        logger.info(f"Looking for todo with name: '{todo_name}'")
-        logger.info(
-            f"Update parameters: title={title}, description={description}, status={status}, priority={priority}")
-        await ctx.info(f"Searching for todo with name: {todo_name}")
-
-        # Get auth token from parameter or fall back to default
-        auth_token = None
-        if authorization and authorization.startswith("Bearer "):
-            auth_token = authorization
-            logger.info("Using provided authorization token")
-        else:
-            auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info("Using default DEV_JWT_TOKEN for authorization")
-
-        # Step 1: Get all todos to find matching one
-        logger.info("Fetching all todos to find matching one")
-        get_items_result = await get_items(
-            ctx=ctx,
-            item_type="todos",
-            authorization=auth_token
-        )
-
-        if get_items_result.get("status") != "success":
-            error_message = get_items_result.get(
-                "error", "Failed to retrieve todos")
-            logger.error(f"Failed to retrieve todos: {error_message}")
-            await ctx.error(error_message)
-            return {"status": "error", "error": error_message}
-
-        # Extract todos from the response
-        todos_data = get_items_result.get("content", {})
-        logger.info(f"Received todos_data type: {type(todos_data)}")
-
-        if isinstance(todos_data, str):
-            logger.info("Parsing string todos_data as JSON")
-            try:
-                todos_data = json.loads(todos_data)
-                logger.info("Successfully parsed todos_data")
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON parse error: {str(e)}")
-                await ctx.error("Could not parse todos data as JSON")
-                return {"status": "error", "error": "Invalid todos data format"}
-
-        # Check if we have data in the expected format
-        if not isinstance(todos_data, dict) or "data" not in todos_data:
-            logger.error(f"Unexpected todos_data format: {type(todos_data)}")
-            await ctx.error("Todos data not in expected format")
-            return {"status": "error", "error": "Todos data not in expected format"}
-
-        todos_lists = todos_data.get("data", {}).get("Lists", [])
-        logger.info(f"Found {len(todos_lists)} todo lists")
-        if not todos_lists:
-            logger.error("No todo lists found")
-            await ctx.error("No todo lists found")
-            return {"status": "error", "error": "No todo lists found"}
-
-        # Search all lists for matching todo
-        matching_todo = None
-        logger.info(f"Searching for todo with name containing: '{todo_name}'")
-        for todo_list in todos_lists:
-            todos = todo_list.get("Todos", [])
-            logger.info(f"Checking list with {len(todos)} todos")
-            for todo in todos:
-                todo_title = todo.get("Title", "")
-                logger.info(
-                    f"Comparing '{todo_name.lower()}' with '{todo_title.lower()}'")
-                if todo_name.lower() in todo_title.lower():
-                    matching_todo = todo
-                    logger.info(f"MATCH FOUND: {todo_title}")
-                    break
-            if matching_todo:
-                break
-
-        if not matching_todo:
-            error_message = f"No todo found with name similar to '{todo_name}'"
-            logger.error(error_message)
-            await ctx.error(error_message)
-            return {"status": "error", "error": error_message}
-
-        # Step 2: Update the found todo
-        todo_id = matching_todo.get("ID")
-        logger.info(
-            f"Found matching todo with ID: {todo_id} and title: {matching_todo.get('Title')}")
-        await ctx.info(f"Found matching todo with ID: {todo_id}")
-
-        # Prepare update data
-        update_data = {
-            "title": title,
-            "description": description,
-            "status": status,
-            "priority": priority
-        }
-        # Remove None values
-        update_data = {k: v for k, v in update_data.items() if v is not None}
-        logger.info(f"Update data after filtering: {update_data}")
-
-        async def put_func(client, url, **kwargs):
-            return await client.put(url, **kwargs)
-
-        logger.info(f"Sending update request to /api/todos/{todo_id}")
-        update_result = await try_backend_urls(
-            put_func,
-            f"/api/todos/{todo_id}",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": auth_token
-            },
-            json=update_data
-        )
-
-        logger.info(
-            f"Update result status: {update_result.get('status') if isinstance(update_result, dict) else 'unknown'}")
-        if update_result:
-            logger.info(f"Todo update successful")
-            await ctx.info(f"Successfully updated todo: {todo_name}")
-            return {
-                "status": "success",
-                "content": {
-                    "message": f"Successfully updated todo: {todo_name}",
-                    "todo": update_result
-                }
-            }
-        else:
-            error_message = f"Failed to update todo: {todo_name}"
-            logger.error(error_message)
-            await ctx.error(error_message)
-            return {"status": "error", "error": error_message}
-
-    except Exception as e:
-        error_msg = f"Error updating todo by name: {str(e)}"
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        return {"status": "error", "error": error_msg}
-
+    return await smart_update_todo(ctx, edit_request, authorization, user_id)
 
 @app.get("/api-test/jwt-check")
 async def test_jwt():
