@@ -19,6 +19,7 @@ import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { WorkflowDetail, WorkflowStep } from "@/types/workflow";
 import { calculateLineAnimations } from "@/utils/workflowAnimation";
+import ParallelWorkflowDetailPage from "./ParallelWorkflowDetail";
 
 // Mock data for workflow details with steps and transitions
 const mockWorkflowDetails: Record<string, WorkflowDetail> = {
@@ -26,61 +27,236 @@ const mockWorkflowDetails: Record<string, WorkflowDetail> = {
     id: "1",
     name: "Workflow 1",
     description: "This is a description of the workflow",
-    lastRun: "2025-01-20T10:00:00",
+    workflowType: "sequential",
+    createdBy: "user-1",
+    organizationId: "org-1",
+    status: "active",
+    config: {},
+    workflowMetadata: {},
+    version: "1.0.0",
+    tags: ["automation", "test"],
+    aiEnabled: false,
+    createdAt: "2025-01-20T10:00:00",
+    updatedAt: "2025-01-20T10:00:00",
+    lastExecutedAt: "2025-01-20T10:00:00",
     steps: [
-      { id: "s1", name: "Start", description: "Initial step", type: "start" },
-      { id: "s2", name: "Process Data", description: "Process incoming data", type: "process" },
-      { id: "s3", name: "Validate Results", description: "Ensure data meets criteria", type: "decision" },
-      { id: "s4", name: "Complete", description: "Workflow completed", type: "end" }
+      { 
+        id: "s1", 
+        name: "Start", 
+        description: "Initial step", 
+        type: "start",
+        workflowId: "1",
+        stepOrder: 1,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s2", 
+        name: "Process Data", 
+        description: "Process incoming data", 
+        type: "process",
+        workflowId: "1",
+        stepOrder: 2,
+        status: "active",
+        isRequired: true
+      },
+      { 
+        id: "s3", 
+        name: "Validate Results", 
+        description: "Ensure data meets criteria", 
+        type: "decision",
+        workflowId: "1",
+        stepOrder: 3,
+        status: "pending",
+        isRequired: true
+      },
+      { 
+        id: "s4", 
+        name: "Complete", 
+        description: "Workflow completed", 
+        type: "end",
+        workflowId: "1",
+        stepOrder: 4,
+        status: "pending",
+        isRequired: true
+      }
     ],
     transitions: [
-      { from: "s1", to: "s2" },
-      { from: "s2", to: "s3" },
-      { from: "s3", to: "s4", condition: "Valid data" }
+      { id: "t1", from: "s1", to: "s2", workflowId: "1" },
+      { id: "t2", from: "s2", to: "s3", workflowId: "1" },
+      { id: "t3", from: "s3", to: "s4", condition: "Valid data", workflowId: "1" }
     ]
   },
   "2": {
     id: "2",
     name: "Workflow 2",
     description: "This is another description of the workflow",
-    lastRun: "2025-01-19T23:00:00",
+    workflowType: "parallel",
+    createdBy: "user-1",
+    organizationId: "org-1",
+    status: "completed",
+    config: {},
+    workflowMetadata: {},
+    version: "1.0.0",
+    tags: ["production"],
+    aiEnabled: true,
+    createdAt: "2025-01-19T23:00:00",
+    updatedAt: "2025-01-19T23:00:00",
+    lastExecutedAt: "2025-01-19T23:00:00",
     steps: [
-      { id: "s1", name: "Start", description: "Initial step", type: "start" },
-      { id: "s2", name: "Collect Data", description: "Gather information", type: "process" },
-      { id: "s3", name: "Analyze", description: "Perform analysis", type: "process" },
-      { id: "s4", name: "Decision Point", description: "Choose next action", type: "decision" },
-      { id: "s5", name: "Final Review", description: "Review the results", type: "process" },
-      { id: "s6", name: "Finalize", description: "Complete process", type: "process" },
-      { id: "s7", name: "Test2F", description: "fs", type: "end" },
-      { id: "s8", name: "Test3F", description: "fs", type: "end" },
-      { id: "s9", name: "Test4F", description: "fs", type: "end" }
+      { 
+        id: "s1", 
+        name: "Start", 
+        description: "Initial step", 
+        type: "start",
+        workflowId: "2",
+        stepOrder: 1,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s2", 
+        name: "Collect Data", 
+        description: "Gather information", 
+        type: "process",
+        workflowId: "2",
+        stepOrder: 2,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s3a", 
+        name: "Process Images", 
+        description: "Process image data", 
+        type: "process",
+        workflowId: "2",
+        stepOrder: 3,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s3b", 
+        name: "Process Text", 
+        description: "Process text data", 
+        type: "process",
+        workflowId: "2",
+        stepOrder: 3,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s4", 
+        name: "Merge Results", 
+        description: "Join: Combine analysis results", 
+        type: "decision",
+        workflowId: "2",
+        stepOrder: 4,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s5", 
+        name: "Final Review", 
+        description: "Review the results", 
+        type: "process",
+        workflowId: "2",
+        stepOrder: 5,
+        status: "completed",
+        isRequired: true
+      },
+      { 
+        id: "s6", 
+        name: "Complete", 
+        description: "Workflow completed", 
+        type: "end",
+        workflowId: "2",
+        stepOrder: 6,
+        status: "completed",
+        isRequired: true
+      }
     ],
     transitions: [
-      { from: "s1", to: "s2" },
-      { from: "s2", to: "s3" },
-      { from: "s3", to: "s4" },
-      { from: "s4", to: "s5"},
-      { from: "s5", to: "s6"},
-      { from: "s6", to: "s7"}
+      { id: "t1", from: "s1", to: "s2", workflowId: "2" },
+      { id: "t2a", from: "s2", to: "s3a", workflowId: "2" },
+      { id: "t2b", from: "s2", to: "s3b", workflowId: "2" },
+      { id: "t3a", from: "s3a", to: "s4", workflowId: "2" },
+      { id: "t3b", from: "s3b", to: "s4", workflowId: "2" },
+      { id: "t4", from: "s4", to: "s5", workflowId: "2" },
+      { id: "t5", from: "s5", to: "s6", workflowId: "2" }
     ]
   },
   "3": {
     id: "3",
     name: "Workflow 3",
     description: "This is another description of the workflow",
-    lastRun: "2025-01-01T00:00:00",
+    workflowType: "conditional",
+    createdBy: "user-1",
+    organizationId: "org-1",
+    status: "pending",
+    config: {},
+    workflowMetadata: {},
+    version: "1.0.0",
+    tags: [],
+    aiEnabled: false,
+    createdAt: "2025-01-01T00:00:00",
+    updatedAt: "2025-01-01T00:00:00",
     steps: [
-      { id: "s1", name: "Start", description: "Initial step", type: "start" },
-      { id: "s2", name: "Data Collection", description: "Gather required information", type: "process" },
-      { id: "s3", name: "Data Processing", description: "Process the collected data", type: "process" },
-      { id: "s4", name: "Validation", description: "Validate the results", type: "decision" },
-      { id: "s5", name: "Finalize", description: "Finalize the workflow", type: "end" }
+      { 
+        id: "s1", 
+        name: "Start", 
+        description: "Initial step", 
+        type: "start",
+        workflowId: "3",
+        stepOrder: 1,
+        status: "pending",
+        isRequired: true
+      },
+      { 
+        id: "s2", 
+        name: "Data Collection", 
+        description: "Gather required information", 
+        type: "process",
+        workflowId: "3",
+        stepOrder: 2,
+        status: "pending",
+        isRequired: true
+      },
+      { 
+        id: "s3", 
+        name: "Data Processing", 
+        description: "Process the collected data", 
+        type: "process",
+        workflowId: "3",
+        stepOrder: 3,
+        status: "pending",
+        isRequired: true
+      },
+      { 
+        id: "s4", 
+        name: "Validation", 
+        description: "Validate the results", 
+        type: "decision",
+        workflowId: "3",
+        stepOrder: 4,
+        status: "pending",
+        isRequired: true
+      },
+      { 
+        id: "s5", 
+        name: "Finalize", 
+        description: "Finalize the workflow", 
+        type: "end",
+        workflowId: "3",
+        stepOrder: 5,
+        status: "pending",
+        isRequired: true
+      }
     ],
     transitions: [
-      { from: "s1", to: "s2" },
-      { from: "s2", to: "s3" },
-      { from: "s3", to: "s4" },
-      { from: "s4", to: "s5", condition: "Valid" }
+      { id: "t1", from: "s1", to: "s2", workflowId: "3" },
+      { id: "t2", from: "s2", to: "s3", workflowId: "3" },
+      { id: "t3", from: "s3", to: "s4", workflowId: "3" },
+      { id: "t4", from: "s4", to: "s5", condition: "Valid", workflowId: "3" }
     ]
   }
 };
@@ -93,25 +269,64 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [workflow, setWorkflow] = useState<WorkflowDetail | null>(null);
-  const [activeStep, setActiveStep] = useState<string | null>(null);
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [expandedStep, setExpandedStep] = useState<string | null>(null);
-  const [lastCompletedStep, setLastCompletedStep] = useState<string | null>(null);
 
   useEffect(() => {
     // In a real app, fetch the workflow detail from an API
     // For now, use our mock data
     if (id && mockWorkflowDetails[id]) {
       setWorkflow(mockWorkflowDetails[id]);
-      // Set first step as active by default
-      if (mockWorkflowDetails[id].steps.length > 0) {
-        setActiveStep(mockWorkflowDetails[id].steps[0].id);
-        // For demo - set first step as completed
-        setCompletedSteps([mockWorkflowDetails[id].steps[0].id]);
-        setLastCompletedStep(mockWorkflowDetails[id].steps[0].id);
-      }
     }
   }, [id]);
+
+  if (!workflow) {
+    return (
+      <div className="flex flex-1 flex-col p-6 h-[calc(100vh-32px)] overflow-hidden">
+        <p>Workflow not found</p>
+      </div>
+    );
+  }
+
+  // Render different workflow visualizations based on workflow type
+  switch (workflow.workflowType) {
+    case "parallel":
+      return <ParallelWorkflowDetailPage darkMode={darkMode} mockData={workflow} />;
+    case "sequential":
+    default:
+      return <SequentialWorkflowDetail workflow={workflow} darkMode={darkMode} />;
+  }
+}
+
+// Sequential workflow visualization component
+interface SequentialWorkflowDetailProps {
+  workflow: WorkflowDetail;
+  darkMode?: boolean;
+}
+
+function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWorkflowDetailProps) {
+  const navigate = useNavigate();
+  const [activeStep, setActiveStep] = useState<string | null>(null);
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [expandedStep, setExpandedStep] = useState<string | null>(null);
+  const [lastCompletedStep, setLastCompletedStep] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Initialize from workflow data
+    if (workflow.steps.length > 0) {
+      // Set first step as active by default
+      setActiveStep(workflow.steps[0].id);
+      
+      // Set completed steps based on the workflow data
+      const completed = workflow.steps
+        .filter(step => step.status === "completed")
+        .map(step => step.id);
+        
+      setCompletedSteps(completed);
+      
+      if (completed.length > 0) {
+        setLastCompletedStep(completed[completed.length - 1]);
+      }
+    }
+  }, [workflow]);
 
   const handleBack = () => {
     navigate(-1); // Go back to the previous page
@@ -188,14 +403,6 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
     setActiveStep(stepId);
   };
 
-  if (!workflow) {
-    return (
-      <div className="flex flex-1 flex-col p-6 h-[calc(100vh-32px)] overflow-hidden">
-        <p>Workflow not found</p>
-      </div>
-    );
-  }
-
   // Calculate progress percentage
   const progressPercentage = workflow.steps.length > 0
     ? (completedSteps.length / workflow.steps.length) * 100
@@ -263,7 +470,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
             </Badge>
             <span className="text-xs text-muted-foreground flex items-center">
               <Clock className="h-3 w-3 mr-1 inline" />
-              {new Date(workflow.lastRun).toLocaleDateString()}
+              {workflow.lastExecutedAt ? new Date(workflow.lastExecutedAt).toLocaleDateString() : 'Never'}
             </span>
           </div>
           
@@ -291,7 +498,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
         {/* Workflow Steps Container */}
         <div className="flex-1 bg-background border border-border rounded-xl overflow-hidden flex flex-col min-h-0">
           <div className="p-4 border-b border-border flex items-center justify-between bg-card">
-            <h3 className="font-medium">Workflow Steps</h3>
+            <h3 className="font-medium">Sequential Workflow</h3>
             <div className="flex items-center text-sm">
               <span className="mr-2 text-muted-foreground">Completion Flow</span>
               <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">

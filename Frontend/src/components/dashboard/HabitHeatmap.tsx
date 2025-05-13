@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { HeatmapData, HeatmapPeriod } from "@/hooks/useHabitHeatmap"
 import { cn } from "@/lib/utils"
@@ -49,20 +48,17 @@ export default function HabitHeatmap({
     return "bg-green-400" // 6+ completions
   }
   
-  // Generate the last 365 days for year view (or appropriate dates for other views)
+  // Generate dates for the selected period
   const generateDates = () => {
     const dates: string[] = []
     const today = new Date()
     
-    let daysToGenerate = 365 // Default for year
-    if (activePeriod === "month") daysToGenerate = 31
-    if (activePeriod === "week") daysToGenerate = 7
+    const daysToGenerate = activePeriod === "month" ? 31 : 7
     
     for (let i = daysToGenerate - 1; i >= 0; i--) {
       const date = new Date(today)
       date.setDate(today.getDate() - i)
       
-      // Format date as YYYY-MM-DD with timezone consideration
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, '0')
       const day = String(date.getDate()).padStart(2, '0')
@@ -79,23 +75,19 @@ export default function HabitHeatmap({
     const weeks: string[][] = []
     let currentWeek: string[] = []
     
-    // If we're showing a year view, align properly to weekdays
-    if (activePeriod === "year") {
-      // Fill in empty cells at the beginning
-      const firstDate = new Date(dates[0])
-      const firstDayOfWeek = firstDate.getDay()
-      
-      // Add empty strings for days before the start date (Sunday is 0, Saturday is 6)
-      for (let i = 0; i < firstDayOfWeek; i++) {
-        currentWeek.push("")
-      }
+    // Fill in empty cells at the beginning
+    const firstDate = new Date(dates[0])
+    const firstDayOfWeek = firstDate.getDay()
+    
+    // Add empty strings for days before the start date
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      currentWeek.push("")
     }
     
     // Populate the dates
     dates.forEach((date) => {
       currentWeek.push(date)
       
-      // Start a new week every Sunday (or when we reach 7 days)
       if (currentWeek.length === 7) {
         weeks.push([...currentWeek])
         currentWeek = []
@@ -104,6 +96,9 @@ export default function HabitHeatmap({
     
     // Add the last partial week if needed
     if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push("")
+      }
       weeks.push([...currentWeek])
     }
     
@@ -113,7 +108,7 @@ export default function HabitHeatmap({
   const weeks = calculateCalendarData()
   
   return (
-    <Card className={cn("col-span-3", className)}>
+    <Card className={cn(className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium">
           {title}
@@ -127,38 +122,24 @@ export default function HabitHeatmap({
           <SelectContent>
             <SelectItem value="week">Last Week</SelectItem>
             <SelectItem value="month">Last Month</SelectItem>
-            <SelectItem value="year">Last Year</SelectItem>
           </SelectContent>
         </Select>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <div className="min-w-fit">
-            {activePeriod === "year" && (
-              <div className="mb-1 flex text-xs text-zinc-500">
-                <div className="w-4"></div>
-                <div className="mr-[2px] w-4 text-center">M</div>
-                <div className="mr-[2px] w-4 text-center">T</div>
-                <div className="mr-[2px] w-4 text-center">W</div>
-                <div className="mr-[2px] w-4 text-center">T</div>
-                <div className="mr-[2px] w-4 text-center">F</div>
-                <div className="mr-[2px] w-4 text-center">S</div>
-                <div className="w-4 text-center">S</div>
-              </div>
-            )}
+            <div className="mb-1 flex text-xs text-zinc-500">
+              <div className="mr-[2px] w-4 text-center">M</div>
+              <div className="mr-[2px] w-4 text-center">T</div>
+              <div className="mr-[2px] w-4 text-center">W</div>
+              <div className="mr-[2px] w-4 text-center">T</div>
+              <div className="mr-[2px] w-4 text-center">F</div>
+              <div className="mr-[2px] w-4 text-center">S</div>
+              <div className="w-4 text-center">S</div>
+            </div>
             <div className="flex flex-col gap-[2px]">
               {weeks.map((week, weekIndex) => (
                 <div key={weekIndex} className="flex gap-[2px]">
-                  {/* Display month label on the first day of month */}
-                  {activePeriod === "year" && week[0] && new Date(week[0]).getDate() <= 7 && (
-                    <div className="w-4 text-xs text-zinc-500">
-                      {new Intl.DateTimeFormat('en', { month: 'short' }).format(new Date(week[0]))[0]}
-                    </div>
-                  )}
-                  {activePeriod === "year" && (!week[0] || new Date(week[0]).getDate() > 7) && (
-                    <div className="w-4"></div>
-                  )}
-                  
                   {week.map((date, dateIndex) => {
                     const completions = date ? activeData[date] || 0 : 0
                     return (

@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { fetchHeatmapData } from '@/components/calendar/api';
 
 export type HeatmapData = Record<string, number>;
-export type HeatmapPeriod = 'week' | 'month' | 'year';
+export type HeatmapPeriod = 'week' | 'month';
 
 export const useHabitHeatmap = (userId: string) => {
-  const [period, setPeriod] = useState<HeatmapPeriod>('year');
+  const [period, setPeriod] = useState<HeatmapPeriod>('month');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['habitHeatmap', userId, period],
