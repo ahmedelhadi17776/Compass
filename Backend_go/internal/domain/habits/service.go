@@ -29,6 +29,10 @@ type Service interface {
 	GetTopStreaks(ctx context.Context, userID uuid.UUID, limit int) ([]Habit, error)
 	GetStreakHistory(ctx context.Context, id uuid.UUID) ([]StreakHistory, error)
 	GetHabitsDueToday(ctx context.Context, userID uuid.UUID) ([]Habit, error)
+
+	// Heatmap related methods
+	LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error
+	GetHeatmapData(ctx context.Context, userID uuid.UUID, period string) (map[string]int, error)
 }
 
 type service struct {
@@ -130,6 +134,16 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 	// Update streak quality after marking completed
 	if err := s.repo.UpdateStreakQuality(ctx, id); err != nil {
 		log.Printf("failed to update streak quality for habit %s: %v", id, err)
+	}
+
+	// Log the habit completion for heatmap
+	completionTime := time.Now()
+	if completionDate != nil {
+		completionTime = *completionDate
+	}
+
+	if err := s.repo.LogHabitCompletion(ctx, id, userID, completionTime); err != nil {
+		log.Printf("failed to log habit completion for heatmap: %v", err)
 	}
 
 	return nil
@@ -297,4 +311,30 @@ func (s *service) GetStreakHistory(ctx context.Context, id uuid.UUID) ([]StreakH
 
 func (s *service) GetHabitsDueToday(ctx context.Context, userID uuid.UUID) ([]Habit, error) {
 	return s.repo.GetHabitsDueToday(ctx, userID)
+}
+
+// LogHabitCompletion records a habit completion for the heatmap
+func (s *service) LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error {
+	return s.repo.LogHabitCompletion(ctx, habitID, userID, date)
+}
+
+// GetHeatmapData retrieves habit completion data for the heatmap visualization
+func (s *service) GetHeatmapData(ctx context.Context, userID uuid.UUID, period string) (map[string]int, error) {
+	now := time.Now()
+	var startDate time.Time
+
+	// Calculate start date based on the requested period
+	switch period {
+	case "year":
+		startDate = now.AddDate(-1, 0, 0)
+	case "month":
+		startDate = now.AddDate(0, -1, 0)
+	case "week":
+		startDate = now.AddDate(0, 0, -7)
+	default:
+		// Default to last year
+		startDate = now.AddDate(-1, 0, 0)
+	}
+
+	return s.repo.GetHeatmapData(ctx, userID, startDate, now)
 }

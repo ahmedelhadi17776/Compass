@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -142,9 +141,6 @@ func (h *UserHandler) Login(c *gin.Context) {
 		24*time.Hour,
 	)
 
-	// Record session analytics
-	h.recordSessionActivity(c, user.ID, session.ID, "login", session.DeviceInfo, session.IPAddress)
-
 	response := dto.LoginResponse{
 		Token:     token,
 		ExpiresAt: session.ExpiresAt,
@@ -175,28 +171,6 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})
-}
-
-// recordSessionActivity is a helper function to record session activities
-func (h *UserHandler) recordSessionActivity(c *gin.Context, userID uuid.UUID, sessionID, action, deviceInfo, ipAddress string) {
-	input := user.RecordSessionActivityInput{
-		SessionID:  sessionID,
-		UserID:     userID,
-		Action:     action,
-		DeviceInfo: deviceInfo,
-		IPAddress:  ipAddress,
-		Timestamp:  time.Now(),
-		Metadata: map[string]interface{}{
-			"user_agent": c.Request.UserAgent(),
-			"path":       c.Request.URL.Path,
-		},
-	}
-
-	err := h.userService.RecordSessionActivity(c.Request.Context(), input)
-	if err != nil {
-		// Just log the error, don't fail the request
-		log.Errorf("Failed to record session activity: %v", err)
-	}
 }
 
 // GetUser handles fetching a single user by ID
@@ -364,16 +338,6 @@ func (h *UserHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// Get user ID for analytics
-	userID := claims.UserID
-
-	// Get session for analytics
-	sessionVal, exists := c.Get("session")
-	if exists {
-		session := sessionVal.(*auth.Session)
-		h.recordSessionActivity(c, userID, session.ID, "logout", session.DeviceInfo, session.IPAddress)
-	}
-
 	// Invalidate session
 	auth.GetSessionStore().InvalidateSession(token.(string))
 
@@ -438,9 +402,6 @@ func (h *UserHandler) RevokeSession(c *gin.Context) {
 
 	for _, session := range sessions {
 		if session.ID == sessionID {
-			// Record session revocation in analytics
-			h.recordSessionActivity(c, userID.(uuid.UUID), session.ID, "session_revoked", session.DeviceInfo, session.IPAddress)
-
 			auth.GetSessionStore().InvalidateSession(session.Token)
 			auth.GetTokenBlacklist().AddToBlacklist(session.Token, session.ExpiresAt)
 			c.JSON(http.StatusOK, gin.H{"message": "session revoked successfully"})
@@ -449,278 +410,4 @@ func (h *UserHandler) RevokeSession(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
-}
-
-// GetUserActivity retrieves user activity analytics
-// @Summary Get user activity
-// @Description Get analytics data for user activities
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param filter query dto.UserAnalyticsFilter false "Filter parameters"
-// @Success 200 {object} dto.UserAnalyticsListResponse
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/users/analytics/activity [get]
-func (h *UserHandler) GetUserActivity(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
-		return
-	}
-
-	var filter dto.UserAnalyticsFilter
-	if err := c.ShouldBindQuery(&filter); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Parse time strings to time.Time
-	startTime, err := time.Parse(time.RFC3339, filter.StartTime)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_time format, expected RFC3339"})
-		return
-	}
-
-	endTime, err := time.Parse(time.RFC3339, filter.EndTime)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end_time format, expected RFC3339"})
-		return
-	}
-
-	analytics, total, err := h.userService.GetUserAnalytics(
-		c.Request.Context(),
-		userID.(uuid.UUID),
-		startTime,
-		endTime,
-		filter.Page,
-		filter.PageSize,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Convert domain entities to DTO responses
-	responseItems := make([]dto.UserAnalyticsResponse, len(analytics))
-	for i, item := range analytics {
-		// Parse metadata JSON
-		var metadata map[string]interface{}
-		if item.Metadata != "" {
-			if err := json.Unmarshal([]byte(item.Metadata), &metadata); err != nil {
-				// Just use empty metadata if parsing fails
-				metadata = make(map[string]interface{})
-			}
-		} else {
-			metadata = make(map[string]interface{})
-		}
-
-		responseItems[i] = dto.UserAnalyticsResponse{
-			ID:        item.ID,
-			UserID:    item.UserID,
-			Action:    item.Action,
-			Timestamp: item.Timestamp,
-			Metadata:  metadata,
-		}
-	}
-
-	response := dto.UserAnalyticsListResponse{
-		Analytics:  responseItems,
-		TotalCount: total,
-		Page:       filter.Page,
-		PageSize:   filter.PageSize,
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": response})
-}
-
-// GetSessionActivity retrieves session activity analytics
-// @Summary Get session activity
-// @Description Get analytics data for session activities
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param filter query dto.UserAnalyticsFilter false "Filter parameters"
-// @Success 200 {object} dto.SessionAnalyticsListResponse
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/users/analytics/sessions [get]
-func (h *UserHandler) GetSessionActivity(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
-		return
-	}
-
-	var filter dto.UserAnalyticsFilter
-	if err := c.ShouldBindQuery(&filter); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Parse time strings to time.Time
-	startTime, err := time.Parse(time.RFC3339, filter.StartTime)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_time format, expected RFC3339"})
-		return
-	}
-
-	endTime, err := time.Parse(time.RFC3339, filter.EndTime)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end_time format, expected RFC3339"})
-		return
-	}
-
-	analytics, total, err := h.userService.GetSessionAnalytics(
-		c.Request.Context(),
-		userID.(uuid.UUID),
-		startTime,
-		endTime,
-		filter.Page,
-		filter.PageSize,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Convert domain entities to DTO responses
-	responseItems := make([]dto.SessionAnalyticsResponse, len(analytics))
-	for i, item := range analytics {
-		// Parse metadata JSON
-		var metadata map[string]interface{}
-		if item.Metadata != "" {
-			if err := json.Unmarshal([]byte(item.Metadata), &metadata); err != nil {
-				// Just use empty metadata if parsing fails
-				metadata = make(map[string]interface{})
-			}
-		} else {
-			metadata = make(map[string]interface{})
-		}
-
-		responseItems[i] = dto.SessionAnalyticsResponse{
-			ID:         item.ID,
-			SessionID:  item.SessionID,
-			UserID:     item.UserID,
-			Action:     item.Action,
-			DeviceInfo: item.DeviceInfo,
-			IPAddress:  item.IPAddress,
-			Timestamp:  item.Timestamp,
-			Metadata:   metadata,
-		}
-	}
-
-	response := dto.SessionAnalyticsListResponse{
-		Analytics:  responseItems,
-		TotalCount: total,
-		Page:       filter.Page,
-		PageSize:   filter.PageSize,
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": response})
-}
-
-// GetUserActivitySummary retrieves a summary of user activity
-// @Summary Get user activity summary
-// @Description Get a summary of user activity counts by action type
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param start_time query string true "Start time (RFC3339)" format(date-time)
-// @Param end_time query string true "End time (RFC3339)" format(date-time)
-// @Success 200 {object} dto.UserActivitySummaryResponse
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/users/analytics/summary [get]
-func (h *UserHandler) GetUserActivitySummary(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
-		return
-	}
-
-	startTimeStr := c.Query("start_time")
-	endTimeStr := c.Query("end_time")
-
-	if startTimeStr == "" || endTimeStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "start_time and end_time are required"})
-		return
-	}
-
-	// Parse time strings to time.Time
-	startTime, err := time.Parse(time.RFC3339, startTimeStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_time format, expected RFC3339"})
-		return
-	}
-
-	endTime, err := time.Parse(time.RFC3339, endTimeStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end_time format, expected RFC3339"})
-		return
-	}
-
-	summary, err := h.userService.GetUserActivitySummary(
-		c.Request.Context(),
-		userID.(uuid.UUID),
-		startTime,
-		endTime,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	response := dto.UserActivitySummaryResponse{
-		UserID:       summary.UserID,
-		ActionCounts: summary.ActionCounts,
-		StartTime:    summary.StartTime,
-		EndTime:      summary.EndTime,
-		TotalActions: summary.TotalActions,
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": response})
-}
-
-// RecordUserActivity handles manual recording of user activity
-// @Summary Record user activity
-// @Description Manually record a user activity for analytics
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param activity body dto.RecordUserActivityRequest true "Activity details"
-// @Success 201 "Activity recorded successfully"
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/users/analytics/record [post]
-func (h *UserHandler) RecordUserActivity(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
-		return
-	}
-
-	var request dto.RecordUserActivityRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	input := user.RecordUserActivityInput{
-		UserID:    userID.(uuid.UUID),
-		Action:    request.Action,
-		Metadata:  request.Metadata,
-		Timestamp: time.Now(),
-	}
-
-	if err := h.userService.RecordUserActivity(c.Request.Context(), input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.Status(http.StatusCreated)
 }

@@ -20,12 +20,10 @@ import datetime
 import io
 
 # Set up proper encoding for stdout/stderr
-try:
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
-except (AttributeError, IOError):
-    pass
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
+sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 
+# Escape emojis and special characters in log messages
 
 
 class EmojiSafeFormatter(logging.Formatter):
@@ -280,24 +278,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-
-    # Check if HTTPS is enabled in settings
-    if settings.use_https:
-        logger.info(
-            f"Starting server with HTTPS on {settings.api_host}:{settings.api_port}")
-        logger.info(f"Using certificate: {settings.https_cert_file}")
-        logger.info(f"Using key: {settings.https_key_file}")
-
-        uvicorn.run(
-            "main:app",
-            host=settings.api_host,
-            port=settings.api_port,
-            reload=True,
-            ssl_keyfile=settings.https_key_file,
-            ssl_certfile=settings.https_cert_file
-        )
-    else:
-        logger.info(
-            f"Starting server with HTTP on {settings.api_host}:{settings.api_port}")
-        uvicorn.run("main:app", host=settings.api_host,
-                    port=settings.api_port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

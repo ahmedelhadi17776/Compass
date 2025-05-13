@@ -25,14 +25,12 @@ RUN apt-get update && \
 # Install Python dependencies with retry mechanism
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
-    # Install PyTorch 
-    pip install --no-cache-dir --retries 10 --timeout 300 torch==2.7.0 && \
-    pip install --no-cache-dir --retries 10 --timeout 300 numpy && \
-    pip install --no-cache-dir --retries 10 --timeout 300 scipy==1.11.4 && \
-    # Install MongoDB dependencies first
-    pip install --no-cache-dir pymongo==4.6.1 motor==3.3.2 && \
-    # Install remaining requirements
-    pip install --no-cache-dir --retries 10 --timeout 300 -r requirements.txt
+    # Split installation to make it more resilient to network issues
+    pip install --no-cache-dir --retries 5 --timeout 180 numpy && \
+    pip install --no-cache-dir --retries 5 --timeout 180 scipy==1.11.4 && \
+    pip install --no-cache-dir --retries 5 --timeout 180 -r requirements.txt && \
+    # Ensure MongoDB requirements are installed
+    pip install --no-cache-dir pymongo motor
 
 # Copy project
 COPY . .
@@ -48,8 +46,6 @@ COPY .env .env
 
 # Expose the FastAPI port
 EXPOSE 8001
-
-RUN mkdir -p /app/certs
 
 # Set entrypoint
 ENTRYPOINT ["./docker-entrypoint.sh"] 
