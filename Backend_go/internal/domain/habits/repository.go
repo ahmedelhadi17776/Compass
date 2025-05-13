@@ -44,6 +44,10 @@ type Repository interface {
 	GetStreakHistory(ctx context.Context, habitID uuid.UUID) ([]StreakHistory, error)
 	UpdateStreakQuality(ctx context.Context, habitID uuid.UUID) error
 	IsStreakBroken(ctx context.Context, lastCompletedDate *time.Time) (bool, error)
+
+	// Heatmap related methods
+	LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error
+	GetHeatmapData(ctx context.Context, userID uuid.UUID, startDate time.Time, endDate time.Time) (map[string]int, error)
 }
 
 type repository struct {
@@ -327,4 +331,54 @@ func (r *repository) IsStreakBroken(ctx context.Context, lastCompletedDate *time
 	query := `SELECT DATE(? AT TIME ZONE 'UTC') < DATE(NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day')`
 	err := r.db.WithContext(ctx).Raw(query, lastCompletedDate).Scan(&isBroken).Error
 	return isBroken, err
+}
+
+func (r *repository) LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error {
+	// Create a new habit completion log entry
+	log := HabitCompletionLog{
+		ID:        uuid.New(),
+		HabitID:   habitID,
+		UserID:    userID,
+		Date:      date,
+		CreatedAt: time.Now(),
+	}
+
+	return r.db.WithContext(ctx).Create(&log).Error
+}
+
+func (r *repository) GetHeatmapData(ctx context.Context, userID uuid.UUID, startDate time.Time, endDate time.Time) (map[string]int, error) {
+	// Query to get counts of completed habits per day
+	var results []struct {
+		Date           string
+		CompletedCount int
+	}
+
+	// Format the date as YYYY-MM-DD string in the database query
+	query := `
+		SELECT 
+			TO_CHAR(date, 'YYYY-MM-DD') AS date, 
+			COUNT(*) AS completed_count
+		FROM 
+			habit_completion_logs
+		WHERE 
+			user_id = ? 
+			AND date BETWEEN ? AND ?
+		GROUP BY 
+			TO_CHAR(date, 'YYYY-MM-DD')
+		ORDER BY 
+			date;
+	`
+
+	err := r.db.WithContext(ctx).Raw(query, userID, startDate, endDate).Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the results to a map for easier access
+	heatmapData := make(map[string]int)
+	for _, result := range results {
+		heatmapData[result.Date] = result.CompletedCount
+	}
+
+	return heatmapData, nil
 }

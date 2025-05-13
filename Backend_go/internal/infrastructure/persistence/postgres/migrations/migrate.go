@@ -90,6 +90,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&task.Task{},                 // Tasks depend on projects, users, and organizations
 			&habits.Habit{},
 			&habits.StreakHistory{},
+			&habits.HabitCompletionLog{},
 			&calendar.CalendarEvent{},
 			&calendar.RecurrenceRule{},
 			&calendar.EventOccurrence{},

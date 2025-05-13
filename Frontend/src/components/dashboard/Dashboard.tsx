@@ -1,12 +1,3 @@
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -19,6 +10,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import HabitHeatmap from "./HabitHeatmap"
+import useHabitHeatmap from "@/hooks/useHabitHeatmap"
 
 interface TaskMetrics {
   completed: number
@@ -95,6 +88,12 @@ export default function Dashboard({ view }: DashboardProps) {
       type: 'onboarding'
     }
   ])
+
+  // Temporary mock user ID - replace with actual auth system
+  const mockUserId = "user-123"
+  
+  // Use the habit heatmap hook with proper userId
+  const { data: heatmapData, loading: heatmapLoading, error: heatmapError, period, setPeriod } = useHabitHeatmap(mockUserId)
 
   // Simulated data - replace with actual API calls
   useEffect(() => {
@@ -244,6 +243,17 @@ export default function Dashboard({ view }: DashboardProps) {
           </CardContent>
         </Card>
 
+        {/* Habit Heatmap */}
+        <HabitHeatmap 
+          title="Habit Consistency"
+          data={heatmapData}
+          loading={heatmapLoading}
+          error={heatmapError}
+          period={period}
+          onPeriodChange={setPeriod}
+          className="w-full"
+        />
+
         {/* Main Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {/* Task Overview */}
@@ -356,12 +366,6 @@ export default function Dashboard({ view }: DashboardProps) {
               <Progress value={systemMetrics.productivityScore} className="mt-2" />
             </CardContent>
           </Card>
-        </div>
-
-        {/* Secondary Grid */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* System Status */}
-          
         </div>
       </div>
     </>
