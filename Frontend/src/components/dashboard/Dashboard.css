@@ -50,3 +50,52 @@
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
+
+/* Heatmap styles */
+.heatmap-container {
+  transition: opacity 0.3s ease;
+}
+
+.heatmap-loading {
+  opacity: 0.7;
+}
+
+.heatmap-cell {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.2);
+  opacity: 0.8;
+}
+
+.heatmap-tooltip {
+  position: absolute;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.heatmap-legend-item {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.heatmap-period-switcher {
+  display: flex;
+  gap: 8px;
+}
