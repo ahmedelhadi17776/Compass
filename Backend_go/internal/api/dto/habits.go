@@ -102,12 +102,3 @@ func HabitsToResponse(habits []habits.Habit) []*HabitResponse {
 	}
 	return response
 }
-
-// HeatmapResponse represents habit completion data for the heatmap visualization
-// @Description Heatmap data showing habit completion counts by date
-type HeatmapResponse struct {
-	Data     map[string]int `json:"data" example:"{"2023-01-01": 2, "2023-01-02": 5}"`
-	Period   string         `json:"period" example:"year"`
-	MinValue int            `json:"min_value" example:"0"`
-	MaxValue int            `json:"max_value" example:"10"`
-}

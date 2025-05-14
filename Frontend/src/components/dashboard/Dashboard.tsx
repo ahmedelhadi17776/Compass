@@ -1,3 +1,12 @@
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -10,13 +19,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import HabitHeatmap from "./HabitHeatmap"
-import useHabitHeatmap from "@/hooks/useHabitHeatmap"
-import TodoForm from "@/components/todo/Components/TodoForm"
-import { TodoFormData, TodoStatus } from '@/components/todo/types-todo'
-import { useCreateTodo, useTodoLists } from '@/components/todo/hooks'
-import authApi, { User } from '@/api/auth'
-import { useQuery } from "@tanstack/react-query"
 
 interface TaskMetrics {
   completed: number
@@ -51,58 +53,6 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ view }: DashboardProps) {
-  const [greeting, setGreeting] = useState<string>("Good day")
-  const [currentTime, setCurrentTime] = useState<string>("")
-  const [currentDate, setCurrentDate] = useState<string>("")
-  const [showTodoForm, setShowTodoForm] = useState(false)
-  const [currentListId, setCurrentListId] = useState<string>('')
-
-  // User authentication query
-  const { data: user } = useQuery<User>({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-      return authApi.getMe();
-    },
-  });
-
-  // Use the custom hooks
-  const { data: todoLists = [] } = useTodoLists(user);
-  const createTodoMutation = useCreateTodo();
-
-  // Set default list ID on initial load
-  useEffect(() => {
-    if (todoLists.length > 0 && !currentListId) {
-      const defaultList = todoLists.find(list => list.is_default);
-      setCurrentListId(defaultList?.id || todoLists[0].id);
-    }
-  }, [todoLists, currentListId]);
-
-  const handleTodoFormSubmit = (formData: TodoFormData) => {
-    if (!user) return;
-
-    const newTodo = {
-      user_id: user.id,
-      list_id: currentListId === 'default' ? undefined : currentListId,
-      title: formData.title,
-      description: formData.description,
-      status: TodoStatus.PENDING,
-      priority: formData.priority,
-      is_recurring: formData.is_recurring,
-      due_date: formData.due_date?.toISOString() || null,
-      reminder_time: formData.reminder_time?.toISOString() || null,
-      tags: formData.tags?.reduce((acc, tag) => ({ ...acc, [tag]: {} }), {}),
-      is_completed: false,
-      linked_task_id: null,
-      linked_calendar_event_id: null,
-      recurrence_pattern: {}
-    };
-    
-    createTodoMutation.mutate(newTodo);
-    setShowTodoForm(false);
-  };
-
   const [taskMetrics, setTaskMetrics] = useState<TaskMetrics>({
     completed: 0,
     total: 0,
@@ -145,9 +95,6 @@ export default function Dashboard({ view }: DashboardProps) {
       type: 'onboarding'
     }
   ])
-  
-  // Use the habit heatmap hook with proper userId
-  const { data: heatmapData, loading: heatmapLoading, error: heatmapError, period, setPeriod } = useHabitHeatmap(user?.id || '')
 
   // Simulated data - replace with actual API calls
   useEffect(() => {
@@ -169,138 +116,86 @@ export default function Dashboard({ view }: DashboardProps) {
     })
   }, [])
 
-  // Update greeting based on time of day
-  useEffect(() => {
-    const updateDateTime = () => {
-      const now = new Date()
-      const hours = now.getHours()
-      if (hours < 12) {
-        setGreeting("Good morning")
-      } else if (hours < 18) {
-        setGreeting("Good afternoon")
-      } else {
-        setGreeting("Good evening")
-      }
-
-      // Format time (HH:MM am/pm)
-      setCurrentTime(now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }))
-
-      // Format date (Month Day, Year)
-      setCurrentDate(now.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }))
-    }
-
-    // Initial update
-    updateDateTime()
-    
-    // Update every minute
-    const intervalId = setInterval(updateDateTime, 60000)
-    
-    return () => clearInterval(intervalId)
-  }, [])
-
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-6">
-        {/* Header with Greeting and Quick Actions */}
-        <div className="flex justify-between items-center">
-          {/* Greeting Header */}
-          <div className="py-2">
-            <h1 className="text-2xl font-bold tracking-tight leading-none">
-              {greeting}, {user?.first_name}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-2 tracking-wide">{currentDate} · {currentTime}</p>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              className="flex items-center gap-2"
-              onClick={() => setShowTodoForm(true)}
-            >
-              <Plus className="h-4 w-4" />
-              New Todo
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Schedule Meeting
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              AI Assistant
-            </Button>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2">
-                  <ActivityIcon className="h-4 w-4" />
-                  System Status
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>System Status</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
-                    <span className="flex items-center gap-2">
-                      <div className="rounded-full p-1.5">
-                        <ActivityIcon className="h-4 w-4" />
-                      </div>
-                      Vision Module
-                    </span>
-                    <span className="flex items-center gap-1.5 text-green-500">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      Active
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
-                    <span className="flex items-center gap-2">
-                      <div className="rounded-full p-1.5">
-                        <Brain className="h-4 w-4" />
-                      </div>
-                      Audio Module
-                    </span>
-                    <span className="flex items-center gap-1.5 text-green-500">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      Active
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
-                    <span className="flex items-center gap-2">
-                      <div className="rounded-full p-1.5">
-                        <Brain className="h-4 w-4" />
-                      </div>
-                      RAG System
-                    </span>
-                    <span className="flex items-center gap-1.5 text-green-500">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      Active
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
-                    <span className="flex items-center gap-2">
-                      <div className="rounded-full p-1.5">
-                        <Brain className="h-4 w-4" />
-                      </div>
-                      Agent Ecosystem
-                    </span>
-                    <span className="flex items-center gap-1.5 text-green-500">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      Active
-                    </span>
-                  </div>
+        {/* Quick Actions */}
+        <div className="flex gap-4">
+          <Button variant="outline" className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Task
+          </Button>
+          <Button variant="outline" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Schedule Meeting
+          </Button>
+          <Button variant="outline" className="flex items-center gap-2">
+            <Brain className="h-4 w-4" />
+            AI Assistant
+          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2">
+                <ActivityIcon className="h-4 w-4" />
+                System Status
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>System Status</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
+                  <span className="flex items-center gap-2">
+                    <div className="rounded-full p-1.5">
+                      <ActivityIcon className="h-4 w-4" />
+                    </div>
+                    Vision Module
+                  </span>
+                  <span className="flex items-center gap-1.5 text-green-500">
+                    <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                    Active
+                  </span>
                 </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+                <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
+                  <span className="flex items-center gap-2">
+                    <div className="rounded-full p-1.5">
+                      <Brain className="h-4 w-4" />
+                    </div>
+                    Audio Module
+                  </span>
+                  <span className="flex items-center gap-1.5 text-green-500">
+                    <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                    Active
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
+                  <span className="flex items-center gap-2">
+                    <div className="rounded-full p-1.5">
+                      <Brain className="h-4 w-4" />
+                    </div>
+                    RAG System
+                  </span>
+                  <span className="flex items-center gap-1.5 text-green-500">
+                    <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                    Active
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-green-900 p-3">
+                  <span className="flex items-center gap-2">
+                    <div className="rounded-full p-1.5">
+                      <Brain className="h-4 w-4" />
+                    </div>
+                    Agent Ecosystem
+                  </span>
+                  <span className="flex items-center gap-1.5 text-green-500">
+                    <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                    Active
+                  </span>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Today's Meetings */}
@@ -391,15 +286,28 @@ export default function Dashboard({ view }: DashboardProps) {
             </CardContent>
           </Card>
 
-          {/* Habit Heatmap */}
-          <HabitHeatmap 
-            title="Habit Consistency"
-            data={heatmapData}
-            loading={heatmapLoading}
-            error={heatmapError}
-            period={period}
-            onPeriodChange={setPeriod}
-          />
+          {/* AI Assistant Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Assistant</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <span>Active and Ready</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">Recent Activities:</div>
+                  <ul className="space-y-2 text-sm">
+                    <li>• Calendar synced (2m ago)</li>
+                    <li>• Task priorities updated (5m ago)</li>
+                    <li>• Focus session completed (15m ago)</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* System Monitoring Grid */}
@@ -450,16 +358,11 @@ export default function Dashboard({ view }: DashboardProps) {
           </Card>
         </div>
 
-        {showTodoForm && user && (
-          <TodoForm
-            onClose={() => setShowTodoForm(false)}
-            user={user}
-            onSubmit={handleTodoFormSubmit}
-            onDelete={() => {}}
-            currentListId={currentListId || 'default'}
-            listId={currentListId || 'default'}
-          />
-        )}
+        {/* Secondary Grid */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* System Status */}
+          
+        </div>
       </div>
     </>
   )

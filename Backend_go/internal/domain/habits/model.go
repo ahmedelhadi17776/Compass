@@ -67,20 +67,6 @@ func (Habit) TableName() string {
 	return "habits"
 }
 
-// HabitCompletionLog represents a record of each habit completion
-type HabitCompletionLog struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	HabitID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
-	Date      time.Time `gorm:"not null;index"`
-	CreatedAt time.Time `gorm:"not null;default:current_timestamp"`
-}
-
-// TableName specifies the table name for the HabitCompletionLog model
-func (HabitCompletionLog) TableName() string {
-	return "habit_completion_logs"
-}
-
 // BeforeCreate is called before creating a new habit record
 func (h *Habit) BeforeCreate(tx *gorm.DB) error {
 	if h.ID == uuid.Nil {

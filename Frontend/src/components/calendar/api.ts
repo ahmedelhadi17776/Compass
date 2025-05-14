@@ -28,13 +28,6 @@ export const deleteEvent = async (eventId: string) => {
   return response.data;
 };
 
-export const fetchHeatmapData = async (period: 'week' | 'month' | 'year' = 'year') => {
-  const response = await axios.get(`${API_BASE_URL}/api/habits/heatmap`, {
-    params: { period }
-  });
-  return response.data.data.data;
-};
-
 
 
 
