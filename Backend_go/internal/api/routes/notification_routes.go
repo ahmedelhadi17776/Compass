@@ -28,7 +28,7 @@ func NewNotificationRoutes(handler *handlers.NotificationHandler, jwtSecret stri
 // RegisterRoutes registers notification routes with the provided router
 func (r *NotificationRoutes) RegisterRoutes(router *gin.Engine, cacheMiddleware *middleware.CacheMiddleware) {
 	// Create a route group with authentication middleware
-	authMiddleware := middleware.JWTAuthMiddleware(r.jwtSecret)
+	authMiddleware := middleware.NewAuthMiddleware(r.jwtSecret)
 
 	// Apply moderate rate limiting to notification endpoints (more requests allowed than auth endpoints)
 	notificationRateLimiter := middleware.RateLimitMiddleware(r.rateLimiter.WithLimit(120, time.Minute))
@@ -43,6 +43,7 @@ func (r *NotificationRoutes) RegisterRoutes(router *gin.Engine, cacheMiddleware 
 		notificationRoutes.GET("/unread", r.handler.GetUnread) // No cache for unread - always fresh
 		notificationRoutes.GET("/count", r.handler.CountUnread)
 		notificationRoutes.GET("/:id", cacheMiddleware.CachePageWithTTL("notification", 1*time.Minute), r.handler.GetByID)
+
 
 		// PUT endpoints
 		notificationRoutes.PUT("/:id/read", r.handler.MarkAsRead)
