@@ -8,6 +8,16 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+// RateLimiter defines an interface for rate limiting functionality
+type RateLimiter interface {
+	// Allow checks if the request should be allowed based on the key
+	Allow(ctx context.Context, key string) (bool, int, time.Time, error)
+	// Reset resets the counter for a specific key
+	Reset(ctx context.Context, key string) error
+	// WithLimit creates a new rate limiter with the specified limit
+	WithLimit(maxAttempts int64, window time.Duration) RateLimiter
+}
+
 // RedisRateLimiter implements rate limiting using Redis
 type RedisRateLimiter struct {
 	client      *redis.Client
@@ -21,6 +31,16 @@ func NewRedisRateLimiter(client *redis.Client, window time.Duration, maxAttempts
 	return &RedisRateLimiter{
 		client:      client,
 		prefix:      "ratelimit:",
+		window:      window,
+		maxAttempts: maxAttempts,
+	}
+}
+
+// WithLimit creates a new rate limiter with the specified limit
+func (rl *RedisRateLimiter) WithLimit(maxAttempts int64, window time.Duration) RateLimiter {
+	return &RedisRateLimiter{
+		client:      rl.client,
+		prefix:      rl.prefix,
 		window:      window,
 		maxAttempts: maxAttempts,
 	}

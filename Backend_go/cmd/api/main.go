@@ -18,6 +18,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
@@ -172,13 +173,33 @@ func main() {
 	// Create cache middleware
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
 
+	// Initialize notification repository and service
+	notificationLogger := logrus.New()
+	notificationLogger.SetFormatter(&logrus.JSONFormatter{})
+	if cfg.Server.Mode == "production" {
+		notificationLogger.SetLevel(logrus.InfoLevel)
+	} else {
+		notificationLogger.SetLevel(logrus.DebugLevel)
+	}
+
+	notificationRepo := notification.NewRepository(db, notificationLogger)
+	notificationSignalRepo := notification.NewSignalRepository(100) // Buffer size of 100
+	notificationService := notification.NewService(notification.ServiceConfig{
+		Repository: notificationRepo,
+		Logger:     notificationLogger,
+		SignalRepo: notificationSignalRepo,
+	})
+
+	// Initialize habit notification service
+	habitNotifySvc := habits.NewHabitNotificationService(notificationService)
+
 	// Initialize services
 	rolesService := roles.NewService(rolesRepo)
 	userService := user.NewService(userRepo, rolesService)
 	taskService := task.NewService(taskRepo)
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
-	habitsService := habits.NewService(habitsRepo)
+	habitsService := habits.NewService(habitsRepo, habitNotifySvc)
 	calendarService := calendar.NewService(calendarRepo)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
 		Repository: workflowRepo,
@@ -222,6 +243,12 @@ func main() {
 		Repository: aiRepo,
 		Logger:     aiLogger,
 	})
+
+	// Initialize notification handler
+	notificationHandler := handlers.NewNotificationHandler(notificationService, log)
+
+	// Initialize habit notification handler
+	habitNotificationHandler := handlers.NewHabitNotificationHandler(habitsService, notificationService, habitNotifySvc)
 
 	// Initialize MCP handler and routes
 	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)
@@ -313,6 +340,14 @@ func main() {
 	todosRoutes := routes.NewTodosRoutes(todosHandler, cfg.Auth.JWTSecret)
 	todosRoutes.RegisterRoutes(router, cacheMiddleware)
 	log.Info("Registered todos routes at /api/todos")
+
+	// Notification routes (protected)
+	notificationRoutes := routes.NewNotificationRoutes(notificationHandler, cfg.Auth.JWTSecret, rateLimiter)
+	notificationRoutes.RegisterRoutes(router, cacheMiddleware)
+
+	// Initialize and register habit notification routes
+	habitNotificationRoutes := routes.NewHabitNotificationRoutes(habitNotificationHandler, cfg.Auth.JWTSecret)
+	habitNotificationRoutes.RegisterRoutes(router, cacheMiddleware)
 
 	// Register MCP routes right before the "Debug: Print all registered routes" comment
 	// Register MCP routes (not protected by auth middleware)
