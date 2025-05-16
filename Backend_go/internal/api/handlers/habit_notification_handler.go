@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,7 @@ func NewHabitNotificationHandler(habitService habits.Service, notificationServic
 
 // GetNotificationsByHabit retrieves all notifications related to a specific habit
 func (h *HabitNotificationHandler) GetNotificationsByHabit(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -53,7 +54,7 @@ func (h *HabitNotificationHandler) GetNotificationsByHabit(c *gin.Context) {
 		return
 	}
 
-	if habit.UserID != userID.(uuid.UUID) {
+	if habit.UserID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to view this habit's notifications"})
 		return
 	}
@@ -68,7 +69,7 @@ func (h *HabitNotificationHandler) GetNotificationsByHabit(c *gin.Context) {
 	// Get all notifications for the user
 	limit := filter.PageSize
 	offset := filter.Page * filter.PageSize
-	notifications, err := h.notificationService.GetByUserID(c, userID.(uuid.UUID), limit, offset)
+	notifications, err := h.notificationService.GetByUserID(c, userID, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve notifications"})
 		return
@@ -83,7 +84,7 @@ func (h *HabitNotificationHandler) GetNotificationsByHabit(c *gin.Context) {
 	}
 
 	// Get unread count
-	unreadCount, err := h.notificationService.CountUnread(c, userID.(uuid.UUID))
+	unreadCount, err := h.notificationService.CountUnread(c, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count unread notifications"})
 		return
@@ -103,7 +104,7 @@ func (h *HabitNotificationHandler) GetNotificationsByHabit(c *gin.Context) {
 
 // CreateCustomHabitNotification creates a custom notification for a habit
 func (h *HabitNotificationHandler) CreateCustomHabitNotification(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -127,7 +128,7 @@ func (h *HabitNotificationHandler) CreateCustomHabitNotification(c *gin.Context)
 		return
 	}
 
-	if habit.UserID != userID.(uuid.UUID) {
+	if habit.UserID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to create notifications for this habit"})
 		return
 	}
@@ -146,7 +147,7 @@ func (h *HabitNotificationHandler) CreateCustomHabitNotification(c *gin.Context)
 	// Create notification
 	err = h.notificationService.CreateForUser(
 		c,
-		userID.(uuid.UUID),
+		userID,
 		notification.Type(req.Type),
 		req.Title,
 		req.Content,

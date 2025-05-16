@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 )
 
 // NotificationHandler handles notification-related requests
@@ -52,13 +53,13 @@ func NewNotificationHandler(service notification.Service, logger *logger.Logger)
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications [get]
 func (h *NotificationHandler) GetAll(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	uid, err := uuid.Parse(userID.(string))
+	uid, err := uuid.Parse(userID.String())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -121,13 +122,13 @@ func (h *NotificationHandler) GetAll(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/unread [get]
 func (h *NotificationHandler) GetUnread(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	uid, err := uuid.Parse(userID.(string))
+	uid, err := uuid.Parse(userID.String())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -190,7 +191,7 @@ func (h *NotificationHandler) GetUnread(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/{id} [get]
 func (h *NotificationHandler) GetByID(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -216,7 +217,7 @@ func (h *NotificationHandler) GetByID(c *gin.Context) {
 	}
 
 	// Check if notification belongs to the authenticated user
-	if notif.UserID.String() != userID.(string) {
+	if notif.UserID.String() != userID.String() {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to access this notification"})
 		return
 	}
@@ -239,7 +240,7 @@ func (h *NotificationHandler) GetByID(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/{id}/read [put]
 func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -266,7 +267,7 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	}
 
 	// Check if notification belongs to the authenticated user
-	if notif.UserID.String() != userID.(string) {
+	if notif.UserID.String() != userID.String() {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to modify this notification"})
 		return
 	}
@@ -292,13 +293,13 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/read-all [put]
 func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	uid, err := uuid.Parse(userID.(string))
+	uid, err := uuid.Parse(userID.String())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -325,13 +326,13 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/count [get]
 func (h *NotificationHandler) CountUnread(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	uid, err := uuid.Parse(userID.(string))
+	uid, err := uuid.Parse(userID.String())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -365,7 +366,7 @@ func (h *NotificationHandler) CountUnread(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/{id} [delete]
 func (h *NotificationHandler) Delete(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -392,7 +393,7 @@ func (h *NotificationHandler) Delete(c *gin.Context) {
 	}
 
 	// Check if notification belongs to the authenticated user
-	if notif.UserID.String() != userID.(string) {
+	if notif.UserID.String() != userID.String() {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to delete this notification"})
 		return
 	}
@@ -443,17 +444,17 @@ func (h *NotificationHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, dto.ToDTO(notif))
-}
+}	
 
 // WebSocketHandler handles WebSocket connections for real-time notifications
 func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	uid, err := uuid.Parse(userID.(string))
+	uid, err := uuid.Parse(userID.String())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
