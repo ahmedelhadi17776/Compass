@@ -152,3 +152,83 @@ func (m *CacheMiddleware) generateCacheKey(c *gin.Context) string {
 
 	return strings.Join(parts, ":")
 }
+
+// CachePageWithTTL caches the response of an endpoint with a custom TTL
+func (m *CacheMiddleware) CachePageWithTTL(keyPrefix string, ttl time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Method != "GET" {
+			c.Next()
+			return
+		}
+
+		// Generate cache key with the provided prefix
+		userID, _ := GetUserID(c)
+		key := m.generateCacheKeyWithPrefix(keyPrefix, c, userID.String())
+
+		// Try to get from cache
+		if cached, err := m.cache.Get(c, key); err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				c.JSON(http.StatusOK, response)
+				c.Abort()
+				return
+			}
+		}
+
+		// Store original response writer
+		writer := c.Writer
+		// Create a copy buffer with the original writer
+		buff := newResponseBuffer(writer)
+		c.Writer = buff
+
+		// Process request
+		c.Next()
+
+		// If response was successful, cache it
+		if c.Writer.Status() == http.StatusOK {
+			responseData := buff.body.String()
+			if err := m.cache.Set(c, key, responseData, ttl); err != nil {
+				log.Error("Failed to cache response", zap.Error(err))
+			}
+		}
+
+		// Original writer already has the response due to our WriteHeader and Write implementations
+		c.Writer = writer
+	}
+}
+
+func (m *CacheMiddleware) generateCacheKeyWithPrefix(prefix string, c *gin.Context, userID string) string {
+	// Build key from prefix, method, path, query params, and user ID
+	parts := []string{m.prefix, prefix}
+
+	// Add resource information from the path
+	pathParts := strings.Split(strings.Trim(c.Request.URL.Path, "/"), "/")
+	if len(pathParts) >= 2 {
+		resourceType := pathParts[1] // e.g., "tasks"
+		parts = append(parts, resourceType)
+
+		// If this is a specific resource (has ID)
+		if len(pathParts) >= 3 {
+			resourceID := pathParts[2]
+			if _, err := uuid.Parse(resourceID); err == nil {
+				parts = append(parts, "id", resourceID)
+			} else {
+				parts = append(parts, "list")
+			}
+		} else {
+			parts = append(parts, "list")
+		}
+	}
+
+	// Add sorted query parameters
+	if len(c.Request.URL.RawQuery) > 0 {
+		parts = append(parts, c.Request.URL.RawQuery)
+	}
+
+	// Add user ID for user-specific caching
+	if userID != "" {
+		parts = append(parts, userID)
+	}
+
+	return strings.Join(parts, ":")
+}

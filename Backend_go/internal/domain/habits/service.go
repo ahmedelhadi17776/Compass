@@ -33,14 +33,21 @@ type Service interface {
 	// Heatmap related methods
 	LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error
 	GetHeatmapData(ctx context.Context, userID uuid.UUID, period string) (map[string]int, error)
+
+	// Notification related methods
+	SendHabitReminders(ctx context.Context) error
 }
 
 type service struct {
-	repo Repository
+	repo      Repository
+	notifySvc *HabitNotificationService
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, notifySvc *HabitNotificationService) Service {
+	return &service{
+		repo:      repo,
+		notifySvc: notifySvc,
+	}
 }
 
 func (s *service) CreateHabit(ctx context.Context, input CreateHabitInput) (*Habit, error) {
@@ -146,6 +153,26 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 		log.Printf("failed to log habit completion for heatmap: %v", err)
 	}
 
+	// Get updated habit with new streak information
+	updatedHabit, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		log.Printf("failed to fetch updated habit data: %v", err)
+	} else {
+		// Send habit completion notification
+		if s.notifySvc != nil {
+			if err := s.notifySvc.NotifyHabitCompleted(ctx, userID, updatedHabit); err != nil {
+				log.Printf("failed to send habit completion notification: %v", err)
+			}
+
+			// Check if we should send a streak notification
+			if s.notifySvc.ShouldSendStreakNotification(updatedHabit.CurrentStreak) {
+				if err := s.notifySvc.NotifyHabitStreak(ctx, userID, updatedHabit); err != nil {
+					log.Printf("failed to send habit streak notification: %v", err)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -200,6 +227,10 @@ func (s *service) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error)
 				lastDate = *habit.LastCompletedDate
 			}
 
+			// Store previous streak for notification
+			previousStreak := habit.CurrentStreak
+			habitCopy := habit
+
 			// Before resetting, store the streak history
 			if err := s.repo.LogStreakHistory(ctx, habit.ID, habit.CurrentStreak, lastDate); err != nil {
 				log.Printf("failed to log streak history for habit %s: %v", habit.ID, err)
@@ -214,6 +245,13 @@ func (s *service) CheckAndResetBrokenStreaks(ctx context.Context) (int64, error)
 			if err := s.repo.ResetStreak(ctx, habit.ID); err != nil {
 				log.Printf("failed to reset streak for habit %s: %v", habit.ID, err)
 				continue
+			}
+
+			// Send streak broken notification if streak was significant
+			if s.notifySvc != nil && previousStreak >= 3 {
+				if err := s.notifySvc.NotifyHabitStreakBroken(ctx, habit.UserID, &habitCopy, previousStreak); err != nil {
+					log.Printf("failed to send habit streak broken notification: %v", err)
+				}
 			}
 
 			totalReset++
@@ -337,4 +375,28 @@ func (s *service) GetHeatmapData(ctx context.Context, userID uuid.UUID, period s
 	}
 
 	return s.repo.GetHeatmapData(ctx, userID, startDate, now)
+}
+
+// SendHabitReminders sends reminder notifications for habits due today
+func (s *service) SendHabitReminders(ctx context.Context) error {
+	// Get all habits due today that haven't been completed
+	habits, err := s.repo.GetUncompletedHabitsDueToday(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get habits due today: %w", err)
+	}
+
+	var sent int
+	for _, habit := range habits {
+		// Only send reminders if the notification service is available
+		if s.notifySvc != nil {
+			if err := s.notifySvc.NotifyHabitReminder(ctx, habit.UserID, &habit); err != nil {
+				log.Printf("failed to send habit reminder notification for habit %s: %v", habit.ID, err)
+				continue
+			}
+			sent++
+		}
+	}
+
+	log.Printf("sent %d habit reminders", sent)
+	return nil
 }

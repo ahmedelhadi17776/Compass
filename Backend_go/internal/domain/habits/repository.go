@@ -37,6 +37,7 @@ type Repository interface {
 	CheckAndResetBrokenStreaks(ctx context.Context) (int64, error)
 	GetTopStreaks(ctx context.Context, userID uuid.UUID, limit int) ([]Habit, error)
 	GetHabitsDueToday(ctx context.Context, userID uuid.UUID) ([]Habit, error)
+	GetUncompletedHabitsDueToday(ctx context.Context) ([]Habit, error)
 	FindCompletedHabits(ctx context.Context, habits *[]Habit) error
 	GetActiveStreaks(ctx context.Context) ([]Habit, error)
 	LogStreakHistory(ctx context.Context, habitID uuid.UUID, streakLength int, lastCompletedDate time.Time) error
@@ -381,4 +382,18 @@ func (r *repository) GetHeatmapData(ctx context.Context, userID uuid.UUID, start
 	}
 
 	return heatmapData, nil
+}
+
+// GetUncompletedHabitsDueToday returns all habits from all users that are due today and not yet completed
+func (r *repository) GetUncompletedHabitsDueToday(ctx context.Context) ([]Habit, error) {
+	var habits []Habit
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	err := r.db.WithContext(ctx).
+		Where("is_completed = ? AND start_day <= ? AND (end_day IS NULL OR end_day >= ?)",
+			false, today, today).
+		Find(&habits).Error
+
+	return habits, err
 }

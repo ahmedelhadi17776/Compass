@@ -25,6 +25,9 @@ func (s *Scheduler) Start() {
 	// Run immediately at startup
 	s.runResetTasks()
 
+	// Schedule reminder notifications to run every 6 hours
+	go s.scheduleReminderNotifications()
+
 	// Calculate time until next midnight
 	now := time.Now()
 	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
@@ -83,6 +86,53 @@ func (s *Scheduler) runResetTasks() {
 	}
 
 	s.logger.Info("Completed daily habit reset tasks",
+		zap.Time("end_time", time.Now()),
+		zap.Duration("duration", time.Since(startTime)),
+	)
+}
+
+// scheduleReminderNotifications sets up a schedule to send reminder notifications throughout the day
+func (s *Scheduler) scheduleReminderNotifications() {
+	// Calculate time to the next scheduled reminder (8AM, 12PM, 6PM, 9PM)
+	reminderHours := []int{8, 12, 18, 21}
+
+	// Run first and then schedule
+	s.sendReminderNotifications()
+
+	ticker := time.NewTicker(1 * time.Hour)
+	for range ticker.C {
+		now := time.Now()
+		currentHour := now.Hour()
+
+		// Check if current hour is a reminder hour
+		for _, reminderHour := range reminderHours {
+			if currentHour == reminderHour {
+				s.sendReminderNotifications()
+				break
+			}
+		}
+	}
+}
+
+// sendReminderNotifications sends reminder notifications for habits due today
+func (s *Scheduler) sendReminderNotifications() {
+	ctx := context.Background()
+	startTime := time.Now()
+
+	s.logger.Info("Starting habit reminder notifications", zap.Time("start_time", startTime))
+
+	err := s.habitService.SendHabitReminders(ctx)
+	if err != nil {
+		s.logger.Error("Failed to send habit reminders",
+			zap.Error(err),
+		)
+	} else {
+		s.logger.Info("Successfully sent habit reminders",
+			zap.Time("time", startTime),
+		)
+	}
+
+	s.logger.Info("Completed habit reminder notifications",
 		zap.Time("end_time", time.Now()),
 		zap.Duration("duration", time.Since(startTime)),
 	)
