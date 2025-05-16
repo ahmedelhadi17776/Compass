@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/google/uuid"
@@ -14,6 +15,32 @@ var (
 	ErrInvalidInput = errors.New("invalid input")
 )
 
+// TaskFilter defines filtering options for tasks
+type TaskFilter struct {
+	OrganizationID *uuid.UUID
+	ProjectID      *uuid.UUID
+	Status         *TaskStatus
+	Priority       *TaskPriority
+	AssigneeID     *uuid.UUID
+	CreatorID      *uuid.UUID
+	ReviewerID     *uuid.UUID
+	StartDate      *time.Time
+	EndDate        *time.Time
+	Page           int
+	PageSize       int
+}
+
+// AnalyticsFilter defines filtering options for task analytics
+type AnalyticsFilter struct {
+	TaskID    *uuid.UUID
+	UserID    *uuid.UUID
+	Action    *string
+	StartTime *time.Time
+	EndTime   *time.Time
+	Page      int
+	PageSize  int
+}
+
 // TaskRepository defines the interface for task persistence operations
 type TaskRepository interface {
 	Create(ctx context.Context, task *Task) error
@@ -21,6 +48,12 @@ type TaskRepository interface {
 	FindAll(ctx context.Context, filter TaskFilter) ([]Task, int64, error)
 	Update(ctx context.Context, task *Task) error
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// Analytics methods
+	RecordTaskActivity(ctx context.Context, analytics *TaskAnalytics) error
+	GetTaskAnalytics(ctx context.Context, filter AnalyticsFilter) ([]TaskAnalytics, int64, error)
+	GetTaskActivitySummary(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time) (map[string]int, error)
+	GetUserTaskActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error)
 }
 
 type taskRepository struct {
@@ -116,4 +149,95 @@ func (r *taskRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return ErrTaskNotFound
 	}
 	return nil
+}
+
+// Analytics implementation
+func (r *taskRepository) RecordTaskActivity(ctx context.Context, analytics *TaskAnalytics) error {
+	return r.db.WithContext(ctx).Create(analytics).Error
+}
+
+func (r *taskRepository) GetTaskAnalytics(ctx context.Context, filter AnalyticsFilter) ([]TaskAnalytics, int64, error) {
+	var analytics []TaskAnalytics
+	var total int64
+	query := r.db.WithContext(ctx).Model(&TaskAnalytics{})
+
+	if filter.TaskID != nil {
+		query = query.Where("task_id = ?", *filter.TaskID)
+	}
+	if filter.UserID != nil {
+		query = query.Where("user_id = ?", *filter.UserID)
+	}
+	if filter.Action != nil {
+		query = query.Where("action = ?", *filter.Action)
+	}
+	if filter.StartTime != nil && filter.EndTime != nil {
+		query = query.Where("timestamp BETWEEN ? AND ?", *filter.StartTime, *filter.EndTime)
+	} else if filter.StartTime != nil {
+		query = query.Where("timestamp >= ?", *filter.StartTime)
+	} else if filter.EndTime != nil {
+		query = query.Where("timestamp <= ?", *filter.EndTime)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("timestamp DESC").
+		Offset(filter.Page * filter.PageSize).
+		Limit(filter.PageSize).
+		Find(&analytics).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return analytics, total, nil
+}
+
+func (r *taskRepository) GetTaskActivitySummary(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time) (map[string]int, error) {
+	var results []struct {
+		Action string
+		Count  int
+	}
+
+	err := r.db.WithContext(ctx).Model(&TaskAnalytics{}).
+		Select("action, count(*) as count").
+		Where("task_id = ? AND timestamp BETWEEN ? AND ?", taskID, startTime, endTime).
+		Group("action").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	summary := make(map[string]int)
+	for _, result := range results {
+		summary[result.Action] = result.Count
+	}
+
+	return summary, nil
+}
+
+func (r *taskRepository) GetUserTaskActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error) {
+	var results []struct {
+		Action string
+		Count  int
+	}
+
+	err := r.db.WithContext(ctx).Model(&TaskAnalytics{}).
+		Select("action, count(*) as count").
+		Where("user_id = ? AND timestamp BETWEEN ? AND ?", userID, startTime, endTime).
+		Group("action").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	summary := make(map[string]int)
+	for _, result := range results {
+		summary[result.Action] = result.Count
+	}
+
+	return summary, nil
 }

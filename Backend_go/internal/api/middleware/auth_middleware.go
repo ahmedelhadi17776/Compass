@@ -25,10 +25,6 @@ type RateLimiterConfig struct {
 	MaxAttempts int64
 }
 
-// AuthMiddleware is a middleware for JWT authentication
-type AuthMiddleware struct {
-	jwtSecret string
-}
 
 // NewAuthMiddleware creates a new auth middleware
 func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
@@ -100,7 +96,7 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 }
 
 // RateLimitMiddleware creates a middleware for rate limiting using Redis
-func RateLimitMiddleware(limiter *auth.RedisRateLimiter) gin.HandlerFunc {
+func RateLimitMiddleware(limiter auth.RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		path := c.Request.URL.Path
@@ -211,4 +207,9 @@ func RequirePermissions(permissions ...string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// JWTAuthMiddleware creates a middleware for JWT authentication
+func JWTAuthMiddleware(jwtSecret string) gin.HandlerFunc {
+	return NewAuthMiddleware(jwtSecret)
 }

@@ -26,6 +26,9 @@ type ServerConfig struct {
 	Port    int           `mapstructure:"port" default:"8000"`
 	Mode    string        `mapstructure:"mode"`
 	Timeout time.Duration `mapstructure:"timeout"`
+	UseHTTPS bool          `mapstructure:"use_https"`
+	HTTPSCertFile string    `mapstructure:"https_cert_file"`
+	HTTPSKeyFile  string    `mapstructure:"https_key_file"`
 }
 
 type DatabaseConfig struct {

@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"github.com/google/uuid"
@@ -28,6 +29,16 @@ type UserFilter struct {
 	PageSize    int
 }
 
+// AnalyticsFilter defines filtering options for user analytics
+type AnalyticsFilter struct {
+	UserID    *uuid.UUID
+	Action    *string
+	StartTime *time.Time
+	EndTime   *time.Time
+	Page      int
+	PageSize  int
+}
+
 type Repository interface {
 	Create(ctx context.Context, user *User) error
 	FindByID(ctx context.Context, id uuid.UUID) (*User, error)
@@ -37,6 +48,13 @@ type Repository interface {
 	FindAll(ctx context.Context, filter UserFilter) ([]User, int64, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// Analytics methods
+	RecordUserActivity(ctx context.Context, analytics *UserAnalytics) error
+	RecordSessionActivity(ctx context.Context, analytics *SessionAnalytics) error
+	GetUserAnalytics(ctx context.Context, filter AnalyticsFilter) ([]UserAnalytics, int64, error)
+	GetSessionAnalytics(ctx context.Context, filter AnalyticsFilter) ([]SessionAnalytics, int64, error)
+	GetUserActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error)
 }
 
 type repository struct {
@@ -164,4 +182,107 @@ func (r *repository) FindByProviderID(ctx context.Context, providerID, provider 
 		return nil, result.Error
 	}
 	return &user, nil
+}
+
+// Analytics implementation
+func (r *repository) RecordUserActivity(ctx context.Context, analytics *UserAnalytics) error {
+	return r.db.WithContext(ctx).Create(analytics).Error
+}
+
+func (r *repository) RecordSessionActivity(ctx context.Context, analytics *SessionAnalytics) error {
+	return r.db.WithContext(ctx).Create(analytics).Error
+}
+
+func (r *repository) GetUserAnalytics(ctx context.Context, filter AnalyticsFilter) ([]UserAnalytics, int64, error) {
+	var analytics []UserAnalytics
+	var total int64
+	query := r.db.WithContext(ctx).Model(&UserAnalytics{})
+
+	if filter.UserID != nil {
+		query = query.Where("user_id = ?", *filter.UserID)
+	}
+	if filter.Action != nil {
+		query = query.Where("action = ?", *filter.Action)
+	}
+	if filter.StartTime != nil && filter.EndTime != nil {
+		query = query.Where("timestamp BETWEEN ? AND ?", *filter.StartTime, *filter.EndTime)
+	} else if filter.StartTime != nil {
+		query = query.Where("timestamp >= ?", *filter.StartTime)
+	} else if filter.EndTime != nil {
+		query = query.Where("timestamp <= ?", *filter.EndTime)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("timestamp DESC").
+		Offset(filter.Page * filter.PageSize).
+		Limit(filter.PageSize).
+		Find(&analytics).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return analytics, total, nil
+}
+
+func (r *repository) GetSessionAnalytics(ctx context.Context, filter AnalyticsFilter) ([]SessionAnalytics, int64, error) {
+	var analytics []SessionAnalytics
+	var total int64
+	query := r.db.WithContext(ctx).Model(&SessionAnalytics{})
+
+	if filter.UserID != nil {
+		query = query.Where("user_id = ?", *filter.UserID)
+	}
+	if filter.Action != nil {
+		query = query.Where("action = ?", *filter.Action)
+	}
+	if filter.StartTime != nil && filter.EndTime != nil {
+		query = query.Where("timestamp BETWEEN ? AND ?", *filter.StartTime, *filter.EndTime)
+	} else if filter.StartTime != nil {
+		query = query.Where("timestamp >= ?", *filter.StartTime)
+	} else if filter.EndTime != nil {
+		query = query.Where("timestamp <= ?", *filter.EndTime)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Order("timestamp DESC").
+		Offset(filter.Page * filter.PageSize).
+		Limit(filter.PageSize).
+		Find(&analytics).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return analytics, total, nil
+}
+
+func (r *repository) GetUserActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error) {
+	var results []struct {
+		Action string
+		Count  int
+	}
+
+	err := r.db.WithContext(ctx).Model(&UserAnalytics{}).
+		Select("action, count(*) as count").
+		Where("user_id = ? AND timestamp BETWEEN ? AND ?", userID, startTime, endTime).
+		Group("action").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	summary := make(map[string]int)
+	for _, result := range results {
+		summary[result.Action] = result.Count
+	}
+
+	return summary, nil
 }

@@ -6,7 +6,6 @@ import (
 
 	"errors"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
@@ -16,6 +15,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/todos"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/workflow"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/persistence/postgres/connection"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -80,6 +80,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 		// Define the models in the order they should be migrated
 		// This order matters due to foreign key relationships
 		models := []interface{}{
+			&notification.Notification{},
 			&roles.Role{},
 			&roles.Permission{},
 			&user.User{}, // Users should be first as they're referenced by other tables
@@ -103,11 +104,10 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&workflow.WorkflowAgentLink{},
 			&workflow.WorkflowTransition{},
 			&todos.Todo{},
-			&ai.Model{},
-			&ai.Interaction{},
-			&ai.Document{},
-			&ai.Chunk{},
-			&ai.UserContext{},
+			&user.UserAnalytics{},
+			&user.SessionAnalytics{},
+			&task.TaskAnalytics{},
+			&calendar.EventAnalytics{},
 		}
 
 		// Migrate each model
