@@ -36,10 +36,27 @@ func NewHabitsHandler(service habits.Service) *HabitsHandler {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /api/habits [post]
 func (h *HabitsHandler) CreateHabit(c *gin.Context) {
+	// Get validated model from context (set by validation middleware)
 	var req dto.CreateHabitRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		// The model will be a pointer since we created it with reflect.New
+		if validatedPtr, ok := validatedModel.(*dto.CreateHabitRequest); ok {
+			req = *validatedPtr
+		} else {
+			// Log the actual type for debugging
+			log.Errorf("Invalid model type: %T, expected *dto.CreateHabitRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// Get user ID from context (set by auth middleware)
@@ -101,6 +118,9 @@ func (h *HabitsHandler) GetHabit(c *gin.Context) {
 		return
 	}
 
+	// Explicitly set content type (must change it in the future)
+	c.Header("Content-Type", "application/json; charset=utf-8")
+
 	c.JSON(http.StatusOK, gin.H{"data": dto.HabitToResponse(habit)})
 }
 
@@ -149,6 +169,9 @@ func (h *HabitsHandler) ListHabits(c *gin.Context) {
 		responses[i] = *response
 	}
 
+	// Explicitly set content type
+	c.Header("Content-Type", "application/json; charset=utf-8")
+
 	c.JSON(http.StatusOK, gin.H{"data": dto.HabitListResponse{
 		Habits:     responses,
 		TotalCount: total,
@@ -180,9 +203,23 @@ func (h *HabitsHandler) UpdateHabit(c *gin.Context) {
 	}
 
 	var req dto.UpdateHabitRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.UpdateHabitRequest); ok {
+			req = *validatedPtr
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.UpdateHabitRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	input := habits.UpdateHabitInput{
@@ -383,14 +420,29 @@ func (h *HabitsHandler) MarkHabitCompleted(c *gin.Context) {
 		return
 	}
 
+	// Check if we have a validated model with completion date
 	var completionDate *time.Time
-	if dateStr := c.Query("completion_date"); dateStr != "" {
-		date, err := time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid completion date format"})
+	validatedModel, modelExists := c.Get("validated_model")
+
+	if modelExists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.HabitCompletionRequest); ok {
+			completionDate = validatedPtr.CompletionDate
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.HabitCompletionRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
 			return
 		}
-		completionDate = &date
+	} else {
+		// If validation middleware didn't run, check for completion_date in query
+		if dateStr := c.Query("completion_date"); dateStr != "" {
+			date, err := time.Parse("2006-01-02", dateStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid completion date format"})
+				return
+			}
+			completionDate = &date
+		}
 	}
 
 	err = h.service.MarkCompleted(c.Request.Context(), id, userID.(uuid.UUID), completionDate)
@@ -403,6 +455,8 @@ func (h *HabitsHandler) MarkHabitCompleted(c *gin.Context) {
 		return
 	}
 
+	// Explicitly set content type
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.JSON(http.StatusOK, gin.H{"message": "habit marked as completed"})
 }
 

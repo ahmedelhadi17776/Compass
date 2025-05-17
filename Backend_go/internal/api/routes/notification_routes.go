@@ -3,6 +3,7 @@ package routes
 import (
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
@@ -27,6 +28,10 @@ func NewNotificationRoutes(handler *handlers.NotificationHandler, jwtSecret stri
 
 // RegisterRoutes registers notification routes with the provided router
 func (r *NotificationRoutes) RegisterRoutes(router *gin.Engine, cacheMiddleware *middleware.CacheMiddleware) {
+	// Initialize middleware components that are well-suited for notifications
+	validation := middleware.NewValidationMiddleware()
+	tracing := middleware.NewTracingMiddleware()
+
 	// Create a route group with authentication middleware
 	authMiddleware := middleware.NewAuthMiddleware(r.jwtSecret)
 
@@ -39,23 +44,23 @@ func (r *NotificationRoutes) RegisterRoutes(router *gin.Engine, cacheMiddleware 
 	notificationRoutes.Use(notificationRateLimiter)
 	{
 		// GET endpoints
+		// Apply compression for endpoints that might return large datasets
 		notificationRoutes.GET("", cacheMiddleware.CachePageWithTTL("notifications", 30*time.Second), r.handler.GetAll)
 		notificationRoutes.GET("/unread", r.handler.GetUnread) // No cache for unread - always fresh
 		notificationRoutes.GET("/count", r.handler.CountUnread)
 		notificationRoutes.GET("/:id", cacheMiddleware.CachePageWithTTL("notification", 1*time.Minute), r.handler.GetByID)
 
-
-		// PUT endpoints
-		notificationRoutes.PUT("/:id/read", r.handler.MarkAsRead)
+		// PUT endpoints with validation
+		notificationRoutes.PUT("/:id/read", validation.ValidateRequest(&dto.NotificationUpdateRequest{}), r.handler.MarkAsRead)
 		notificationRoutes.PUT("/read-all", r.handler.MarkAllAsRead)
 
 		// DELETE endpoint
 		notificationRoutes.DELETE("/:id", r.handler.Delete)
 
 		// POST endpoint (typically for admin or system use)
-		notificationRoutes.POST("", r.handler.Create)
+		notificationRoutes.POST("", validation.ValidateRequest(&dto.CreateNotificationRequest{}), r.handler.Create)
 
 		// WebSocket endpoint (no cache, real-time)
-		notificationRoutes.GET("/ws", r.handler.WebSocketHandler)
+		notificationRoutes.GET("/ws", tracing.TraceRequest(), r.handler.WebSocketHandler)
 	}
 }

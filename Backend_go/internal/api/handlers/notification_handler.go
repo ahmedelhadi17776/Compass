@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 )
 
 // NotificationHandler handles notification-related requests
@@ -240,6 +240,28 @@ func (h *NotificationHandler) GetByID(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/{id}/read [put]
 func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
+	// Get validated model from context if available
+	var updateReq dto.NotificationUpdateRequest
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.NotificationUpdateRequest); ok {
+			updateReq = *validatedPtr
+		} else {
+			h.logger.Error("Invalid model type from validation", zap.Any("type", validatedModel))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+			return
+		}
+	} else if c.Request.ContentLength > 0 {
+		// Only try to bind if there's actually content
+		if err := c.ShouldBindJSON(&updateReq); err != nil {
+			h.logger.Error("Failed to bind request", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -423,10 +445,24 @@ func (h *NotificationHandler) Delete(c *gin.Context) {
 // @Router /api/notifications [post]
 func (h *NotificationHandler) Create(c *gin.Context) {
 	var req dto.CreateNotificationRequest
+	validatedModel, exists := c.Get("validated_model")
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.CreateNotificationRequest); ok {
+			req = *validatedPtr
+		} else {
+			h.logger.Error("Invalid model type from validation", zap.Any("type", validatedModel))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			h.logger.Error("Failed to bind request", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// Check if this is admin or has proper permission (optional)
@@ -444,7 +480,7 @@ func (h *NotificationHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, dto.ToDTO(notif))
-}	
+}
 
 // WebSocketHandler handles WebSocket connections for real-time notifications
 func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {

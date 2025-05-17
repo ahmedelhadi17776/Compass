@@ -35,6 +35,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -114,19 +115,33 @@ func main() {
 		gin.SetMode(gin.DebugMode)
 	}
 
+	// Set default content type for JSON responses
+	gin.DisableBindValidation()
+	gin.SetMode(gin.ReleaseMode)
+	// Use the standard logger instead of zap for gin
+	gin.DefaultWriter = os.Stdout
+
 	router := gin.New()
 
 	// Add middleware
 	router.Use(gin.Recovery())
 	router.Use(RequestLoggerMiddleware(log))
+	// Configure gin to use proper content type for JSON
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		c.Next()
+	})
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.CORS.AllowedOrigins,
 		AllowMethods:     cfg.CORS.AllowedMethods,
-		AllowHeaders:     cfg.CORS.AllowedHeaders,
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     append(cfg.CORS.AllowedHeaders, "Accept-Encoding", "Content-Encoding", "Content-Type", "Authorization"),
+		ExposeHeaders:    []string{"Content-Length", "Content-Encoding", "Content-Type", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Vary"},
 		AllowCredentials: cfg.CORS.AllowCredentials,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Add Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Connect to database
 	db, err := connection.NewDatabase(cfg)
