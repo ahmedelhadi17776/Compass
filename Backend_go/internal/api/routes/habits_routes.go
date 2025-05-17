@@ -49,6 +49,11 @@ func (h *HabitsRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cach
 	habits.GET("/due-today", cache.CacheResponse(), gzip.Gzip(gzip.DefaultCompression), h.handler.GetHabitsDueToday)
 	habits.GET("/user/:user_id", cache.CacheResponse(), gzip.Gzip(gzip.DefaultCompression), h.handler.GetUserHabits)
 
+	// Analytics routes
+	analytics := habits.Group("/analytics")
+	analytics.GET("/user", h.handler.GetUserHabitAnalytics)
+	analytics.GET("/user/summary", h.handler.GetUserHabitActivitySummary)
+
 	// CRUD operations with parameters
 	habits.GET("/:id", cache.CacheResponse(), gzip.Gzip(gzip.DefaultCompression), h.handler.GetHabit)
 	habits.PUT("/:id", validation.ValidateRequest(&dto.UpdateHabitRequest{}), cache.CacheInvalidate("habits:*"), h.handler.UpdateHabit)
@@ -59,4 +64,9 @@ func (h *HabitsRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cach
 	habits.POST("/:id/uncomplete", cache.CacheInvalidate("habits:*"), h.handler.UnmarkHabitCompleted)
 	habits.GET("/:id/stats", cache.CacheResponse(), h.handler.GetHabitStats)
 	habits.GET("/:id/streak-history", cache.CacheResponse(), h.handler.GetStreakHistory)
+
+	// Per-habit analytics routes
+	habits.GET("/:id/analytics", h.handler.GetHabitAnalytics)
+	habits.GET("/:id/analytics/summary", h.handler.GetHabitActivitySummary)
+	habits.POST("/:id/analytics/record", validation.ValidateRequest(&dto.RecordHabitActivityRequest{}), h.handler.RecordHabitActivity)
 }
