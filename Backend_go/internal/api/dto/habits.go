@@ -111,3 +111,10 @@ type HeatmapResponse struct {
 	MinValue int            `json:"min_value" example:"0"`
 	MaxValue int            `json:"max_value" example:"10"`
 }
+
+// HabitCompletionRequest represents the request to mark a habit as completed
+// @Description Request to mark a habit as completed for a specific date
+type HabitCompletionRequest struct {
+	CompletionDate *time.Time `json:"completion_date,omitempty" example:"2023-01-01T00:00:00Z"`
+	Note           string     `json:"note,omitempty" example:"Completed with effort"`
+}
