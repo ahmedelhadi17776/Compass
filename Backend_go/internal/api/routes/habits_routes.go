@@ -55,8 +55,8 @@ func (h *HabitsRoutes) RegisterRoutes(router *gin.Engine, cache *middleware.Cach
 	habits.DELETE("/:id", cache.CacheInvalidate("habits:*"), h.handler.DeleteHabit)
 
 	// Habit completion routes
-	habits.POST("/:id/complete", validation.ValidateRequest(&dto.HabitCompletionRequest{}), cache.CacheInvalidate("habits:*"), h.handler.MarkHabitCompleted)
+	habits.POST("/:id/complete", cache.CacheInvalidate("habits:*"), h.handler.MarkHabitCompleted)
 	habits.POST("/:id/uncomplete", cache.CacheInvalidate("habits:*"), h.handler.UnmarkHabitCompleted)
-	habits.GET("/:id/stats", cache.CacheResponse(), gzip.Gzip(gzip.DefaultCompression), h.handler.GetHabitStats)
-	habits.GET("/:id/streak-history", cache.CacheResponse(), gzip.Gzip(gzip.DefaultCompression), h.handler.GetStreakHistory)
+	habits.GET("/:id/stats", cache.CacheResponse(), h.handler.GetHabitStats)
+	habits.GET("/:id/streak-history", cache.CacheResponse(), h.handler.GetStreakHistory)
 }
