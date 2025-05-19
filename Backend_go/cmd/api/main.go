@@ -220,6 +220,18 @@ func main() {
 	// Initialize OAuth2 service
 	oauthService := auth.NewOAuthService(cfg)
 
+	// Initialize MFA service and handler
+	// Create a logrus logger specifically for MFA handler
+	mfaLogger := logrus.New()
+	mfaLogger.SetFormatter(&logrus.JSONFormatter{})
+	if cfg.Server.Mode == "production" {
+		mfaLogger.SetLevel(logrus.InfoLevel)
+	} else {
+		mfaLogger.SetLevel(logrus.DebugLevel)
+	}
+
+	mfaHandler := handlers.NewMFAHandler(userService, cfg.Auth.JWTSecret, mfaLogger)
+
 	// Initialize and start the scheduler
 	habitScheduler := scheduler.NewScheduler(habitsService, log)
 	habitScheduler.Start()
@@ -275,6 +287,11 @@ func main() {
 	userRoutes := routes.NewUserRoutes(userHandler, cfg.Auth.JWTSecret, rateLimiter)
 	userRoutes.RegisterRoutes(router)
 	log.Info("Registered user routes at /api/users")
+
+	// Set up MFA routes
+	mfaRoutes := routes.NewMFARoutes(mfaHandler, cfg.Auth.JWTSecret)
+	mfaRoutes.RegisterRoutes(router)
+	log.Info("Registered MFA routes at /api/users/mfa and /api/auth/mfa")
 
 	// Set up auth routes
 	authRoutes := routes.NewAuthRoutes(authHandler, cfg.Auth.JWTSecret)

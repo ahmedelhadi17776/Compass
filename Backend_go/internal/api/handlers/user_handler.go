@@ -134,6 +134,33 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Check if MFA is enabled for the user
+	if user.MFAEnabled {
+		// Create a temporary auth token for MFA validation - not used now but might be used later
+		// Just storing user ID in the response is enough for now
+		_, err := auth.GenerateTemporaryToken(
+			user.ID,
+			user.Email,
+			h.jwtSecret,
+			5, // 5 minute expiry
+		)
+		if err != nil {
+			log.Error("Failed to generate temporary token", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process login"})
+			return
+		}
+
+		// Return MFA required response
+		c.JSON(http.StatusOK, dto.MFARequiredResponse{
+			MFARequired: true,
+			UserID:      user.ID.String(),
+			Message:     "Please enter your MFA code to complete login",
+			TTL:         300, // 5 minutes in seconds
+		})
+		return
+	}
+
+	// If MFA not enabled, proceed with normal login flow
 	// Get user's roles and permissions
 	roles, permissions, err := h.userService.GetUserRolesAndPermissions(c.Request.Context(), user.ID)
 	if err != nil {
@@ -186,6 +213,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 			Locale:      user.Locale,
 			IsActive:    user.IsActive,
 			IsSuperuser: user.IsSuperuser,
+			MFAEnabled:  user.MFAEnabled,
 			CreatedAt:   user.CreatedAt,
 			UpdatedAt:   user.UpdatedAt,
 			DeletedAt:   user.DeletedAt,
@@ -199,7 +227,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": response})
+	c.JSON(http.StatusOK, response)
 }
 
 // recordSessionActivity is a helper function to record session activities
