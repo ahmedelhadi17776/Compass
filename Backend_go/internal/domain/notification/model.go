@@ -43,6 +43,7 @@ const (
 	Archived Status = "ARCHIVED"
 )
 
+// StringMap is a type for storing string-to-string mappings in JSONB fields
 type StringMap map[string]string
 
 func (m *StringMap) Scan(value interface{}) error {
@@ -54,12 +55,21 @@ func (m *StringMap) Scan(value interface{}) error {
 	if !ok {
 		return fmt.Errorf("failed to unmarshal JSONB value: %v", value)
 	}
-	return json.Unmarshal(bytes, m)
+
+	// Create a new map for unmarshaling
+	result := make(map[string]string)
+	if err := json.Unmarshal(bytes, &result); err != nil {
+		return err
+	}
+
+	// Assign the result to the receiver
+	*m = result
+	return nil
 }
 
 func (m StringMap) Value() (driver.Value, error) {
-	if m == nil {
-		return "{}", nil
+	if m == nil || len(m) == 0 {
+		return []byte("{}"), nil
 	}
 	return json.Marshal(m)
 }

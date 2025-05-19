@@ -18,7 +18,6 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
@@ -188,25 +187,21 @@ func main() {
 	// Create cache middleware
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
 
-	// Initialize notification repository and service
-	notificationLogger := logrus.New()
-	notificationLogger.SetFormatter(&logrus.JSONFormatter{})
-	if cfg.Server.Mode == "production" {
-		notificationLogger.SetLevel(logrus.InfoLevel)
-	} else {
-		notificationLogger.SetLevel(logrus.DebugLevel)
+	// Initialize notification system
+	notificationSystem, err := SetupNotificationSystem(
+		db,
+		log,
+		cfg.Server.Mode != "production",
+	)
+	if err != nil {
+		log.Fatal("Failed to initialize notification system", zap.Error(err))
 	}
+	defer notificationSystem.Shutdown()
 
-	notificationRepo := notification.NewRepository(db, notificationLogger)
-	notificationSignalRepo := notification.NewSignalRepository(100) // Buffer size of 100
-	notificationService := notification.NewService(notification.ServiceConfig{
-		Repository: notificationRepo,
-		Logger:     notificationLogger,
-		SignalRepo: notificationSignalRepo,
-	})
-
-	// Initialize habit notification service
-	habitNotifySvc := habits.NewHabitNotificationService(notificationService)
+	// Initialize habit notification service using the notification service from our system
+	habitNotifySvc := habits.NewHabitNotificationService(notificationSystem.Service)
+	// Add domain notifier for enhanced capabilities
+	habitNotifySvc.WithDomainNotifier(notificationSystem.DomainNotifier)
 
 	// Initialize services
 	rolesService := roles.NewService(rolesRepo)
@@ -260,10 +255,10 @@ func main() {
 	})
 
 	// Initialize notification handler
-	notificationHandler := handlers.NewNotificationHandler(notificationService, log)
+	notificationHandler := handlers.NewNotificationHandler(notificationSystem.Service, log)
 
 	// Initialize habit notification handler
-	habitNotificationHandler := handlers.NewHabitNotificationHandler(habitsService, notificationService, habitNotifySvc)
+	habitNotificationHandler := handlers.NewHabitNotificationHandler(habitsService, notificationSystem.Service, habitNotifySvc)
 
 	// Initialize MCP handler and routes
 	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)

@@ -38,10 +38,17 @@ func (r *NotificationRoutes) RegisterRoutes(router *gin.Engine, cacheMiddleware 
 	// Apply moderate rate limiting to notification endpoints (more requests allowed than auth endpoints)
 	notificationRateLimiter := middleware.RateLimitMiddleware(r.rateLimiter.WithLimit(120, time.Minute))
 
+	// Set JWT secret middleware
+	jwtSecretMiddleware := func(c *gin.Context) {
+		c.Set("jwt_secret", r.jwtSecret)
+		c.Next()
+	}
+
 	// Notification routes
 	notificationRoutes := router.Group("/api/notifications")
 	notificationRoutes.Use(authMiddleware)
 	notificationRoutes.Use(notificationRateLimiter)
+	notificationRoutes.Use(jwtSecretMiddleware)
 	{
 		// GET endpoints
 		// Apply compression for endpoints that might return large datasets
@@ -59,8 +66,12 @@ func (r *NotificationRoutes) RegisterRoutes(router *gin.Engine, cacheMiddleware 
 
 		// POST endpoint (typically for admin or system use)
 		notificationRoutes.POST("", validation.ValidateRequest(&dto.CreateNotificationRequest{}), r.handler.Create)
-
-		// WebSocket endpoint (no cache, real-time)
-		notificationRoutes.GET("/ws", tracing.TraceRequest(), r.handler.WebSocketHandler)
 	}
+
+	// WebSocket endpoint (no auth middleware, handles token via query parameter)
+	// This needs to be registered separately to avoid the auth middleware
+	wsRoute := router.Group("/api/notifications")
+	wsRoute.Use(jwtSecretMiddleware)
+	wsRoute.Use(tracing.TraceRequest())
+	wsRoute.GET("/ws", r.handler.WebSocketHandler)
 }
