@@ -58,7 +58,7 @@ const authApi = {
       },
     });
 
-    const data = response.data;
+    const data = response.data.data;
     
     const token = data.token || data.access_token;
     

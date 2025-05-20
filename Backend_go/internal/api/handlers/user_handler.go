@@ -37,34 +37,10 @@ func NewUserHandler(userService user.Service, jwtSecret string) *UserHandler {
 // @Failure 500 {object} map[string]string
 // @Router /api/users/register [post]
 func (h *UserHandler) CreateUser(c *gin.Context) {
-	// Get validated model from context (set by validation middleware)
-	validatedModel, exists := c.Get("validated_model")
 	var input dto.CreateUserRequest
 
-	if exists {
-		// If validation middleware provided the model, use it
-		// The model will be a pointer since we created it with reflect.New
-		if validatedPtr, ok := validatedModel.(*dto.CreateUserRequest); ok {
-			input = *validatedPtr
-		} else {
-			// Log the actual type for debugging
-			log.Errorf("Invalid model type: %T, expected *dto.CreateUserRequest", validatedModel)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
-			return
-		}
-	} else {
-		// If validation middleware didn't run, do manual binding
-		if err := c.ShouldBindJSON(&input); err != nil {
-			log.Errorf("Failed to bind CreateUserRequest: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
-	// Make sure all required fields are present
-	if input.Email == "" || input.Username == "" || input.Password == "" ||
-		input.FirstName == "" || input.LastName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields (email, username, password, first_name, last_name)"})
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -81,7 +57,6 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 	createdUser, err := h.userService.CreateUser(c.Request.Context(), createInput)
 	if err != nil {
-		log.Errorf("Failed to create user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -134,33 +109,6 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Check if MFA is enabled for the user
-	if user.MFAEnabled {
-		// Create a temporary auth token for MFA validation - not used now but might be used later
-		// Just storing user ID in the response is enough for now
-		_, err := auth.GenerateTemporaryToken(
-			user.ID,
-			user.Email,
-			h.jwtSecret,
-			5, // 5 minute expiry
-		)
-		if err != nil {
-			log.Error("Failed to generate temporary token", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process login"})
-			return
-		}
-
-		// Return MFA required response
-		c.JSON(http.StatusOK, dto.MFARequiredResponse{
-			MFARequired: true,
-			UserID:      user.ID.String(),
-			Message:     "Please enter your MFA code to complete login",
-			TTL:         300, // 5 minutes in seconds
-		})
-		return
-	}
-
-	// If MFA not enabled, proceed with normal login flow
 	// Get user's roles and permissions
 	roles, permissions, err := h.userService.GetUserRolesAndPermissions(c.Request.Context(), user.ID)
 	if err != nil {
@@ -213,7 +161,6 @@ func (h *UserHandler) Login(c *gin.Context) {
 			Locale:      user.Locale,
 			IsActive:    user.IsActive,
 			IsSuperuser: user.IsSuperuser,
-			MFAEnabled:  user.MFAEnabled,
 			CreatedAt:   user.CreatedAt,
 			UpdatedAt:   user.UpdatedAt,
 			DeletedAt:   user.DeletedAt,
@@ -227,7 +174,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{"data": response})
 }
 
 // recordSessionActivity is a helper function to record session activities

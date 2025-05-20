@@ -37,8 +37,6 @@ type User struct {
 	DeletedAt           *time.Time             `json:"deleted_at,omitempty" gorm:"index"`
 	MFAEnabled          bool                   `json:"mfa_enabled" gorm:"default:false"`
 	MFASecret           string                 `json:"-"`
-	MFABackupCodes      []string               `json:"-" gorm:"-"`                       // Not stored directly in DB
-	MFABackupCodesHash  string                 `json:"-" gorm:"column:mfa_backup_codes"` // Stored as JSON string
 	FailedLoginAttempts int                    `json:"-" gorm:"default:0"`
 	AccountLockedUntil  *time.Time             `json:"-" gorm:"index:idx_user_locked"`
 	Preferences         map[string]interface{} `json:"preferences,omitempty" gorm:"type:jsonb"`

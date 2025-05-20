@@ -8,29 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// DeliveryMethod defines how notifications are delivered
-type DeliveryMethod string
-
-const (
-	// InApp delivery through the application
-	InApp DeliveryMethod = "in_app"
-	// Email delivery via email
-	Email DeliveryMethod = "email"
-	// Push delivery via push notifications
-	Push DeliveryMethod = "push"
-	// SMS delivery via SMS
-	SMS DeliveryMethod = "sms"
-)
-
-// DeliveryService defines the interface for notification delivery
-type DeliveryService interface {
-	// Deliver sends a notification through a specific channel
-	Deliver(ctx context.Context, notification *Notification, method DeliveryMethod) error
-
-	// DeliverWithConfig sends a notification with specific configuration
-	DeliverWithConfig(ctx context.Context, notification *Notification, config map[string]interface{}) error
-}
-
 // Service defines the notification service interface
 type Service interface {
 	Create(ctx context.Context, notification *Notification) error
@@ -52,9 +29,6 @@ type Service interface {
 	CountUnread(ctx context.Context, userID uuid.UUID) (int, error)
 
 	SubscribeToNotifications(userID uuid.UUID) (<-chan *Notification, func(), error)
-
-	// New method for multi-channel delivery
-	DeliverNotification(ctx context.Context, notification *Notification, methods []DeliveryMethod) error
 }
 
 // ServiceConfig holds the configuration for the notification service
@@ -62,25 +36,21 @@ type ServiceConfig struct {
 	Repository Repository
 	Logger     *logrus.Logger
 	SignalRepo SignalRepository
-	// Add delivery service
-	DeliveryServices map[DeliveryMethod]DeliveryService
 }
 
 // serviceImpl implements the notification Service interface
 type serviceImpl struct {
-	repo             Repository
-	logger           *logrus.Logger
-	signalRepo       SignalRepository
-	deliveryServices map[DeliveryMethod]DeliveryService
+	repo       Repository
+	logger     *logrus.Logger
+	signalRepo SignalRepository
 }
 
 // NewService creates a new notification service
 func NewService(config ServiceConfig) Service {
 	return &serviceImpl{
-		repo:             config.Repository,
-		logger:           config.Logger,
-		signalRepo:       config.SignalRepo,
-		deliveryServices: config.DeliveryServices,
+		repo:       config.Repository,
+		logger:     config.Logger,
+		signalRepo: config.SignalRepo,
 	}
 }
 
@@ -152,39 +122,4 @@ func (s *serviceImpl) CountUnread(ctx context.Context, userID uuid.UUID) (int, e
 // SubscribeToNotifications subscribes to receive notifications
 func (s *serviceImpl) SubscribeToNotifications(userID uuid.UUID) (<-chan *Notification, func(), error) {
 	return s.signalRepo.Subscribe(userID.String())
-}
-
-// DeliverNotification delivers a notification through multiple channels
-func (s *serviceImpl) DeliverNotification(ctx context.Context, notification *Notification, methods []DeliveryMethod) error {
-	if notification == nil {
-		return ErrNotFound
-	}
-
-	// Always store the notification in the database
-	if err := s.repo.Create(ctx, notification); err != nil {
-		s.logger.WithError(err).Error("Failed to create notification record")
-		return err
-	}
-
-	// Always publish to in-app channel via WebSocket
-	s.signalRepo.Publish(notification.UserID.String(), notification)
-
-	// Deliver through additional channels if requested
-	for _, method := range methods {
-		// Skip in-app as we already did that
-		if method == InApp {
-			continue
-		}
-
-		// Check if we have a delivery service for this method
-		if deliveryService, ok := s.deliveryServices[method]; ok {
-			if err := deliveryService.Deliver(ctx, notification, method); err != nil {
-				s.logger.WithError(err).WithField("method", method).
-					Error("Failed to deliver notification through channel")
-				// Continue with other methods even if one fails
-			}
-		}
-	}
-
-	return nil
 }

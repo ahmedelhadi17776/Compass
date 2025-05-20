@@ -1,21 +1,19 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 )
 
 // NotificationHandler handles notification-related requests
@@ -242,28 +240,6 @@ func (h *NotificationHandler) GetByID(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/notifications/{id}/read [put]
 func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
-	// Get validated model from context if available
-	var updateReq dto.NotificationUpdateRequest
-	validatedModel, exists := c.Get("validated_model")
-
-	if exists {
-		// If validation middleware provided the model, use it
-		if validatedPtr, ok := validatedModel.(*dto.NotificationUpdateRequest); ok {
-			updateReq = *validatedPtr
-		} else {
-			h.logger.Error("Invalid model type from validation", zap.Any("type", validatedModel))
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
-			return
-		}
-	} else if c.Request.ContentLength > 0 {
-		// Only try to bind if there's actually content
-		if err := c.ShouldBindJSON(&updateReq); err != nil {
-			h.logger.Error("Failed to bind request", zap.Error(err))
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -447,24 +423,10 @@ func (h *NotificationHandler) Delete(c *gin.Context) {
 // @Router /api/notifications [post]
 func (h *NotificationHandler) Create(c *gin.Context) {
 	var req dto.CreateNotificationRequest
-	validatedModel, exists := c.Get("validated_model")
 
-	if exists {
-		// If validation middleware provided the model, use it
-		if validatedPtr, ok := validatedModel.(*dto.CreateNotificationRequest); ok {
-			req = *validatedPtr
-		} else {
-			h.logger.Error("Invalid model type from validation", zap.Any("type", validatedModel))
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
-			return
-		}
-	} else {
-		// If validation middleware didn't run, do manual binding
-		if err := c.ShouldBindJSON(&req); err != nil {
-			h.logger.Error("Failed to bind request", zap.Error(err))
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	// Check if this is admin or has proper permission (optional)
@@ -482,33 +444,14 @@ func (h *NotificationHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, dto.ToDTO(notif))
-}
+}	
 
 // WebSocketHandler handles WebSocket connections for real-time notifications
 func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {
-	// Check if we already have user_id from auth middleware
 	userID, exists := middleware.GetUserID(c)
-
-	// If not authenticated via normal middleware, try to get from query parameter
 	if !exists {
-		// Try to get token from query parameter
-		tokenParam := c.Query("token")
-		if tokenParam == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
-			return
-		}
-
-		// Validate token from query parameter
-		jwtSecret := c.MustGet("jwt_secret").(string)
-		claims, err := auth.ValidateToken(tokenParam, jwtSecret)
-		if err != nil {
-			h.logger.Error("WebSocket token validation failed", zap.Error(err))
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			return
-		}
-
-		// Use the user ID from the validated token
-		userID = claims.UserID
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
 	}
 
 	uid, err := uuid.Parse(userID.String())
@@ -517,42 +460,17 @@ func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {
 		return
 	}
 
-	// Log the WebSocket connection attempt
-	h.logger.Info("WebSocket connection attempt",
-		zap.String("user_id", uid.String()),
-		zap.String("remote_addr", c.Request.RemoteAddr))
-
-	// Upgrade the connection with enhanced error handling
 	ws, err := h.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		h.logger.Error("Failed to upgrade to WebSocket",
-			zap.Error(err),
-			zap.String("user_id", uid.String()),
-			zap.String("remote_addr", c.Request.RemoteAddr))
+		h.logger.Error("Failed to upgrade to WebSocket", zap.Error(err))
 		return
 	}
-	defer func() {
-		ws.Close()
-		h.logger.Info("WebSocket connection closed", zap.String("user_id", uid.String()))
-	}()
-
-	// Configure WebSocket
-	ws.SetReadLimit(1024 * 10) // 10KB message size limit
-	ws.SetReadDeadline(time.Now().Add(60 * time.Second))
-	ws.SetPongHandler(func(string) error {
-		ws.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
-	})
+	defer ws.Close()
 
 	// Subscribe to notifications for this user
 	notifChan, cancel, err := h.service.SubscribeToNotifications(uid)
 	if err != nil {
-		h.logger.Error("Failed to subscribe to notifications",
-			zap.Error(err),
-			zap.String("user_id", uid.String()))
-		ws.WriteJSON(map[string]interface{}{
-			"error": "Failed to subscribe to notifications",
-		})
+		h.logger.Error("Failed to subscribe to notifications", zap.Error(err))
 		return
 	}
 	defer cancel()
@@ -560,18 +478,13 @@ func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {
 	// Send initial count of unread notifications
 	unreadCount, err := h.service.CountUnread(c.Request.Context(), uid)
 	if err != nil {
-		h.logger.Error("Failed to count unread notifications",
-			zap.Error(err),
-			zap.String("user_id", uid.String()))
+		h.logger.Error("Failed to count unread notifications", zap.Error(err))
 	} else {
 		countMsg := map[string]interface{}{
 			"type":  "count",
 			"count": unreadCount,
 		}
-		if writeErr := ws.WriteJSON(countMsg); writeErr != nil {
-			h.logger.Error("Failed to send initial count", zap.Error(writeErr))
-			return
-		}
+		ws.WriteJSON(countMsg)
 	}
 
 	// Create a ping ticker to keep connection alive
@@ -588,50 +501,22 @@ func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {
 			// Read WebSocket message
 			messageType, message, err := ws.ReadMessage()
 			if err != nil {
-				if websocket.IsUnexpectedCloseError(err,
-					websocket.CloseGoingAway,
-					websocket.CloseAbnormalClosure) {
-					h.logger.Error("WebSocket read error",
-						zap.Error(err),
-						zap.String("user_id", uid.String()))
-				}
+				h.logger.Error("WebSocket read error", zap.Error(err))
 				return
 			}
 
 			// Handle ping/pong
 			if messageType == websocket.PingMessage {
 				if err := ws.WriteMessage(websocket.PongMessage, nil); err != nil {
-					h.logger.Error("WebSocket pong write error", zap.Error(err))
+					h.logger.Error("WebSocket write error", zap.Error(err))
 					return
 				}
 				continue
 			}
 
-			// Handle other message types
-			if messageType == websocket.TextMessage && len(message) > 0 {
-				// Try to parse as JSON
-				var msgData map[string]interface{}
-				if jsonErr := json.Unmarshal(message, &msgData); jsonErr == nil {
-					// Handle command messages
-					if cmd, ok := msgData["command"].(string); ok {
-						switch cmd {
-						case "mark_read":
-							if id, ok := msgData["id"].(string); ok {
-								notifID, parseErr := uuid.Parse(id)
-								if parseErr == nil {
-									h.service.MarkAsRead(c.Request.Context(), notifID)
-								}
-							}
-						case "mark_all_read":
-							h.service.MarkAllAsRead(c.Request.Context(), uid)
-						}
-					}
-				}
-			}
-
-			h.logger.Info("Received WebSocket message",
-				zap.Binary("message", message),
-				zap.String("user_id", uid.String()))
+			// Process other messages (like marking notifications as read)
+			// Implement handling client messages if needed
+			h.logger.Info("Received WebSocket message", zap.Binary("message", message))
 		}
 	}()
 
@@ -646,18 +531,14 @@ func (h *NotificationHandler) WebSocketHandler(c *gin.Context) {
 
 			// Send notification to WebSocket
 			if err := ws.WriteJSON(dto.ToDTO(notification)); err != nil {
-				h.logger.Error("WebSocket write error",
-					zap.Error(err),
-					zap.String("user_id", uid.String()))
+				h.logger.Error("WebSocket write error", zap.Error(err))
 				return
 			}
 
 		case <-pingTicker.C:
 			// Send ping to keep connection alive
 			if err := ws.WriteMessage(websocket.PingMessage, nil); err != nil {
-				h.logger.Error("WebSocket ping error",
-					zap.Error(err),
-					zap.String("user_id", uid.String()))
+				h.logger.Error("WebSocket ping error", zap.Error(err))
 				return
 			}
 

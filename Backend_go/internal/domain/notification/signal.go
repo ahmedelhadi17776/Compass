@@ -3,10 +3,6 @@ package notification
 import (
 	"errors"
 	"sync"
-	"time"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -29,105 +25,71 @@ type Topic struct {
 	Mutex     *sync.Mutex
 }
 
-// signalRepository implements SignalRepository
-type signalRepository struct {
-	mutex     sync.Mutex
-	topics    map[string]map[string]chan *Notification
-	topicSize int
+// signalImpl implements the SignalRepository interface
+type signalImpl struct {
+	Topics    *sync.Map
+	TopicSize int
 }
 
 // NewSignalRepository creates a new signal repository
 func NewSignalRepository(topicSize int) SignalRepository {
-	return &signalRepository{
-		mutex:     sync.Mutex{},
-		topics:    make(map[string]map[string]chan *Notification),
-		topicSize: topicSize,
+	return &signalImpl{
+		Topics:    new(sync.Map),
+		TopicSize: topicSize,
 	}
 }
 
-// Subscribe subscribes to a topic
-func (r *signalRepository) Subscribe(topic string) (<-chan *Notification, func(), error) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+// Subscribe subscribes to notifications for a specific topic
+func (s *signalImpl) Subscribe(topic string) (<-chan *Notification, func(), error) {
+	topicInf, _ := s.Topics.LoadOrStore(topic, &Topic{Mutex: new(sync.Mutex)})
+	t := topicInf.(*Topic)
 
-	// Create topic if it doesn't exist
-	if _, exists := r.topics[topic]; !exists {
-		r.topics[topic] = make(map[string]chan *Notification)
-	}
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
 
-	// Create a buffered channel for notifications
-	ch := make(chan *Notification, r.topicSize)
+	// Create buffered channel to prevent blocking
+	ch := make(chan *Notification, s.TopicSize)
+	t.Listeners = append(t.Listeners, ch)
 
-	// Generate a unique subscriber ID
-	subscriberID := uuid.New().String()
+	// Return read-only channel and cleanup function
+	return ch, func() {
+		t.Mutex.Lock()
+		defer t.Mutex.Unlock()
 
-	// Add subscriber to the topic
-	r.topics[topic][subscriberID] = ch
-
-	// Create a cancel function
-	cancel := func() {
-		r.mutex.Lock()
-		defer r.mutex.Unlock()
-
-		if topicMap, exists := r.topics[topic]; exists {
-			delete(topicMap, subscriberID)
-
-			// Clean up topic if no subscribers left
-			if len(topicMap) == 0 {
-				delete(r.topics, topic)
+		for i := 0; i < len(t.Listeners); i++ {
+			if t.Listeners[i] == ch {
+				// Remove channel from listeners
+				t.Listeners = append(t.Listeners[:i], t.Listeners[i+1:]...)
+				close(ch) // Close the channel
+				break
 			}
 		}
-
-		close(ch)
-	}
-
-	return ch, cancel, nil
+	}, nil
 }
 
 // Publish publishes a notification to a topic
-func (r *signalRepository) Publish(topic string, notification *Notification) error {
-	r.mutex.Lock()
-
-	// Create topic if it doesn't exist
-	if _, exists := r.topics[topic]; !exists {
-		r.topics[topic] = make(map[string]chan *Notification)
-		r.mutex.Unlock()
-		return nil // No subscribers yet, so nothing to do
+func (s *signalImpl) Publish(topic string, notification *Notification) error {
+	topicInf, ok := s.Topics.Load(topic)
+	if !ok {
+		return ErrEmptyTopic
 	}
 
-	// Get a copy of subscribers to avoid deadlock while iterating
-	subscribers := make([]chan *Notification, 0, len(r.topics[topic]))
-	for _, ch := range r.topics[topic] {
-		subscribers = append(subscribers, ch)
-	}
-	r.mutex.Unlock()
+	t := topicInf.(*Topic)
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
 
-	// Log notification publishing
-	subscriberCount := len(subscribers)
-	if subscriberCount > 0 {
-		logrus.WithFields(logrus.Fields{
-			"notification_id": notification.ID,
-			"topic":           topic,
-			"subscribers":     subscriberCount,
-		}).Debug("Publishing notification to subscribers")
+	if len(t.Listeners) == 0 {
+		return ErrEmptyTopic
 	}
 
-	// Publish to each subscriber in a non-blocking way
-	for _, ch := range subscribers {
-		// Use a goroutine to ensure we don't block if a channel is full
-		go func(channel chan *Notification) {
-			// Create a timeout context for sending
-			select {
-			case channel <- notification:
-				// Successfully sent
-			case <-time.After(100 * time.Millisecond):
-				// Timed out - channel might be blocked
-				logrus.WithFields(logrus.Fields{
-					"notification_id": notification.ID,
-					"topic":           topic,
-				}).Warn("Failed to deliver notification to subscriber (channel full or blocked)")
-			}
-		}(ch)
+	// Send notification to all listeners
+	for _, listener := range t.Listeners {
+		// Non-blocking send to prevent slowdowns
+		select {
+		case listener <- notification:
+		default:
+			// Channel is full, continue to next listener
+		}
 	}
 
 	return nil

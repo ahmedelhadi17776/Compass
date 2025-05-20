@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 import uuid
 import asyncio
-import jwt
 
 from ai_services.llm.llm_service import LLMService
 from orchestration.ai_orchestrator import AIOrchestrator
@@ -79,7 +78,6 @@ def get_or_create_orchestrator(session_id: str) -> AIOrchestrator:
         logger.info(f"Creating new orchestrator for session {session_id}")
         orchestrator_instances[session_id] = AIOrchestrator()
     return orchestrator_instances[session_id]
-
 
 @router.get("/rag/stats/{domain}")
 async def get_rag_stats(
@@ -394,7 +392,6 @@ async def create_entity(
 @router.post("/process/stream")
 async def process_ai_request_stream(
     request: AIRequest,
-    request_obj: Request,
     session_id: Optional[str] = Cookie(None),
     authorization: Optional[str] = Header(None)
 ) -> StreamingResponse:
@@ -409,32 +406,21 @@ async def process_ai_request_stream(
         logger.info(
             f"Streaming prompt: {request.prompt[:50]}{'...' if len(request.prompt) > 50 else ''}")
 
-        # Extract user information from JWT token
-        user_id = None
-        organization_id = None
-        if authorization and authorization.startswith("Bearer "):
-            try:
-                token = authorization.split(" ")[1]
-                claims = jwt.decode(token, settings.jwt_secret_key, algorithms=[
-                                    settings.jwt_algorithm])
-                user_id = claims.get("user_id")
-                organization_id = claims.get("org_id")
-                logger.info(f"Extracted user_id: {user_id} from token")
-            except Exception as e:
-                logger.warning(f"Failed to decode JWT token: {str(e)}")
-
-        # Get client information from the request object
-        client_ip = request_obj.client.host if request_obj.client else None
-        user_agent = request_obj.headers.get("user-agent")
+        # Log auth token for debugging (mask most of it)
+        if authorization:
+            masked_token = authorization[:15] + \
+                "..." if len(authorization) > 15 else authorization
+            logger.info(f"Received authorization token: {masked_token}")
+        else:
+            logger.warning("No authorization token received")
 
         # Get or create orchestrator for this session
         orchestrator = get_or_create_orchestrator(active_session_id)
 
         # Map session ID to a numeric user ID for the orchestrator
         # Use a hash of the session ID to get a consistent integer
-        orchestrator_user_id = int(hash(active_session_id) % 100000)
-        logger.info(
-            f"Processing streaming request for user_id: {orchestrator_user_id}")
+        user_id = int(hash(active_session_id) % 100000)
+        logger.info(f"Processing streaming request for user_id: {user_id}")
 
         # Create the streaming response
         async def event_generator():
@@ -445,13 +431,9 @@ async def process_ai_request_stream(
                 logger.info("Starting token stream from orchestrator")
                 async for token in orchestrator.process_request_stream(
                     user_input=request.prompt,
-                    user_id=orchestrator_user_id,
+                    user_id=user_id,
                     domain=request.domain or "default",
-                    auth_token=authorization,  # Pass the authorization header
-                    client_ip=client_ip,
-                    user_agent=user_agent,
-                    real_user_id=user_id,
-                    organization_id=organization_id
+                    auth_token=authorization  # Pass the authorization header
                 ):
                     # Format as SSE event
                     if token:

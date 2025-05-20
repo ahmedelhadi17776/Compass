@@ -49,12 +49,6 @@ type Repository interface {
 	// Heatmap related methods
 	LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error
 	GetHeatmapData(ctx context.Context, userID uuid.UUID, startDate time.Time, endDate time.Time) (map[string]int, error)
-
-	// Analytics methods
-	RecordHabitActivity(ctx context.Context, analytics *HabitAnalytics) error
-	GetHabitAnalytics(ctx context.Context, filter AnalyticsFilter) ([]HabitAnalytics, int64, error)
-	GetHabitActivitySummary(ctx context.Context, habitID uuid.UUID, startTime, endTime time.Time) (map[string]int, error)
-	GetUserHabitActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error)
 }
 
 type repository struct {
@@ -402,95 +396,4 @@ func (r *repository) GetUncompletedHabitsDueToday(ctx context.Context) ([]Habit,
 		Find(&habits).Error
 
 	return habits, err
-}
-
-// Analytics implementation
-func (r *repository) RecordHabitActivity(ctx context.Context, analytics *HabitAnalytics) error {
-	return r.db.WithContext(ctx).Create(analytics).Error
-}
-
-func (r *repository) GetHabitAnalytics(ctx context.Context, filter AnalyticsFilter) ([]HabitAnalytics, int64, error) {
-	var analytics []HabitAnalytics
-	var total int64
-	query := r.db.WithContext(ctx).Model(&HabitAnalytics{})
-
-	if filter.HabitID != nil {
-		query = query.Where("habit_id = ?", *filter.HabitID)
-	}
-	if filter.UserID != nil {
-		query = query.Where("user_id = ?", *filter.UserID)
-	}
-	if filter.Action != nil {
-		query = query.Where("action = ?", *filter.Action)
-	}
-	if filter.StartTime != nil && filter.EndTime != nil {
-		query = query.Where("timestamp BETWEEN ? AND ?", *filter.StartTime, *filter.EndTime)
-	} else if filter.StartTime != nil {
-		query = query.Where("timestamp >= ?", *filter.StartTime)
-	} else if filter.EndTime != nil {
-		query = query.Where("timestamp <= ?", *filter.EndTime)
-	}
-
-	err := query.Count(&total).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	err = query.Order("timestamp DESC").
-		Offset(filter.Page * filter.PageSize).
-		Limit(filter.PageSize).
-		Find(&analytics).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return analytics, total, nil
-}
-
-func (r *repository) GetHabitActivitySummary(ctx context.Context, habitID uuid.UUID, startTime, endTime time.Time) (map[string]int, error) {
-	var results []struct {
-		Action string
-		Count  int
-	}
-
-	err := r.db.WithContext(ctx).Model(&HabitAnalytics{}).
-		Select("action, count(*) as count").
-		Where("habit_id = ? AND timestamp BETWEEN ? AND ?", habitID, startTime, endTime).
-		Group("action").
-		Find(&results).Error
-
-	if err != nil {
-		return nil, err
-	}
-
-	summary := make(map[string]int)
-	for _, result := range results {
-		summary[result.Action] = result.Count
-	}
-
-	return summary, nil
-}
-
-func (r *repository) GetUserHabitActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error) {
-	var results []struct {
-		Action string
-		Count  int
-	}
-
-	err := r.db.WithContext(ctx).Model(&HabitAnalytics{}).
-		Select("action, count(*) as count").
-		Where("user_id = ? AND timestamp BETWEEN ? AND ?", userID, startTime, endTime).
-		Group("action").
-		Find(&results).Error
-
-	if err != nil {
-		return nil, err
-	}
-
-	summary := make(map[string]int)
-	for _, result := range results {
-		summary[result.Action] = result.Count
-	}
-
-	return summary, nil
 }
