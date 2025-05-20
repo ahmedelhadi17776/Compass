@@ -343,6 +343,19 @@ func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid
 	// Store current streak before unmarking
 	currentStreak := habit.CurrentStreak
 
+
+	lastCompletedDate := time.Now()
+	if habit.LastCompletedDate != nil {
+		lastCompletedDate = *habit.LastCompletedDate
+	}
+
+	// First remove the completion log for heatmap
+	if err := s.repo.RemoveHabitCompletion(ctx, id, userID, lastCompletedDate); err != nil {
+		log.Printf("failed to remove habit completion log: %v", err)
+		// Don't return here as we still want to unmark the habit
+	}
+
+	// Then unmark the habit as completed
 	if err := s.repo.UnmarkCompleted(ctx, id, userID); err != nil {
 		return err
 	}

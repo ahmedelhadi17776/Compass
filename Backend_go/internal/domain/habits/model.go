@@ -70,9 +70,9 @@ func (Habit) TableName() string {
 // HabitCompletionLog represents a record of each habit completion
 type HabitCompletionLog struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	HabitID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
-	Date      time.Time `gorm:"not null;index"`
+	HabitID   uuid.UUID `gorm:"type:uuid;not null;index:idx_habit_completion,priority:1"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index:idx_habit_completion,priority:2;index:idx_user_date,priority:1"`
+	Date      time.Time `gorm:"not null;index:idx_habit_completion,priority:3;index:idx_user_date,priority:2"`
 	CreatedAt time.Time `gorm:"not null;default:current_timestamp"`
 }
 

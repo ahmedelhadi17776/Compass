@@ -13,6 +13,7 @@ import time
 import asyncio
 from ai_services.base.mongo_client import get_mongo_client
 from datetime import datetime
+from ai_services.rag.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class AIOrchestrator:
         self.max_history_length = 10
         self.mcp_client = None
         self._init_lock = asyncio.Lock()
+        self.rag_service = RAGService()  # Initialize RAG service
 
         # MongoDB client for direct database operations
         self.mongo_client = get_mongo_client()
@@ -359,18 +361,24 @@ class AIOrchestrator:
             # Get available tools and format system prompt
             tools = await self._get_available_tools()
             formatted_tools = self._format_tools_for_prompt(tools)
-            system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+            
+            # Get relevant context from RAG
+            relevant_context = await self.rag_service.get_relevant_context(user_input)
+            self.logger.info("Retrieved relevant context from RAG service")
 
-            # First, get complete response to check for tool calls - this approach preserves tool functionality
-            self.logger.info(
-                "Getting complete response to check for tool calls")
+            # Enhance system prompt with RAG context
+            enhanced_system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+            if relevant_context:
+                enhanced_system_prompt += f"\n\nRelevant context from knowledge base:\n{relevant_context}"
+
+            # First, get complete response to check for tool calls
             complete_response = await self.llm_service.generate_response(
                 prompt=user_input,
                 context={
-                    "system_prompt": system_prompt,
+                    "system_prompt": enhanced_system_prompt,
                     "conversation_history": messages
                 },
-                stream=False  # Important: no streaming for tool detection
+                stream=False
             )
 
             # Extract text from response
@@ -492,7 +500,7 @@ class AIOrchestrator:
                 stream_generator = await self.llm_service.generate_response(
                     prompt=user_input,
                     context={
-                        "system_prompt": system_prompt,
+                        "system_prompt": enhanced_system_prompt,
                         "conversation_history": messages
                     },
                     stream=True,
