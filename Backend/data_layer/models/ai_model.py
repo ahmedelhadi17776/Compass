@@ -29,6 +29,14 @@ class ModelProvider(str, Enum):
     COHERE = "cohere"
 
 
+class BillingType(str, Enum):
+    """Billing types for AI models."""
+    PAY_AS_YOU_GO = "pay-as-you-go"
+    PROVISIONED = "provisioned"
+    QUOTA_BASED = "quota-based"
+    HYBRID = "hybrid"
+
+
 class AIModel(MongoBaseModel):
     """AI model metadata and configuration."""
 
@@ -44,6 +52,22 @@ class AIModel(MongoBaseModel):
         default_factory=dict, description="Model configuration")
     metrics: Dict[str, Any] = Field(
         default_factory=dict, description="Model performance metrics")
+
+    # Billing configuration
+    billing_type: BillingType = Field(
+        default=BillingType.PAY_AS_YOU_GO, description="Billing type for this model")
+    input_token_cost_per_million: float = Field(
+        default=0.0, description="Cost per million input tokens")
+    output_token_cost_per_million: float = Field(
+        default=0.0, description="Cost per million output tokens")
+    provisioned_capacity: Optional[int] = Field(
+        None, description="Provisioned capacity in tokens per hour")
+    provisioned_cost_per_hour: Optional[float] = Field(
+        None, description="Cost per hour for provisioned capacity")
+    quota_limit: Optional[int] = Field(
+        None, description="Token quota limit for quota-based billing")
+    quota_reset_interval: Optional[str] = Field(
+        None, description="Interval for quota reset (daily, weekly, monthly)")
 
     # Set collection name
     collection_name: ClassVar[str] = "ai_models"
@@ -65,6 +89,24 @@ class ModelUsage(MongoBaseModel):
         True, description="Whether the request was successful")
     error: Optional[str] = Field(
         None, description="Error message if request failed")
+
+    # Cost tracking
+    input_cost: float = Field(0.0, description="Cost for input tokens")
+    output_cost: float = Field(0.0, description="Cost for output tokens")
+    total_cost: float = Field(0.0, description="Total cost for this usage")
+    billing_type: BillingType = Field(
+        default=BillingType.PAY_AS_YOU_GO, description="Billing type used")
+    quota_applied: bool = Field(
+        False, description="Whether quota was applied")
+    quota_exceeded: bool = Field(
+        False, description="Whether quota was exceeded")
+
+    # Request metadata
+    request_id: str = Field(..., description="Unique request identifier")
+    endpoint: str = Field(..., description="API endpoint used")
+    client_ip: Optional[str] = Field(None, description="Client IP address")
+    user_agent: Optional[str] = Field(None, description="User agent string")
+    organization_id: Optional[str] = Field(None, description="Organization ID")
 
     # Set collection name
     collection_name: ClassVar[str] = "model_usage"

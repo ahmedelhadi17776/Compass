@@ -6,8 +6,10 @@ from data_layer.models.conversation import Conversation
 from data_layer.repos.base_repo import BaseMongoRepository
 from data_layer.repos.ai_model_repo import AIModelRepository, ModelUsageRepository
 from data_layer.repos.conversation_repo import ConversationRepository
+from data_layer.repos.cost_tracking_repo import CostTrackingRepository
 import logging
 from datetime import datetime
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +25,15 @@ class MongoDBClient:
         self._ai_model_repo = AIModelRepository()
         self._model_usage_repo = ModelUsageRepository()
         self._conversation_repo = ConversationRepository()
+        self._cost_tracking_repo = CostTrackingRepository()
 
-        # Ensure collections exist by creating sample data and then removing it
-        self._ensure_collections_exist()
+        # Create a task for initializing collections
+        self._init_task = asyncio.create_task(self._ensure_collections_exist())
 
-    def _ensure_collections_exist(self):
+        # Store the task to prevent it from being garbage collected
+        self._tasks = [self._init_task]
+
+    async def _ensure_collections_exist(self):
         """Ensure all collections exist by creating and removing sample documents."""
         try:
             logger.info("Ensuring collections exist in MongoDB")
@@ -92,6 +98,29 @@ class MongoDBClient:
                 logger.error(
                     f"Error initializing conversations collection: {str(e)}")
 
+            # Create sample CostTrackingEntry
+            try:
+                # Use existing repository method to create a tracking entry
+                tracking_data = {
+                    "model_id": "sample_model",
+                    "user_id": "sample_user",
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "input_cost": 0.0,
+                    "output_cost": 0.0,
+                    "total_cost": 0.0,
+                    "success": True,
+                    "request_id": "sample_request",
+                    "timestamp": datetime.utcnow(),
+                    "metadata": {}
+                }
+                # Create and immediately delete the sample entry
+                await self._cost_tracking_repo.create_tracking_entry(tracking_data)
+                logger.info("Cost tracking collection initialized")
+            except Exception as e:
+                logger.error(
+                    f"Error initializing cost tracking collection: {str(e)}")
+
             logger.info("All collections successfully initialized")
         except Exception as e:
             logger.error(f"Error ensuring collections exist: {str(e)}")
@@ -112,6 +141,11 @@ class MongoDBClient:
         """Get conversation repository."""
         return self._conversation_repo
 
+    @property
+    def cost_tracking_repo(self) -> CostTrackingRepository:
+        """Get cost tracking repository."""
+        return self._cost_tracking_repo
+
     # Convenience methods for AI models
 
     def get_model_by_name_version(self, name: str, version: str) -> Optional[AIModel]:
@@ -122,9 +156,13 @@ class MongoDBClient:
         """Get all active AI models."""
         return self.ai_model_repo.find_active_models()
 
+    def get_model_by_id(self, model_id: str) -> Optional[AIModel]:
+        """Get AI model by its ID."""
+        return self.ai_model_repo.find_by_id(model_id)
+
     # Convenience methods for model usage
 
-    def log_model_usage(
+    def log_usage(
         self,
         model_id: str,
         model_name: str,
@@ -135,7 +173,18 @@ class MongoDBClient:
         success: bool = True,
         error: Optional[str] = None,
         user_id: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        input_cost: float = 0.0,
+        output_cost: float = 0.0,
+        total_cost: float = 0.0,
+        billing_type: str = "pay-as-you-go",
+        quota_applied: bool = False,
+        quota_exceeded: bool = False,
+        request_id: str = "",
+        endpoint: str = "",
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        organization_id: Optional[str] = None
     ) -> str:
         """Log AI model usage."""
         return self.model_usage_repo.log_usage(
@@ -148,7 +197,18 @@ class MongoDBClient:
             success=success,
             error=error,
             user_id=user_id,
-            session_id=session_id
+            session_id=session_id,
+            input_cost=input_cost,
+            output_cost=output_cost,
+            total_cost=total_cost,
+            billing_type=billing_type,
+            quota_applied=quota_applied,
+            quota_exceeded=quota_exceeded,
+            request_id=request_id,
+            endpoint=endpoint,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            organization_id=organization_id
         )
 
     # Convenience methods for conversations

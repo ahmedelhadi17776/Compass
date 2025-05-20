@@ -16,6 +16,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 class AIOrchestrator:
     def __init__(self):
         self.llm_service = LLMService()
@@ -120,24 +121,15 @@ class AIOrchestrator:
         return tool_calls
 
     async def edit_todo_with_context(self, user_query: str, user_id: int, auth_token: Optional[str] = None) -> Dict[str, Any]:
-        """Process a todo editing request by fetching todos first, then using AI to decide what to edit.
-        
-        Args:
-            user_query: The user's request about editing a todo
-            user_id: The ID of the user
-            auth_token: Optional auth token
-            
-        Returns:
-            Result of the update operation
-        """
         try:
-            self.logger.info(f"Processing todo edit request for user {user_id}")
-            
+            self.logger.info(
+                f"Processing todo edit request for user {user_id}")
+
             # Step 1: Fetch todos using get_items tool
             mcp_client = await self._get_mcp_client()
             if not mcp_client:
                 return {"status": "error", "error": "MCP client not available"}
-                
+
             # Fetch all todos for context
             todos_result = await mcp_client.call_tool(
                 "get_items",
@@ -146,15 +138,16 @@ class AIOrchestrator:
                     "authorization": auth_token
                 }
             )
-            
+
             if todos_result.get("status") != "success":
                 error_msg = todos_result.get("error", "Failed to fetch todos")
                 self.logger.error(f"Failed to fetch todos: {error_msg}")
                 return {"status": "error", "error": error_msg}
-                
+
             # Extract todos from the result
-            todos_context = self._make_serializable(todos_result.get("content", {}))
-            
+            todos_context = self._make_serializable(
+                todos_result.get("content", {}))
+
             # Step 2: Generate a prompt for the AI to analyze the todos and user request
             prompt = f"""
             User wants to edit a todo with this request: "{user_query}"
@@ -168,47 +161,52 @@ class AIOrchestrator:
             
             Respond with a JSON object containing the todo_id and update fields.
             """
-            
+
             # Call the LLM to analyze todos and user request
-            analysis_response = await self.llm_service.generate_response(
+            response = await self.llm_service.generate_response(
                 prompt=prompt,
                 context={
                     "system_prompt": "You are a helpful assistant that analyzes todo items and user requests. Identify which todo the user wants to edit and what changes they want to make. Respond with a JSON object that includes todo_id and the fields to update."
                 },
                 stream=False
             )
-            
+
             # Extract the AI's suggestion
             update_info = None
-            try:
-                response_text = analysis_response.get("text", "")
-                # Try to extract JSON from the response
-                import re
-                json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
-                if json_match:
-                    json_text = json_match.group(1)
-                else:
-                    json_text = response_text
-                    
-                # Clean up the text to make sure it's valid JSON
-                json_text = re.sub(r'[^\x20-\x7E]', '', json_text)
-                update_info = json.loads(json_text)
-            except Exception as e:
-                self.logger.error(f"Failed to parse LLM response: {str(e)}")
-                return {"status": "error", "error": f"Failed to parse AI suggestion: {str(e)}"}
-                
+            if isinstance(response, dict):
+                response_text = response.get("text", "")
+                try:
+                    # Try to extract JSON from the response
+                    import re
+                    json_match = re.search(
+                        r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+                    if json_match:
+                        json_text = json_match.group(1)
+                    else:
+                        json_text = response_text
+
+                    # Clean up the text to make sure it's valid JSON
+                    json_text = re.sub(r'[^\x20-\x7E]', '', json_text)
+                    update_info = json.loads(json_text)
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to parse LLM response: {str(e)}")
+                    return {"status": "error", "error": f"Failed to parse AI suggestion: {str(e)}"}
+            else:
+                return {"status": "error", "error": "Invalid response format from LLM"}
+
             if not update_info or "todo_id" not in update_info:
                 return {"status": "error", "error": "AI couldn't identify which todo to update"}
-                
+
             # Step 3: Call the update_todo tool with the extracted information
             todo_id = update_info.pop("todo_id", None)
             if not todo_id:
                 return {"status": "error", "error": "No todo ID provided for update"}
-                
+
             # Add authorization if provided
             if auth_token:
                 update_info["authorization"] = auth_token
-                
+
             # Call the update tool
             update_result = await mcp_client.call_tool(
                 "todos.update",
@@ -217,11 +215,11 @@ class AIOrchestrator:
                     **update_info
                 }
             )
-            
+
             # Return the result
             if update_result.get("status") == "success":
                 return {
-                    "status": "success", 
+                    "status": "success",
                     "message": "Todo updated successfully",
                     "content": self._make_serializable(update_result.get("content", {}))
                 }
@@ -231,9 +229,10 @@ class AIOrchestrator:
                     "error": update_result.get("error", "Unknown error updating todo"),
                     "type": "api_error"
                 }
-                
+
         except Exception as e:
-            self.logger.error(f"Error in edit_todo_with_context: {str(e)}", exc_info=True)
+            self.logger.error(
+                f"Error in edit_todo_with_context: {str(e)}", exc_info=True)
             return {"status": "error", "error": str(e), "type": "function_error"}
 
     def _get_conversation_history(self, user_id: int) -> ConversationHistory:
@@ -294,7 +293,17 @@ class AIOrchestrator:
                 f"Error converting object to serializable form: {str(e)}")
             return str(obj)
 
-    async def process_request_stream(self, user_input: str, user_id: int, domain: Optional[str] = None, auth_token: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
+    async def process_request_stream(
+        self,
+        user_input: str,
+        user_id: int,
+        domain: Optional[str] = None,
+        auth_token: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        real_user_id: Optional[str] = None,
+        organization_id: Optional[str] = None
+    ) -> AsyncIterator[Dict[str, Any]]:
         """Process an AI request with MCP integration and stream the response tokens."""
         try:
             start_time = time.time()
@@ -330,7 +339,14 @@ class AIOrchestrator:
                     conversation_id=conversation.id,
                     role="user",
                     content=user_input,
-                    metadata={"domain": domain, "streaming": True}
+                    metadata={
+                        "domain": domain,
+                        "streaming": True,
+                        "client_ip": client_ip,
+                        "user_agent": user_agent,
+                        "real_user_id": real_user_id,
+                        "organization_id": organization_id
+                    }
                 )
                 self.logger.info(
                     f"Stored user message for streaming in conversation {conversation.id}")
@@ -455,7 +471,12 @@ class AIOrchestrator:
                         context={
                             "system_prompt": "Format the tool results in a natural, helpful way for the user."
                         },
-                        stream=True
+                        stream=True,
+                        user_id=real_user_id,
+                        session_id=session_id,
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        organization_id=organization_id
                     )
 
                     tool_info = last_tool_call
@@ -474,7 +495,12 @@ class AIOrchestrator:
                         "system_prompt": system_prompt,
                         "conversation_history": messages
                     },
-                    stream=True
+                    stream=True,
+                    user_id=real_user_id,
+                    session_id=session_id,
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    organization_id=organization_id
                 )
 
                 # Stream tokens
@@ -495,7 +521,11 @@ class AIOrchestrator:
                         content=final_response,
                         metadata={
                             "tool_used": tool_info["name"] if tool_info else None,
-                            "streaming": True
+                            "streaming": True,
+                            "client_ip": client_ip,
+                            "user_agent": user_agent,
+                            "real_user_id": real_user_id,
+                            "organization_id": organization_id
                         }
                     )
                     self.logger.info(
@@ -508,7 +538,7 @@ class AIOrchestrator:
             # Log model usage in MongoDB
             try:
                 if hasattr(self.llm_service, "model_name"):
-                    self.mongo_client.log_model_usage(
+                    self.mongo_client.model_usage_repo.log_usage(
                         model_id="1",  # Default model ID
                         model_name=self.llm_service.model_name,
                         request_type="streaming_request",
@@ -539,3 +569,12 @@ class AIOrchestrator:
             self.logger.error(
                 f"Error in process_request_stream: {str(e)}", exc_info=True)
             yield {"token": f"I'm sorry, but I encountered an error: {str(e)}", "error": True}
+
+    async def log_model_usage(self, **kwargs):
+        """Log model usage to MongoDB."""
+        try:
+            if hasattr(self.llm_service, "model_name"):
+                self.mongo_client.model_usage_repo.log_usage(**kwargs)
+                self.logger.info("Logged model usage in MongoDB")
+        except Exception as e:
+            self.logger.error(f"Failed to log model usage: {str(e)}")

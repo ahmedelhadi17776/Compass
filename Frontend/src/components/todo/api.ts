@@ -5,7 +5,7 @@ import { Habit } from './types-habit';
 const API_BASE_URL = 'http://localhost:8000';
 
 // Configure axios defaults
-axios.defaults.headers.common['Accept-Encoding'] = 'gzip, deflate';
+//axios.defaults.headers.common['Accept-Encoding'] = 'gzip, deflate';
 
 // Todo API functions
 export const fetchTodos = async (userId: string, listId?: string): Promise<Todo[]> => {
