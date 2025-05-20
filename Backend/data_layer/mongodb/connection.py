@@ -1,10 +1,9 @@
-from typing import Optional, Dict, Any, List, cast, TYPE_CHECKING
+from typing import Optional, Any
 from pymongo import MongoClient
 from pymongo.database import Database
 from pymongo.collection import Collection
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import logging
-import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from functools import lru_cache
 from core.config import settings
@@ -14,6 +13,14 @@ logger = logging.getLogger(__name__)
 # Singleton MongoDB client - use Any for global variables to avoid type errors
 _mongodb_client: Any = None
 _async_mongodb_client: Any = None
+
+# Connection pool settings
+MAX_POOL_SIZE = 100  # Increase max connections for high traffic
+MIN_POOL_SIZE = 20   # Higher minimum pool size to keep connections ready
+MAX_IDLE_TIME_MS = 60000  # Allow connections to be idle for 1 minute
+CONNECT_TIMEOUT_MS = 5000
+SERVER_SELECTION_TIMEOUT_MS = 5000
+MAX_CONNECTING = 50  # Maximum number of connections being established simultaneously
 
 
 @lru_cache(maxsize=1)
@@ -38,7 +45,7 @@ def get_mongodb_uri() -> str:
 
 
 def get_mongodb_client() -> Any:
-    """Get MongoDB client singleton with connection pooling."""
+    """Get MongoDB client singleton with optimized connection pooling."""
     global _mongodb_client
 
     if _mongodb_client is None:
@@ -46,23 +53,23 @@ def get_mongodb_client() -> Any:
         logger.info(f"Connecting to MongoDB at {uri.split('@')[-1]}")
 
         try:
-            # Configure client with connection pooling and timeouts
+            # Configure client with enhanced connection pooling and timeouts
             _mongodb_client = MongoClient(
                 uri,
-                maxPoolSize=50,  # Maximum number of connections in the pool
-                minPoolSize=10,   # Minimum number of connections in the pool
-                # Max idle time for a connection (30 seconds)
-                maxIdleTimeMS=30000,
-                connectTimeoutMS=5000,  # Connection timeout (5 seconds)
-                # Server selection timeout (5 seconds)
-                serverSelectionTimeoutMS=5000,
+                maxPoolSize=MAX_POOL_SIZE,
+                minPoolSize=MIN_POOL_SIZE,
+                maxIdleTimeMS=MAX_IDLE_TIME_MS,
+                connectTimeoutMS=CONNECT_TIMEOUT_MS,
+                serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
                 retryWrites=True,  # Enable retryable writes
-                w='majority'  # Write concern for data durability
+                w='majority',  # Write concern for data durability
+                maxConnecting=MAX_CONNECTING,  # Limit concurrent connection establishments
+                waitQueueTimeoutMS=2000  # How long operations wait for a connection
             )
 
             # Test connection
             _mongodb_client.admin.command('ping')
-            logger.info("Successfully connected to MongoDB")
+            logger.info(f"Successfully connected to MongoDB with pool size: {MAX_POOL_SIZE}")
         except (ConnectionFailure, ServerSelectionTimeoutError) as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
             raise
@@ -71,7 +78,7 @@ def get_mongodb_client() -> Any:
 
 
 def get_async_mongodb_client() -> Any:
-    """Get async MongoDB client singleton."""
+    """Get async MongoDB client singleton with optimized connection pooling."""
     global _async_mongodb_client
 
     if _async_mongodb_client is None:
@@ -79,18 +86,20 @@ def get_async_mongodb_client() -> Any:
         logger.info(f"Connecting to MongoDB (async) at {uri.split('@')[-1]}")
 
         try:
-            # Configure async client
+            # Configure async client with enhanced connection pooling
             _async_mongodb_client = AsyncIOMotorClient(
                 uri,
-                maxPoolSize=50,
-                minPoolSize=10,
-                maxIdleTimeMS=30000,
-                connectTimeoutMS=5000,
-                serverSelectionTimeoutMS=5000,
+                maxPoolSize=MAX_POOL_SIZE,
+                minPoolSize=MIN_POOL_SIZE,
+                maxIdleTimeMS=MAX_IDLE_TIME_MS,
+                connectTimeoutMS=CONNECT_TIMEOUT_MS,
+                serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
                 retryWrites=True,
-                w='majority'
+                w='majority',
+                maxConnecting=MAX_CONNECTING,
+                waitQueueTimeoutMS=2000
             )
-            logger.info("Successfully created async MongoDB client")
+            logger.info(f"Successfully created async MongoDB client with pool size: {MAX_POOL_SIZE}")
         except Exception as e:
             logger.error(f"Failed to create async MongoDB client: {e}")
             raise
