@@ -48,6 +48,7 @@ type Repository interface {
 
 	// Heatmap related methods
 	LogHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error
+	RemoveHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error
 	GetHeatmapData(ctx context.Context, userID uuid.UUID, startDate time.Time, endDate time.Time) (map[string]int, error)
 }
 
@@ -345,6 +346,16 @@ func (r *repository) LogHabitCompletion(ctx context.Context, habitID uuid.UUID, 
 	}
 
 	return r.db.WithContext(ctx).Create(&log).Error
+}
+
+func (r *repository) RemoveHabitCompletion(ctx context.Context, habitID uuid.UUID, userID uuid.UUID, date time.Time) error {
+	// Delete the completion log for the specific habit, user and date
+	result := r.db.WithContext(ctx).
+		Where("habit_id = ? AND user_id = ? AND DATE(date) = DATE(?)",
+			habitID, userID, date).
+		Delete(&HabitCompletionLog{})
+
+	return result.Error
 }
 
 func (r *repository) GetHeatmapData(ctx context.Context, userID uuid.UUID, startDate time.Time, endDate time.Time) (map[string]int, error) {
