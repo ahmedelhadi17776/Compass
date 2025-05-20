@@ -3,10 +3,10 @@ from sentence_transformers import SentenceTransformer
 import os
 
 class RAGService:
-    def __init__(self):
+    def __init__(self, embedder=None):
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.chroma_store_path = os.path.join(self.script_dir, "chroma_store")
-        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        self.embedder = embedder if embedder else SentenceTransformer("all-MiniLM-L6-v2")
         self.chroma_client = chromadb.PersistentClient(path=self.chroma_store_path)
         self.collection = self.chroma_client.get_collection("knowledge_base")
 

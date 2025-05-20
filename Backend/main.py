@@ -119,6 +119,17 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Redis connection failed: {str(e)}")
             raise
 
+        # Pre-load sentence transformer model
+        logger.info("Pre-loading sentence transformer model...")
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            app.state.sentence_transformer = model
+            logger.info("✅ Sentence transformer model loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load sentence transformer: {str(e)}")
+            raise
+
         # Initialize MongoDB
         async with mongodb_lifespan(app):
             # Initialize the MCP server if enabled

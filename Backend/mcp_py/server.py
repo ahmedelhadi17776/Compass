@@ -420,7 +420,7 @@ async def get_items(
     page_size: Optional[int] = None,
     user_id: Optional[str] = None  # Moved to end to de-emphasize
 ) -> Dict[str, Any]:
-    """Get items (todos or habits) with optional filters.
+    """Get/List/Show items (todos or habits) with optional filters.
 
     Args:
         item_type: Type of items to retrieve ("todos" or "habits")

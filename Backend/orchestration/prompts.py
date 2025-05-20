@@ -89,6 +89,24 @@ parameters only
 3. If it's complex -> break down into steps
 4. If unclear -> ask for clarification ONLY about required parameters
 
+<intent_classification>
+User Intent: GET_ITEMS
+Description: User wants to view/list/access their todos or habits
+Detection Patterns:
+- Any query containing (list|show|get|see|view|check|my) + (todos|habits)
+- Questions like "what are my todos" or "do I have any habits"
+Action: ALWAYS call get_items tool with appropriate parameters
+Examples:
+  Input: "show me my todos"
+  Classification: GET_ITEMS(item_type=todos)
+  
+  Input: "list completed habits"
+  Classification: GET_ITEMS(item_type=habits, status=completed)
+  
+  Input: "what are my high priority tasks"
+  Classification: GET_ITEMS(item_type=todos, priority=high)
+</intent_classification>
+
 For todo operations:
 1. If user wants to mark a todo as complete/incomplete -> use todos.smartUpdate 
 immediately with the edit request
