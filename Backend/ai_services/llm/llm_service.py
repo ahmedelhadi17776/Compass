@@ -1,14 +1,8 @@
 from typing import Dict, Any, Optional, List, Union, AsyncGenerator, cast, AsyncIterator
-from openai import OpenAI
-from openai.types.chat import ChatCompletionMessageParam
-from openai.types.chat.chat_completion import ChatCompletion, Choice
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-from openai._streaming import Stream
+from google import genai
+from google.genai import types
 from core.config import settings
 from utils.logging_utils import get_logger
-from core.mcp_state import get_mcp_client
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain.schema import format_document
 from ai_services.base.mongo_client import get_mongo_client
 import os
 import time
@@ -23,31 +17,20 @@ logger = logging.getLogger(__name__)
 
 class LLMService:
     def __init__(self):
-        # Use the GitHub token from environment variables
-        self.github_token = os.environ.get(
-            "GITHUB_TOKEN", settings.llm_api_key)
+        # Use the Gemini API key from environment variables
+        self.api_key = os.environ.get("GEMINI_API_KEY", settings.llm_api_key)
+        self.model_name = "gemini-2.5-flash-preview-04-17"
 
-        # Force the correct base URL and model from settings
-        self.base_url = "https://models.inference.ai.azure.com"
-        self.model_name = "gpt-4o-mini"
-
-        logger.info(f"Initializing LLM service with base URL: {self.base_url}")
         logger.info(f"Using model: {self.model_name}")
 
-        # Configure the OpenAI client with GitHub API settings
-        self.client = OpenAI(
-            api_key=self.github_token,
-            base_url=self.base_url
-        )
-        self.model = self.model_name
+        # Configure the Gemini client
+        self.client = genai.Client(api_key=self.api_key)
 
         # MongoDB client for storing model data
         self.mongo_client = get_mongo_client()
 
         # Default model ID
         self._current_model_id: Optional[str] = None
-
-        # Instead, create a flag to indicate initialization is needed
         self._model_initialized = False
 
     async def _initialize_model_id(self) -> None:
@@ -68,7 +51,7 @@ class LLMService:
                 model = self.mongo_client.ai_model_repo.create_model(
                     name=self.model_name,
                     version="1.0",
-                    provider=ModelProvider.OPENAI,
+                    provider=ModelProvider.GOOGLE,
                     type=ModelType.TEXT_GENERATION,
                     status="active",
                     capabilities={
@@ -109,6 +92,49 @@ class LLMService:
         except Exception as e:
             logger.error(f"Failed to log model usage in MongoDB: {str(e)}")
 
+    def _prepare_messages(
+        self,
+        prompt: str,
+        context: Optional[Dict] = None
+    ) -> List[types.Content]:
+        """Prepare messages for Gemini, including system prompt and history."""
+        contents: List[types.Content] = []
+        
+        # Start with system message if available
+        system_prompt = ""
+        if context and context.get("system_prompt"):
+            system_prompt = context["system_prompt"]
+        
+        # Process conversation history
+        history_text = ""
+        if context and context.get("conversation_history"):
+            history = context["conversation_history"]
+            
+            # Convert history to text format
+            for msg in history:
+                if isinstance(msg, dict):
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    history_text += f"{role.capitalize()}: {content}\n"
+                elif hasattr(msg, "content") and hasattr(msg, "role"):
+                    history_text += f"{msg.role.capitalize()}: {msg.content}\n"
+
+        # Combine system prompt, history, and current prompt
+        full_prompt = ""
+        if system_prompt:
+            full_prompt += f"Instructions: {system_prompt}\n\n"
+        if history_text:
+            full_prompt += f"Previous conversation:\n{history_text}\n"
+        full_prompt += f"User: {prompt}\nAssistant: "
+
+        # Create the content object
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=full_prompt)]
+        ))
+
+        return contents
+
     async def generate_response(
         self,
         prompt: str,
@@ -118,50 +144,42 @@ class LLMService:
     ) -> Union[Dict[str, Any], AsyncIterator[str]]:
         """Generate a response using the LLM."""
         try:
-            # Ensure model is initialized
             await self.ensure_model_initialized()
-
-            logger.info("Starting LLM response generation")
             start_time = time.time()
 
-            # Prepare messages and parameters
-            logger.debug("Preparing messages and parameters")
-            messages = self._prepare_messages(prompt, context)
-            params = self._prepare_model_parameters(model_parameters)
-            logger.debug(f"Using model parameters: {params}")
+            # Prepare messages with proper context
+            contents = self._prepare_messages(prompt, context)
 
-            if stream:
-                logger.info("Using streaming mode for response")
-                return self._stream_response(prompt, messages, params, start_time)
-
-            # Make the API request
-            logger.debug("Making API request")
-            response = await self._make_request(
-                "chat/completions",
-                messages=messages,
-                **params
+            # Prepare generation config
+            generation_config = types.GenerateContentConfig(
+                response_mime_type="text/plain",
+                temperature=model_parameters.get("temperature", 0.7) if model_parameters else 0.7,
+                candidate_count=1,
+                max_output_tokens=model_parameters.get("max_tokens", settings.llm_max_tokens) if model_parameters else settings.llm_max_tokens,
+                top_p=model_parameters.get("top_p", 0.95) if model_parameters else 0.95,
             )
 
-            # Process the response
-            if response and "choices" in response:
-                logger.debug("Processing successful response")
-                result = {
-                    "text": response["choices"][0]["message"]["content"],
-                    "model": response.get("model", "unknown"),
-                    "usage": response.get("usage", {}),
-                    "confidence": 0.9
-                }
+            if stream:
+                return self._stream_response(contents, generation_config, start_time)
 
-                # Update stats and log training data
-                latency = time.time() - start_time
-                logger.info(f"Response generated in {latency:.2f} seconds")
-                await self._update_model_stats(latency, True)
-                await self.log_training_data(prompt, result["text"])
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model=self.model_name,
+                contents=contents,
+                config=generation_config,
+            )
 
-                return result
-            else:
-                logger.error("Invalid response format from LLM API")
-                return {"error": "Invalid response format", "text": "", "confidence": 0.0}
+            result = {
+                "text": response.text,
+                "model": self.model_name,
+                "confidence": 0.9
+            }
+
+            latency = time.time() - start_time
+            await self._update_model_stats(latency, True)
+            await self.log_training_data(prompt, result["text"])
+
+            return result
 
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}", exc_info=True)
@@ -173,57 +191,33 @@ class LLMService:
 
     async def _stream_response(
         self,
-        prompt: str,
-        messages: List[ChatCompletionMessageParam],
-        params: Dict[str, Any],
+        contents: List[types.Content],
+        config: types.GenerateContentConfig,
         start_time: float
     ) -> AsyncIterator[str]:
         """Stream the response from the LLM token by token."""
-        logger.info("Starting streaming response")
         success = True
         full_text = ""
 
         try:
-            # Create a wrapper function to convert sync to async
-            async def stream_openai_response():
-                # Set streaming parameter
-                stream_params = {**params, "stream": True}
+            async def stream_response():
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content_stream,
+                    model=self.model_name,
+                    contents=contents,
+                    config=config,
+                )
 
-                try:
-                    response = await asyncio.to_thread(
-                        self.client.chat.completions.create,
-                        model=self.model,
-                        messages=messages,
-                        stream=True,
-                        **{k: v for k, v in params.items() if k != "stream"}
-                    )
+                for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
 
-                    logger.info("Stream created, yielding tokens")
-
-                    # Process each chunk in the stream
-                    for chunk in response:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            yield content
-                            # Small delay to avoid overwhelming the client
-                            await asyncio.sleep(0.01)
-
-                except Exception as e:
-                    logger.error(f"Error in OpenAI stream: {str(e)}")
-                    yield f"Error: {str(e)}"
-
-            # Create and return the async generator
-            generator = stream_openai_response()
-
-            # Collect the full response for training data
+            generator = stream_response()
             async for token in generator:
                 full_text += token
                 yield token
 
-            # Log the complete response for training data
-            await self.log_training_data(prompt, full_text)
-
-            # Update model stats
+            await self.log_training_data(contents[0].parts[0].text, full_text)
             latency = time.time() - start_time
             await self._update_model_stats(latency, success)
 
@@ -231,8 +225,6 @@ class LLMService:
             success = False
             logger.error(f"Error in streaming response: {str(e)}")
             yield f"Error: {str(e)}"
-
-            # Update model stats with failure
             latency = time.time() - start_time
             await self._update_model_stats(latency, success)
 
@@ -374,54 +366,6 @@ class LLMService:
             logger.error(
                 f"[LLM] ❌ API request failed: {str(e)}", exc_info=True)
             raise
-
-    def _prepare_messages(
-        self,
-        prompt: str,
-        context: Optional[Dict] = None
-    ) -> List[ChatCompletionMessageParam]:
-        logger.debug("Preparing messages for LLM")
-        messages: List[ChatCompletionMessageParam] = []
-
-        # Add system message with tool context if available
-        if context and context.get("system_prompt"):
-            logger.debug("Adding system message with tool context")
-            messages.append({
-                "role": "system",
-                "content": context["system_prompt"]
-            })
-        else:
-            logger.debug("Adding default system message")
-            messages.append({
-                "role": "system",
-                "content": "You are a helpful AI assistant."
-            })
-
-        # Process conversation history from LangChain memory
-        if context and context.get("conversation_history"):
-            logger.debug("Adding conversation history")
-            history = context["conversation_history"]
-
-            # If history is already in the format expected by OpenAI API
-            if isinstance(history, list) and all(isinstance(msg, dict) for msg in history):
-                for msg in history:
-                    if msg.get("role") in ["user", "assistant", "system"]:
-                        messages.append(msg)
-            # If history is in LangChain Message format
-            elif isinstance(history, list) and hasattr(history[0], "content") and hasattr(history[0], "role"):
-                for msg in history:
-                    messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
-
-        # Add current prompt
-        logger.debug("Adding current prompt")
-        messages.append({
-            "role": "user",
-            "content": prompt
-        })
-        return messages
 
     def _prepare_model_parameters(self, parameters: Optional[Dict] = None) -> Dict[str, Any]:
         # Default parameters optimized for tool calling
