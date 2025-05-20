@@ -7,6 +7,7 @@ from core.config import settings
 from orchestration.langchain_memory import ConversationMemoryManager
 from orchestration.prompts import SYSTEM_PROMPT
 from langchain.prompts import ChatPromptTemplate
+from data_layer.cache.ai_cache_manager import AICacheManager
 import logging
 import json
 import time
@@ -51,12 +52,17 @@ class AIOrchestrator:
         return self.mcp_client
 
     async def _get_available_tools(self) -> List[Dict[str, Any]]:
-        """Fetch available tools from MCP client."""
+        """Fetch available tools from MCP client with caching."""
         try:
+            # Try to get from cache first
+            cached_tools = await AICacheManager.get_cached_tools()
+            if cached_tools:
+                self.logger.info("Retrieved tools from cache")
+                return cached_tools
+
             mcp_client = await self._get_mcp_client()
             if not mcp_client:
-                self.logger.warning(
-                    "Could not get MCP client, returning empty tools list")
+                self.logger.warning("Could not get MCP client, returning empty tools list")
                 return []
 
             tools = await mcp_client.get_tools()
@@ -65,15 +71,16 @@ class AIOrchestrator:
             # Remove any auth-related parameters since we use JWT
             for tool in tools:
                 if "input_schema" in tool and "properties" in tool["input_schema"]:
-                    # Remove user_id and auth-related parameters for display in the prompt
-                    auth_params = ["user_id", "auth_token",
-                                   "token", "authorization"]
+                    auth_params = ["user_id", "auth_token", "token", "authorization"]
                     for param in auth_params:
                         if param in tool["input_schema"]["properties"]:
                             tool["input_schema"]["properties"].pop(param)
                     if "required" in tool["input_schema"]:
-                        tool["input_schema"]["required"] = [
-                            r for r in tool["input_schema"]["required"] if r not in auth_params]
+                        tool["input_schema"]["required"] = [r for r in tool["input_schema"]["required"] if r not in auth_params]
+
+            # Cache the tools
+            await AICacheManager.set_cached_tools(tools)
+            self.logger.info("Cached tools in Redis")
 
             return tools
         except Exception as e:
@@ -358,16 +365,25 @@ class AIOrchestrator:
             self.logger.debug(
                 f"Retrieved {len(messages)} conversation history messages")
 
-            # Get available tools and format system prompt
+            # Get tools and format system prompt with caching
             tools = await self._get_available_tools()
             formatted_tools = self._format_tools_for_prompt(tools)
             
+            # Try to get cached system prompt
+            enhanced_system_prompt = await AICacheManager.get_cached_system_prompt()
+            if not enhanced_system_prompt:
+                enhanced_system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+                # Cache the formatted system prompt
+                await AICacheManager.set_cached_system_prompt(enhanced_system_prompt)
+                self.logger.info("Cached formatted system prompt")
+            else:
+                self.logger.info("Retrieved system prompt from cache")
+
             # Get relevant context from RAG
             relevant_context = await self.rag_service.get_relevant_context(user_input)
             self.logger.info("Retrieved relevant context from RAG service")
 
-            # Enhance system prompt with RAG context
-            enhanced_system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+            # Add RAG context to system prompt
             if relevant_context:
                 enhanced_system_prompt += f"\n\nRelevant context from knowledge base:\n{relevant_context}"
 
