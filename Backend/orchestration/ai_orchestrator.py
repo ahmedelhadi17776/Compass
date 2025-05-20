@@ -4,7 +4,7 @@ from ai_services.llm.llm_service import LLMService
 from orchestration.ai_registry import ai_registry
 from core.mcp_state import get_mcp_client
 from core.config import settings
-from orchestration.langchain_memory import ConversationMemoryManager
+from ai_services.llm.mongodb_memory import get_mongodb_memory
 from orchestration.prompts import SYSTEM_PROMPT
 from langchain.prompts import ChatPromptTemplate
 from data_layer.cache.ai_cache_manager import AICacheManager
@@ -25,7 +25,6 @@ class AIOrchestrator:
         self.logger = logging.getLogger(__name__)
         self._current_model_id: Optional[int] = None
         self.ai_registry = ai_registry
-        self.memory_manager = ConversationMemoryManager(max_history_length=10)
         self.max_history_length = 10
         self.mcp_client = None
         self._init_lock = asyncio.Lock()
@@ -244,15 +243,6 @@ class AIOrchestrator:
                 f"Error in edit_todo_with_context: {str(e)}", exc_info=True)
             return {"status": "error", "error": str(e), "type": "function_error"}
 
-    def _get_conversation_history(self, user_id: int) -> ConversationHistory:
-        """Get conversation history for a user using LangChain memory."""
-        return self.memory_manager.convert_to_chat_history(user_id)
-
-    def _update_conversation_history(self, user_id: int, prompt: str, response: str) -> None:
-        """Update conversation history with new messages using LangChain memory."""
-        self.memory_manager.add_user_message(user_id, prompt)
-        self.memory_manager.add_ai_message(user_id, response)
-
     def _make_serializable(self, obj):
         """Convert non-serializable objects to serializable structures recursively."""
         # Base case: object is already a basic type
@@ -360,8 +350,9 @@ class AIOrchestrator:
                 self.logger.info(
                     f"Stored user message for streaming in conversation {conversation.id}")
 
-            # Get conversation history using LangChain memory
-            messages = self.memory_manager.get_langchain_messages(user_id)
+            # Get conversation history using MongoDB memory - just load, don't write
+            mongo_memory = get_mongodb_memory(user_id=user_id_str, session_id=session_id)
+            messages = mongo_memory.get_langchain_messages()
             self.logger.debug(
                 f"Retrieved {len(messages)} conversation history messages")
 
@@ -532,28 +523,23 @@ class AIOrchestrator:
                     final_response += token
                     yield {"token": token}
 
-            # Update conversation history with LangChain memory after streaming completes
-            if final_response:
-                self._update_conversation_history(
-                    user_id, user_input, final_response)
-
-                # Store assistant message in MongoDB
-                if conversation and conversation.id:
-                    self.mongo_client.add_message_to_conversation(
-                        conversation_id=conversation.id,
-                        role="assistant",
-                        content=final_response,
-                        metadata={
-                            "tool_used": tool_info["name"] if tool_info else None,
-                            "streaming": True,
-                            "client_ip": client_ip,
-                            "user_agent": user_agent,
-                            "real_user_id": real_user_id,
-                            "organization_id": organization_id
-                        }
-                    )
-                    self.logger.info(
-                        f"Stored streaming assistant response in conversation {conversation.id}")
+            # Store only assistant message in MongoDB (user message already stored above)
+            if final_response and conversation and conversation.id:
+                self.mongo_client.add_message_to_conversation(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=final_response,
+                    metadata={
+                        "tool_used": tool_info["name"] if tool_info else None,
+                        "streaming": True,
+                        "client_ip": client_ip,
+                        "user_agent": user_agent,
+                        "real_user_id": real_user_id,
+                        "organization_id": organization_id
+                    }
+                )
+                self.logger.info(
+                    f"Stored streaming assistant response in conversation {conversation.id}")
 
             execution_time = time.time() - start_time
             self.logger.info(
