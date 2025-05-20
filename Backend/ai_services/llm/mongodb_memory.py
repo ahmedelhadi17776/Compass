@@ -20,14 +20,16 @@ class MongoDBMessageHistory:
         user_id: str,
         session_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
-        domain: Optional[str] = None
+        domain: Optional[str] = None,
+        mongo_client=None
     ):
         """Initialize MongoDB chat message history."""
         self.user_id = user_id
         self.session_id = session_id or str(uuid.uuid4())
         self.conversation_id = conversation_id
         self.domain = domain
-        self.mongo_client = get_mongo_client()
+        # Use provided client or get the singleton
+        self.mongo_client = mongo_client or get_mongo_client()
         self.messages: List[BaseMessage] = []
 
         # Initialize conversation if not yet loaded
@@ -253,12 +255,16 @@ def get_mongodb_memory(
     domain: Optional[str] = None
 ) -> MongoDBMessageHistory:
     """Get MongoDB-backed chat message history."""
-    # Create our MongoDB-backed implementation
+    # Get the shared MongoDB client
+    mongo_client = get_mongo_client()
+    
+    # Create our MongoDB-backed implementation with the shared client
     mongo_history = MongoDBMessageHistory(
         user_id=user_id,
         session_id=session_id,
         conversation_id=conversation_id,
-        domain=domain
+        domain=domain,
+        mongo_client=mongo_client
     )
     
     return mongo_history
