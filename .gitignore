@@ -8,6 +8,7 @@ __pycache__/
 *.egg
 
 
+
 # Virtual Environment
 venv/
 venv312/
@@ -30,6 +31,10 @@ config.py
 .env.*.local
 *.ini
 
+!Backend/ai_services/rag/chroma_store/
+!Backend/ai_services/rag/chroma_store
+/Backend/ai_services/rag/chroma_store/
+/Backend/ai_services/rag/chroma_store/
 Backend/.env
 Backend/core/.env
 Backend/core/config.py
