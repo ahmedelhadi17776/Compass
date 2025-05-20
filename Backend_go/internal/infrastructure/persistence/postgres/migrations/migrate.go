@@ -108,6 +108,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&user.SessionAnalytics{},
 			&task.TaskAnalytics{},
 			&calendar.EventAnalytics{},
+			&habits.HabitAnalytics{},
 		}
 
 		// Migrate each model

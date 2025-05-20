@@ -39,9 +39,23 @@ func NewTaskHandler(service task.Service) *TaskHandler {
 // @Router /api/tasks [post]
 func (h *TaskHandler) CreateTask(c *gin.Context) {
 	var req dto.CreateTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.CreateTaskRequest); ok {
+			req = *validatedPtr
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.CreateTaskRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// Get creator ID from context (set by auth middleware)
@@ -255,9 +269,23 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	}
 
 	var req dto.UpdateTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.UpdateTaskRequest); ok {
+			req = *validatedPtr
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.UpdateTaskRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	input := task.UpdateTaskInput{
@@ -431,9 +459,23 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 	}
 
 	var req dto.UpdateTaskStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.UpdateTaskStatusRequest); ok {
+			req = *validatedPtr
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.UpdateTaskStatusRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	status := task.TaskStatus(req.Status)
@@ -481,9 +523,23 @@ func (h *TaskHandler) AssignTask(c *gin.Context) {
 	}
 
 	var req dto.AssignTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.AssignTaskRequest); ok {
+			req = *validatedPtr
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.AssignTaskRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	assigneeID, err := uuid.Parse(req.AssigneeID)
@@ -892,9 +948,23 @@ func (h *TaskHandler) RecordTaskActivity(c *gin.Context) {
 	}
 
 	var request dto.RecordUserActivityRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	validatedModel, exists := c.Get("validated_model")
+
+	if exists {
+		// If validation middleware provided the model, use it
+		if validatedPtr, ok := validatedModel.(*dto.RecordUserActivityRequest); ok {
+			request = *validatedPtr
+		} else {
+			log.Errorf("Invalid model type: %T, expected *dto.RecordUserActivityRequest", validatedModel)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model type from validation"})
+			return
+		}
+	} else {
+		// If validation middleware didn't run, do manual binding
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// Verify task exists

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/mfa"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -83,6 +84,14 @@ var (
 	ErrAccountInactive    = errors.New("account is inactive")
 )
 
+// MFASetupResponse represents the response for MFA setup
+type MFASetupResponse struct {
+	Secret       string   `json:"secret"`
+	QRCodeBase64 string   `json:"qr_code_base64"`
+	OTPAuthURL   string   `json:"otp_auth_url"`
+	BackupCodes  []string `json:"backup_codes,omitempty"`
+}
+
 // Service interface
 type Service interface {
 	CreateUser(ctx context.Context, input CreateUserInput) (*User, error)
@@ -105,17 +114,26 @@ type Service interface {
 	GetUserAnalytics(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]UserAnalytics, int64, error)
 	GetSessionAnalytics(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]SessionAnalytics, int64, error)
 	GetUserActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (*UserActivitySummary, error)
+
+	// MFA methods
+	SetupMFA(ctx context.Context, userID uuid.UUID) (*MFASetupResponse, error)
+	VerifyAndEnableMFA(ctx context.Context, userID uuid.UUID, code string) error
+	ValidateMFACode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
+	DisableMFA(ctx context.Context, userID uuid.UUID, password string) error
+	IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
 }
 
 type service struct {
 	repo         Repository
 	rolesService roles.Service
+	mfaService   mfa.Service
 }
 
 func NewService(repo Repository, rolesService roles.Service) Service {
 	return &service{
 		repo:         repo,
 		rolesService: rolesService,
+		mfaService:   mfa.NewService("Compass"),
 	}
 }
 
@@ -758,4 +776,204 @@ func (s *service) RecordRoleChange(ctx context.Context, userID, changedBy uuid.U
 		Metadata:  metadata,
 	}
 	_ = s.repo.RecordUserActivity(ctx, analytics)
+}
+
+// SetupMFA generates a new MFA secret for a user
+func (s *service) SetupMFA(ctx context.Context, userID uuid.UUID) (*MFASetupResponse, error) {
+	// Get the user
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+
+	// Generate TOTP setup
+	setupResult, err := s.mfaService.Setup(user.Email)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up MFA: %w", err)
+	}
+
+	// Generate backup codes
+	backupCodes, err := s.mfaService.GenerateBackupCodes()
+	if err != nil {
+		return nil, fmt.Errorf("error generating backup codes: %w", err)
+	}
+
+	// Store secret temporarily (not enabled yet)
+	user.MFASecret = setupResult.Secret
+
+	// Store backup codes as JSON
+	backupCodesJSON, err := json.Marshal(backupCodes)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing backup codes: %w", err)
+	}
+	user.MFABackupCodesHash = string(backupCodesJSON)
+
+	user.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("error updating user with MFA secret: %w", err)
+	}
+
+	// Convert QR code to base64
+	qrCodeBase64 := ""
+	if setupResult.QRCode != nil {
+		qrCodeBase64 = string(setupResult.QRCode)
+	}
+
+	// Return setup info
+	return &MFASetupResponse{
+		Secret:       setupResult.Secret,
+		QRCodeBase64: qrCodeBase64,
+		OTPAuthURL:   setupResult.URI,
+		BackupCodes:  backupCodes,
+	}, nil
+}
+
+// VerifyAndEnableMFA verifies a TOTP code and enables MFA for a user
+func (s *service) VerifyAndEnableMFA(ctx context.Context, userID uuid.UUID, code string) error {
+	// Get the user
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// Verify the TOTP code
+	valid, err := s.mfaService.Validate(user.MFASecret, code)
+	if err != nil {
+		return fmt.Errorf("error validating TOTP code: %w", err)
+	}
+	if !valid {
+		return mfa.ErrInvalidCode
+	}
+
+	// Enable MFA
+	user.MFAEnabled = true
+	user.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, user); err != nil {
+		return fmt.Errorf("error enabling MFA: %w", err)
+	}
+
+	// Record MFA enabled activity
+	metadata := marshalMetadata(map[string]interface{}{
+		"action": "mfa_enabled",
+	})
+	analytics := &UserAnalytics{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Action:    "security_settings_changed",
+		Timestamp: time.Now(),
+		Metadata:  metadata,
+	}
+	_ = s.repo.RecordUserActivity(ctx, analytics)
+
+	return nil
+}
+
+// ValidateMFACode validates a TOTP code for a user
+func (s *service) ValidateMFACode(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
+	// Get the user
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if user == nil {
+		return false, ErrUserNotFound
+	}
+
+	// Check if MFA is enabled
+	if !user.MFAEnabled {
+		return false, errors.New("MFA not enabled for this user")
+	}
+
+	// First, try to validate as a TOTP code
+	valid, err := s.mfaService.Validate(user.MFASecret, code)
+	if valid && err == nil {
+		return true, nil
+	}
+
+	// If not a valid TOTP code, check if it's a backup code
+	var backupCodes []string
+	if user.MFABackupCodesHash != "" {
+		if err := json.Unmarshal([]byte(user.MFABackupCodesHash), &backupCodes); err == nil {
+			// Check if the provided code matches any backup code
+			for i, backupCode := range backupCodes {
+				if backupCode == code {
+					// Remove the used backup code
+					backupCodes = append(backupCodes[:i], backupCodes[i+1:]...)
+
+					// Update backup codes in the database
+					updatedCodesJSON, err := json.Marshal(backupCodes)
+					if err == nil {
+						user.MFABackupCodesHash = string(updatedCodesJSON)
+						_ = s.repo.Update(ctx, user) // Best effort update
+					}
+
+					return true, nil
+				}
+			}
+		}
+	}
+
+	// If we reach here, neither TOTP nor backup code was valid
+	return false, mfa.ErrInvalidCode
+}
+
+// DisableMFA disables MFA for a user
+func (s *service) DisableMFA(ctx context.Context, userID uuid.UUID, password string) error {
+	// Get the user
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// Verify the password for security
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+
+	// Disable MFA
+	user.MFAEnabled = false
+	user.MFASecret = ""
+	user.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, user); err != nil {
+		return fmt.Errorf("error disabling MFA: %w", err)
+	}
+
+	// Record MFA disabled activity
+	metadata := marshalMetadata(map[string]interface{}{
+		"action": "mfa_disabled",
+	})
+	analytics := &UserAnalytics{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Action:    "security_settings_changed",
+		Timestamp: time.Now(),
+		Metadata:  metadata,
+	}
+	_ = s.repo.RecordUserActivity(ctx, analytics)
+
+	return nil
+}
+
+// IsMFAEnabled checks if MFA is enabled for a user
+func (s *service) IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, error) {
+	// Get the user
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if user == nil {
+		return false, ErrUserNotFound
+	}
+
+	return user.MFAEnabled, nil
 }

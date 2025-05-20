@@ -18,7 +18,6 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/project"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
@@ -35,6 +34,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/auth"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -114,19 +114,33 @@ func main() {
 		gin.SetMode(gin.DebugMode)
 	}
 
+	// Set default content type for JSON responses
+	gin.DisableBindValidation()
+	gin.SetMode(gin.ReleaseMode)
+	// Use the standard logger instead of zap for gin
+	gin.DefaultWriter = os.Stdout
+
 	router := gin.New()
 
 	// Add middleware
 	router.Use(gin.Recovery())
 	router.Use(RequestLoggerMiddleware(log))
+	// Configure gin to use proper content type for JSON
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		c.Next()
+	})
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.CORS.AllowedOrigins,
 		AllowMethods:     cfg.CORS.AllowedMethods,
-		AllowHeaders:     cfg.CORS.AllowedHeaders,
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     append(cfg.CORS.AllowedHeaders, "Accept-Encoding", "Content-Encoding", "Content-Type", "Authorization"),
+		ExposeHeaders:    []string{"Content-Length", "Content-Encoding", "Content-Type", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Vary"},
 		AllowCredentials: cfg.CORS.AllowCredentials,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Add Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Connect to database
 	db, err := connection.NewDatabase(cfg)
@@ -173,25 +187,21 @@ func main() {
 	// Create cache middleware
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
 
-	// Initialize notification repository and service
-	notificationLogger := logrus.New()
-	notificationLogger.SetFormatter(&logrus.JSONFormatter{})
-	if cfg.Server.Mode == "production" {
-		notificationLogger.SetLevel(logrus.InfoLevel)
-	} else {
-		notificationLogger.SetLevel(logrus.DebugLevel)
+	// Initialize notification system
+	notificationSystem, err := SetupNotificationSystem(
+		db,
+		log,
+		cfg.Server.Mode != "production",
+	)
+	if err != nil {
+		log.Fatal("Failed to initialize notification system", zap.Error(err))
 	}
+	defer notificationSystem.Shutdown()
 
-	notificationRepo := notification.NewRepository(db, notificationLogger)
-	notificationSignalRepo := notification.NewSignalRepository(100) // Buffer size of 100
-	notificationService := notification.NewService(notification.ServiceConfig{
-		Repository: notificationRepo,
-		Logger:     notificationLogger,
-		SignalRepo: notificationSignalRepo,
-	})
-
-	// Initialize habit notification service
-	habitNotifySvc := habits.NewHabitNotificationService(notificationService)
+	// Initialize habit notification service using the notification service from our system
+	habitNotifySvc := habits.NewHabitNotificationService(notificationSystem.Service)
+	// Add domain notifier for enhanced capabilities
+	habitNotifySvc.WithDomainNotifier(notificationSystem.DomainNotifier)
 
 	// Initialize services
 	rolesService := roles.NewService(rolesRepo)
@@ -209,6 +219,18 @@ func main() {
 
 	// Initialize OAuth2 service
 	oauthService := auth.NewOAuthService(cfg)
+
+	// Initialize MFA service and handler
+	// Create a logrus logger specifically for MFA handler
+	mfaLogger := logrus.New()
+	mfaLogger.SetFormatter(&logrus.JSONFormatter{})
+	if cfg.Server.Mode == "production" {
+		mfaLogger.SetLevel(logrus.InfoLevel)
+	} else {
+		mfaLogger.SetLevel(logrus.DebugLevel)
+	}
+
+	mfaHandler := handlers.NewMFAHandler(userService, cfg.Auth.JWTSecret, mfaLogger)
 
 	// Initialize and start the scheduler
 	habitScheduler := scheduler.NewScheduler(habitsService, log)
@@ -245,10 +267,10 @@ func main() {
 	})
 
 	// Initialize notification handler
-	notificationHandler := handlers.NewNotificationHandler(notificationService, log)
+	notificationHandler := handlers.NewNotificationHandler(notificationSystem.Service, log)
 
 	// Initialize habit notification handler
-	habitNotificationHandler := handlers.NewHabitNotificationHandler(habitsService, notificationService, habitNotifySvc)
+	habitNotificationHandler := handlers.NewHabitNotificationHandler(habitsService, notificationSystem.Service, habitNotifySvc)
 
 	// Initialize MCP handler and routes
 	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)
@@ -265,6 +287,11 @@ func main() {
 	userRoutes := routes.NewUserRoutes(userHandler, cfg.Auth.JWTSecret, rateLimiter)
 	userRoutes.RegisterRoutes(router)
 	log.Info("Registered user routes at /api/users")
+
+	// Set up MFA routes
+	mfaRoutes := routes.NewMFARoutes(mfaHandler, cfg.Auth.JWTSecret)
+	mfaRoutes.RegisterRoutes(router)
+	log.Info("Registered MFA routes at /api/users/mfa and /api/auth/mfa")
 
 	// Set up auth routes
 	authRoutes := routes.NewAuthRoutes(authHandler, cfg.Auth.JWTSecret)
