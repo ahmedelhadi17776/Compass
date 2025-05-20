@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Union, AsyncGenerator, cast, AsyncIterator
+from typing import Dict, Any, Optional, List, Union, AsyncGenerator, cast, AsyncIterator, Tuple
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion import ChatCompletion, Choice
@@ -10,26 +10,28 @@ from core.mcp_state import get_mcp_client
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain.schema import format_document
 from ai_services.base.mongo_client import get_mongo_client
+from ai_services.billing.cost_manager import CostManager
 import os
 import time
 import json
 import asyncio
 import hashlib
 import logging
-from data_layer.models.ai_model import ModelType, ModelProvider
+from data_layer.models.ai_model import ModelType, ModelProvider, BillingType
+import uuid
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
 class LLMService:
     def __init__(self):
-        # Use the GitHub token from environment variables
-        self.github_token = os.environ.get(
-            "GITHUB_TOKEN", settings.llm_api_key)
+        # Use the GitHub token from settings
+        self.github_token = settings.llm_api_key
 
         # Force the correct base URL and model from settings
-        self.base_url = "https://models.inference.ai.azure.com"
-        self.model_name = "gpt-4o-mini"
+        self.base_url = settings.llm_api_base_url
+        self.model_name = settings.llm_model_name
 
         logger.info(f"Initializing LLM service with base URL: {self.base_url}")
         logger.info(f"Using model: {self.model_name}")
@@ -44,10 +46,9 @@ class LLMService:
         # MongoDB client for storing model data
         self.mongo_client = get_mongo_client()
 
-        # Default model ID
-        self._current_model_id: Optional[str] = None
-
-        # Instead, create a flag to indicate initialization is needed
+        # Initialize cost tracking
+        self.cost_manager = CostManager(self.mongo_client)
+        self._current_model_id = self.model_name
         self._model_initialized = False
 
     async def _initialize_model_id(self) -> None:
@@ -64,6 +65,9 @@ class LLMService:
                 logger.info(
                     f"Found existing model in MongoDB with ID: {self._current_model_id}")
             else:
+                # Get pricing from settings
+                model_pricing = settings.model_pricing.get(self.model_name, {})
+
                 # Create model in MongoDB
                 model = self.mongo_client.ai_model_repo.create_model(
                     name=self.model_name,
@@ -74,7 +78,14 @@ class LLMService:
                     capabilities={
                         "streaming": True,
                         "function_calling": True
-                    }
+                    },
+                    billing_type=BillingType(settings.llm_billing_type),
+                    input_token_cost_per_million=model_pricing.get(
+                        "input_cost_per_million", settings.llm_token_cost_input),
+                    output_token_cost_per_million=model_pricing.get(
+                        "output_cost_per_million", settings.llm_token_cost_output),
+                    quota_limit=settings.llm_quota_limit,
+                    quota_reset_interval=settings.llm_quota_reset_interval
                 )
                 self._current_model_id = model.id
                 logger.info(
@@ -86,35 +97,146 @@ class LLMService:
             self._current_model_id = "temp_" + str(hash(self.model_name))[:8]
             logger.info(f"Using fallback model ID: {self._current_model_id}")
 
-    async def _update_model_stats(self, latency: float, success: bool = True) -> None:
-        """Update model usage statistics in MongoDB."""
-        try:
-            # Ensure model is initialized
-            await self.ensure_model_initialized()
+    async def _calculate_costs(self, input_tokens: int, output_tokens: int) -> Tuple[float, float, float]:
+        """Calculate costs based on token counts."""
+        # Get pricing from cost manager
+        input_cost = await self.cost_manager.calculate_input_cost(self.model, input_tokens)
+        output_cost = await self.cost_manager.calculate_output_cost(self.model, output_tokens)
+        total_cost = input_cost + output_cost
+        return input_cost, output_cost, total_cost
 
-            # Store usage data in MongoDB
-            model_id = self._current_model_id or "unknown"
-            self.mongo_client.log_model_usage(
-                model_id=model_id,
-                model_name=self.model_name,
-                request_type="text_generation",
-                tokens_in=0,  # We could calculate this from input length
-                tokens_out=0,  # We could calculate this from output length
-                latency_ms=int(latency * 1000),
-                success=success,
-                error=None if success else "API error"
+    def _count_tokens(self, text: Optional[Union[str, Dict[str, Any], List[Any], ChatCompletionMessageParam]]) -> int:
+        """Count tokens in text using a simple approximation."""
+        if text is None:
+            return 0
+
+        if isinstance(text, (str, bytes)):
+            return len(str(text).split())
+
+        if isinstance(text, dict):
+            content = text.get('content', '')
+            if isinstance(content, (str, bytes)):
+                return len(str(content).split())
+            return 0
+
+        if isinstance(text, list):
+            total = 0
+            for item in text:
+                if isinstance(item, dict):
+                    content = item.get('content', '')
+                    if isinstance(content, (str, bytes)):
+                        total += len(str(content).split())
+                elif isinstance(item, (str, bytes)):
+                    total += len(str(item).split())
+            return total
+
+        # For any other type, try to convert to string
+        try:
+            return len(str(text).split())
+        except:
+            return 0
+
+    async def _calculate_input_tokens(self, messages: List[ChatCompletionMessageParam]) -> int:
+        """Calculate input tokens from messages."""
+        total = 0
+        for message in messages:
+            if isinstance(message, dict):
+                content = message.get("content", "")
+                if content:
+                    total += self._count_tokens(str(content))
+        return total
+
+    async def _check_quota(self, user_id: str, input_tokens: int, output_tokens: int) -> Tuple[bool, str]:
+        """Check if the request is within quota limits."""
+        if not settings.llm_enable_quotas:
+            return True, ""
+
+        try:
+            # Ensure we have a valid model ID
+            if not self._current_model_id:
+                await self.ensure_model_initialized()
+
+            if not self._current_model_id:
+                logger.error("No model ID available for quota check")
+                return True, "Error: No model ID available"
+
+            # Check quota using cost manager
+            return await self.cost_manager.check_quota(
+                user_id=user_id,
+                model_id=self._current_model_id,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
             )
-            logger.info(
-                f"Logged model usage in MongoDB for model {self.model_name}")
         except Exception as e:
-            logger.error(f"Failed to log model usage in MongoDB: {str(e)}")
+            logger.error(f"Error checking quota: {str(e)}")
+            # On error, allow the request but log the issue
+            return True, f"Error checking quota: {str(e)}"
+
+    async def _update_model_stats(
+        self,
+        latency: float,
+        success: bool,
+        input_tokens: int,
+        output_tokens: int,
+        request_id: str,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        endpoint: str = "chat/completions",
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        organization_id: Optional[str] = None
+    ) -> None:
+        """Update model usage statistics."""
+        try:
+            # Ensure user_id is a string and not None
+            if user_id is None:
+                user_id = "unknown"
+            else:
+                user_id = str(user_id)
+            # Calculate costs
+            input_cost, output_cost, total_cost = await self._calculate_costs(input_tokens, output_tokens)
+
+            # Create tracking entry
+            tracking_entry = {
+                "model_id": self._current_model_id,
+                "user_id": user_id,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_cost": total_cost,
+                "success": success,
+                "request_id": request_id,
+                "timestamp": datetime.utcnow(),
+                "metadata": {
+                    "session_id": session_id,
+                    "endpoint": endpoint,
+                    "client_ip": client_ip,
+                    "user_agent": user_agent,
+                    "organization_id": organization_id,
+                    "latency": latency
+                }
+            }
+
+            # Log tracking entry
+            await self.mongo_client.cost_tracking_repo.create_tracking_entry(tracking_entry)
+
+        except Exception as e:
+            logger.error(f"Error updating model stats: {str(e)}")
+            # Don't raise the exception to avoid breaking the response stream
 
     async def generate_response(
         self,
         prompt: str,
         context: Optional[Dict] = None,
         model_parameters: Optional[Dict] = None,
-        stream: bool = False
+        stream: bool = False,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        endpoint: str = "chat/completions"
     ) -> Union[Dict[str, Any], AsyncIterator[str]]:
         """Generate a response using the LLM."""
         try:
@@ -130,9 +252,24 @@ class LLMService:
             params = self._prepare_model_parameters(model_parameters)
             logger.debug(f"Using model parameters: {params}")
 
+            # Generate request ID
+            request_id = str(uuid.uuid4())
+
             if stream:
                 logger.info("Using streaming mode for response")
-                return self._stream_response(prompt, messages, params, start_time)
+                return self._stream_response(
+                    prompt=prompt,
+                    messages=messages,
+                    params=params,
+                    start_time=start_time,
+                    user_id=user_id,
+                    session_id=session_id,
+                    request_id=request_id,
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    organization_id=organization_id,
+                    endpoint=endpoint
+                )
 
             # Make the API request
             logger.debug("Making API request")
@@ -152,10 +289,27 @@ class LLMService:
                     "confidence": 0.9
                 }
 
+                # Calculate token counts
+                input_tokens = sum(len(str(msg["content"]).split()) for msg in messages if isinstance(
+                    msg, dict) and "content" in msg)
+                output_tokens = len(str(result["text"]).split())
+
                 # Update stats and log training data
                 latency = time.time() - start_time
                 logger.info(f"Response generated in {latency:.2f} seconds")
-                await self._update_model_stats(latency, True)
+                await self._update_model_stats(
+                    latency=latency,
+                    success=True,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    request_id=request_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    endpoint=endpoint,
+                    client_ip=client_ip,
+                    user_agent=user_agent,
+                    organization_id=organization_id
+                )
                 await self.log_training_data(prompt, result["text"])
 
                 return result
@@ -176,56 +330,84 @@ class LLMService:
         prompt: str,
         messages: List[ChatCompletionMessageParam],
         params: Dict[str, Any],
-        start_time: float
-    ) -> AsyncIterator[str]:
+        start_time: float,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        endpoint: str = "chat/completions"
+    ) -> AsyncGenerator[str, None]:
         """Stream the response from the LLM token by token."""
         logger.info("Starting streaming response")
         success = True
         full_text = ""
+        input_tokens = 0
+        output_tokens = 0
 
         try:
-            # Create a wrapper function to convert sync to async
-            async def stream_openai_response():
-                # Set streaming parameter
-                stream_params = {**params, "stream": True}
+            # Calculate input tokens
+            for message in messages:
+                if isinstance(message, dict):
+                    content = message.get("content")
+                    if isinstance(content, str):
+                        input_tokens += self._count_tokens(content)
 
-                try:
-                    response = await asyncio.to_thread(
-                        self.client.chat.completions.create,
+            # If user_id is provided, check quota
+            if user_id and settings.llm_enable_quotas:
+                within_quota, quota_message = await self._check_quota(user_id, input_tokens, 0)
+                if not within_quota:
+                    logger.warning(
+                        f"Quota exceeded for user {user_id}: {quota_message}")
+                    yield f"Error: {quota_message}"
+                    return
+
+            # Create a wrapper function to convert sync to async
+            async def stream_openai_response() -> AsyncGenerator[str, None]:
+                nonlocal output_tokens
+
+                def sync_stream():
+                    return self.client.chat.completions.create(
                         model=self.model,
                         messages=messages,
                         stream=True,
                         **{k: v for k, v in params.items() if k != "stream"}
                     )
 
-                    logger.info("Stream created, yielding tokens")
+                response = await asyncio.to_thread(sync_stream)
 
-                    # Process each chunk in the stream
-                    for chunk in response:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        if isinstance(content, str):
                             yield content
-                            # Small delay to avoid overwhelming the client
-                            await asyncio.sleep(0.01)
-
-                except Exception as e:
-                    logger.error(f"Error in OpenAI stream: {str(e)}")
-                    yield f"Error: {str(e)}"
+                            output_tokens += self._count_tokens(content)
+                            await asyncio.sleep(0)
 
             # Create and return the async generator
-            generator = stream_openai_response()
-
-            # Collect the full response for training data
-            async for token in generator:
+            async for token in stream_openai_response():
                 full_text += token
                 yield token
 
             # Log the complete response for training data
             await self.log_training_data(prompt, full_text)
 
-            # Update model stats
+            # Update model stats with token counts and costs
             latency = time.time() - start_time
-            await self._update_model_stats(latency, success)
+            await self._update_model_stats(
+                latency=latency,
+                success=success,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                request_id=request_id or str(uuid.uuid4()),
+                user_id=user_id,
+                session_id=session_id,
+                endpoint=endpoint,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                organization_id=organization_id
+            )
 
         except Exception as e:
             success = False
@@ -234,7 +416,19 @@ class LLMService:
 
             # Update model stats with failure
             latency = time.time() - start_time
-            await self._update_model_stats(latency, success)
+            await self._update_model_stats(
+                latency=latency,
+                success=success,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                request_id=request_id or str(uuid.uuid4()),
+                user_id=user_id,
+                session_id=session_id,
+                endpoint=endpoint,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                organization_id=organization_id
+            )
 
     async def _create_error_generator(self, error_message: str) -> AsyncIterator[str]:
         """Create an error response generator."""

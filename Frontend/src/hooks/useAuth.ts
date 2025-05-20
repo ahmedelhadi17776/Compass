@@ -36,7 +36,7 @@ const API_URL = 'http://localhost:8000/api';
 
 const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await axios.post(`${API_URL}/auth/login`, credentials);
+    const response = await axios.post(`${API_URL}/users/login`, credentials);
     return response.data;
   },
   logout: async () => {
