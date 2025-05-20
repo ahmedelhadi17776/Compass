@@ -39,6 +39,7 @@ class ConversationMemoryManager:
     def add_user_message(self, user_id: int, content: str) -> None:
         """Add a user message to the conversation history."""
         memory = self.get_memory(user_id)
+        content = content[:50] if len(content) > 50 else content
         memory.chat_memory.add_user_message(content)
         logger.debug(
             f"Added user message for user_id={user_id}: {content[:50]}...")
@@ -46,6 +47,7 @@ class ConversationMemoryManager:
     def add_ai_message(self, user_id: int, content: str) -> None:
         """Add an AI message to the conversation history."""
         memory = self.get_memory(user_id)
+        content = content[:50] if len(content) > 50 else content
         memory.chat_memory.add_ai_message(content)
         logger.debug(
             f"Added AI message for user_id={user_id}: {content[:50]}...")
@@ -65,10 +67,13 @@ class ConversationMemoryManager:
         """Convert LangChain memory to app's ConversationHistory format."""
         history = ConversationHistory()
         for message in self.get_messages(user_id):
+            content = message.content
+            if isinstance(content, list):
+                content = str(content)
             if isinstance(message, HumanMessage):
-                history.add_message(UserMessage(content=message.content))
+                history.add_message(UserMessage(content=content))
             elif isinstance(message, AIMessage):
-                history.add_message(AssistantMessage(content=message.content))
+                history.add_message(AssistantMessage(content=content))
         return history
 
     def import_from_chat_history(self, user_id: int, history: ConversationHistory) -> None:
@@ -93,10 +98,13 @@ class ConversationMemoryManager:
         """Get messages in the format expected by OpenAI API."""
         messages = []
         for msg in self.get_messages(user_id):
+            content = msg.content
+            if isinstance(content, list):
+                content = str(content)
             if isinstance(msg, HumanMessage):
-                messages.append({"role": "user", "content": msg.content})
+                messages.append({"role": "user", "content": content})
             elif isinstance(msg, AIMessage):
-                messages.append({"role": "assistant", "content": msg.content})
+                messages.append({"role": "assistant", "content": content})
             elif isinstance(msg, SystemMessage):
-                messages.append({"role": "system", "content": msg.content})
+                messages.append({"role": "system", "content": content})
         return messages

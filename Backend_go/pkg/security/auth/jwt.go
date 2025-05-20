@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -153,4 +154,61 @@ func (s *JWTService) RefreshToken(tokenString string) (string, error) {
 		string(s.secretKey),
 		int(s.tokenDuration.Hours()),
 	)
+}
+
+// GenerateTemporaryToken creates a temporary token for MFA verification
+func GenerateTemporaryToken(userID uuid.UUID, email string, secret string, expiryHours int) (string, error) {
+	// Create token
+	token := jwt.New(jwt.SigningMethodHS256)
+
+	// Set claims
+	claims := token.Claims.(jwt.MapClaims)
+	claims["user_id"] = userID.String()
+	claims["email"] = email
+	claims["temp"] = true // Mark as temporary token
+	claims["exp"] = time.Now().Add(time.Hour * time.Duration(expiryHours)).Unix()
+	claims["iat"] = time.Now().Unix()
+	claims["nbf"] = time.Now().Unix()
+
+	// Generate signed token
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return "", fmt.Errorf("error generating token: %w", err)
+	}
+
+	return tokenString, nil
+}
+
+// ValidateTemporaryToken validates a temporary token and returns claims
+func ValidateTemporaryToken(tokenString string, secret string) (jwt.MapClaims, error) {
+	// Parse the token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Validate the alg
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error parsing token: %w", err)
+	}
+
+	// Validate token
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	// Get claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("could not get token claims")
+	}
+
+	// Ensure it's a temporary token
+	if temp, ok := claims["temp"].(bool); !ok || !temp {
+		return nil, errors.New("not a temporary token")
+	}
+
+	return claims, nil
 }
