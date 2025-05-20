@@ -6,6 +6,7 @@ from langchain.memory import ChatMessageHistory
 from langchain.schema import AIMessage, HumanMessage, SystemMessage, BaseMessage
 from ai_services.base.mongo_client import get_mongo_client
 from data_layer.models.conversation import Conversation
+from app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage, Message
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +208,42 @@ class MongoDBMessageHistory:
             # Clear local messages anyway
             self.messages = []
 
+    def add_user_message(self, content: str) -> None:
+        """Add a user message to the conversation."""
+        self.add_message(HumanMessage(content=content))
+
+    def add_ai_message(self, content: str) -> None:
+        """Add an AI message to the conversation."""
+        self.add_message(AIMessage(content=content))
+
+    def to_conversation_history(self) -> ConversationHistory:
+        """Convert MongoDB messages to ConversationHistory format."""
+        history = ConversationHistory()
+        for message in self.messages:
+            content = message.content
+            if isinstance(content, list):
+                content = str(content)
+            if isinstance(message, HumanMessage):
+                history.add_message(UserMessage(content=content))
+            elif isinstance(message, AIMessage):
+                history.add_message(AssistantMessage(content=content))
+        return history
+
+    def get_langchain_messages(self) -> List[Dict[str, str]]:
+        """Get messages in the format expected by OpenAI API."""
+        messages = []
+        for msg in self.messages:
+            content = msg.content
+            if isinstance(content, list):
+                content = str(content)
+            if isinstance(msg, HumanMessage):
+                messages.append({"role": "user", "content": content})
+            elif isinstance(msg, AIMessage):
+                messages.append({"role": "assistant", "content": content})
+            elif isinstance(msg, SystemMessage):
+                messages.append({"role": "system", "content": content})
+        return messages
+
 
 # Use a regular ChatMessageHistory as a wrapper for our custom implementation
 def get_mongodb_memory(
@@ -214,12 +251,8 @@ def get_mongodb_memory(
     session_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     domain: Optional[str] = None
-) -> ChatMessageHistory:
-    """Get MongoDB-backed chat message history for LangChain memory.
-
-    We use a regular ChatMessageHistory wrapped around our MongoDB implementation
-    to avoid type conflicts between different versions of LangChain.
-    """
+) -> MongoDBMessageHistory:
+    """Get MongoDB-backed chat message history."""
     # Create our MongoDB-backed implementation
     mongo_history = MongoDBMessageHistory(
         user_id=user_id,
@@ -227,20 +260,5 @@ def get_mongodb_memory(
         conversation_id=conversation_id,
         domain=domain
     )
-
-    # Create a regular ChatMessageHistory
-    chat_history = ChatMessageHistory()
-
-    # Copy existing messages
-    for message in mongo_history.messages:
-        if isinstance(message, HumanMessage):
-            # Extract content as string, ensuring it's the right type
-            content = str(message.content)
-            chat_history.add_user_message(content)
-        elif isinstance(message, AIMessage):
-            # Extract content as string, ensuring it's the right type
-            content = str(message.content)
-            chat_history.add_ai_message(content)
-        # Skip system messages as ChatMessageHistory doesn't support them
-
-    return chat_history
+    
+    return mongo_history
