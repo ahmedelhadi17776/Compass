@@ -30,14 +30,20 @@ function createWindow(): void {
   const isDev = process.env.NODE_ENV === 'development';
   
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    // Disable certificate validation in development
+    mainWindow.webContents.session.setCertificateVerifyProc((request, callback) => {
+      // Always trust the certificate in development mode
+      callback(0);
+    });
+    
+    mainWindow.loadURL('https://localhost:3000');
     mainWindow.webContents.openDevTools();
     
     mainWindow.webContents.on('did-fail-load', () => {
       console.log('Failed to load URL, retrying...');
       setTimeout(() => {
         if (mainWindow) {
-          mainWindow.loadURL('http://localhost:3000');
+          mainWindow.loadURL('https://localhost:3000');
         }
       }, 1000);
     });
