@@ -414,14 +414,8 @@ func main() {
 		log.Info(fmt.Sprintf("Server starting on port %d", cfg.Server.Port))
 		log.Info("Swagger documentation available at http://localhost:8000/swagger/index.html")
 
-		var err error
-		if cfg.Server.UseHTTPS {
-			log.Info(fmt.Sprintf("HTTPS enabled with cert: %s, key: %s",
-				cfg.Server.HTTPSCertFile, cfg.Server.HTTPSKeyFile))
-			err = server.ListenAndServeTLS(cfg.Server.HTTPSCertFile, cfg.Server.HTTPSKeyFile)
-		} else {
-			err = server.ListenAndServe()
-		}
+		// Always use HTTP, never HTTPS
+		err := server.ListenAndServe()
 
 		if err != nil && err != http.ErrServerClosed {
 			log.Fatal("Failed to start server", zap.Error(err))
