@@ -135,6 +135,11 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
                       )}
                       onClick={() => onEventClick(event)}
                       title={`${event.title}${event.location ? ` - ${event.location}` : ''}`}
+                      style={{
+                        '--occurrence-color': event.color,
+                        '--occurrence-color-dark': event.color,
+                        borderLeftColor: event.color
+                      } as React.CSSProperties}
                     >
                       <div className="month-event-time">
                         {format(new Date(event.start_time), 'h:mm a')}

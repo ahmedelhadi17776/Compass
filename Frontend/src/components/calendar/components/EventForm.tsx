@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
-import { X } from 'lucide-react';
+import { 
+  X, 
+  MapPin, 
+  Calendar, 
+  Clock, 
+  Repeat, 
+  Tag, 
+  AlertCircle, 
+  Edit3, 
+  Flag,
+  CheckSquare,
+  Bookmark,
+  ChevronDown
+} from 'lucide-react';
 import { useCreateEvent, useUpdateEvent, useDeleteEvent, useUpdateOccurrenceById } from '@/components/calendar/hooks';
 import { 
   CalendarEvent, 
@@ -19,6 +32,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import Checkbox from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import "react-datepicker/dist/react-datepicker.css";
 import './EventForm.css';
 
@@ -27,6 +63,20 @@ interface EventFormProps {
   onClose: () => void;
   userId?: string;
 }
+
+// Predefined color options
+const colorOptions = [
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Green', value: '#10b981' },
+  { name: 'Yellow', value: '#f59e0b' },
+  { name: 'Purple', value: '#8b5cf6' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Indigo', value: '#6366f1' },
+  { name: 'Gray', value: '#6b7280' },
+  { name: 'Teal', value: '#14b8a6' },
+  { name: 'Orange', value: '#f97316' },
+];
 
 const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
   const createEvent = useCreateEvent();
@@ -37,6 +87,7 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
   const [updateOption, setUpdateOption] = useState<'single' | 'all'>('single');
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCustomColor, setShowCustomColor] = useState(false);
   
   const [formData, setFormData] = useState<CreateCalendarEventRequest>({
     title: task?.title || '',
@@ -46,7 +97,7 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
     end_time: task?.end_time ? new Date(task.end_time) : new Date(Date.now() + 60 * 60000),
     is_all_day: task?.is_all_day || false,
     location: task?.location,
-    color: task?.color,
+    color: task?.color || '#3b82f6',
     transparency: task?.transparency || 'opaque',
   });
 
@@ -64,19 +115,13 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
   const isRecurring = !!task?.recurrence_rules?.length || recurrenceData.enabled;
   const isOccurrence = !!task?.is_occurrence;
 
-  const eventTypes: { value: EventType; label: string }[] = [
-    { value: 'None', label: 'None' },
-    { value: 'Task', label: 'Task' },
-    { value: 'Meeting', label: 'Meeting' },
-    { value: 'Todo', label: 'Todo' },
-    { value: 'Holiday', label: 'Holiday' },
-    { value: 'Reminder', label: 'Reminder' }
-  ];
-
-  const priorityTypes = [
-    { value: 'High', label: 'High' },
-    { value: 'Medium', label: 'Medium' },
-    { value: 'Low', label: 'Low' }
+  const eventTypes: { value: EventType; label: string; icon: React.ReactNode }[] = [
+    { value: 'None', label: 'None', icon: <Tag className="h-4 w-4" /> },
+    { value: 'Task', label: 'Task', icon: <CheckSquare className="h-4 w-4" /> },
+    { value: 'Meeting', label: 'Meeting', icon: <Calendar className="h-4 w-4" /> },
+    { value: 'Todo', label: 'Todo', icon: <CheckSquare className="h-4 w-4" /> },
+    { value: 'Holiday', label: 'Holiday', icon: <Flag className="h-4 w-4" /> },
+    { value: 'Reminder', label: 'Reminder', icon: <AlertCircle className="h-4 w-4" /> }
   ];
 
   const statusTypes = [
@@ -109,9 +154,13 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
         end_time: new Date(task.end_time),
         is_all_day: task.is_all_day,
         location: task.location,
-        color: task.color,
+        color: task.color || '#3b82f6',
         transparency: task.transparency,
       });
+      
+      if (!colorOptions.some(c => c.value === task.color)) {
+        setShowCustomColor(true);
+      }
 
       if (task.recurrence_rules?.[0]) {
         const rule = task.recurrence_rules[0];
@@ -246,285 +295,431 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
     setTimeout(onClose, 300);
   };
 
+  const getEventTypeIcon = (type: EventType) => {
+    return eventTypes.find(t => t.value === type)?.icon || <Tag className="h-4 w-4" />;
+  };
+
   return (
     <>
       <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 
         ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
       >
-        <div className={`bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative 
+        <div className={`bg-card rounded-lg shadow-xl w-full max-w-4xl p-6 relative 
           ${isClosing ? 'animate-slide-out' : 'animate-slide-in'}`}
         >
           <button
             onClick={handleClose}
-            className="absolute right-4 top-4 text-gray-400 hover:text-gray-200"
+            className="absolute right-4 top-4 text-muted-foreground hover:text-foreground rounded-full p-1 hover:bg-accent/50 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <h2 className="text-xl font-semibold text-gray-100 mb-6">
-            {task ? 'Update Event' : 'Create New Event'}
-          </h2>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-10 w-2 rounded-full" style={{ backgroundColor: formData.color || '#3b82f6' }} />
+            <h2 className="text-xl font-semibold text-foreground">
+              {task ? 'Update Event' : 'Create New Event'}
+            </h2>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Title</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300">Event Type</label>
-              <select
-                value={formData.event_type}
-                onChange={(e) => setFormData({ ...formData, event_type: e.target.value as EventType })}
-                className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-              >
-                {eventTypes.map(type => (
-                  <option key={type.value} value={type.value} className="bg-gray-800">
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300">Location</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300">Color</label>
-                <input
-                  type="text"
-                  value={formData.color}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300">Priority</label>
-                <select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'High' | 'Medium' | 'Low' })}
-                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                >
-                  {priorityTypes.map(type => (
-                    <option key={type.value} value={type.value} className="bg-gray-800">
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as typeof formData.status })}
-                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                >
-                  {statusTypes.map(type => (
-                    <option key={type.value} value={type.value} className="bg-gray-800">
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300">Start Time</label>
-                <DatePicker
-                  selected={formData.start_time}
-                  onChange={(date: Date) => setFormData({ ...formData, start_time: date })}
-                  showTimeSelect
-                  dateFormat="MMMM d, yyyy h:mm aa"
-                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300">End Time</label>
-                <DatePicker
-                  selected={formData.end_time}
-                  onChange={(date: Date) => setFormData({ ...formData, end_time: date })}
-                  showTimeSelect
-                  dateFormat="MMMM d, yyyy h:mm aa"
-                  className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                  minDate={formData.start_time}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={recurrenceData.enabled}
-                  onChange={(e) => setRecurrenceData(prev => ({ 
-                    ...prev, 
-                    enabled: e.target.checked,
-                    freq: e.target.checked ? 'Daily' : 'None'
-                  }))}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label className="ml-2 block text-sm text-gray-300">Recurring Event</label>
-              </div>
-
-              {recurrenceData.enabled && (
-                <>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left column */}
+              <div className="space-y-5">
+                <div className="bg-background/50 p-5 rounded-lg space-y-4">
+                  {/* Title field */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300">Recurrence Pattern</label>
-                    <select
-                      value={recurrenceData.freq}
-                      onChange={(e) => setRecurrenceData(prev => ({
-                        ...prev,
-                        freq: e.target.value as RecurrenceType
-                      }))}
-                      className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                    >
-                      {recurrenceTypes.map(type => (
-                        <option key={type.value} value={type.value} className="bg-gray-800">
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300">Interval</label>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Edit3 className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-sm font-medium text-foreground">Title</label>
+                    </div>
                     <input
-                      type="number"
-                      min="1"
-                      value={recurrenceData.interval}
-                      onChange={(e) => setRecurrenceData(prev => ({
-                        ...prev,
-                        interval: parseInt(e.target.value) || 1
-                      }))}
-                      className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="block w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
+                      required
+                      placeholder="Add title"
                     />
                   </div>
 
+                  {/* Description field */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300">End Recurrence</label>
-                    <div className="space-y-2 mt-2">
-                      <div className="flex items-center">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Bookmark className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-sm font-medium text-foreground">Description</label>
+                    </div>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="block w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
+                      rows={3}
+                      placeholder="Add description"
+                    />
+                  </div>
+                </div>
+                
+                {/* Time and Date fields */}
+                <div className="bg-background/50 p-5 rounded-lg space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-sm font-medium text-foreground">Time & Date</label>
+                    </div>
+                    <div className="flex items-center">
+                      <Checkbox
+                        checked={formData.is_all_day}
+                        onChange={(e) => setFormData({ ...formData, is_all_day: e.target.checked })}
+                        className="mr-2"
+                      />
+                      <Label htmlFor="is-all-day" className="text-sm text-foreground">All Day</Label>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Start</label>
+                      <DatePicker
+                        selected={formData.start_time}
+                        onChange={(date: Date) => setFormData({ ...formData, start_time: date })}
+                        showTimeSelect={!formData.is_all_day}
+                        dateFormat={formData.is_all_day ? "MMMM d, yyyy" : "MMMM d, yyyy h:mm aa"}
+                        className="block w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
+                        timeIntervals={15}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">End</label>
+                      <DatePicker
+                        selected={formData.end_time}
+                        onChange={(date: Date) => setFormData({ ...formData, end_time: date })}
+                        showTimeSelect={!formData.is_all_day}
+                        dateFormat={formData.is_all_day ? "MMMM d, yyyy" : "MMMM d, yyyy h:mm aa"}
+                        className="block w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
+                        minDate={formData.start_time}
+                        timeIntervals={15}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Other fields */}
+                <div className="bg-background/50 p-5 rounded-lg space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-sm font-medium text-foreground">Location</label>
+                    </div>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      className="block w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
+                      placeholder="Add location"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Tag className="h-4 w-4 text-muted-foreground" />
+                        <label className="text-sm font-medium text-foreground">Event Type</label>
+                      </div>
+                      <Select 
+                        value={formData.event_type} 
+                        onValueChange={(value) => setFormData({ ...formData, event_type: value as EventType })}
+                      >
+                        <SelectTrigger className="w-full bg-background border-input text-foreground">
+                          <SelectValue placeholder="Select type">
+                            <div className="flex items-center gap-2">
+                              {getEventTypeIcon(formData.event_type)}
+                              <span>{eventTypes.find(t => t.value === formData.event_type)?.label}</span>
+                            </div>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-input text-foreground">
+                          <SelectGroup>
+                            {eventTypes.map(type => (
+                              <SelectItem key={type.value} value={type.value} className="focus:bg-accent">
+                                <div className="flex items-center gap-2">
+                                  {type.icon}
+                                  <span>{type.label}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Color picker */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span 
+                        className="inline-block h-4 w-4 rounded-full" 
+                        style={{ backgroundColor: formData.color || '#3b82f6' }} 
+                      />
+                      <label className="text-sm font-medium text-foreground">Color</label>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex items-center justify-between w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="inline-block h-4 w-4 rounded-full" 
+                              style={{ backgroundColor: formData.color || '#3b82f6' }} 
+                            />
+                            <span>
+                              {colorOptions.find(c => c.value === formData.color)?.name || 'Custom'}
+                            </span>
+                          </div>
+                          <ChevronDown className="h-4 w-4 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-2 bg-popover border-input text-foreground">
+                        <div className="grid grid-cols-4 gap-1.5 mb-2">
+                          {colorOptions.map(color => (
+                            <TooltipProvider key={color.value} delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className={`w-full aspect-square rounded-full border-2 ${
+                                      formData.color === color.value ? 'border-primary' : 'border-transparent'
+                                    } hover:scale-110 transition-transform`}
+                                    style={{ backgroundColor: color.value }}
+                                    onClick={() => {
+                                      setFormData({ ...formData, color: color.value });
+                                      setShowCustomColor(false);
+                                    }}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="py-1 px-2 text-xs">
+                                  <p>{color.name}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))}
+                        </div>
+                        
+                        <div className="border-t border-border pt-2">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full"
+                            onClick={() => setShowCustomColor(!showCustomColor)}
+                          >
+                            <span className="text-xs">+</span>
+                            <span>Custom color</span>
+                          </button>
+                          
+                          {showCustomColor && (
+                            <div className="mt-1.5">
+                              <input
+                                type="color"
+                                value={formData.color || '#3b82f6'}
+                                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                className="w-full h-6 rounded cursor-pointer"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>              
+                  </div>
+                  
+                  
+                </div>
+              </div>
+              
+              {/* Right column */}
+              <div className="space-y-5">
+                <div className="bg-background/50 p-5 rounded-lg">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Repeat className="h-4 w-4 text-muted-foreground" />
+                    <label className="text-sm font-medium text-foreground">Recurrence</label>
+                    <div className="flex-1"></div>
+                    <div className="relative inline-flex">
+                      <label className="relative inline-flex items-center cursor-pointer">
                         <input
-                          type="radio"
-                          checked={!recurrenceData.until && !recurrenceData.count}
-                          onChange={() => setRecurrenceData(prev => ({
-                            ...prev,
-                            until: null,
-                            count: null
+                          type="checkbox"
+                          checked={recurrenceData.enabled}
+                          onChange={(e) => setRecurrenceData(prev => ({ 
+                            ...prev, 
+                            enabled: e.target.checked,
+                            freq: e.target.checked ? 'Daily' : 'None'
                           }))}
-                          className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          className="sr-only peer"
                         />
-                        <label className="ml-2 block text-sm text-gray-300">Never</label>
+                        <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-foreground after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-700"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {recurrenceData.enabled && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">Frequency</label>
+                        <Select 
+                          value={recurrenceData.freq} 
+                          onValueChange={(value) => setRecurrenceData(prev => ({
+                            ...prev,
+                            freq: value as RecurrenceType
+                          }))}
+                        >
+                          <SelectTrigger className="w-full bg-background border-input text-foreground">
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover border-input text-foreground">
+                            <SelectGroup>
+                              {recurrenceTypes.filter(t => t.value !== 'None').map(type => (
+                                <SelectItem key={type.value} value={type.value} className="focus:bg-accent">
+                                  {type.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      <div className="flex items-center">
-                        <input
-                          type="radio"
-                          checked={!!recurrenceData.count}
-                          onChange={() => setRecurrenceData(prev => ({
-                            ...prev,
-                            until: null,
-                            count: 1
-                          }))}
-                          className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <label className="ml-2 block text-sm text-gray-300">After</label>
-                        {recurrenceData.count !== null && (
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">Repeat every</label>
+                        <div className="flex items-center gap-2">
                           <input
                             type="number"
                             min="1"
-                            value={recurrenceData.count}
+                            value={recurrenceData.interval}
                             onChange={(e) => setRecurrenceData(prev => ({
                               ...prev,
-                              count: parseInt(e.target.value) || 1
+                              interval: parseInt(e.target.value) || 1
                             }))}
-                            className="ml-2 w-20 rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
+                            className="block w-20 rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-2"
                           />
-                        )}
-                        <span className="ml-2 text-sm text-gray-300">occurrences</span>
+                          <span className="text-sm text-foreground">
+                            {recurrenceData.freq.toLowerCase()}
+                            {recurrenceData.interval > 1 ? 's' : ''}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center">
-                        <input
-                          type="radio"
-                          checked={!!recurrenceData.until}
-                          onChange={() => setRecurrenceData(prev => ({
-                            ...prev,
-                            until: new Date(),
-                            count: null
-                          }))}
-                          className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <label className="ml-2 block text-sm text-gray-300">On date</label>
-                        {recurrenceData.until && (
-                          <div className="ml-2">
-                            <DatePicker
-                              selected={recurrenceData.until}
-                              onChange={(date: Date) => setRecurrenceData(prev => ({
-                                ...prev,
-                                until: date
-                              }))}
-                              minDate={formData.start_time}
-                              dateFormat="MMMM d, yyyy"
-                              className="w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 shadow-sm focus:border-gray-500 focus:ring-gray-500"
-                            />
+                      <Separator className="bg-border" />
+
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-3">Ends</label>
+                        <RadioGroup 
+                          value={recurrenceData.count ? "count" : recurrenceData.until ? "until" : "never"}
+                          onValueChange={(value) => {
+                            switch(value) {
+                              case "never":
+                                setRecurrenceData(prev => ({
+                                  ...prev,
+                                  until: null,
+                                  count: null
+                                }));
+                                break;
+                              case "count":
+                                setRecurrenceData(prev => ({
+                                  ...prev,
+                                  until: null,
+                                  count: 1
+                                }));
+                                break;
+                              case "until":
+                                setRecurrenceData(prev => ({
+                                  ...prev,
+                                  until: new Date(),
+                                  count: null
+                                }));
+                                break;
+                            }
+                          }}
+                          className="space-y-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="never" id="never" />
+                            <Label htmlFor="never" className="text-sm text-foreground">Never</Label>
                           </div>
-                        )}
+                          
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="count" id="count" />
+                            <Label htmlFor="count" className="text-sm text-foreground">After</Label>
+                            {recurrenceData.count !== null && (
+                              <input
+                                type="number"
+                                min="1"
+                                value={recurrenceData.count}
+                                onChange={(e) => setRecurrenceData(prev => ({
+                                  ...prev,
+                                  count: parseInt(e.target.value) || 1
+                                }))}
+                                className="ml-2 w-16 rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-2 py-1 text-sm"
+                              />
+                            )}
+                            <span className="text-sm text-foreground">occurrences</span>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="until" id="until" />
+                            <Label htmlFor="until" className="text-sm text-foreground">On date</Label>
+                            {recurrenceData.until && (
+                              <div className="ml-2 flex-1">
+                                <DatePicker
+                                  selected={recurrenceData.until}
+                                  onChange={(date: Date) => setRecurrenceData(prev => ({
+                                    ...prev,
+                                    until: date
+                                  }))}
+                                  minDate={formData.start_time}
+                                  dateFormat="MMMM d, yyyy"
+                                  className="w-full rounded-md bg-background border border-input text-foreground shadow-sm focus:border-primary focus:ring-primary px-3 py-1 text-sm"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </RadioGroup>
                       </div>
                     </div>
+                  )}
+                </div>
+                
+                {/* Status section */}
+                <div className="bg-background/50 p-5 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                    <label className="text-sm font-medium text-foreground">Status</label>
                   </div>
-                </>
-              )}
+                  
+                  <Select 
+                    value={formData.status} 
+                    onValueChange={(value) => setFormData({ ...formData, status: value as typeof formData.status })}
+                  >
+                    <SelectTrigger className="w-full bg-background border-input text-foreground">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-input text-foreground">
+                      <SelectGroup>
+                        {statusTypes.map(type => (
+                          <SelectItem key={type.value} value={type.value} className="focus:bg-accent">
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.is_all_day}
-                onChange={(e) => setFormData({ ...formData, is_all_day: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              <label className="ml-2 block text-sm text-gray-300">All Day Event</label>
-            </div>
-
-            <div className="flex justify-between gap-3 mt-6">
+            <div className="flex justify-between gap-3 pt-4 border-t border-border">
               {task && (
                 <Button
                   type="button"
                   onClick={handleDelete}
                   variant="destructive"
-                  disabled={deleteEvent.isPending}
                   className="px-4 py-2"
+                  disabled={deleteEvent.isPending}
                 >
                   {deleteEvent.isPending ? 'Deleting...' : 'Delete Event'}
                 </Button>
@@ -555,10 +750,10 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
 
       {/* Update Confirmation Dialog */}
       <Dialog open={showUpdateModal} onOpenChange={setShowUpdateModal}>
-        <DialogContent className="bg-gray-900 text-gray-100 border-gray-800 max-w-md">
+        <DialogContent className="bg-card text-foreground border-border max-w-md">
           <DialogHeader>
             <DialogTitle>Update recurring event</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Would you like to update just this occurrence or all events in the series?
             </DialogDescription>
           </DialogHeader>
@@ -588,10 +783,10 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent className="bg-gray-900 text-gray-100 border-gray-800 max-w-md">
+        <DialogContent className="bg-card text-foreground border-border max-w-md">
           <DialogHeader>
             <DialogTitle>Delete recurring event</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Would you like to delete just this occurrence or all events in the series?
             </DialogDescription>
           </DialogHeader>
@@ -608,7 +803,7 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
             </Button>
             <Button 
               variant="destructive"
-              className="w-full sm:w-auto bg-red-800 hover:bg-red-900"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setShowDeleteModal(false);
                 deleteEventConfirmed('all');
