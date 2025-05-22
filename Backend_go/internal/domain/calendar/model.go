@@ -245,15 +245,16 @@ type CreateEventReminderRequest struct {
 }
 
 type UpdateCalendarEventRequest struct {
-	Title        *string       `json:"title,omitempty"`
-	Description  *string       `json:"description,omitempty"`
-	EventType    *EventType    `json:"event_type,omitempty"`
-	StartTime    *time.Time    `json:"start_time,omitempty"`
-	EndTime      *time.Time    `json:"end_time,omitempty"`
-	IsAllDay     *bool         `json:"is_all_day,omitempty"`
-	Location     *string       `json:"location,omitempty"`
-	Color        *string       `json:"color,omitempty"`
-	Transparency *Transparency `json:"transparency,omitempty"`
+	Title                *string       `json:"title,omitempty"`
+	Description          *string       `json:"description,omitempty"`
+	EventType            *EventType    `json:"event_type,omitempty"`
+	StartTime            *time.Time    `json:"start_time,omitempty"`
+	EndTime              *time.Time    `json:"end_time,omitempty"`
+	IsAllDay             *bool         `json:"is_all_day,omitempty"`
+	Location             *string       `json:"location,omitempty"`
+	Color                *string       `json:"color,omitempty"`
+	Transparency         *Transparency `json:"transparency,omitempty"`
+	PreserveDateSequence *bool         `json:"preserve_date_sequence,omitempty"`
 }
 
 type CalendarEventResponse struct {

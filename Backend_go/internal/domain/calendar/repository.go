@@ -32,6 +32,7 @@ type Repository interface {
 
 	// Occurrence operations
 	CreateOccurrence(ctx context.Context, occurrence *EventOccurrence) error
+	UpdateOccurrence(ctx context.Context, occurrence *EventOccurrence) error
 	UpdateOccurrenceStatus(ctx context.Context, id uuid.UUID, status OccurrenceStatus) error
 	GetOccurrences(ctx context.Context, eventID uuid.UUID, startTime, endTime time.Time) ([]EventOccurrence, error)
 	GetOccurrenceById(ctx context.Context, id uuid.UUID) (*EventOccurrence, error)
@@ -50,12 +51,14 @@ type Transaction interface {
 	CreateEvent(event *CalendarEvent) error
 	CreateRecurrenceRule(rule *RecurrenceRule) error
 	CreateOccurrence(occurrence *EventOccurrence) error
+	UpdateOccurrence(occurrence *EventOccurrence) error
 	CreateReminder(reminder *EventReminder) error
 	UpdateEvent(event *CalendarEvent) error
 	CreateException(exception *EventException) error
 	UpdateException(exception *EventException) error
 	GetExceptions(eventID uuid.UUID, startTime, endTime time.Time) ([]EventException, error)
 	GetExceptionsByOccurrenceId(occurrenceID uuid.UUID) ([]EventException, error)
+	GetOccurrences(eventID uuid.UUID, startTime, endTime time.Time) ([]EventOccurrence, error)
 }
 
 // EventFilter defines the filtering options for listing events
@@ -339,4 +342,19 @@ func (r *repository) GetExceptionsByOccurrenceId(ctx context.Context, occurrence
 		Where("occurrence_id = ?", occurrenceID).
 		Find(&exceptions).Error
 	return exceptions, err
+}
+
+func (r *repository) UpdateOccurrence(ctx context.Context, occurrence *EventOccurrence) error {
+	return r.db.WithContext(ctx).Save(occurrence).Error
+}
+
+func (t *transaction) UpdateOccurrence(occurrence *EventOccurrence) error {
+	return t.tx.Save(occurrence).Error
+}
+
+func (t *transaction) GetOccurrences(eventID uuid.UUID, startTime, endTime time.Time) ([]EventOccurrence, error) {
+	var occurrences []EventOccurrence
+	err := t.tx.Where("event_id = ? AND occurrence_time BETWEEN ? AND ?", eventID, startTime, endTime).
+		Find(&occurrences).Error
+	return occurrences, err
 }
