@@ -207,44 +207,6 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// UpdateOccurrence godoc
-// @Summary Update a specific occurrence of a recurring event
-// @Description Modify a single occurrence of a recurring event
-// @Tags calendar
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param request body calendar.UpdateCalendarEventRequest true "Occurrence update information"
-// @Success 200 "Occurrence updated successfully"
-// @Failure 400 {object} map[string]string "Invalid request"
-// @Failure 401 {object} map[string]string "Unauthorized"
-// @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/calendar/events/occurrence [put]
-func (h *CalendarHandler) UpdateOccurrence(c *gin.Context) {
-	var req struct {
-		EventID      uuid.UUID                           `json:"event_id" binding:"required"`
-		OriginalTime time.Time                           `json:"original_time" binding:"required"`
-		Updates      calendar.UpdateCalendarEventRequest `json:"updates" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	err := h.service.UpdateOccurrence(
-		c.Request.Context(),
-		req.EventID,
-		req.OriginalTime,
-		req.Updates,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.Status(http.StatusOK)
-}
-
 // DeleteOccurrence godoc
 // @Summary Delete a specific occurrence of a recurring event
 // @Description Mark a single occurrence of a recurring event as deleted
@@ -313,4 +275,49 @@ func (h *CalendarHandler) AddReminder(c *gin.Context) {
 	}
 
 	c.Status(http.StatusCreated)
+}
+
+// UpdateOccurrenceById godoc
+// @Summary Update a specific occurrence of a recurring event by its ID
+// @Description Modify a single occurrence of a recurring event using its unique ID
+// @Tags calendar
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Occurrence ID" format(uuid)
+// @Param updates body calendar.UpdateCalendarEventRequest true "Occurrence update information"
+// @Success 200 "Occurrence updated successfully"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Occurrence not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/calendar/events/occurrences/{id} [put]
+func (h *CalendarHandler) UpdateOccurrenceById(c *gin.Context) {
+	occurrenceId, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid occurrence ID"})
+		return
+	}
+
+	var req calendar.UpdateCalendarEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err = h.service.UpdateOccurrenceById(
+		c.Request.Context(),
+		occurrenceId,
+		req,
+	)
+	if err != nil {
+		if err.Error() == "failed to find occurrence: record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "occurrence not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusOK)
 }

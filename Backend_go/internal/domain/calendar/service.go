@@ -19,7 +19,7 @@ type Service interface {
 	ListEvents(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, eventType *EventType, page, pageSize int) (*CalendarEventListResponse, error)
 
 	// Occurrence operations
-	UpdateOccurrence(ctx context.Context, eventID uuid.UUID, originalTime time.Time, req UpdateCalendarEventRequest) error
+	UpdateOccurrenceById(ctx context.Context, occurrenceId uuid.UUID, req UpdateCalendarEventRequest) error
 	DeleteOccurrence(ctx context.Context, eventID uuid.UUID, originalTime time.Time) error
 	ListOccurrences(ctx context.Context, eventID uuid.UUID, startTime, endTime time.Time) ([]EventOccurrence, error)
 
@@ -46,14 +46,18 @@ func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventReques
 	}
 	defer tx.Rollback()
 
+	// Normalize times to UTC
+	startTimeUTC := req.StartTime.UTC()
+	endTimeUTC := req.EndTime.UTC()
+
 	// Create the main event
 	event := &CalendarEvent{
 		UserID:       userID,
 		Title:        req.Title,
 		Description:  req.Description,
 		EventType:    req.EventType,
-		StartTime:    req.StartTime,
-		EndTime:      req.EndTime,
+		StartTime:    startTimeUTC,
+		EndTime:      endTimeUTC,
 		IsAllDay:     req.IsAllDay,
 		Location:     req.Location,
 		Color:        req.Color,
@@ -129,8 +133,10 @@ func (s *service) generateOccurrences(event *CalendarEvent, rule *RecurrenceRule
 
 	// Create map for faster day lookup
 	allowedDays := make(map[string]bool)
-	for _, day := range rule.ByDay {
-		allowedDays[day] = true
+	if len(rule.ByDay) > 0 {
+		for _, day := range rule.ByDay {
+			allowedDays[day] = true
+		}
 	}
 
 	// Determine the end date for occurrence generation
@@ -147,48 +153,183 @@ func (s *service) generateOccurrences(event *CalendarEvent, rule *RecurrenceRule
 
 	count := 0
 
-	// Find the first occurrence
-	// Adjust start time to the beginning of the week if it's not already an allowed day
-	startWeekday := strings.ToUpper(currentTime.Weekday().String()[:2])
-	if !allowedDays[startWeekday] {
-		// Find the next allowed day
-		for i := 0; i < 7; i++ {
-			currentTime = currentTime.AddDate(0, 0, 1)
-			dayStr := strings.ToUpper(currentTime.Weekday().String()[:2])
-			if allowedDays[dayStr] {
+	// Handle different frequencies
+	switch rule.Freq {
+	case RecurrenceTypeDaily:
+		// Generate daily occurrences
+		for currentTime.Before(endDate) {
+			if rule.Count != nil && count >= *rule.Count {
 				break
 			}
-		}
-	}
 
-	// Generate occurrences
-	for currentTime.Before(endDate) {
-		if rule.Count != nil && count >= *rule.Count {
-			break
-		}
-
-		dayStr := strings.ToUpper(currentTime.Weekday().String()[:2])
-		if allowedDays[dayStr] {
 			occurrence := &EventOccurrence{
 				EventID:        event.ID,
 				OccurrenceTime: currentTime,
 				Status:         OccurrenceStatusUpcoming,
-				CreatedAt:      time.Now(), // Add proper timestamps
+				CreatedAt:      time.Now(),
 				UpdatedAt:      time.Now(),
 			}
 			occurrences = append(occurrences, occurrence)
 			count++
+
+			// Move to next occurrence based on interval
+			currentTime = currentTime.AddDate(0, 0, rule.Interval)
 		}
 
-		// Move to next day
-		nextDay := currentTime.AddDate(0, 0, 1)
+	case RecurrenceTypeWeekly:
+		if len(allowedDays) > 0 {
+			// Weekly with specific days
+			for currentTime.Before(endDate) {
+				if rule.Count != nil && count >= *rule.Count {
+					break
+				}
 
-		// If we're moving to a new week (Sunday to Monday)
-		if nextDay.Weekday() == time.Monday && rule.Interval > 1 {
-			// Skip to the next week based on interval
-			currentTime = nextDay.AddDate(0, 0, (rule.Interval-1)*7)
+				dayStr := strings.ToUpper(currentTime.Weekday().String()[:2])
+				if allowedDays[dayStr] {
+					occurrence := &EventOccurrence{
+						EventID:        event.ID,
+						OccurrenceTime: currentTime,
+						Status:         OccurrenceStatusUpcoming,
+						CreatedAt:      time.Now(),
+						UpdatedAt:      time.Now(),
+					}
+					occurrences = append(occurrences, occurrence)
+					count++
+				}
+
+				// Move to next day
+				nextDay := currentTime.AddDate(0, 0, 1)
+				// If we're moving to a new week (Sunday to Monday)
+				if nextDay.Weekday() == time.Monday && rule.Interval > 1 {
+					// Skip to the next week based on interval
+					currentTime = nextDay.AddDate(0, 0, (rule.Interval-1)*7)
+				} else {
+					currentTime = nextDay
+				}
+			}
 		} else {
-			currentTime = nextDay
+			// Simple weekly recurrence without specific days
+			for currentTime.Before(endDate) {
+				if rule.Count != nil && count >= *rule.Count {
+					break
+				}
+
+				occurrence := &EventOccurrence{
+					EventID:        event.ID,
+					OccurrenceTime: currentTime,
+					Status:         OccurrenceStatusUpcoming,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				}
+				occurrences = append(occurrences, occurrence)
+				count++
+
+				// Move to next week based on interval
+				currentTime = currentTime.AddDate(0, 0, 7*rule.Interval)
+			}
+		}
+
+	case RecurrenceTypeBiweekly:
+		// Biweekly is just weekly with interval of 2
+		for currentTime.Before(endDate) {
+			if rule.Count != nil && count >= *rule.Count {
+				break
+			}
+
+			occurrence := &EventOccurrence{
+				EventID:        event.ID,
+				OccurrenceTime: currentTime,
+				Status:         OccurrenceStatusUpcoming,
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+			}
+			occurrences = append(occurrences, occurrence)
+			count++
+
+			// Move to next occurrence (2 weeks)
+			currentTime = currentTime.AddDate(0, 0, 14)
+		}
+
+	case RecurrenceTypeMonthly:
+		// Generate monthly occurrences
+		for currentTime.Before(endDate) {
+			if rule.Count != nil && count >= *rule.Count {
+				break
+			}
+
+			if len(rule.ByMonthDay) > 0 {
+				// Handle specific days of the month
+				currentDay := currentTime.Day()
+				for _, day := range rule.ByMonthDay {
+					if int(day) == currentDay {
+						occurrence := &EventOccurrence{
+							EventID:        event.ID,
+							OccurrenceTime: currentTime,
+							Status:         OccurrenceStatusUpcoming,
+							CreatedAt:      time.Now(),
+							UpdatedAt:      time.Now(),
+						}
+						occurrences = append(occurrences, occurrence)
+						count++
+						break
+					}
+				}
+			} else {
+				// Simple monthly recurrence
+				occurrence := &EventOccurrence{
+					EventID:        event.ID,
+					OccurrenceTime: currentTime,
+					Status:         OccurrenceStatusUpcoming,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				}
+				occurrences = append(occurrences, occurrence)
+				count++
+			}
+
+			// Move to next month based on interval
+			currentTime = currentTime.AddDate(0, rule.Interval, 0)
+		}
+
+	case RecurrenceTypeYearly:
+		// Generate yearly occurrences
+		for currentTime.Before(endDate) {
+			if rule.Count != nil && count >= *rule.Count {
+				break
+			}
+
+			if len(rule.ByMonth) > 0 {
+				// Handle specific months
+				currentMonth := int64(currentTime.Month())
+				for _, month := range rule.ByMonth {
+					if month == currentMonth {
+						occurrence := &EventOccurrence{
+							EventID:        event.ID,
+							OccurrenceTime: currentTime,
+							Status:         OccurrenceStatusUpcoming,
+							CreatedAt:      time.Now(),
+							UpdatedAt:      time.Now(),
+						}
+						occurrences = append(occurrences, occurrence)
+						count++
+						break
+					}
+				}
+			} else {
+				// Simple yearly recurrence
+				occurrence := &EventOccurrence{
+					EventID:        event.ID,
+					OccurrenceTime: currentTime,
+					Status:         OccurrenceStatusUpcoming,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				}
+				occurrences = append(occurrences, occurrence)
+				count++
+			}
+
+			// Move to next year based on interval
+			currentTime = currentTime.AddDate(rule.Interval, 0, 0)
 		}
 	}
 
@@ -287,10 +428,10 @@ func (s *service) UpdateEvent(ctx context.Context, id uuid.UUID, req UpdateCalen
 		event.EventType = *req.EventType
 	}
 	if req.StartTime != nil {
-		event.StartTime = *req.StartTime
+		event.StartTime = req.StartTime.UTC()
 	}
 	if req.EndTime != nil {
-		event.EndTime = *req.EndTime
+		event.EndTime = req.EndTime.UTC()
 	}
 	if req.IsAllDay != nil {
 		event.IsAllDay = *req.IsAllDay
@@ -437,6 +578,11 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 						occResponse.OccurrenceTime = *exception.OverrideStartTime
 					}
 
+					// Update end time if overridden
+					if exception.OverrideEndTime != nil {
+						occResponse.EndTime = exception.OverrideEndTime
+					}
+
 					finalOccurrences = append(finalOccurrences, occResponse)
 				} else {
 					// No exception exists, use the occurrence as is
@@ -452,78 +598,6 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 		Events: events,
 		Total:  total,
 	}, nil
-}
-
-func (s *service) UpdateOccurrence(ctx context.Context, eventID uuid.UUID, originalTime time.Time, req UpdateCalendarEventRequest) error {
-	// Verify the event exists and is recurring
-	event, err := s.repo.GetEventByID(ctx, eventID)
-	if err != nil {
-		return err
-	}
-	if len(event.RecurrenceRules) == 0 {
-		return fmt.Errorf("cannot update occurrence of non-recurring event")
-	}
-
-	// Start a transaction
-	tx := s.repo.BeginTransaction(ctx)
-	if tx == nil {
-		return fmt.Errorf("failed to start transaction")
-	}
-	defer tx.Rollback()
-
-	// Check if an exception already exists
-	exceptions, err := tx.GetExceptions(eventID, originalTime, originalTime)
-	if err != nil {
-		return err
-	}
-
-	var exception *EventException
-	if len(exceptions) > 0 {
-		// Update existing exception
-		exception = &exceptions[0]
-	} else {
-		// Create new exception
-		exception = &EventException{
-			EventID:      eventID,
-			OriginalTime: originalTime,
-		}
-	}
-
-	// Update exception fields based on the request
-	if req.StartTime != nil {
-		exception.OverrideStartTime = req.StartTime
-	}
-	if req.EndTime != nil {
-		exception.OverrideEndTime = req.EndTime
-	}
-	if req.Title != nil {
-		exception.OverrideTitle = req.Title
-	}
-	if req.Description != nil {
-		exception.OverrideDescription = req.Description
-	}
-	if req.Location != nil {
-		exception.OverrideLocation = req.Location
-	}
-	if req.Color != nil {
-		exception.OverrideColor = req.Color
-	}
-	if req.Transparency != nil {
-		exception.OverrideTransparency = req.Transparency
-	}
-
-	// Save the exception
-	if len(exceptions) > 0 {
-		if err := tx.UpdateException(exception); err != nil {
-			return err
-		}
-	} else {
-		if err := tx.CreateException(exception); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
 }
 
 func (s *service) DeleteOccurrence(ctx context.Context, eventID uuid.UUID, originalTime time.Time) error {
@@ -613,4 +687,86 @@ func (s *service) UpdateReminder(ctx context.Context, id uuid.UUID, req CreateEv
 
 func (s *service) DeleteReminder(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteReminder(ctx, id)
+}
+
+func (s *service) UpdateOccurrenceById(ctx context.Context, occurrenceId uuid.UUID, req UpdateCalendarEventRequest) error {
+	// Get the occurrence first
+	occurrence, err := s.repo.GetOccurrenceById(ctx, occurrenceId)
+	if err != nil {
+		return fmt.Errorf("failed to find occurrence: %w", err)
+	}
+
+	// Get the parent event to verify it's recurring
+	event, err := s.repo.GetEventByID(ctx, occurrence.EventID)
+	if err != nil {
+		return fmt.Errorf("failed to find parent event: %w", err)
+	}
+
+	if len(event.RecurrenceRules) == 0 {
+		return fmt.Errorf("cannot update occurrence of non-recurring event")
+	}
+
+	// Start a transaction
+	tx := s.repo.BeginTransaction(ctx)
+	if tx == nil {
+		return fmt.Errorf("failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	// Check if an exception already exists for this occurrence
+	exceptions, err := tx.GetExceptionsByOccurrenceId(occurrenceId)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing exceptions: %w", err)
+	}
+
+	var exception *EventException
+	if len(exceptions) > 0 {
+		// Update existing exception
+		exception = &exceptions[0]
+	} else {
+		// Create new exception
+		exception = &EventException{
+			EventID:      occurrence.EventID,
+			OriginalTime: occurrence.OccurrenceTime, // Use the occurrence's time as the original time
+			OccurrenceID: occurrence.ID,             // Store the occurrence ID to directly link them
+		}
+	}
+
+	// Update exception fields based on the request
+	if req.StartTime != nil {
+		utcStartTime := req.StartTime.UTC()
+		exception.OverrideStartTime = &utcStartTime
+	}
+	if req.EndTime != nil {
+		utcEndTime := req.EndTime.UTC()
+		exception.OverrideEndTime = &utcEndTime
+	}
+	if req.Title != nil {
+		exception.OverrideTitle = req.Title
+	}
+	if req.Description != nil {
+		exception.OverrideDescription = req.Description
+	}
+	if req.Location != nil {
+		exception.OverrideLocation = req.Location
+	}
+	if req.Color != nil {
+		exception.OverrideColor = req.Color
+	}
+	if req.Transparency != nil {
+		exception.OverrideTransparency = req.Transparency
+	}
+
+	// Save the exception
+	if exception.ID != uuid.Nil {
+		if err := tx.UpdateException(exception); err != nil {
+			return fmt.Errorf("failed to update exception: %w", err)
+		}
+	} else {
+		if err := tx.CreateException(exception); err != nil {
+			return fmt.Errorf("failed to create exception: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }

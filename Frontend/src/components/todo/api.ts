@@ -89,6 +89,13 @@ export const updateHabit = async (habitId: string, title: string) => {
   );
 };
 
+export const fetchHeatmapData = async (period: 'week' | 'month' | 'year' = 'year') => {
+  const response = await axios.get(`${API_BASE_URL}/api/habits/heatmap`, {
+    params: { period }
+  });
+  return response.data.data.data;
+};
+
 export const fetchTodoLists = async (): Promise<TodoList[]> => {
   const response = await axios.get<{ data: TodoListsResponse }>(`${API_BASE_URL}/api/todo-lists`);
   return response.data.data.lists;
