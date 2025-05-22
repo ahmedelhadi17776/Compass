@@ -139,8 +139,6 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
           title: eventData.title,
           description: eventData.description,
           event_type: eventData.event_type,
-          start_time: eventData.start_time,
-          end_time: eventData.end_time,
           is_all_day: eventData.is_all_day,
           location: eventData.location,
           color: eventData.color,
@@ -151,15 +149,27 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
           if (updateOption === 'single') {
             await updateOccurrenceById.mutateAsync({
               occurrenceId: task.occurrence_id,
-              updates: updateData
+              updates: {
+                ...updateData,
+                start_time: eventData.start_time,
+                end_time: eventData.end_time,
+              }
             });
-          } else {
+          } else if (updateOption === 'all') {
             await updateEvent.mutateAsync({
               eventId: task.original_event_id,
-              event: updateData
+              event: {
+                ...updateData,
+                preserve_date_sequence: true,
+                start_time: eventData.start_time,
+                end_time: eventData.end_time,
+              }
             });
           }
         } else {
+          updateData.start_time = eventData.start_time;
+          updateData.end_time = eventData.end_time;
+          
           await updateEvent.mutateAsync({
             eventId: task.id,
             event: updateData
@@ -223,7 +233,10 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
                     onChange={() => setUpdateOption('single')}
                     className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="ml-2 text-sm text-gray-300">Update only this occurrence</span>
+                  <div className="ml-2">
+                    <span className="text-sm text-gray-300">Update only this occurrence</span>
+                    <p className="text-xs text-gray-400">This change will only apply to this specific instance of the recurring event.</p>
+                  </div>
                 </label>
                 <label className="flex items-center">
                   <input
@@ -233,7 +246,10 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
                     onChange={() => setUpdateOption('all')}
                     className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="ml-2 text-sm text-gray-300">Update all occurrences</span>
+                  <div className="ml-2">
+                    <span className="text-sm text-gray-300">Update all occurrences</span>
+                    <p className="text-xs text-gray-400">This change will apply to all instances of the recurring event. If you changed the time, all occurrences will be shifted by the same amount.</p>
+                  </div>
                 </label>
               </div>
             </div>

@@ -179,6 +179,7 @@ export interface UpdateCalendarEventRequest {
   is_recurring?: boolean;
   recurrence?: RecurrenceType;
   recurrence_end_date?: Date;
+  preserve_date_sequence?: boolean;
 }
 
 export interface CalendarEventResponse {

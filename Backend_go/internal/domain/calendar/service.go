@@ -411,6 +411,46 @@ func (s *service) UpdateEvent(ctx context.Context, id uuid.UUID, req UpdateCalen
 	}
 	defer tx.Rollback()
 
+	// Store original start time before updating
+	originalStartTime := event.StartTime
+
+	// Handle preserve_date_sequence flag - only update time of day, not the date
+	if req.PreserveDateSequence != nil && *req.PreserveDateSequence && req.StartTime != nil {
+		// Convert the UTC input time to local time zone of the original event
+		inputTimeInEventTZ := req.StartTime.In(originalStartTime.Location())
+
+		// Extract time components from the timezone-adjusted input time
+		newHour, newMinute, newSecond := inputTimeInEventTZ.Hour(), inputTimeInEventTZ.Minute(), inputTimeInEventTZ.Second()
+
+		// Create a new time that preserves the original date but uses the new time
+		updatedTime := time.Date(
+			originalStartTime.Year(),
+			originalStartTime.Month(),
+			originalStartTime.Day(),
+			newHour, newMinute, newSecond,
+			req.StartTime.Nanosecond(),
+			originalStartTime.Location(),
+		)
+
+		// Replace the requested start time with our date-preserved version
+		req.StartTime = &updatedTime
+
+		// Do the same for end time if it's provided
+		if req.EndTime != nil {
+			inputEndTimeInEventTZ := req.EndTime.In(event.EndTime.Location())
+			newHourEnd, newMinuteEnd, newSecondEnd := inputEndTimeInEventTZ.Hour(), inputEndTimeInEventTZ.Minute(), inputEndTimeInEventTZ.Second()
+			updatedEndTime := time.Date(
+				event.EndTime.Year(),
+				event.EndTime.Month(),
+				event.EndTime.Day(),
+				newHourEnd, newMinuteEnd, newSecondEnd,
+				req.EndTime.Nanosecond(),
+				event.EndTime.Location(),
+			)
+			req.EndTime = &updatedEndTime
+		}
+	}
+
 	// Calculate time difference if start time is being updated
 	var timeDiff time.Duration
 	if req.StartTime != nil {
@@ -456,25 +496,155 @@ func (s *service) UpdateEvent(ctx context.Context, id uuid.UUID, req UpdateCalen
 
 	// If this is a recurring event and time was updated
 	if len(event.RecurrenceRules) > 0 && (req.StartTime != nil || req.EndTime != nil) {
-		// Get all future exceptions
-		now := time.Now()
-		exceptions, err := tx.GetExceptions(event.ID, now, now.AddDate(10, 0, 0))
-		if err != nil {
-			return nil, err
-		}
-
-		// Update time in exceptions while preserving other overrides
-		for _, exception := range exceptions {
-			if exception.OverrideStartTime != nil {
-				newTime := exception.OverrideStartTime.Add(timeDiff)
-				exception.OverrideStartTime = &newTime
-			}
-			if exception.OverrideEndTime != nil {
-				newTime := exception.OverrideEndTime.Add(timeDiff)
-				exception.OverrideEndTime = &newTime
-			}
-			if err := tx.UpdateException(&exception); err != nil {
+		// If we're preserving date sequence, update all occurrences with their original date but new time
+		if req.PreserveDateSequence != nil && *req.PreserveDateSequence {
+			// Get all occurrences using original start time to include past occurrences
+			// Use a very early date to ensure we capture all occurrences
+			startDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+			occurrences, err := tx.GetOccurrences(event.ID, startDate, originalStartTime.AddDate(10, 0, 0))
+			if err != nil {
 				return nil, err
+			}
+
+			// For each occurrence, preserve the date but update the time
+			for _, occ := range occurrences {
+				origDate := occ.OccurrenceTime
+
+				// Create a new time that preserves the original date but uses the new time
+				if req.StartTime != nil {
+					// Convert the UTC input time to local time zone of the occurrence
+					inputTimeInOccurrenceTZ := req.StartTime.In(origDate.Location())
+
+					// Extract time components from the timezone-adjusted input time
+					newHour, newMinute, newSecond := inputTimeInOccurrenceTZ.Hour(), inputTimeInOccurrenceTZ.Minute(), inputTimeInOccurrenceTZ.Second()
+
+					updatedTime := time.Date(
+						origDate.Year(),
+						origDate.Month(),
+						origDate.Day(),
+						newHour, newMinute, newSecond,
+						req.StartTime.Nanosecond(),
+						origDate.Location(),
+					)
+
+					occ.OccurrenceTime = updatedTime
+					if err := tx.UpdateOccurrence(&occ); err != nil {
+						return nil, err
+					}
+				}
+			}
+
+			// Update exceptions the same way - preserve date but update time
+			exceptions, err := tx.GetExceptions(event.ID, startDate, originalStartTime.AddDate(10, 0, 0))
+			if err != nil {
+				return nil, err
+			}
+
+			for _, exception := range exceptions {
+				// For original time, preserve date but update time
+				if req.StartTime != nil {
+					// Convert the UTC input time to local time zone of the exception
+					inputTimeInExceptionTZ := req.StartTime.In(exception.OriginalTime.Location())
+
+					// Extract time components from the timezone-adjusted input time
+					newHour, newMinute, newSecond := inputTimeInExceptionTZ.Hour(), inputTimeInExceptionTZ.Minute(), inputTimeInExceptionTZ.Second()
+
+					updatedTime := time.Date(
+						exception.OriginalTime.Year(),
+						exception.OriginalTime.Month(),
+						exception.OriginalTime.Day(),
+						newHour, newMinute, newSecond,
+						req.StartTime.Nanosecond(),
+						exception.OriginalTime.Location(),
+					)
+					exception.OriginalTime = updatedTime
+				}
+
+				// Do the same for any overridden times
+				if exception.OverrideStartTime != nil && req.StartTime != nil {
+					// Convert the UTC input time to local time zone of the exception's start time
+					inputTimeInOverrideStartTZ := req.StartTime.In(exception.OverrideStartTime.Location())
+
+					// Extract time components from the timezone-adjusted input time
+					newHour, newMinute, newSecond := inputTimeInOverrideStartTZ.Hour(), inputTimeInOverrideStartTZ.Minute(), inputTimeInOverrideStartTZ.Second()
+
+					updatedTime := time.Date(
+						exception.OverrideStartTime.Year(),
+						exception.OverrideStartTime.Month(),
+						exception.OverrideStartTime.Day(),
+						newHour, newMinute, newSecond,
+						req.StartTime.Nanosecond(),
+						exception.OverrideStartTime.Location(),
+					)
+					exception.OverrideStartTime = &updatedTime
+				}
+
+				if exception.OverrideEndTime != nil && req.EndTime != nil {
+					// Convert the UTC input time to local time zone of the exception's end time
+					inputTimeInOverrideEndTZ := req.EndTime.In(exception.OverrideEndTime.Location())
+
+					// Extract time components from the timezone-adjusted input time
+					newHour, newMinute, newSecond := inputTimeInOverrideEndTZ.Hour(), inputTimeInOverrideEndTZ.Minute(), inputTimeInOverrideEndTZ.Second()
+
+					updatedTime := time.Date(
+						exception.OverrideEndTime.Year(),
+						exception.OverrideEndTime.Month(),
+						exception.OverrideEndTime.Day(),
+						newHour, newMinute, newSecond,
+						req.EndTime.Nanosecond(),
+						exception.OverrideEndTime.Location(),
+					)
+					exception.OverrideEndTime = &updatedTime
+				}
+
+				if err := tx.UpdateException(&exception); err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			// Standard behavior - shift all occurrences by the same time delta
+			// Get all occurrences using original start time to include past occurrences
+			startDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+			occurrences, err := tx.GetOccurrences(event.ID, startDate, originalStartTime.AddDate(10, 0, 0))
+			if err != nil {
+				return nil, err
+			}
+
+			// Update all occurrences by shifting them by the same time diff
+			for _, occ := range occurrences {
+				// Apply the same time shift to all occurrences
+				if req.StartTime != nil {
+					occ.OccurrenceTime = occ.OccurrenceTime.Add(timeDiff)
+				}
+				if err := tx.UpdateOccurrence(&occ); err != nil {
+					return nil, err
+				}
+			}
+
+			// Get all exceptions using original start time
+			exceptions, err := tx.GetExceptions(event.ID, startDate, originalStartTime.AddDate(10, 0, 0))
+			if err != nil {
+				return nil, err
+			}
+
+			// Update time in exceptions while preserving other overrides
+			for _, exception := range exceptions {
+				// For exceptions, shift both original time and any override times
+				if req.StartTime != nil {
+					exception.OriginalTime = exception.OriginalTime.Add(timeDiff)
+				}
+
+				if exception.OverrideStartTime != nil && req.StartTime != nil {
+					newTime := exception.OverrideStartTime.Add(timeDiff)
+					exception.OverrideStartTime = &newTime
+				}
+				if exception.OverrideEndTime != nil && req.EndTime != nil {
+					newTime := exception.OverrideEndTime.Add(timeDiff)
+					exception.OverrideEndTime = &newTime
+				}
+				if err := tx.UpdateException(&exception); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -513,7 +683,11 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 	for i, event := range events {
 		if len(event.RecurrenceRules) > 0 {
 			// Get stored occurrences from database
-			storedOccurrences, err := s.repo.GetOccurrences(ctx, event.ID, startTime, endTime)
+			// Use a very early date to ensure we get all occurrences
+			veryEarlyDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+			veryLateDate := time.Now().AddDate(10, 0, 0)
+
+			storedOccurrences, err := s.repo.GetOccurrences(ctx, event.ID, veryEarlyDate, veryLateDate)
 			if err != nil {
 				return nil, err
 			}
@@ -543,8 +717,8 @@ func (s *service) ListEvents(ctx context.Context, userID uuid.UUID, startTime, e
 				}
 			}
 
-			// Get exceptions for this event
-			exceptions, err := s.repo.GetExceptions(ctx, event.ID, startTime, endTime)
+			// Get exceptions for this event - use the same wide date range
+			exceptions, err := s.repo.GetExceptions(ctx, event.ID, veryEarlyDate, veryLateDate)
 			if err != nil {
 				return nil, err
 			}
