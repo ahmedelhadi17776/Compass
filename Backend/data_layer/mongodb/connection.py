@@ -32,7 +32,7 @@ def get_mongodb_uri() -> str:
 
     # Construct URI from individual components
     host = settings.mongodb_host if hasattr(
-        settings, 'mongodb_host') else "localhost"
+        settings, 'mongodb_host') else "mongodb"
     port = settings.mongodb_port if hasattr(
         settings, 'mongodb_port') else 27017
     username = getattr(settings, 'mongodb_username', "")
