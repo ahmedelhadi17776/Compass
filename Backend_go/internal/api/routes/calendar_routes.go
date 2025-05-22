@@ -38,8 +38,10 @@ func (cr *CalendarRoutes) RegisterRoutes(router *gin.Engine) {
 		events.DELETE("/:id", cr.handler.DeleteEvent)
 
 		// Occurrence operations
-		events.PUT("/occurrence", cr.handler.UpdateOccurrence)
 		events.DELETE("/occurrence", cr.handler.DeleteOccurrence)
+
+		// New ID-based occurrence route
+		events.PUT("/occurrences/:id", cr.handler.UpdateOccurrenceById)
 
 		// Reminder operations
 		events.POST("/:event_id/reminders", cr.handler.AddReminder)

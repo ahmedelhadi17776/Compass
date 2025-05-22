@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { fetchHeatmapData } from '@/components/calendar/api';
+import { fetchHeatmapData } from '@/components/todo/api';
 
 export type HeatmapData = Record<string, number>;
 export type HeatmapPeriod = 'week' | 'month';

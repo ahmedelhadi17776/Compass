@@ -27,11 +27,14 @@ type Repository interface {
 	CreateException(ctx context.Context, exception *EventException) error
 	UpdateException(ctx context.Context, exception *EventException) error
 	GetExceptions(ctx context.Context, eventID uuid.UUID, startTime, endTime time.Time) ([]EventException, error)
+	GetAllExceptionsByEventID(ctx context.Context, eventID uuid.UUID) ([]EventException, error)
+	GetExceptionsByOccurrenceId(ctx context.Context, occurrenceID uuid.UUID) ([]EventException, error)
 
 	// Occurrence operations
 	CreateOccurrence(ctx context.Context, occurrence *EventOccurrence) error
 	UpdateOccurrenceStatus(ctx context.Context, id uuid.UUID, status OccurrenceStatus) error
 	GetOccurrences(ctx context.Context, eventID uuid.UUID, startTime, endTime time.Time) ([]EventOccurrence, error)
+	GetOccurrenceById(ctx context.Context, id uuid.UUID) (*EventOccurrence, error)
 
 	// Reminder operations
 	AddReminder(ctx context.Context, reminder *EventReminder) error
@@ -52,6 +55,7 @@ type Transaction interface {
 	CreateException(exception *EventException) error
 	UpdateException(exception *EventException) error
 	GetExceptions(eventID uuid.UUID, startTime, endTime time.Time) ([]EventException, error)
+	GetExceptionsByOccurrenceId(occurrenceID uuid.UUID) ([]EventException, error)
 }
 
 // EventFilter defines the filtering options for listing events
@@ -198,7 +202,7 @@ func (r *repository) UpdateException(ctx context.Context, exception *EventExcept
 func (r *repository) GetExceptions(ctx context.Context, eventID uuid.UUID, startTime, endTime time.Time) ([]EventException, error) {
 	var exceptions []EventException
 	err := r.db.WithContext(ctx).
-		Where("event_id = ? AND original_time BETWEEN ? AND ?", eventID, startTime, endTime).
+		Where("event_id = ? AND original_time BETWEEN ? AND ?", eventID, startTime.UTC(), endTime.UTC()).
 		Find(&exceptions).Error
 	return exceptions, err
 }
@@ -293,7 +297,46 @@ func (t *transaction) UpdateException(exception *EventException) error {
 
 func (t *transaction) GetExceptions(eventID uuid.UUID, startTime, endTime time.Time) ([]EventException, error) {
 	var exceptions []EventException
-	err := t.tx.Where("event_id = ? AND original_time BETWEEN ? AND ?", eventID, startTime, endTime).
+	err := t.tx.Where("event_id = ? AND original_time BETWEEN ? AND ?", eventID, startTime.UTC(), endTime.UTC()).
+		Find(&exceptions).Error
+	return exceptions, err
+}
+
+func (t *transaction) GetAllExceptionsByEventID(eventID uuid.UUID) ([]EventException, error) {
+	var exceptions []EventException
+	err := t.tx.Where("event_id = ?", eventID).
+		Find(&exceptions).Error
+	return exceptions, err
+}
+
+func (t *transaction) GetExceptionsByOccurrenceId(occurrenceID uuid.UUID) ([]EventException, error) {
+	var exceptions []EventException
+	err := t.tx.Where("occurrence_id = ?", occurrenceID).
+		Find(&exceptions).Error
+	return exceptions, err
+}
+
+func (r *repository) GetAllExceptionsByEventID(ctx context.Context, eventID uuid.UUID) ([]EventException, error) {
+	var exceptions []EventException
+	err := r.db.WithContext(ctx).
+		Where("event_id = ?", eventID).
+		Find(&exceptions).Error
+	return exceptions, err
+}
+
+func (r *repository) GetOccurrenceById(ctx context.Context, id uuid.UUID) (*EventOccurrence, error) {
+	var occurrence EventOccurrence
+	err := r.db.WithContext(ctx).First(&occurrence, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &occurrence, nil
+}
+
+func (r *repository) GetExceptionsByOccurrenceId(ctx context.Context, occurrenceID uuid.UUID) ([]EventException, error) {
+	var exceptions []EventException
+	err := r.db.WithContext(ctx).
+		Where("occurrence_id = ?", occurrenceID).
 		Find(&exceptions).Error
 	return exceptions, err
 }

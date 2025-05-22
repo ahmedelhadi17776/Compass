@@ -38,16 +38,32 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
   
       return event.occurrences.map(occurrence => {
         const occurrenceStart = new Date(occurrence.occurrence_time);
-        const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
-        const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+        let occurrenceEnd;
+        
+        // Use the overridden end_time if available, otherwise calculate based on original duration
+        if (occurrence.end_time) {
+          occurrenceEnd = new Date(occurrence.end_time);
+        } else {
+          const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+          occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+        }
   
+        // Create a new event object with occurrence overrides
         return {
           ...event,
           id: `${event.id}-${occurrence.id}`,
           start_time: occurrenceStart,
           end_time: occurrenceEnd,
+          // Override event properties if they exist in the occurrence
+          title: occurrence.title || event.title,
+          description: occurrence.description || event.description,
+          location: occurrence.location || event.location,
+          color: occurrence.color || event.color,
+          transparency: occurrence.transparency || event.transparency,
           occurrence_id: occurrence.id,
           occurrence_status: occurrence.status,
+          is_occurrence: true,
+          original_event_id: event.id
         };
       });
     });
@@ -112,18 +128,25 @@ const MonthView: React.FC<MonthViewProps> = ({ date, onEventClick, darkMode }) =
                   .map((event: CalendarEvent) => (
                     <div 
                       key={event.id}
-                    className={cn(
-                      "month-event-pill",
-                      darkMode && "dark"
-                    )}
-                    onClick={() => onEventClick(event)}
-                  >
-                    <div className="month-event-time">{format(new Date(event.start_time), 'h:mm a')}</div>
-                    <div className="month-event-title">
-                      {event.title}
+                      className={cn(
+                        "month-event-pill",
+                        event.is_occurrence && "month-event-occurrence",
+                        darkMode && "dark"
+                      )}
+                      onClick={() => onEventClick(event)}
+                      title={`${event.title}${event.location ? ` - ${event.location}` : ''}`}
+                    >
+                      <div className="month-event-time">
+                        {format(new Date(event.start_time), 'h:mm a')}
+                      </div>
+                      <div className="month-event-title">
+                        {event.title}
+                        {event.location && (
+                          <span className="month-event-location"> • {event.location}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           ))}

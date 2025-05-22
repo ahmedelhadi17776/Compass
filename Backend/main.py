@@ -28,6 +28,7 @@ except (AttributeError, IOError):
     pass
 
 
+
 class EmojiSafeFormatter(logging.Formatter):
     """Log formatter that makes emojis and special characters safe for console output."""
 
@@ -142,7 +143,7 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down application...")
         if settings.mcp_enabled:
             result = await cleanup_mcp()
-
+        
         # Close Redis connection
         try:
             await redis_client.close()
