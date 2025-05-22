@@ -43,16 +43,23 @@ const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
+  // Combine inline styles with the provided style prop
+  const combinedStyle = {
+    ...style,
+    borderLeftColor: event.color || undefined
+  };
+
   return (
     <div 
       className={cn(
         "event-card",
-        event.occurrence_status === 'Cancelled' && "opacity-50"
+        event.occurrence_status === 'Cancelled' && "opacity-50",
+        event.is_occurrence && "is-occurrence"
       )}
       draggable={!!onDragStart}
       onDragStart={handleDragStart}
       onClick={() => onClick(event)}
-      style={style}
+      style={combinedStyle}
     >
       <div className="event-title">
         {event.title || 'Untitled'}

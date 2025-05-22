@@ -17,12 +17,12 @@ export const useEvents = (
 ) => {
   const startTime = viewType === 'day' ? startOfDay(date) : 
                    viewType === 'threeDays' ? startOfDay(date) :
-                   viewType === 'week' ? startOfWeek(date, { weekStartsOn: 1 }) :
+                   viewType === 'week' ? startOfDay(date) :
                    startOfMonth(date);
                    
   const endTime = viewType === 'day' ? endOfDay(date) : 
                  viewType === 'threeDays' ? endOfDay(addDays(date, 2)) :
-                 viewType === 'week' ? endOfWeek(date, { weekStartsOn: 1 }) :
+                 viewType === 'week' ? endOfDay(addDays(date, 6)) :
                  endOfMonth(date);
 
   return useQuery<CalendarEvent[]>({

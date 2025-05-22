@@ -40,27 +40,43 @@ const ThreeDayView: React.FC<ThreeDayViewProps> = ({ date, onEventClick, darkMod
     return () => clearInterval(interval);
   }, []);
 
-  // Expand recurring events into virtual events
-  const expandedEvents = events.flatMap(event => {
-    if (!event.occurrences || event.occurrences.length === 0) {
-      return [event];
-    }
-
-    return event.occurrences.map(occurrence => {
-      const occurrenceStart = new Date(occurrence.occurrence_time);
-      const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
-      const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
-
-      return {
-        ...event,
-        id: `${event.id}-${occurrence.id}`,
-        start_time: occurrenceStart,
-        end_time: occurrenceEnd,
-        occurrence_id: occurrence.id,
-        occurrence_status: occurrence.status,
-      };
+    // Expand recurring events into virtual events
+    const expandedEvents = events.flatMap(event => {
+      if (!event.occurrences || event.occurrences.length === 0) {
+        return [event];
+      }
+  
+      return event.occurrences.map(occurrence => {
+        const occurrenceStart = new Date(occurrence.occurrence_time);
+        let occurrenceEnd;
+        
+        // Use the overridden end_time if available, otherwise calculate based on original duration
+        if (occurrence.end_time) {
+          occurrenceEnd = new Date(occurrence.end_time);
+        } else {
+          const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+          occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+        }
+  
+        // Create a new event object with occurrence overrides
+        return {
+          ...event,
+          id: `${event.id}-${occurrence.id}`,
+          start_time: occurrenceStart,
+          end_time: occurrenceEnd,
+          // Override event properties if they exist in the occurrence
+          title: occurrence.title || event.title,
+          description: occurrence.description || event.description,
+          location: occurrence.location || event.location,
+          color: occurrence.color || event.color,
+          transparency: occurrence.transparency || event.transparency,
+          occurrence_id: occurrence.id,
+          occurrence_status: occurrence.status,
+          is_occurrence: true,
+          original_event_id: event.id
+        };
+      });
     });
-  });
 
   const days = [date, addDays(date, 1), addDays(date, 2)];
   const timeSlots = Array.from({ length: 24 }, (_, i) => i);
