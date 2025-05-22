@@ -26,7 +26,7 @@ RUN apt-get update && \
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
     # Install PyTorch 
-    pip install --no-cache-dir --retries 10 --timeout 300 torch==2.7.0 && \
+    pip install --no-cache-dir --retries 10 --timeout 300 --resume-retries=5 torch==2.7.0 && \
     pip install --no-cache-dir --retries 10 --timeout 300 numpy && \
     pip install --no-cache-dir --retries 10 --timeout 300 scipy==1.11.4 && \
     # Install MongoDB dependencies first
@@ -51,5 +51,13 @@ EXPOSE 8001
 
 RUN mkdir -p /app/certs
 
-# Set entrypoint
-ENTRYPOINT ["./docker-entrypoint.sh"] 
+# Healthcheck (optional, but recommended)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Use a non-root user for security (optional)
+# RUN useradd -m appuser && chown -R appuser /app
+# USER appuser
+
+# Use CMD to start your app (adjust as needed for your app)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"] 
