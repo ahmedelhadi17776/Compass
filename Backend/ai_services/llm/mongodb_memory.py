@@ -2,7 +2,7 @@ from typing import Dict, List, Any, Optional, Tuple, cast
 import logging
 import uuid
 from datetime import datetime
-from langchain.memory import ChatMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain.schema import AIMessage, HumanMessage, SystemMessage, BaseMessage
 from ai_services.base.mongo_client import get_mongo_client
 from data_layer.models.conversation import Conversation
@@ -257,7 +257,7 @@ def get_mongodb_memory(
     """Get MongoDB-backed chat message history."""
     # Get the shared MongoDB client
     mongo_client = get_mongo_client()
-    
+
     # Create our MongoDB-backed implementation with the shared client
     mongo_history = MongoDBMessageHistory(
         user_id=user_id,
@@ -266,5 +266,5 @@ def get_mongodb_memory(
         domain=domain,
         mongo_client=mongo_client
     )
-    
+
     return mongo_history
