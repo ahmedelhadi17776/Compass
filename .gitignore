@@ -31,6 +31,7 @@ config.py
 .env.*.local
 *.ini
 
+/Frontend/dist-electron/
 !Backend/ai_services/rag/chroma_store/
 !Backend/ai_services/rag/chroma_store
 /Backend/ai_services/rag/chroma_store/
