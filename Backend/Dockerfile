@@ -4,10 +4,17 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    TRANSFORMERS_CACHE=/app/cache/transformers \
+    SENTENCE_TRANSFORMERS_HOME=/app/cache/sentence-transformers
 
 # Set work directory
 WORKDIR /app
+
+# Create cache directories
+RUN mkdir -p /app/cache/transformers \
+    /app/cache/sentence-transformers \
+    /app/ai_services/rag/chroma_store
 
 # Install system dependencies
 RUN apt-get update && \
@@ -54,10 +61,6 @@ RUN mkdir -p /app/certs
 # Healthcheck (optional, but recommended)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
-
-# Use a non-root user for security (optional)
-# RUN useradd -m appuser && chown -R appuser /app
-# USER appuser
 
 # Use CMD to start your app (adjust as needed for your app)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"] 

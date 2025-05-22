@@ -7,7 +7,16 @@ __pycache__/
 *.egg-info/
 *.egg
 
-
+# AI Model Cache Directories
+/app/cache/transformers/
+/app/cache/sentence-transformers/
+/app/ai_services/rag/chroma_store/
+cache/transformers/
+cache/sentence-transformers/
+ai_services/rag/chroma_store/
+**/cache/transformers/
+**/cache/sentence-transformers/
+**/ai_services/rag/chroma_store/
 
 # Virtual Environment
 venv/
