@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,255 +11,19 @@ import {
   Clock,
   CheckIcon,
   ArrowRightCircle,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2,
+  Brain
 } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { WorkflowDetail, WorkflowStep } from "@/types/workflow";
+import { WorkflowDetail, WorkflowStep, StepStatus } from "@/components/workflow/types";
 import { calculateLineAnimations } from "@/utils/workflowAnimation";
 import ParallelWorkflowDetailPage from "./ParallelWorkflowDetail";
-
-// Mock data for workflow details with steps and transitions
-const mockWorkflowDetails: Record<string, WorkflowDetail> = {
-  "1": {
-    id: "1",
-    name: "Workflow 1",
-    description: "This is a description of the workflow",
-    workflowType: "sequential",
-    createdBy: "user-1",
-    organizationId: "org-1",
-    status: "active",
-    config: {},
-    workflowMetadata: {},
-    version: "1.0.0",
-    tags: ["automation", "test"],
-    aiEnabled: false,
-    createdAt: "2025-01-20T10:00:00",
-    updatedAt: "2025-01-20T10:00:00",
-    lastExecutedAt: "2025-01-20T10:00:00",
-    steps: [
-      { 
-        id: "s1", 
-        name: "Start", 
-        description: "Initial step", 
-        type: "start",
-        workflowId: "1",
-        stepOrder: 1,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s2", 
-        name: "Process Data", 
-        description: "Process incoming data", 
-        type: "process",
-        workflowId: "1",
-        stepOrder: 2,
-        status: "active",
-        isRequired: true
-      },
-      { 
-        id: "s3", 
-        name: "Validate Results", 
-        description: "Ensure data meets criteria", 
-        type: "decision",
-        workflowId: "1",
-        stepOrder: 3,
-        status: "pending",
-        isRequired: true
-      },
-      { 
-        id: "s4", 
-        name: "Complete", 
-        description: "Workflow completed", 
-        type: "end",
-        workflowId: "1",
-        stepOrder: 4,
-        status: "pending",
-        isRequired: true
-      }
-    ],
-    transitions: [
-      { id: "t1", from: "s1", to: "s2", workflowId: "1" },
-      { id: "t2", from: "s2", to: "s3", workflowId: "1" },
-      { id: "t3", from: "s3", to: "s4", condition: "Valid data", workflowId: "1" }
-    ]
-  },
-  "2": {
-    id: "2",
-    name: "Workflow 2",
-    description: "This is another description of the workflow",
-    workflowType: "parallel",
-    createdBy: "user-1",
-    organizationId: "org-1",
-    status: "completed",
-    config: {},
-    workflowMetadata: {},
-    version: "1.0.0",
-    tags: ["production"],
-    aiEnabled: true,
-    createdAt: "2025-01-19T23:00:00",
-    updatedAt: "2025-01-19T23:00:00",
-    lastExecutedAt: "2025-01-19T23:00:00",
-    steps: [
-      { 
-        id: "s1", 
-        name: "Start", 
-        description: "Initial step", 
-        type: "start",
-        workflowId: "2",
-        stepOrder: 1,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s2", 
-        name: "Collect Data", 
-        description: "Gather information", 
-        type: "process",
-        workflowId: "2",
-        stepOrder: 2,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s3a", 
-        name: "Process Images", 
-        description: "Process image data", 
-        type: "process",
-        workflowId: "2",
-        stepOrder: 3,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s3b", 
-        name: "Process Text", 
-        description: "Process text data", 
-        type: "process",
-        workflowId: "2",
-        stepOrder: 3,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s4", 
-        name: "Merge Results", 
-        description: "Join: Combine analysis results", 
-        type: "decision",
-        workflowId: "2",
-        stepOrder: 4,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s5", 
-        name: "Final Review", 
-        description: "Review the results", 
-        type: "process",
-        workflowId: "2",
-        stepOrder: 5,
-        status: "completed",
-        isRequired: true
-      },
-      { 
-        id: "s6", 
-        name: "Complete", 
-        description: "Workflow completed", 
-        type: "end",
-        workflowId: "2",
-        stepOrder: 6,
-        status: "completed",
-        isRequired: true
-      }
-    ],
-    transitions: [
-      { id: "t1", from: "s1", to: "s2", workflowId: "2" },
-      { id: "t2a", from: "s2", to: "s3a", workflowId: "2" },
-      { id: "t2b", from: "s2", to: "s3b", workflowId: "2" },
-      { id: "t3a", from: "s3a", to: "s4", workflowId: "2" },
-      { id: "t3b", from: "s3b", to: "s4", workflowId: "2" },
-      { id: "t4", from: "s4", to: "s5", workflowId: "2" },
-      { id: "t5", from: "s5", to: "s6", workflowId: "2" }
-    ]
-  },
-  "3": {
-    id: "3",
-    name: "Workflow 3",
-    description: "This is another description of the workflow",
-    workflowType: "conditional",
-    createdBy: "user-1",
-    organizationId: "org-1",
-    status: "pending",
-    config: {},
-    workflowMetadata: {},
-    version: "1.0.0",
-    tags: [],
-    aiEnabled: false,
-    createdAt: "2025-01-01T00:00:00",
-    updatedAt: "2025-01-01T00:00:00",
-    steps: [
-      { 
-        id: "s1", 
-        name: "Start", 
-        description: "Initial step", 
-        type: "start",
-        workflowId: "3",
-        stepOrder: 1,
-        status: "pending",
-        isRequired: true
-      },
-      { 
-        id: "s2", 
-        name: "Data Collection", 
-        description: "Gather required information", 
-        type: "process",
-        workflowId: "3",
-        stepOrder: 2,
-        status: "pending",
-        isRequired: true
-      },
-      { 
-        id: "s3", 
-        name: "Data Processing", 
-        description: "Process the collected data", 
-        type: "process",
-        workflowId: "3",
-        stepOrder: 3,
-        status: "pending",
-        isRequired: true
-      },
-      { 
-        id: "s4", 
-        name: "Validation", 
-        description: "Validate the results", 
-        type: "decision",
-        workflowId: "3",
-        stepOrder: 4,
-        status: "pending",
-        isRequired: true
-      },
-      { 
-        id: "s5", 
-        name: "Finalize", 
-        description: "Finalize the workflow", 
-        type: "end",
-        workflowId: "3",
-        stepOrder: 5,
-        status: "pending",
-        isRequired: true
-      }
-    ],
-    transitions: [
-      { id: "t1", from: "s1", to: "s2", workflowId: "3" },
-      { id: "t2", from: "s2", to: "s3", workflowId: "3" },
-      { id: "t3", from: "s3", to: "s4", workflowId: "3" },
-      { id: "t4", from: "s4", to: "s5", condition: "Valid", workflowId: "3" }
-    ]
-  }
-};
+import { useWorkflowDetail, useUpdateWorkflowStep, useExecuteWorkflow, useExecuteWorkflowStep } from "@/components/workflow/hooks";
+import { UseQueryResult, UseMutationResult } from "@tanstack/react-query";
 
 interface WorkflowDetailProps {
   darkMode?: boolean;
@@ -268,20 +32,20 @@ interface WorkflowDetailProps {
 export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [workflow, setWorkflow] = useState<WorkflowDetail | null>(null);
+  const { data: workflow, isLoading, error } = useWorkflowDetail(id!) as UseQueryResult<WorkflowDetail, Error>;
 
-  useEffect(() => {
-    // In a real app, fetch the workflow detail from an API
-    // For now, use our mock data
-    if (id && mockWorkflowDetails[id]) {
-      setWorkflow(mockWorkflowDetails[id]);
-    }
-  }, [id]);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
-  if (!workflow) {
+  if (error || !workflow) {
     return (
       <div className="flex flex-1 flex-col p-6 h-[calc(100vh-32px)] overflow-hidden">
-        <p>Workflow not found</p>
+        <p className="text-destructive">Error loading workflow</p>
       </div>
     );
   }
@@ -292,25 +56,30 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
       return <ParallelWorkflowDetailPage darkMode={darkMode} mockData={workflow} />;
     case "sequential":
     default:
-      return <SequentialWorkflowDetail workflow={workflow} darkMode={darkMode} />;
+      return <SequentialWorkflowDetail workflow={workflow} workflowId={id!} darkMode={darkMode} />;
   }
 }
 
 // Sequential workflow visualization component
 interface SequentialWorkflowDetailProps {
   workflow: WorkflowDetail;
+  workflowId: string;
   darkMode?: boolean;
 }
 
-function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWorkflowDetailProps) {
+function SequentialWorkflowDetail({ workflow, workflowId, darkMode = false }: SequentialWorkflowDetailProps) {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const [lastCompletedStep, setLastCompletedStep] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Initialize from workflow data
+  const updateStep = useUpdateWorkflowStep(workflowId);
+  const executeWorkflow = useExecuteWorkflow(workflowId);
+  const executeStep = useExecuteWorkflowStep(workflowId);
+
+  // Initialize from workflow data
+  useState(() => {
     if (workflow.steps.length > 0) {
       // Set first step as active by default
       setActiveStep(workflow.steps[0].id);
@@ -326,10 +95,77 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
         setLastCompletedStep(completed[completed.length - 1]);
       }
     }
-  }, [workflow]);
+  });
 
   const handleBack = () => {
     navigate(-1); // Go back to the previous page
+  };
+
+  const handleAutoRun = async () => {
+    try {
+      await executeWorkflow.mutateAsync();
+    } catch (error) {
+      console.error('Failed to execute workflow:', error);
+    }
+  };
+
+  const handleStepClick = async (stepId: string) => {
+    const step = workflow.steps.find(s => s.id === stepId);
+    if (!step) return;
+
+    // Toggle expanded state
+    setExpandedStep(expandedStep === stepId ? null : stepId);
+    setActiveStep(stepId);
+
+    // If step is auto-advance and not completed, execute it
+    if (step.autoAdvance && step.status !== "completed") {
+      try {
+        await executeStep.mutateAsync(stepId);
+      } catch (error) {
+        console.error('Failed to execute step:', error);
+      }
+    }
+  };
+
+  const handleToggleStepCompletion = async (stepId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const step = workflow.steps.find(s => s.id === stepId);
+    if (!step || !workflowId) return;
+
+    const newStatus = step.status === "completed" ? "pending" : "completed";
+    
+    try {
+      await updateStep.mutateAsync({
+        stepId,
+        step: { 
+          status: newStatus as StepStatus,
+          type: step.type
+        }
+      });
+
+      const newCompletedSteps = newStatus === "completed"
+        ? [...completedSteps, stepId]
+        : completedSteps.filter(id => id !== stepId);
+        
+      setCompletedSteps(newCompletedSteps);
+      
+      if (newStatus === "completed") {
+        setLastCompletedStep(stepId);
+        
+        // If auto-advance is enabled and there's a next step, activate it
+        const currentIndex = workflow.steps.findIndex(s => s.id === stepId);
+        if (step.autoAdvance && currentIndex < workflow.steps.length - 1) {
+          const nextStep = workflow.steps[currentIndex + 1];
+          setActiveStep(nextStep.id);
+          setExpandedStep(nextStep.id);
+        }
+      } else if (stepId === lastCompletedStep) {
+        const remainingCompleted = newCompletedSteps.filter(id => id !== stepId);
+        setLastCompletedStep(remainingCompleted.length > 0 ? remainingCompleted[remainingCompleted.length - 1] : null);
+      }
+    } catch (error) {
+      console.error('Failed to update step status:', error);
+    }
   };
 
   const getStepIcon = (type: string, isCompleted: boolean = false) => {
@@ -346,6 +182,18 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
         return <AlertCircle className="h-6 w-6 text-amber-500" />;
       case "end":
         return <CheckCircle2 className="h-6 w-6 text-destructive" />;
+      case "manual":
+        return <CircleDot className="h-6 w-6 text-blue-500" />;
+      case "automated":
+        return <ArrowRightCircle className="h-6 w-6 text-emerald-500" />;
+      case "approval":
+        return <CheckCircle2 className="h-6 w-6 text-amber-500" />;
+      case "notification":
+        return <AlertCircle className="h-6 w-6 text-indigo-500" />;
+      case "integration":
+        return <ArrowRightCircle className="h-6 w-6 text-violet-500" />;
+      case "ai_task":
+        return <Brain className="h-6 w-6 text-cyan-500" />;
       default:
         return <CircleDot className="h-6 w-6" />;
     }
@@ -361,6 +209,18 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
         return "text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-950 dark:bg-amber-950 dark:bg-opacity-20";
       case "end":
         return "text-destructive border-destructive/20 bg-destructive/10 dark:text-destructive dark:border-destructive/20 dark:bg-destructive/10";
+      case "manual":
+        return "text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-400 dark:border-blue-950 dark:bg-blue-950 dark:bg-opacity-20";
+      case "automated":
+        return "text-emerald-600 border-emerald-200 bg-emerald-50 dark:text-emerald-400 dark:border-emerald-950 dark:bg-emerald-950 dark:bg-opacity-20";
+      case "approval":
+        return "text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-950 dark:bg-amber-950 dark:bg-opacity-20";
+      case "notification":
+        return "text-indigo-600 border-indigo-200 bg-indigo-50 dark:text-indigo-400 dark:border-indigo-950 dark:bg-indigo-950 dark:bg-opacity-20";
+      case "integration":
+        return "text-violet-600 border-violet-200 bg-violet-50 dark:text-violet-400 dark:border-violet-950 dark:bg-violet-950 dark:bg-opacity-20";
+      case "ai_task":
+        return "text-cyan-600 border-cyan-200 bg-cyan-50 dark:text-cyan-400 dark:border-cyan-950 dark:bg-cyan-950 dark:bg-opacity-20";
       default:
         return "text-muted-foreground border-border bg-muted dark:text-muted-foreground dark:border-border dark:bg-muted";
     }
@@ -381,28 +241,6 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
     }
   };
 
-  const handleToggleStepCompletion = (stepId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newCompletedSteps = completedSteps.includes(stepId)
-      ? completedSteps.filter(id => id !== stepId)
-      : [...completedSteps, stepId];
-      
-    setCompletedSteps(newCompletedSteps);
-    
-    if (!completedSteps.includes(stepId)) {
-      setLastCompletedStep(stepId);
-    } else if (stepId === lastCompletedStep) {
-      // If we're un-completing the last step, find the new "last" completed step
-      const remainingCompleted = newCompletedSteps.filter(id => id !== stepId);
-      setLastCompletedStep(remainingCompleted.length > 0 ? remainingCompleted[remainingCompleted.length - 1] : null);
-    }
-  };
-
-  const handleExpandStep = (stepId: string) => {
-    setExpandedStep(expandedStep === stepId ? null : stepId);
-    setActiveStep(stepId);
-  };
-
   // Calculate progress percentage
   const progressPercentage = workflow.steps.length > 0
     ? (completedSteps.length / workflow.steps.length) * 100
@@ -419,7 +257,7 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
   }, []);
   
   // Calculate animations for all lines
-  const { horizontalLines, verticalLines, getConnectionPath } = calculateLineAnimations(groupedSteps, completedSteps);
+  const { horizontalLines, verticalLines } = calculateLineAnimations(groupedSteps, completedSteps);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 h-[calc(100vh-32px)] overflow-hidden">
@@ -442,8 +280,14 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
             variant="outline" 
             size="sm" 
             className="gap-1.5 h-8"
+            onClick={handleAutoRun}
+            disabled={executeWorkflow.isPending}
           >
-            <CheckIcon className="h-3.5 w-3.5" />
+            {executeWorkflow.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CheckIcon className="h-3.5 w-3.5" />
+            )}
             Auto-Run
           </Button>
         </div>
@@ -607,7 +451,7 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
                               "cursor-pointer group z-10"
                             )}
                             layout
-                            onClick={() => handleExpandStep(step.id)}
+                            onClick={() => handleStepClick(step.id)}
                             whileHover={{ scale: 1.02, y: -2 }}
                             transition={{ 
                               layout: { duration: 0.2 },
@@ -665,9 +509,13 @@ function SequentialWorkflowDetail({ workflow, darkMode = false }: SequentialWork
                                             e.stopPropagation();
                                             handleToggleStepCompletion(step.id, e);
                                           }}
+                                          disabled={updateStep.isPending}
                                         >
-                                          <CheckIcon className="h-3.5 w-3.5 mr-1.5" />
-                                          {isCompleted ? "Mark Incomplete" : "Mark Complete"}
+                                          {updateStep.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            step.status === "completed" ? "Mark Incomplete" : "Mark Complete"
+                                          )}
                                         </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>

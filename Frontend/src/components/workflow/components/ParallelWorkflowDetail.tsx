@@ -14,11 +14,11 @@ import {
   Clock,
   MoreHorizontal
 } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { WorkflowDetail, WorkflowStep } from "@/types/workflow";
+import { WorkflowDetail, WorkflowStep } from "@/components/workflow/types";
 import { calculateParallelAnimations } from "@/utils/parallelWorkflowAnimation";
 
 // Mock data for a parallel workflow example

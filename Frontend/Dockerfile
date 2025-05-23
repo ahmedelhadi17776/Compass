@@ -6,9 +6,6 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build
 
-# This stage only builds the frontend assets.
-# The static files will be served by the main NGINX gateway container.
-
 # Production stage
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
