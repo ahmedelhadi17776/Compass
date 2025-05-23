@@ -216,10 +216,25 @@ async def clear_session(
         if session_id in orchestrator_instances:
             orchestrator = orchestrator_instances[session_id]
             user_id = int(hash(session_id) % 100000)
-            orchestrator.memory_manager.clear_memory(user_id)
-            logger.info(
-                f"Cleared conversation history for session {session_id}")
-            return {"status": "success", "message": f"Session {session_id} cleared"}
+            
+            # Use the mongo_client directly to clear the conversation
+            try:
+                # Get conversation by session ID
+                conversation = orchestrator.mongo_client.get_conversation_by_session(session_id)
+                if conversation and conversation.id:
+                    # Clear messages for the conversation
+                    orchestrator.mongo_client.conversation_repo.update(
+                        conversation.id,
+                        {"messages": []}
+                    )
+                    logger.info(f"Cleared conversation history for session {session_id}")
+                    return {"status": "success", "message": f"Session {session_id} cleared"}
+                else:
+                    logger.warning(f"No conversation found for session {session_id}")
+                    return {"status": "not_found", "message": f"No conversation found for session {session_id}"}
+            except Exception as e:
+                logger.error(f"Error clearing conversation: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Error clearing conversation: {str(e)}")
 
         logger.warning(f"Session {session_id} not found for clearing")
         return {"status": "not_found", "message": f"Session {session_id} not found"}

@@ -137,6 +137,7 @@ type OccurrenceResponse struct {
 	Location     *string       `json:"location,omitempty"`
 	Color        *string       `json:"color,omitempty"`
 	Transparency *Transparency `json:"transparency,omitempty"`
+	EndTime      *time.Time    `json:"end_time,omitempty"`
 }
 
 // EventException represents modifications to a specific occurrence
@@ -144,6 +145,7 @@ type EventException struct {
 	ID                   uuid.UUID     `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
 	EventID              uuid.UUID     `json:"event_id" gorm:"type:uuid;not null;index:idx_exception_event"`
 	OriginalTime         time.Time     `json:"original_time" gorm:"not null;index:idx_exception_time"`
+	OccurrenceID         uuid.UUID     `json:"occurrence_id,omitempty" gorm:"type:uuid;index:idx_exception_occurrence"`
 	IsDeleted            bool          `json:"is_deleted" gorm:"not null;default:false"`
 	OverrideStartTime    *time.Time    `json:"override_start_time,omitempty"`
 	OverrideEndTime      *time.Time    `json:"override_end_time,omitempty"`
@@ -243,15 +245,16 @@ type CreateEventReminderRequest struct {
 }
 
 type UpdateCalendarEventRequest struct {
-	Title        *string       `json:"title,omitempty"`
-	Description  *string       `json:"description,omitempty"`
-	EventType    *EventType    `json:"event_type,omitempty"`
-	StartTime    *time.Time    `json:"start_time,omitempty"`
-	EndTime      *time.Time    `json:"end_time,omitempty"`
-	IsAllDay     *bool         `json:"is_all_day,omitempty"`
-	Location     *string       `json:"location,omitempty"`
-	Color        *string       `json:"color,omitempty"`
-	Transparency *Transparency `json:"transparency,omitempty"`
+	Title                *string       `json:"title,omitempty"`
+	Description          *string       `json:"description,omitempty"`
+	EventType            *EventType    `json:"event_type,omitempty"`
+	StartTime            *time.Time    `json:"start_time,omitempty"`
+	EndTime              *time.Time    `json:"end_time,omitempty"`
+	IsAllDay             *bool         `json:"is_all_day,omitempty"`
+	Location             *string       `json:"location,omitempty"`
+	Color                *string       `json:"color,omitempty"`
+	Transparency         *Transparency `json:"transparency,omitempty"`
+	PreserveDateSequence *bool         `json:"preserve_date_sequence,omitempty"`
 }
 
 type CalendarEventResponse struct {

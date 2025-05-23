@@ -1,12 +1,10 @@
-from typing import Dict, Any, Optional, Union, AsyncGenerator, List, AsyncIterator, cast
-from app.schemas.message_schemas import ConversationHistory, UserMessage, AssistantMessage
+from typing import Dict, Any, Optional, List, AsyncIterator, cast
 from ai_services.llm.llm_service import LLMService
 from orchestration.ai_registry import ai_registry
 from core.mcp_state import get_mcp_client
-from core.config import settings
-from orchestration.langchain_memory import ConversationMemoryManager
+from ai_services.llm.mongodb_memory import get_mongodb_memory
 from orchestration.prompts import SYSTEM_PROMPT
-from langchain.prompts import ChatPromptTemplate
+from data_layer.cache.ai_cache_manager import AICacheManager
 import logging
 import json
 import time
@@ -24,7 +22,6 @@ class AIOrchestrator:
         self.logger = logging.getLogger(__name__)
         self._current_model_id: Optional[int] = None
         self.ai_registry = ai_registry
-        self.memory_manager = ConversationMemoryManager(max_history_length=10)
         self.max_history_length = 10
         self.mcp_client = None
         self._init_lock = asyncio.Lock()
@@ -51,12 +48,17 @@ class AIOrchestrator:
         return self.mcp_client
 
     async def _get_available_tools(self) -> List[Dict[str, Any]]:
-        """Fetch available tools from MCP client."""
+        """Fetch available tools from MCP client with caching."""
         try:
+            # Try to get from cache first
+            cached_tools = await AICacheManager.get_cached_tools()
+            if cached_tools:
+                self.logger.info("Retrieved tools from cache")
+                return cached_tools
+
             mcp_client = await self._get_mcp_client()
             if not mcp_client:
-                self.logger.warning(
-                    "Could not get MCP client, returning empty tools list")
+                self.logger.warning("Could not get MCP client, returning empty tools list")
                 return []
 
             tools = await mcp_client.get_tools()
@@ -65,15 +67,16 @@ class AIOrchestrator:
             # Remove any auth-related parameters since we use JWT
             for tool in tools:
                 if "input_schema" in tool and "properties" in tool["input_schema"]:
-                    # Remove user_id and auth-related parameters for display in the prompt
-                    auth_params = ["user_id", "auth_token",
-                                   "token", "authorization"]
+                    auth_params = ["user_id", "auth_token", "token", "authorization"]
                     for param in auth_params:
                         if param in tool["input_schema"]["properties"]:
                             tool["input_schema"]["properties"].pop(param)
                     if "required" in tool["input_schema"]:
-                        tool["input_schema"]["required"] = [
-                            r for r in tool["input_schema"]["required"] if r not in auth_params]
+                        tool["input_schema"]["required"] = [r for r in tool["input_schema"]["required"] if r not in auth_params]
+
+            # Cache the tools
+            await AICacheManager.set_cached_tools(tools)
+            self.logger.info("Cached tools in Redis")
 
             return tools
         except Exception as e:
@@ -121,130 +124,6 @@ class AIOrchestrator:
                 break
 
         return tool_calls
-
-    async def edit_todo_with_context(self, user_query: str, user_id: int, auth_token: Optional[str] = None) -> Dict[str, Any]:
-        try:
-            self.logger.info(
-                f"Processing todo edit request for user {user_id}")
-
-            # Step 1: Fetch todos using get_items tool
-            mcp_client = await self._get_mcp_client()
-            if not mcp_client:
-                return {"status": "error", "error": "MCP client not available"}
-
-            # Fetch all todos for context
-            todos_result = await mcp_client.call_tool(
-                "get_items",
-                {
-                    "item_type": "todos",
-                    "authorization": auth_token
-                }
-            )
-
-            if todos_result.get("status") != "success":
-                error_msg = todos_result.get("error", "Failed to fetch todos")
-                self.logger.error(f"Failed to fetch todos: {error_msg}")
-                return {"status": "error", "error": error_msg}
-
-            # Extract todos from the result
-            todos_context = self._make_serializable(
-                todos_result.get("content", {}))
-
-            # Step 2: Generate a prompt for the AI to analyze the todos and user request
-            prompt = f"""
-            User wants to edit a todo with this request: "{user_query}"
-            
-            Here are the user's current todos:
-            {json.dumps(todos_context, indent=2)}
-            
-            Based on the user's request and their todos, identify:
-            1. Which todo needs to be edited (provide the todo_id)
-            2. What specific fields need to be updated
-            
-            Respond with a JSON object containing the todo_id and update fields.
-            """
-
-            # Call the LLM to analyze todos and user request
-            response = await self.llm_service.generate_response(
-                prompt=prompt,
-                context={
-                    "system_prompt": "You are a helpful assistant that analyzes todo items and user requests. Identify which todo the user wants to edit and what changes they want to make. Respond with a JSON object that includes todo_id and the fields to update."
-                },
-                stream=False
-            )
-
-            # Extract the AI's suggestion
-            update_info = None
-            if isinstance(response, dict):
-                response_text = response.get("text", "")
-                try:
-                    # Try to extract JSON from the response
-                    import re
-                    json_match = re.search(
-                        r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
-                    if json_match:
-                        json_text = json_match.group(1)
-                    else:
-                        json_text = response_text
-
-                    # Clean up the text to make sure it's valid JSON
-                    json_text = re.sub(r'[^\x20-\x7E]', '', json_text)
-                    update_info = json.loads(json_text)
-                except Exception as e:
-                    self.logger.error(
-                        f"Failed to parse LLM response: {str(e)}")
-                    return {"status": "error", "error": f"Failed to parse AI suggestion: {str(e)}"}
-            else:
-                return {"status": "error", "error": "Invalid response format from LLM"}
-
-            if not update_info or "todo_id" not in update_info:
-                return {"status": "error", "error": "AI couldn't identify which todo to update"}
-
-            # Step 3: Call the update_todo tool with the extracted information
-            todo_id = update_info.pop("todo_id", None)
-            if not todo_id:
-                return {"status": "error", "error": "No todo ID provided for update"}
-
-            # Add authorization if provided
-            if auth_token:
-                update_info["authorization"] = auth_token
-
-            # Call the update tool
-            update_result = await mcp_client.call_tool(
-                "todos.update",
-                {
-                    "todo_id": todo_id,
-                    **update_info
-                }
-            )
-
-            # Return the result
-            if update_result.get("status") == "success":
-                return {
-                    "status": "success",
-                    "message": "Todo updated successfully",
-                    "content": self._make_serializable(update_result.get("content", {}))
-                }
-            else:
-                return {
-                    "status": "error",
-                    "error": update_result.get("error", "Unknown error updating todo"),
-                    "type": "api_error"
-                }
-
-        except Exception as e:
-            self.logger.error(
-                f"Error in edit_todo_with_context: {str(e)}", exc_info=True)
-            return {"status": "error", "error": str(e), "type": "function_error"}
-
-    def _get_conversation_history(self, user_id: int) -> ConversationHistory:
-        """Get conversation history for a user using LangChain memory."""
-        return self.memory_manager.convert_to_chat_history(user_id)
-
-    def _update_conversation_history(self, user_id: int, prompt: str, response: str) -> None:
-        """Update conversation history with new messages using LangChain memory."""
-        self.memory_manager.add_user_message(user_id, prompt)
-        self.memory_manager.add_ai_message(user_id, response)
 
     def _make_serializable(self, obj):
         """Convert non-serializable objects to serializable structures recursively."""
@@ -353,21 +232,31 @@ class AIOrchestrator:
                 self.logger.info(
                     f"Stored user message for streaming in conversation {conversation.id}")
 
-            # Get conversation history using LangChain memory
-            messages = self.memory_manager.get_langchain_messages(user_id)
+            # Get conversation history using MongoDB memory - just load, don't write
+            mongo_memory = get_mongodb_memory(user_id=user_id_str, session_id=session_id)
+            messages = mongo_memory.get_langchain_messages()
             self.logger.debug(
                 f"Retrieved {len(messages)} conversation history messages")
 
-            # Get available tools and format system prompt
+            # Get tools and format system prompt with caching
             tools = await self._get_available_tools()
             formatted_tools = self._format_tools_for_prompt(tools)
             
+            # Try to get cached system prompt
+            enhanced_system_prompt = await AICacheManager.get_cached_system_prompt()
+            if not enhanced_system_prompt:
+                enhanced_system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+                # Cache the formatted system prompt
+                await AICacheManager.set_cached_system_prompt(enhanced_system_prompt)
+                self.logger.info("Cached formatted system prompt")
+            else:
+                self.logger.info("Retrieved system prompt from cache")
+
             # Get relevant context from RAG
             relevant_context = await self.rag_service.get_relevant_context(user_input)
             self.logger.info("Retrieved relevant context from RAG service")
 
-            # Enhance system prompt with RAG context
-            enhanced_system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+            # Add RAG context to system prompt
             if relevant_context:
                 enhanced_system_prompt += f"\n\nRelevant context from knowledge base:\n{relevant_context}"
 
@@ -516,28 +405,23 @@ class AIOrchestrator:
                     final_response += token
                     yield {"token": token}
 
-            # Update conversation history with LangChain memory after streaming completes
-            if final_response:
-                self._update_conversation_history(
-                    user_id, user_input, final_response)
-
-                # Store assistant message in MongoDB
-                if conversation and conversation.id:
-                    self.mongo_client.add_message_to_conversation(
-                        conversation_id=conversation.id,
-                        role="assistant",
-                        content=final_response,
-                        metadata={
-                            "tool_used": tool_info["name"] if tool_info else None,
-                            "streaming": True,
-                            "client_ip": client_ip,
-                            "user_agent": user_agent,
-                            "real_user_id": real_user_id,
-                            "organization_id": organization_id
-                        }
-                    )
-                    self.logger.info(
-                        f"Stored streaming assistant response in conversation {conversation.id}")
+            # Store only assistant message in MongoDB (user message already stored above)
+            if final_response and conversation and conversation.id:
+                self.mongo_client.add_message_to_conversation(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=final_response,
+                    metadata={
+                        "tool_used": tool_info["name"] if tool_info else None,
+                        "streaming": True,
+                        "client_ip": client_ip,
+                        "user_agent": user_agent,
+                        "real_user_id": real_user_id,
+                        "organization_id": organization_id
+                    }
+                )
+                self.logger.info(
+                    f"Stored streaming assistant response in conversation {conversation.id}")
 
             execution_time = time.time() - start_time
             self.logger.info(

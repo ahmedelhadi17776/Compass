@@ -1,9 +1,7 @@
-from typing import Dict, Any, List, Optional, Type
-from data_layer.mongodb.connection import get_collection, get_async_collection
-from data_layer.models.base_model import MongoBaseModel
-from data_layer.models.ai_model import AIModel, ModelUsage, ModelType, ModelProvider
+from typing import Dict, Any, List, Optional
+from data_layer.mongodb.connection import get_mongodb_client as get_pooled_client, get_async_mongodb_client
+from data_layer.models.ai_model import AIModel, ModelType, ModelProvider
 from data_layer.models.conversation import Conversation
-from data_layer.repos.base_repo import BaseMongoRepository
 from data_layer.repos.ai_model_repo import AIModelRepository, ModelUsageRepository
 from data_layer.repos.conversation_repo import ConversationRepository
 from data_layer.repos.cost_tracking_repo import CostTrackingRepository
@@ -20,6 +18,10 @@ class MongoDBClient:
     def __init__(self):
         """Initialize MongoDB client."""
         logger.info("Initializing MongoDB client for AI services")
+
+        # Get the pooled MongoDB clients (sync and async)
+        self._mongodb_client = get_pooled_client()
+        self._async_mongodb_client = get_async_mongodb_client()
 
         # Initialize repositories
         self._ai_model_repo = AIModelRepository()

@@ -3,6 +3,7 @@ from data_layer.mongodb.connection import get_mongodb_client
 from core.config import settings
 from core.mcp_state import set_mcp_client, get_mcp_client
 from api.ai_routes import router as ai_router
+from data_layer.cache.redis_client import redis_client
 import pathlib
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +26,6 @@ try:
     sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 except (AttributeError, IOError):
     pass
-
 
 
 class EmojiSafeFormatter(logging.Formatter):
@@ -108,6 +108,27 @@ logger.info("Logging initialized with emoji-safe configuration")
 async def lifespan(app: FastAPI):
     """Initialize and manage resources using multiple lifecycle managers."""
     try:
+        # Initialize Redis
+        logger.info("Testing Redis connection...")
+        try:
+            # Ping Redis on database 1
+            await redis_client.ping()
+            logger.info("✅ Redis connection successful on database 1")
+        except Exception as e:
+            logger.error(f"❌ Redis connection failed: {str(e)}")
+            raise
+
+        # Pre-load sentence transformer model
+        logger.info("Pre-loading sentence transformer model...")
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            app.state.sentence_transformer = model
+            logger.info("✅ Sentence transformer model loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load sentence transformer: {str(e)}")
+            raise
+
         # Initialize MongoDB
         async with mongodb_lifespan(app):
             # Initialize the MCP server if enabled
@@ -117,10 +138,18 @@ async def lifespan(app: FastAPI):
             logger.info("Application started successfully")
             yield
     finally:
-        # Cleanup MCP client when app shuts down
+        # Cleanup resources when app shuts down
         logger.info("Shutting down application...")
         if settings.mcp_enabled:
-            result = await cleanup_mcp()  # Ensure we await the result
+            result = await cleanup_mcp()
+
+        # Close Redis connection
+        try:
+            await redis_client.close()
+            logger.info("Redis connection closed")
+        except Exception as e:
+            logger.error(f"Error closing Redis connection: {str(e)}")
+            
         logger.info("All resources cleaned up")
 
 # Create FastAPI app with lifespan
@@ -272,9 +301,19 @@ async def health_check():
         logger.error(f"MongoDB health check error: {str(e)}")
         mongodb_ok = False
 
+    # Check Redis connection
+    try:
+        redis_ok = await redis_client.ping()
+        logger.info("Redis health check passed")
+    except Exception as e:
+        logger.error(f"Redis health check error: {str(e)}")
+        redis_ok = False
+
     return {
-        "status": "healthy" if mongodb_ok else "degraded",
+        "status": "healthy" if (mongodb_ok and redis_ok) else "degraded",
         "mongodb": mongodb_ok,
+        "redis": redis_ok,
+        "redis_db": 1,  # Show which Redis DB we're using
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
 

@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarEvent, CreateEventData } from './types';
+import { 
+  CalendarEvent, 
+  CreateCalendarEventRequest, 
+  UpdateCalendarEventRequest, 
+  CalendarEventResponse
+} from './types';
 import { User } from '@/hooks/useAuth';
-import { fetchEvents, createEvent, updateEvent, deleteEvent } from './api';
+import { fetchEvents, createEvent, updateEvent, deleteEvent, updateOccurrenceById } from './api';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, startOfWeek, addDays, endOfWeek } from 'date-fns';
 
 // Calendar hooks
@@ -12,12 +17,12 @@ export const useEvents = (
 ) => {
   const startTime = viewType === 'day' ? startOfDay(date) : 
                    viewType === 'threeDays' ? startOfDay(date) :
-                   viewType === 'week' ? startOfWeek(date, { weekStartsOn: 1 }) :
+                   viewType === 'week' ? startOfDay(date) :
                    startOfMonth(date);
                    
   const endTime = viewType === 'day' ? endOfDay(date) : 
                  viewType === 'threeDays' ? endOfDay(addDays(date, 2)) :
-                 viewType === 'week' ? endOfWeek(date, { weekStartsOn: 1 }) :
+                 viewType === 'week' ? endOfDay(addDays(date, 6)) :
                  endOfMonth(date);
 
   return useQuery<CalendarEvent[]>({
@@ -46,23 +51,18 @@ export const useMonthEvents = (user: User | undefined, date: Date) => {
 
 export const useCreateEvent = () => {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: createEvent,
+  return useMutation<CalendarEventResponse, Error, CreateCalendarEventRequest>({
+    mutationFn: (data: CreateCalendarEventRequest) => createEvent(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
     },
   });
 };
 
-interface UpdateEventData {
-  eventId: string;
-  event: CalendarEvent;
-}
-
 export const useUpdateEvent = () => {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: UpdateEventData) => updateEvent(data.eventId, data.event),
+  return useMutation<CalendarEventResponse, Error, { eventId: string; event: UpdateCalendarEventRequest }>({
+    mutationFn: ({ eventId, event }) => updateEvent(eventId, event),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
     },
@@ -71,8 +71,18 @@ export const useUpdateEvent = () => {
 
 export const useDeleteEvent = () => {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<void, Error, string>({
     mutationFn: deleteEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+};
+
+export const useUpdateOccurrenceById = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { occurrenceId: string; updates: UpdateCalendarEventRequest }>({
+    mutationFn: ({ occurrenceId, updates }) => updateOccurrenceById(occurrenceId, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
     },

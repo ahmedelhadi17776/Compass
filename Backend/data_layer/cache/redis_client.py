@@ -1,17 +1,20 @@
 from typing import Optional, List, Dict, Any, Union
 import redis.asyncio as redis
-from Backend.core.config import settings
+from core.config import settings
 import logging
 import json
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
-# Create Redis connection pool
+# Create Redis connection pool with db=1
 redis_client = redis.from_url(
-    settings.REDIS_URL,
-    decode_responses=True
+    settings.redis_url,
+    decode_responses=True,
+    db=1  # Use database 1 instead of default 0
 )
+
+logger.info("Initialized Redis client on database 1")
 
 
 async def get_cached_value(key: str) -> Optional[str]:

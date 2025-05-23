@@ -189,3 +189,18 @@
 .month-other-day .month-day-number {
   color: #a0a0a0;
 }
+
+.month-event-occurrence {
+  border-left: 3px solid var(--occurrence-color, #6366f1);
+}
+
+.month-event-location {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+/* Dark mode styles */
+.dark .month-event-occurrence {
+  border-left-color: var(--occurrence-color-dark, #818cf8);
+}

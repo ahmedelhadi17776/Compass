@@ -21,6 +21,7 @@ from core.config import settings
 from orchestration.ai_orchestrator import AIOrchestrator
 from orchestration.todo_operations import smart_update_todo
 import uuid
+from data_layer.cache.ai_cache_manager import AICacheManager
 
 # Hardcoded JWT token for development - only used as fallback
 DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjUwNDg1NiwibmJmIjoxNzQ2NDE4NDU2LCJpYXQiOjE3NDY0MTg0NTZ9.nUky6q0vPRnVYP9gTPIPaibNezB-7Sn-EgDZvlxU0_8"
@@ -419,7 +420,7 @@ async def get_items(
     page_size: Optional[int] = None,
     user_id: Optional[str] = None  # Moved to end to de-emphasize
 ) -> Dict[str, Any]:
-    """Get items (todos or habits) with optional filters.
+    """Get/List/Show items (todos or habits) with optional filters.
 
     Args:
         item_type: Type of items to retrieve ("todos" or "habits")
@@ -729,11 +730,32 @@ async def test_jwt():
     except Exception as e:
         return {"error": str(e)}
 
+@app.post("/mcp/tools/refresh")
+async def refresh_tools():
+    """Endpoint to refresh tools cache."""
+    try:
+        await AICacheManager.invalidate_cache()
+        return {"status": "success", "message": "Tools cache invalidated"}
+    except Exception as e:
+        logger.error(f"Error refreshing tools cache: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""
     # Log basic info
     logger.info(f"Setting up MCP server: {mcp.name}")
+    
+    # Invalidate cache on startup
+    async def invalidate_cache_on_startup():
+        try:
+            await AICacheManager.invalidate_cache()
+            logger.info("Invalidated AI cache on startup")
+        except Exception as e:
+            logger.error(f"Error invalidating cache on startup: {str(e)}")
+    
+    # Add startup event
+    if app:
+        app.add_event_handler("startup", invalidate_cache_on_startup)
 
     return mcp
 
