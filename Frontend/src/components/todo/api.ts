@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Todo, TodosResponse, TodoList, TodoListsResponse, CreateTodoListInput, UpdateTodoListInput } from './types-todo';
 import { Habit } from './types-habit';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8080';
 
 // Configure axios defaults
 //axios.defaults.headers.common['Accept-Encoding'] = 'gzip, deflate';
