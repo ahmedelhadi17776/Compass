@@ -1,4 +1,4 @@
-import { WorkflowStep } from "@/types/workflow";
+import { WorkflowStep } from "@/components/workflow/types";
 
 export interface StepConnectionInfo {
   rowIndex: number;
