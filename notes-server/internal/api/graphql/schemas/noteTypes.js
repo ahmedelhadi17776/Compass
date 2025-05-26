@@ -5,10 +5,54 @@ const {
   GraphQLList, 
   GraphQLBoolean,
   GraphQLEnumType,
-  GraphQLInputObjectType
+  GraphQLInputObjectType,
+  GraphQLInt
 } = require('graphql');
 const NotePage = require('../../../domain/notes/model');
 const { createResponseType } = require('./responseTypes');
+
+// Input types for better mutation handling
+const NotePageInput = new GraphQLInputObjectType({
+  name: 'NotePageInput',
+  fields: {
+    userId: { 
+      type: GraphQLID,
+      description: 'ID of the user who owns the note'
+    },
+    title: { 
+      type: GraphQLString,
+      description: 'Title of the note (max 200 characters)'
+    },
+    content: { 
+      type: GraphQLString,
+      description: 'Content of the note (max 10000 characters)'
+    },
+    tags: { 
+      type: new GraphQLList(GraphQLString),
+      description: 'List of tags (max 10 tags, each max 50 characters)'
+    },
+    icon: { 
+      type: GraphQLString,
+      description: 'Icon name or emoji (max 50 characters)'
+    },
+    favorited: {
+      type: GraphQLBoolean,
+      description: 'Whether the note is favorited'
+    },
+    linksOut: { 
+      type: new GraphQLList(GraphQLID),
+      description: 'List of note IDs this note links to'
+    }
+  }
+});
+
+const PaginationInput = new GraphQLInputObjectType({
+  name: 'PaginationInput',
+  fields: {
+    page: { type: GraphQLInt, defaultValue: 1 },
+    limit: { type: GraphQLInt, defaultValue: 10 }
+  }
+});
 
 const NoteSortFieldEnum = new GraphQLEnumType({
   name: 'NoteSortField',
@@ -45,6 +89,16 @@ const EntityType = new GraphQLObjectType({
   }
 });
 
+// Helper function to get selected fields from GraphQL query
+const getSelectedFields = (info) => {
+  const selections = info.fieldNodes[0].selectionSet.selections;
+  return selections
+    .find(selection => selection.name.value === 'data')
+    ?.selectionSet.selections
+    .map(selection => selection.name.value)
+    .join(' ');
+};
+
 const NotePageType = new GraphQLObjectType({
   name: 'NotePage',
   fields: () => ({
@@ -54,14 +108,23 @@ const NotePageType = new GraphQLObjectType({
     content: { type: GraphQLString },
     linksOut: { 
       type: new GraphQLList(NotePageType),
-      resolve(parent) {
-        return NotePage.find({ _id: { $in: parent.linksOut } });
+      resolve: async (parent, args, context, info) => {
+        // Only fetch if the field is requested
+        if (!info.fieldNodes[0].selectionSet) return [];
+        const selectedFields = getSelectedFields(info);
+        return NotePage.find({ _id: { $in: parent.linksOut } })
+          .select(selectedFields || 'title content tags favorited icon')
+          .lean();
       }
     },
     linksIn: { 
       type: new GraphQLList(NotePageType),
-      resolve(parent) {
-        return NotePage.find({ _id: { $in: parent.linksIn } });
+      resolve: async (parent, args, context, info) => {
+        if (!info.fieldNodes[0].selectionSet) return [];
+        const selectedFields = getSelectedFields(info);
+        return NotePage.find({ _id: { $in: parent.linksIn } })
+          .select(selectedFields || 'title content tags favorited icon')
+          .lean();
       }
     },
     entities: { type: new GraphQLList(EntityType) },
@@ -70,7 +133,11 @@ const NotePageType = new GraphQLObjectType({
     favorited: { type: GraphQLBoolean },
     icon: { type: GraphQLString },
     createdAt: { type: GraphQLString },
-    updatedAt: { type: GraphQLString }
+    updatedAt: { type: GraphQLString },
+    linkedNotesCount: {
+      type: GraphQLInt,
+      resolve: (parent) => parent.linksOut.length + parent.linksIn.length
+    }
   })
 });
 
@@ -84,5 +151,8 @@ module.exports = {
   NotePageListResponseType,
   NoteSortFieldEnum,
   SortOrderEnum,
-  NoteFilterInput
+  NoteFilterInput,
+  NotePageInput,
+  PaginationInput,
+  getSelectedFields
 }; 

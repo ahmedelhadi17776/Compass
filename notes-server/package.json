@@ -2,10 +2,10 @@
   "name": "notes-server",
   "version": "1.0.0",
   "description": "Express server for notes application",
-  "main": "server.js",
+  "main": "cmd/api/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node cmd/api/server.js",
+    "dev": "nodemon cmd/api/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
