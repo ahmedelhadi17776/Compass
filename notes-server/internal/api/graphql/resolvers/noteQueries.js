@@ -4,10 +4,12 @@ const {
   NotePageListResponseType,
   NoteSortFieldEnum,
   SortOrderEnum,
-  NoteFilterInput
+  NoteFilterInput,
+  getSelectedFields
 } = require('../schemas/noteTypes');
+const { createErrorResponse, createPaginatedResponse } = require('../schemas/responseTypes');
 const NotePage = require('../../../domain/notes/model');
-const { NotFoundError } = require('../../../../pkg/utils/errorHandler');
+const { NotFoundError, ValidationError } = require('../../../../pkg/utils/errorHandler');
 
 // Search input type for more granular search control
 const NoteSearchInput = new GraphQLInputObjectType({
@@ -21,12 +23,19 @@ const notePageQueries = {
   notePage: {
     type: NotePageResponseType,
     args: { id: { type: GraphQLID } },
-    async resolve(parent, args, context) {
+    async resolve(parent, args, context, info) {
       try {
+        if (!args.id) {
+          throw new ValidationError('Note ID is required', 'id');
+        }
+
+        const selectedFields = getSelectedFields(info);
         const note = await NotePage.findOne({
           _id: args.id,
           isDeleted: false
-        });
+        })
+        .select(selectedFields)
+        .lean();
         
         if (!note) throw new NotFoundError('Note');
         
@@ -37,15 +46,15 @@ const notePageQueries = {
           errors: null
         };
       } catch (error) {
-        return {
-          success: false,
-          message: error.message,
-          data: null,
-          errors: [{
+        return createErrorResponse(
+          error.message,
+          [{
             message: error.message,
-            code: error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
           }]
-        };
+        );
       }
     }
   },
@@ -60,10 +69,16 @@ const notePageQueries = {
       sortOrder: { type: SortOrderEnum, defaultValue: -1 },
       filter: { type: NoteFilterInput }
     },
-    async resolve(parent, args) {
+    async resolve(parent, args, context, info) {
       try {
         const { userId, search, page, limit, sortField, sortOrder, filter } = args;
+        
+        if (!userId) {
+          throw new ValidationError('User ID is required', 'userId');
+        }
+
         const skip = (page - 1) * limit;
+        const selectedFields = getSelectedFields(info);
         
         const query = { 
           userId,
@@ -89,9 +104,9 @@ const notePageQueries = {
           }
         }
 
+        const sortOptions = { [sortField]: sortOrder };
         let notes;
         let totalItems;
-        const sortOptions = { [sortField]: sortOrder };
 
         if (search?.query) {
           // Use MongoDB's text search with index
@@ -102,46 +117,35 @@ const notePageQueries = {
           };
           
           notes = await NotePage.find(query)
-            .select('title content tags favorited icon createdAt updatedAt userId')
+            .select(selectedFields || 'title content tags favorited icon createdAt updatedAt userId')
             .sort({ 
               score: { $meta: 'textScore' },  // Sort by text match relevance first
               ...sortOptions 
             })
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .lean();
         } else {
           notes = await NotePage.find(query)
-            .select('title content tags favorited icon createdAt updatedAt userId')
+            .select(selectedFields || 'title content tags favorited icon createdAt updatedAt userId')
             .sort(sortOptions)
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .lean();
         }
         
         totalItems = await NotePage.countDocuments(query);
-        const totalPages = Math.ceil(totalItems / limit);
 
-        return {
-          success: true,
-          message: 'Notes retrieved successfully',
-          data: notes,
-          pageInfo: {
-            hasNextPage: page < totalPages,
-            hasPreviousPage: page > 1,
-            totalPages,
-            totalItems,
-            currentPage: page
-          }
-        };
+        return createPaginatedResponse(notes, page, limit, totalItems);
       } catch (error) {
-        return {
-          success: false,
-          message: error.message,
-          data: [],
-          errors: [{
+        return createErrorResponse(
+          error.message,
+          [{
             message: error.message,
-            code: 'INTERNAL_ERROR'
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR'
           }]
-        };
+        );
       }
     }
   }

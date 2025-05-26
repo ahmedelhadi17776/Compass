@@ -1,9 +1,32 @@
 const { z } = require('zod');
 
-class NotFoundError extends Error {
+class BaseError extends Error {
+  constructor(message, code, status) {
+    super(message);
+    this.name = this.constructor.name;
+    this.code = code;
+    this.status = status;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+class ValidationError extends BaseError {
+  constructor(message, field) {
+    super(message, 'VALIDATION_ERROR', 400);
+    this.field = field;
+  }
+}
+
+class NotFoundError extends BaseError {
   constructor(resource) {
-    super(`${resource} not found`);
+    super(`${resource} not found`, 'NOT_FOUND', 404);
     this.resource = resource;
+  }
+}
+
+class DatabaseError extends BaseError {
+  constructor(message) {
+    super(message, 'DATABASE_ERROR', 500);
   }
 }
 
@@ -22,15 +45,16 @@ const handleZodError = (error) => {
 const formatGraphQLError = (error) => {
   const originalError = error.originalError;
 
-  if (originalError instanceof NotFoundError) {
+  if (originalError instanceof BaseError) {
     return {
       message: originalError.message,
-      code: 'NOT_FOUND',
-      status: 404
+      code: originalError.code,
+      status: originalError.status,
+      field: originalError.field,
+      resource: originalError.resource
     };
   }
 
-  // Handle other types of errors
   return {
     message: error.message || 'Internal Server Error',
     code: 'INTERNAL_ERROR',
@@ -41,7 +65,10 @@ const formatGraphQLError = (error) => {
 };
 
 module.exports = {
+  BaseError,
+  ValidationError,
   NotFoundError,
+  DatabaseError,
   handleZodError,
   formatGraphQLError
 }; 

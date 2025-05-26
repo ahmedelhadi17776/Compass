@@ -1,9 +1,15 @@
-const { GraphQLID, GraphQLString, GraphQLList, GraphQLBoolean } = require('graphql');
+const { GraphQLID, GraphQLString, GraphQLBoolean, GraphQLList } = require('graphql');
 const { z } = require('zod');
-const { NotePageResponseType } = require('../../graphql/schemas/noteTypes');
+const { 
+  NotePageResponseType, 
+  NotePageInput,
+  getSelectedFields,
+  createErrorResponse
+} = require('../schemas/noteTypes');
+const { createErrorResponse: responseErrorResponse } = require('../schemas/responseTypes');
 const NotePage = require('../../../domain/notes/model');
-const { updateBidirectionalLinks } = require('../../../domain/notes/linkService');
-const { handleZodError, NotFoundError } = require('../../../../pkg/utils/errorHandler');
+const { updateBidirectionalLinks, validateLinks } = require('../../../domain/notes/linkService');
+const { ValidationError, NotFoundError, DatabaseError } = require('../../../../pkg/utils/errorHandler');
 
 // Validation for MongoDB ObjectId
 const objectIdSchema = z.string()
@@ -53,74 +59,97 @@ const DeleteNotePageSchema = z.object({
 });
 
 const notePageMutations = {
-  addNotePage: {
+  createNotePage: {
     type: NotePageResponseType,
-    args: {
-      userId: { type: GraphQLID },
-      title: { type: GraphQLString },
-      content: { type: GraphQLString },
-      tags: { type: new GraphQLList(GraphQLString) },
-      icon: { type: GraphQLString },
-      linksOut: { type: new GraphQLList(GraphQLID) }
+    args: { 
+      input: { type: NotePageInput }
     },
-    async resolve(parent, args) {
+    async resolve(parent, args, context, info) {
       try {
-        const validatedData = CreateNotePageSchema.parse(args);
-        const notePage = new NotePage(validatedData);
-        await notePage.save();
-
-        if (validatedData.linksOut.length > 0) {
-          await updateBidirectionalLinks(notePage._id, validatedData.linksOut, []);
+        const { input } = args;
+        
+        if (!input.userId) {
+          throw new ValidationError('User ID is required', 'userId');
         }
+
+        if (!input.title?.trim()) {
+          throw new ValidationError('Title is required', 'title');
+        }
+
+        // Validate links if provided
+        if (input.linksOut?.length > 0) {
+          await validateLinks(input.linksOut);
+        }
+
+        const note = new NotePage(input);
+        await note.save();
+
+        // Update bidirectional links if any
+        if (input.linksOut?.length > 0) {
+          await updateBidirectionalLinks(note._id, [], input.linksOut);
+        }
+
+        const selectedFields = getSelectedFields(info);
+        const savedNote = await NotePage.findById(note._id)
+          .select(selectedFields)
+          .lean();
 
         return {
           success: true,
           message: 'Note created successfully',
-          data: notePage,
+          data: savedNote,
           errors: null
         };
       } catch (error) {
-        const errors = error instanceof z.ZodError ? 
-          handleZodError(error) : 
-          [{ message: error.message, code: 'INTERNAL_ERROR' }];
-
-        return {
-          success: false,
-          message: 'Failed to create note',
-          data: null,
-          errors
-        };
+        return createErrorResponse(
+          error.message,
+          [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof DatabaseError ? 'DATABASE_ERROR' : 'INTERNAL_ERROR'
+          }]
+        );
       }
     }
   },
   updateNotePage: {
     type: NotePageResponseType,
-    args: {
+    args: { 
       id: { type: GraphQLID },
-      title: { type: GraphQLString },
-      content: { type: GraphQLString },
-      tags: { type: new GraphQLList(GraphQLString) },
-      icon: { type: GraphQLString },
-      favorited: { type: GraphQLBoolean },
-      linksOut: { type: new GraphQLList(GraphQLID) }
+      input: { type: NotePageInput }
     },
-    async resolve(parent, args) {
+    async resolve(parent, args, context, info) {
       try {
-        const validatedData = UpdateNotePageSchema.parse(args);
-        const { id, ...updateData } = validatedData;
-        
-        const note = await NotePage.findById(id);
-        if (!note) throw new NotFoundError('Note');
+        const { id, input } = args;
 
-        if (updateData.linksOut) {
-          await updateBidirectionalLinks(id, updateData.linksOut, note.linksOut);
+        if (!id) {
+          throw new ValidationError('Note ID is required', 'id');
         }
 
-        const updatedNote = await NotePage.findByIdAndUpdate(
-          id,
-          { $set: updateData },
-          { new: true }
-        );
+        const existingNote = await NotePage.findById(id);
+        if (!existingNote) {
+          throw new NotFoundError('Note');
+        }
+
+        // Validate links if provided
+        if (input.linksOut?.length > 0) {
+          await validateLinks(input.linksOut);
+        }
+
+        // Update note
+        Object.assign(existingNote, input);
+        await existingNote.save();
+
+        // Update bidirectional links if changed
+        if (input.linksOut) {
+          await updateBidirectionalLinks(id, existingNote.linksOut, input.linksOut);
+        }
+
+        const selectedFields = getSelectedFields(info);
+        const updatedNote = await NotePage.findById(id)
+          .select(selectedFields)
+          .lean();
 
         return {
           success: true,
@@ -129,59 +158,115 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        const errors = error instanceof z.ZodError ? 
-          handleZodError(error) : 
-          [{ 
-            message: error.message, 
-            code: error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR' 
-          }];
-
-        return {
-          success: false,
-          message: 'Failed to update note',
-          data: null,
-          errors
-        };
+        return createErrorResponse(
+          error.message,
+          [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' :
+                  error instanceof DatabaseError ? 'DATABASE_ERROR' : 'INTERNAL_ERROR'
+          }]
+        );
       }
     }
   },
   deleteNotePage: {
     type: NotePageResponseType,
-    args: {
-      id: { type: GraphQLID }
-    },
-    async resolve(parent, args) {
+    args: { id: { type: GraphQLID } },
+    async resolve(parent, args, context, info) {
       try {
-        const { id } = DeleteNotePageSchema.parse(args);
-        
-        const note = await NotePage.findByIdAndUpdate(
-          id,
-          { isDeleted: true },
-          { new: true }
-        );
-        
-        if (!note) throw new NotFoundError('Note');
+        const { id } = args;
+
+        if (!id) {
+          throw new ValidationError('Note ID is required', 'id');
+        }
+
+        const note = await NotePage.findById(id);
+        if (!note) {
+          throw new NotFoundError('Note');
+        }
+
+        // Soft delete
+        note.isDeleted = true;
+        await note.save();
+
+        // Remove bidirectional links
+        if (note.linksOut?.length > 0) {
+          await updateBidirectionalLinks(id, note.linksOut, []);
+        }
+
+        const selectedFields = getSelectedFields(info);
+        const deletedNote = await NotePage.findById(id)
+          .select(selectedFields)
+          .lean();
 
         return {
           success: true,
           message: 'Note deleted successfully',
-          data: note,
+          data: deletedNote,
           errors: null
         };
       } catch (error) {
-        const errors = error instanceof z.ZodError ? 
-          handleZodError(error) : 
-          [{ 
-            message: error.message, 
-            code: error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR' 
-          }];
-          
+        return createErrorResponse(
+          error.message,
+          [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
+          }]
+        );
+      }
+    }
+  },
+  toggleFavorite: {
+    type: NotePageResponseType,
+    args: { 
+      id: { type: GraphQLID },
+      favorited: { type: GraphQLBoolean }
+    },
+    async resolve(parent, args, context, info) {
+      try {
+        const { id, favorited } = args;
+
+        if (!id) {
+          throw new ValidationError('Note ID is required', 'id');
+        }
+
+        if (typeof favorited !== 'boolean') {
+          throw new ValidationError('Favorite status is required', 'favorited');
+        }
+
+        const note = await NotePage.findById(id);
+        if (!note) {
+          throw new NotFoundError('Note');
+        }
+
+        note.favorited = favorited;
+        await note.save();
+
+        const selectedFields = getSelectedFields(info);
+        const updatedNote = await NotePage.findById(id)
+          .select(selectedFields)
+          .lean();
+
         return {
-          success: false,
-          message: 'Failed to delete note',
-          data: null,
-          errors: errors
+          success: true,
+          message: `Note ${favorited ? 'favorited' : 'unfavorited'} successfully`,
+          data: updatedNote,
+          errors: null
         };
+      } catch (error) {
+        return createErrorResponse(
+          error.message,
+          [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
+          }]
+        );
       }
     }
   }
