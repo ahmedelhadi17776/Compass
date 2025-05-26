@@ -20,4 +20,4 @@ async function updateBidirectionalLinks(noteId, newLinksOut, oldLinksOut = []) {
   }
 }
 
-module.exports = { updateBidirectionalLinks }; 
+module.exports = { updateBidirectionalLinks };
