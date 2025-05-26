@@ -7,8 +7,8 @@ const {
   GraphQLEnumType,
   GraphQLInputObjectType
 } = require('graphql');
-const NotePage = require('../../../models/notePage.model');
-const { createResponseType } = require('./response.type');
+const NotePage = require('../../../domain/notes/model');
+const { createResponseType } = require('./responseTypes');
 
 const NoteSortFieldEnum = new GraphQLEnumType({
   name: 'NoteSortField',

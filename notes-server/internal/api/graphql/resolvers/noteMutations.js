@@ -1,9 +1,9 @@
 const { GraphQLID, GraphQLString, GraphQLList, GraphQLBoolean } = require('graphql');
 const { z } = require('zod');
-const { NotePageResponseType } = require('../types/notePage.type');
-const NotePage = require('../../../models/notePage.model');
-const { updateBidirectionalLinks } = require('../../../utils/linkManager');
-const { handleZodError, NotFoundError } = require('../../../utils/errorHandler');
+const { NotePageResponseType } = require('../../graphql/schemas/noteTypes');
+const NotePage = require('../../../domain/notes/model');
+const { updateBidirectionalLinks } = require('../../../domain/notes/linkService');
+const { handleZodError, NotFoundError } = require('../../../../pkg/utils/errorHandler');
 
 // Validation for MongoDB ObjectId
 const objectIdSchema = z.string()

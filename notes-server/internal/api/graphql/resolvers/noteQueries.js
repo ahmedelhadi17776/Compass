@@ -5,9 +5,9 @@ const {
   NoteSortFieldEnum,
   SortOrderEnum,
   NoteFilterInput
-} = require('../types/notePage.type');
-const NotePage = require('../../../models/notePage.model');
-const { NotFoundError } = require('../../../utils/errorHandler');
+} = require('../schemas/noteTypes');
+const NotePage = require('../../../domain/notes/model');
+const { NotFoundError } = require('../../../../pkg/utils/errorHandler');
 
 // Search input type for more granular search control
 const NoteSearchInput = new GraphQLInputObjectType({
