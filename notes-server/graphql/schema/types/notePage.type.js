@@ -1,5 +1,41 @@
-const { GraphQLObjectType, GraphQLString, GraphQLID, GraphQLList, GraphQLBoolean } = require('graphql');
+const { 
+  GraphQLObjectType, 
+  GraphQLString, 
+  GraphQLID, 
+  GraphQLList, 
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLInputObjectType
+} = require('graphql');
 const NotePage = require('../../../models/notePage.model');
+const { createResponseType } = require('./response.type');
+
+const NoteSortFieldEnum = new GraphQLEnumType({
+  name: 'NoteSortField',
+  values: {
+    CREATED_AT: { value: 'createdAt' },
+    UPDATED_AT: { value: 'updatedAt' },
+    TITLE: { value: 'title' }
+  }
+});
+
+const SortOrderEnum = new GraphQLEnumType({
+  name: 'SortOrder',
+  values: {
+    ASC: { value: 1 },
+    DESC: { value: -1 }
+  }
+});
+
+const NoteFilterInput = new GraphQLInputObjectType({
+  name: 'NoteFilter',
+  fields: {
+    tags: { type: new GraphQLList(GraphQLString) },
+    favorited: { type: GraphQLBoolean },
+    createdAfter: { type: GraphQLString },
+    createdBefore: { type: GraphQLString }
+  }
+});
 
 const EntityType = new GraphQLObjectType({
   name: 'Entity',
@@ -38,4 +74,15 @@ const NotePageType = new GraphQLObjectType({
   })
 });
 
-module.exports = NotePageType; 
+// Create response types for single and list responses
+const NotePageResponseType = createResponseType(NotePageType, 'NotePage');
+const NotePageListResponseType = createResponseType(new GraphQLList(NotePageType), 'NotePageList');
+
+module.exports = { 
+  NotePageType,
+  NotePageResponseType,
+  NotePageListResponseType,
+  NoteSortFieldEnum,
+  SortOrderEnum,
+  NoteFilterInput
+}; 
