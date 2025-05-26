@@ -1,4 +1,4 @@
-const NotePage = require('../models/notePage.model');
+const NotePage = require('./model');
 
 async function updateBidirectionalLinks(noteId, newLinksOut, oldLinksOut = []) {
   // Remove this note from linksIn of notes that are no longer linked
