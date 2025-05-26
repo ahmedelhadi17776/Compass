@@ -2,9 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { graphqlHTTP } = require('express-graphql');
-const { connectDB } = require('./config/db.config');
-const schema = require('./internal/api/graphql');
-const { formatGraphQLError } = require('./utils/errorHandler');
+const { connectDB } = require('../../internal/infrastructure/persistence/mongodb/connection');
+const schema = require('../../internal/api/graphql');
+const { formatGraphQLError } = require('../../utils/errorHandler');
 
 dotenv.config();
 

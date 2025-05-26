@@ -1,6 +1,6 @@
 const { GraphQLSchema, GraphQLObjectType } = require('graphql');
-const notePageQueries = require('./Repository/notePage.query');
-const notePageMutations = require('./handlers/notePage.mutation');
+const notePageQueries = require('./resolvers/noteQueries');
+const notePageMutations = require('./resolvers/noteMutations');
 
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
