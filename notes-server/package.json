@@ -18,6 +18,7 @@
     "ioredis": "^5.6.1",
     "mongoose": "^8.1.0",
     "rate-limit-mongo": "^2.3.2",
+    "rate-limit-redis": "^4.2.0",
     "zlib": "^1.0.5",
     "zod": "^3.25.28"
   },
