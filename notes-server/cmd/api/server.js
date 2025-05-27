@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const { connectDB } = require('../../internal/infrastructure/persistence/mongodb/connection');
 const schema = require('../../internal/api/graphql');
 const { formatGraphQLError } = require('../../pkg/utils/errorHandler');
-const { limiter } = require('../../internal/api/middleware/rateLimiter');
+const createRateLimiter = require('../../internal/api/middleware/rateLimiter');
 const RedisClient = require('../../internal/infrastructure/cache/redis');
 const redisConfig = require('../../internal/infrastructure/cache/config');
 
@@ -32,7 +32,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Connect to MongoDB and initialize rate limiter
+// Initialize server
 const initializeServer = async () => {
   try {
     // Connect to MongoDB
@@ -44,6 +44,22 @@ const initializeServer = async () => {
     // Make Redis client available globally
     global.redisClient = redisClient;
     
+    // Wait for Redis to be ready
+    await redisClient.client.ping();
+    
+    // Initialize rate limiter with Redis client
+    const { limiter, rateLimitHeaders, getRateLimitInfo } = createRateLimiter(redisClient);
+    
+    // Apply rate limiting middleware globally
+    app.use(limiter);
+    app.use(rateLimitHeaders);
+
+    // Add rate limit info endpoint
+    app.get('/rate-limit-info', async (req, res) => {
+      const info = await getRateLimitInfo(req);
+      res.json(info);
+    });
+
     // GraphQL endpoint with rate limiting
     app.use('/graphql', limiter, graphqlHTTP({
       schema,

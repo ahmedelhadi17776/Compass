@@ -1,68 +1,99 @@
 const rateLimit = require('express-rate-limit');
-const MongoStore = require('rate-limit-mongo');
-const mongoose = require('mongoose');
+const { RedisStore } = require('rate-limit-redis');
 const { DatabaseError } = require('../../../pkg/utils/errorHandler');
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('MONGODB_URI environment variable is required for rate limiting');
-}
+// Reuse the existing Redis client from global.redisClient
+const createRateLimiter = (redisClient) => {
+  if (!redisClient) {
+    throw new Error('Redis client is required for rate limiting');
+  }
 
-// Rate limiting configuration
-const limiter = rateLimit({
-  store: new MongoStore({
-    uri: process.env.MONGODB_URI,
-    collectionName: 'rate-limits',
-    expireTimeMs: 15 * 60 * 1000, // 15 minutes
-    mongoOptions: {
-      useExistingConnection: mongoose,
-      retryWrites: true
-    },
-    errorHandler: (err) => {
-      console.error('Rate limit store error:', err);
-      throw new DatabaseError(`Rate limit store error: ${err.message}`);
-    }
-  }),
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  message: {
-    success: false,
-    message: 'Too many requests, please try again later.',
-    errors: [{
-      message: 'Rate limit exceeded',
-      code: 'RATE_LIMIT_EXCEEDED',
-      retryAfter: 15 * 60 
-    }]
-  },
-  skip: (req) => {
-    return req.path === '/health' || req.method === 'OPTIONS';
-  },
-  keyGenerator: (req) => {
-    // Use IP and user ID if available for better rate limiting
-    return req.user ? `${req.ip}-${req.user.id}` : req.ip;
-  },
-  handler: (req, res) => {
-    res.status(429).json({
+  const limiter = rateLimit({
+    store: new RedisStore({
+      sendCommand: (...args) => redisClient.client.call(...args),
+      prefix: 'rate-limit:',
+      windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
+      max: process.env.RATE_LIMIT_MAX_REQUESTS || 100, // Limit each IP to 100 requests per windowMs
+      blockDuration: process.env.RATE_LIMIT_BLOCK_DURATION || 60 * 60, // Block for 1 hour if limit is exceeded
+      onError: (err) => {
+        console.error('Rate limit store error:', err);
+        throw new DatabaseError(`Rate limit store error: ${err.message}`);
+      }
+    }),
+    windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000,
+    max: process.env.RATE_LIMIT_MAX_REQUESTS || 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
       success: false,
       message: 'Too many requests, please try again later.',
       errors: [{
         message: 'Rate limit exceeded',
         code: 'RATE_LIMIT_EXCEEDED',
-        retryAfter: 15 * 60
+        retryAfter: 15 * 60 
       }]
-    });
-  }
-});
+    },
+    skip: (req) => {
+      // Skip rate limiting for health checks and OPTIONS requests
+      return req.path === '/health' || req.method === 'OPTIONS';
+    },
+    keyGenerator: (req) => {
+      // Use IP and user ID if available for better rate limiting
+      const key = req.user ? `${req.ip}-${req.user.id}` : req.ip;
+      // Add organization ID if available
+      return req.headers['x-organization-id'] ? `${key}-${req.headers['x-organization-id']}` : key;
+    },
+    handler: (req, res) => {
+      res.status(429).json({
+        success: false,
+        message: 'Too many requests, please try again later.',
+        errors: [{
+          message: 'Rate limit exceeded',
+          code: 'RATE_LIMIT_EXCEEDED',
+          retryAfter: 15 * 60
+        }]
+      });
+    }
+  });
 
-// Helper function to get rate limit info
-const getRateLimitInfo = (req) => {
-  const store = limiter.store;
+  // Helper function to get rate limit info
+  const getRateLimitInfo = async (req) => {
+    try {
+      const key = limiter.keyGenerator(req);
+      const windowMs = limiter.windowMs;
+      const max = limiter.max;
+      
+      // Get current count from Redis
+      const count = await redisClient.client.get(`rate-limit:${key}`);
+      const ttl = await redisClient.client.ttl(`rate-limit:${key}`);
+      
+      return {
+        key,
+        windowMs,
+        max,
+        current: parseInt(count) || 0,
+        remaining: max - (parseInt(count) || 0),
+        reset: ttl > 0 ? Math.ceil(ttl / 1000) : 0
+      };
+    } catch (error) {
+      console.error('Error getting rate limit info:', error);
+      return null;
+    }
+  };
+
+  // Add rate limit info to response headers
+  const rateLimitHeaders = (req, res, next) => {
+    res.set('X-RateLimit-Limit', limiter.max);
+    res.set('X-RateLimit-Remaining', limiter.max - (parseInt(req.rateLimit.current) || 0));
+    res.set('X-RateLimit-Reset', Math.ceil(req.rateLimit.reset / 1000));
+    next();
+  };
+
   return {
-    windowMs: limiter.windowMs,
-    max: limiter.max,
-    current: store.getKey ? store.getKey(req) : null
+    limiter,
+    getRateLimitInfo,
+    rateLimitHeaders
   };
 };
 
-module.exports = { limiter, getRateLimitInfo };
+module.exports = createRateLimiter;
