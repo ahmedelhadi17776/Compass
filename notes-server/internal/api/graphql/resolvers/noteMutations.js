@@ -3,10 +3,9 @@ const { z } = require('zod');
 const { 
   NotePageResponseType, 
   NotePageInput,
-  getSelectedFields,
-  createErrorResponse
+  getSelectedFields
 } = require('../schemas/noteTypes');
-const { createErrorResponse: responseErrorResponse } = require('../schemas/responseTypes');
+const { createErrorResponse } = require('../schemas/responseTypes');
 const NotePage = require('../../../domain/notes/model');
 const { updateBidirectionalLinks, validateLinks } = require('../../../domain/notes/linkService');
 const { ValidationError, NotFoundError, DatabaseError } = require('../../../../pkg/utils/errorHandler');
@@ -77,8 +76,12 @@ const notePageMutations = {
         }
 
         // Validate links if provided
-        if (input.linksOut?.length > 0) {
-          await validateLinks(input.linksOut);
+        if (input.linksOut && input.linksOut.length > 0) {
+          try {
+            await validateLinks(input.linksOut);
+          } catch (error) {
+            throw new ValidationError(error.message, 'linksOut');
+          }
         }
 
         const note = new NotePage(input);
@@ -112,15 +115,18 @@ const notePageMutations = {
 
         return result;
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        console.error('Error in createNotePage:', error);
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof DatabaseError ? 'DATABASE_ERROR' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   },
@@ -186,16 +192,19 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        console.error('Error in updateNotePage:', error);
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof NotFoundError ? 'NOT_FOUND' :
                   error instanceof DatabaseError ? 'DATABASE_ERROR' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   },
@@ -252,15 +261,18 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        console.error('Error in deleteNotePage:', error);
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   },
@@ -308,15 +320,18 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        console.error('Error in toggleFavorite:', error);
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   }

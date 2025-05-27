@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema, ObjectId } = mongoose;
+const { maintainBidirectionalLinks, handleDelete, storeOldLinksOut } = require('../../api/middleware/noteHooks');
 
 const NotePageSchema = new Schema({
   userId: { 
@@ -100,6 +101,15 @@ NotePageSchema.pre('save', function(next) {
   }
   next();
 });
+
+// Store old linksOut before saving
+NotePageSchema.pre('save', storeOldLinksOut);
+
+// Maintain bi-directional links after saving
+NotePageSchema.post('save', maintainBidirectionalLinks);
+
+// Handle cascading deletes
+NotePageSchema.post('save', handleDelete);
 
 // Method to check if note is linked to another note
 NotePageSchema.methods.isLinkedTo = function(noteId) {
