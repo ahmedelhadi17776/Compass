@@ -1,34 +1,34 @@
-const { GraphQLID, GraphQLBoolean } = require('graphql');
+const { GraphQLID } = require('graphql');
 const { 
-  NotePageResponseType, 
-  NotePageInput,
+  JournalResponseType, 
+  JournalInput,
   getSelectedFields
-} = require('../schemas/noteTypes');
-const noteService = require('../../../domain/notes/noteService');
+} = require('../schemas/journalTypes');
+const journalService = require('../../../domain/journals/journalService');
 const { ValidationError, NotFoundError, DatabaseError } = require('../../../../pkg/utils/errorHandler');
 const { logger } = require('../../../../pkg/utils/logger');
 
-const notePageMutations = {
-  createNotePage: {
-    type: NotePageResponseType,
+const journalMutations = {
+  createJournal: {
+    type: JournalResponseType,
     args: { 
-      input: { type: NotePageInput }
+      input: { type: JournalInput }
     },
     async resolve(parent, args, context, info) {
       try {
         const { input } = args;
         const selectedFields = getSelectedFields(info);
         
-        const savedNote = await noteService.createNote(input, selectedFields);
+        const savedJournal = await journalService.createJournal(input, selectedFields);
         
         return {
           success: true,
-          message: 'Note created successfully',
-          data: savedNote,
+          message: 'Journal entry created successfully',
+          data: savedJournal,
           errors: null
         };
       } catch (error) {
-        logger.error('Error in createNotePage', {
+        logger.error('Error in createJournal', {
           error: error.message,
           stack: error.stack,
           input: args.input
@@ -47,30 +47,30 @@ const notePageMutations = {
       }
     }
   },
-  updateNotePage: {
-    type: NotePageResponseType,
+  updateJournal: {
+    type: JournalResponseType,
     args: { 
       id: { type: GraphQLID },
-      input: { type: NotePageInput }
+      input: { type: JournalInput }
     },
     async resolve(parent, args, context, info) {
       try {
         const { id, input } = args;
         const selectedFields = getSelectedFields(info);
         
-        const updatedNote = await noteService.updateNote(id, input, selectedFields);
+        const updatedJournal = await journalService.updateJournal(id, input, selectedFields);
         
         return {
           success: true,
-          message: 'Note updated successfully',
-          data: updatedNote,
+          message: 'Journal entry updated successfully',
+          data: updatedJournal,
           errors: null
         };
       } catch (error) {
-        logger.error('Error in updateNotePage', {
+        logger.error('Error in updateJournal', {
           error: error.message,
           stack: error.stack,
-          noteId: args.id,
+          journalId: args.id,
           input: args.input
         });
         return {
@@ -88,27 +88,27 @@ const notePageMutations = {
       }
     }
   },
-  deleteNotePage: {
-    type: NotePageResponseType,
+  deleteJournal: {
+    type: JournalResponseType,
     args: { id: { type: GraphQLID } },
     async resolve(parent, args, context, info) {
       try {
         const { id } = args;
         const selectedFields = getSelectedFields(info);
         
-        const deletedNote = await noteService.deleteNote(id, selectedFields);
+        const deletedJournal = await journalService.deleteJournal(id, selectedFields);
         
         return {
           success: true,
-          message: 'Note deleted successfully',
-          data: deletedNote,
+          message: 'Journal entry permanently deleted successfully',
+          data: deletedJournal,
           errors: null
         };
       } catch (error) {
-        logger.error('Error in deleteNotePage', {
+        logger.error('Error in deleteJournal', {
           error: error.message,
           stack: error.stack,
-          noteId: args.id
+          journalId: args.id
         });
         return {
           success: false,
@@ -124,40 +124,42 @@ const notePageMutations = {
       }
     }
   },
-  toggleFavorite: {
-    type: NotePageResponseType,
-    args: { 
-      id: { type: GraphQLID },
-      favorited: { type: GraphQLBoolean }
-    },
+  archiveJournal: {
+    type: JournalResponseType,
+    args: { id: { type: GraphQLID } },
     async resolve(parent, args, context, info) {
       try {
-        const { id, favorited } = args;
+        const { id } = args;
         const selectedFields = getSelectedFields(info);
         
-        const updatedNote = await noteService.toggleFavorite(id, favorited, selectedFields);
+        const archivedJournal = await journalService.archiveJournal(id, selectedFields);
         
         return {
           success: true,
-          message: `Note ${favorited ? 'favorited' : 'unfavorited'} successfully`,
-          data: updatedNote,
+          message: 'Journal entry archived successfully',
+          data: archivedJournal,
           errors: null
         };
       } catch (error) {
-        logger.error('Error in toggleFavorite', {
+        logger.error('Error in archiveJournal', {
           error: error.message,
           stack: error.stack,
-          noteId: id,
-          favorited
+          journalId: args.id
         });
-
-        if (error instanceof BaseError) {
-          throw error;
-        }
-        throw new DatabaseError(`Failed to toggle favorite status: ${error.message}`);
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
+          }]
+        };
       }
     }
   }
 };
 
-module.exports = notePageMutations; 
+module.exports = journalMutations; 

@@ -47,8 +47,8 @@ class NoteService {
       .lean();
 
     // Cache the new note
-    await global.redisClient.set(
-      `note:${note._id}`,
+    await global.redisClient.setNotePage(
+      note._id.toString(), 
       savedNote
     );
 
@@ -81,6 +81,11 @@ class NoteService {
       throw new NotFoundError('Note');
     }
 
+    // Add validation for required fields if they're included in the update
+    if (input.title !== undefined && !input.title?.trim()) {
+      throw new ValidationError('Title is required', 'title');
+    }
+
     // Validate links if provided
     if (input.linksOut?.length > 0) {
       await validateLinks(input.linksOut);
@@ -106,7 +111,10 @@ class NoteService {
       .lean();
 
     // Update cache
-    await global.redisClient.setNotePage(id, updatedNote);
+    await global.redisClient.setNotePage(
+      id.toString(),
+      updatedNote
+    );
     
     // Invalidate related caches
     await Promise.all([
@@ -208,25 +216,23 @@ class NoteService {
     await note.save();
 
     // Update cache
-    if (context.redisClient) {
+    if (global.redisClient) {
         try {
-          await context.redisClient.setNotePage(id, note.toObject());
+          await global.redisClient.setNotePage(id, note.toObject());
+          await global.redisClient.clearByPattern(`user:${note.userId}:notes:*`);
         } catch (cacheError) {
           logger.warn('Failed to update note cache', { 
             error: cacheError.message,
             noteId: id 
           });
         }
-      }
+    }
 
     logger.info('Note favorite status updated', { noteId: id, favorited });
 
     const updatedNote = await NotePage.findById(id)
       .select(selectedFields)
       .lean();
-
-    // Invalidate user's note list cache
-    await global.redisClient.clearByPattern(`user:${note.userId}:notes:*`);
 
     return updatedNote;
   }
