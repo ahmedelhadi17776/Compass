@@ -4,6 +4,7 @@ const { gzip, gunzip } = require('zlib');
 const NotePage = require('../../domain/notes/model');
 const { logger } = require('../../../pkg/utils/logger');
 const { DatabaseError } = require('../../../pkg/utils/errorHandler');
+const Journal = require('../../domain/journals/model');
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -420,6 +421,50 @@ class RedisClient {
 
   async setCanvasNode(canvasId, nodeId, data) {
     return this.set(this.generateKey('canvas', canvasId, `node:${nodeId}`), data);
+  }
+
+  async getJournal(journalId) {
+    return this.cacheResponse(
+      this.generateKey('journal', journalId),
+      this.config.defaultTTL,
+      'journal',
+      async () => {
+        const journal = await Journal.findById(journalId).lean();
+        if (journal) {
+          // Cache with tags for better invalidation
+          await this.cacheWithTags(
+            this.generateKey('journal', journalId),
+            journal,
+            [journal.userId.toString(), ...(journal.tags || [])]
+          );
+        }
+        return journal;
+      }
+    );
+  }
+
+  async setJournal(journalId, data) {
+    try {
+      if (!journalId || !data) {
+        logger.warn('Invalid journal data for caching', { journalId, hasData: !!data });
+        return false;
+      }
+
+      const key = this.generateKey('journal', journalId);
+      const tags = [
+        data.userId?.toString() || 'unknown',
+        ...(Array.isArray(data.tags) ? data.tags : [])
+      ];
+
+      return this.cacheWithTags(key, data, tags);
+    } catch (error) {
+      logger.error('Error caching journal', { 
+        error: error.message,
+        journalId,
+        hasData: !!data
+      });
+      return false;
+    }
   }
 
   // Close the Redis connection

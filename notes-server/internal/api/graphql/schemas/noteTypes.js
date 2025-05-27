@@ -102,7 +102,7 @@ const getSelectedFields = (info) => {
 const NotePageType = new GraphQLObjectType({
   name: 'NotePage',
   fields: () => ({
-    id: { type: GraphQLID },
+    _id: { type: GraphQLID },
     userId: { type: GraphQLID },
     title: { type: GraphQLString },
     content: { type: GraphQLString },
@@ -136,7 +136,7 @@ const NotePageType = new GraphQLObjectType({
     updatedAt: { type: GraphQLString },
     linkedNotesCount: {
       type: GraphQLInt,
-      resolve: (parent) => parent.linksOut.length + parent.linksIn.length
+      resolve: (parent) => (parent.linksOut?.length || 0) + (parent.linksIn?.length || 0)
     }
   })
 });
