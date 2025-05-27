@@ -1,64 +1,38 @@
 const NotePage = require('./model');
 const { DatabaseError } = require('../../../pkg/utils/errorHandler');
-
-async function updateBidirectionalLinks(noteId, newLinksOut, oldLinksOut = []) {
-  try {
-    // Use bulk operations for better performance
-    const bulkOps = [];
-    
-    // Remove old links
-    const removedLinks = oldLinksOut.filter(link => !newLinksOut.includes(link.toString()));
-    if (removedLinks.length > 0) {
-      bulkOps.push({
-        updateMany: {
-          filter: { _id: { $in: removedLinks } },
-          update: { $pull: { linksIn: noteId } }
-        }
-      });
-    }
-    
-    // Add new links
-    const newLinks = newLinksOut.filter(link => !oldLinksOut.map(l => l.toString()).includes(link.toString()));
-    if (newLinks.length > 0) {
-      bulkOps.push({
-        updateMany: {
-          filter: { _id: { $in: newLinks } },
-          update: { $addToSet: { linksIn: noteId } }
-        }
-      });
-    }
-    
-    if (bulkOps.length > 0) {
-      const result = await NotePage.bulkWrite(bulkOps, { ordered: false });
-      
-      // Verify all operations were successful
-      if (result.modifiedCount !== (removedLinks.length + newLinks.length)) {
-        throw new DatabaseError('Some link updates failed');
-      }
-    }
-
-    return true;
-  } catch (error) {
-    if (error instanceof DatabaseError) {
-      throw error;
-    }
-    throw new DatabaseError(`Failed to update links: ${error.message}`);
-  }
-}
+const { updateBidirectionalLinks, handleCascadingDelete } = require('../../api/middleware/noteHooks');
 
 // Helper function to validate links
-async function validateLinks(noteId, linksOut) {
+async function validateLinks(linksOut) {
   try {
+    if (!Array.isArray(linksOut)) {
+      throw new DatabaseError('linksOut must be an array');
+    }
+
+    if (linksOut.length === 0) {
+      return true;
+    }
+
+    // Convert all IDs to strings for comparison
+    const linkIds = linksOut.map(id => id.toString());
+
+    // Check for duplicate links
+    const uniqueLinks = new Set(linkIds);
+    if (uniqueLinks.size !== linkIds.length) {
+      throw new DatabaseError('Duplicate links are not allowed');
+    }
+
+    // Find all notes that exist and are not deleted
     const existingNotes = await NotePage.find({
       _id: { $in: linksOut },
       isDeleted: false
     }).select('_id');
 
     const existingIds = existingNotes.map(note => note._id.toString());
-    const invalidLinks = linksOut.filter(id => !existingIds.includes(id.toString()));
+    const invalidLinks = linkIds.filter(id => !existingIds.includes(id));
 
     if (invalidLinks.length > 0) {
-      throw new DatabaseError(`Invalid links found: ${invalidLinks.join(', ')}`);
+      throw new DatabaseError(`Invalid or deleted notes found: ${invalidLinks.join(', ')}`);
     }
 
     return true;
@@ -70,7 +44,54 @@ async function validateLinks(noteId, linksOut) {
   }
 }
 
+// Helper function to get linked notes
+async function getLinkedNotes(noteId) {
+  try {
+    const note = await NotePage.findById(noteId)
+      .populate('linksOut', 'title content tags favorited icon')
+      .populate('linksIn', 'title content tags favorited icon');
+
+    if (!note) {
+      throw new DatabaseError('Note not found');
+    }
+
+    return {
+      linksOut: note.linksOut,
+      linksIn: note.linksIn
+    };
+  } catch (error) {
+    if (error instanceof DatabaseError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to get linked notes: ${error.message}`);
+  }
+}
+
+// Helper function to get note link statistics
+async function getNoteLinkStats(noteId) {
+  try {
+    const note = await NotePage.findById(noteId);
+    if (!note) {
+      throw new DatabaseError('Note not found');
+    }
+
+    return {
+      totalLinks: note.linksOut.length + note.linksIn.length,
+      outgoingLinks: note.linksOut.length,
+      incomingLinks: note.linksIn.length
+    };
+  } catch (error) {
+    if (error instanceof DatabaseError) {
+      throw error;
+    }
+    throw new DatabaseError(`Failed to get note link stats: ${error.message}`);
+  }
+}
+
 module.exports = { 
   updateBidirectionalLinks,
-  validateLinks
+  handleCascadingDelete,
+  validateLinks,
+  getLinkedNotes,
+  getNoteLinkStats
 };
