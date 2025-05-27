@@ -32,7 +32,7 @@ export interface AuthResponse {
   token: string;
 }
 
-const API_URL = 'http://localhost:8080/api';
+const API_URL = 'http://localhost:8000/api';
 
 const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {

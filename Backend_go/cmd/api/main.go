@@ -131,10 +131,25 @@ func main() {
 		c.Next()
 	})
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.CORS.AllowedOrigins,
-		AllowMethods:     cfg.CORS.AllowedMethods,
-		AllowHeaders:     append(cfg.CORS.AllowedHeaders, "Accept-Encoding", "Content-Encoding", "Content-Type", "Authorization"),
-		ExposeHeaders:    []string{"Content-Length", "Content-Encoding", "Content-Type", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Vary"},
+		AllowOrigins: cfg.CORS.AllowedOrigins,
+		AllowMethods: cfg.CORS.AllowedMethods,
+		AllowHeaders: append(cfg.CORS.AllowedHeaders,
+			"Accept-Encoding",
+			"Content-Encoding",
+			"Content-Type",
+			"Authorization",
+			"X-Organization-ID",
+			"x-organization-id",
+		),
+		ExposeHeaders: []string{
+			"Content-Length",
+			"Content-Encoding",
+			"Content-Type",
+			"X-RateLimit-Remaining",
+			"X-RateLimit-Reset",
+			"Vary",
+			"X-Organization-ID",
+		},
 		AllowCredentials: cfg.CORS.AllowCredentials,
 		MaxAge:           12 * time.Hour,
 	}))
