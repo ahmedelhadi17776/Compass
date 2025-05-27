@@ -1,0 +1,27 @@
+{
+  "name": "notes-server",
+  "version": "1.0.0",
+  "description": "Express server for notes application",
+  "main": "cmd/api/server.js",
+  "scripts": {
+    "start": "node cmd/api/server.js",
+    "dev": "nodemon cmd/api/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-async-handler": "^1.2.0",
+    "express-graphql": "^0.12.0",
+    "express-rate-limit": "^7.5.0",
+    "graphql": "^15.10.1",
+    "ioredis": "^5.6.1",
+    "mongoose": "^8.1.0",
+    "rate-limit-mongo": "^2.3.2",
+    "zlib": "^1.0.5",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
