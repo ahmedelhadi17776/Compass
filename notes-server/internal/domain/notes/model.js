@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema, ObjectId } = mongoose;
+const { updateBidirectionalLinks, handleCascadingDelete } = require('./linkService');
 
 const NotePageSchema = new Schema({
   userId: { 
@@ -99,6 +100,39 @@ NotePageSchema.pre('save', function(next) {
     this.tags = [...new Set(this.tags)];
   }
   next();
+});
+
+// Store old linksOut before saving
+NotePageSchema.pre('save', function(next) {
+  if (this.isModified('linksOut')) {
+    this._oldLinksOut = this.linksOut;
+  }
+  next();
+});
+
+// Maintain bi-directional links after saving
+NotePageSchema.post('save', async function(doc, next) {
+  try {
+    if (doc.isModified('linksOut')) {
+      const oldLinksOut = doc._oldLinksOut || [];
+      await updateBidirectionalLinks(doc._id, oldLinksOut, doc.linksOut);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Handle cascading deletes
+NotePageSchema.post('save', async function(doc, next) {
+  try {
+    if (doc.isDeleted) {
+      await handleCascadingDelete(doc._id);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Method to check if note is linked to another note

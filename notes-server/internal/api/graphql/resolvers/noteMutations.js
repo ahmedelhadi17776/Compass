@@ -3,13 +3,13 @@ const { z } = require('zod');
 const { 
   NotePageResponseType, 
   NotePageInput,
-  getSelectedFields,
-  createErrorResponse
+  getSelectedFields
 } = require('../schemas/noteTypes');
-const { createErrorResponse: responseErrorResponse } = require('../schemas/responseTypes');
+const { createErrorResponse } = require('../schemas/responseTypes');
 const NotePage = require('../../../domain/notes/model');
 const { updateBidirectionalLinks, validateLinks } = require('../../../domain/notes/linkService');
 const { ValidationError, NotFoundError, DatabaseError } = require('../../../../pkg/utils/errorHandler');
+const { logger } = require('../../../../pkg/utils/logger');
 
 // Validation for MongoDB ObjectId
 const objectIdSchema = z.string()
@@ -67,6 +67,7 @@ const notePageMutations = {
     async resolve(parent, args, context, info) {
       try {
         const { input } = args;
+        logger.debug('Creating note page', { input });
         
         if (!input.userId) {
           throw new ValidationError('User ID is required', 'userId');
@@ -77,16 +78,25 @@ const notePageMutations = {
         }
 
         // Validate links if provided
-        if (input.linksOut?.length > 0) {
-          await validateLinks(input.linksOut);
+        if (input.linksOut && input.linksOut.length > 0) {
+          try {
+            await validateLinks(input.linksOut);
+          } catch (error) {
+            throw new ValidationError(error.message, 'linksOut');
+          }
         }
 
         const note = new NotePage(input);
         await note.save();
+        logger.info('Note page created', { noteId: note._id });
 
         // Update bidirectional links if any
         if (input.linksOut?.length > 0) {
           await updateBidirectionalLinks(note._id, [], input.linksOut);
+          logger.debug('Bidirectional links updated', { 
+            noteId: note._id,
+            linksOut: input.linksOut
+          });
         }
 
         const selectedFields = getSelectedFields(info);
@@ -110,17 +120,29 @@ const notePageMutations = {
         // Invalidate user's note list cache
         await global.redisClient.clearByPattern(`user:${input.userId}:notes:*`);
 
+        logger.info('Note page creation completed', { 
+          noteId: note._id,
+          userId: input.userId
+        });
+
         return result;
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        logger.error('Error in createNotePage', {
+          error: error.message,
+          stack: error.stack,
+          input: args.input
+        });
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof DatabaseError ? 'DATABASE_ERROR' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   },
@@ -133,6 +155,7 @@ const notePageMutations = {
     async resolve(parent, args, context, info) {
       try {
         const { id, input } = args;
+        logger.debug('Updating note page', { noteId: id, input });
 
         if (!id) {
           throw new ValidationError('Note ID is required', 'id');
@@ -151,10 +174,16 @@ const notePageMutations = {
         // Update note
         Object.assign(existingNote, input);
         await existingNote.save();
+        logger.info('Note page updated', { noteId: id });
 
         // Update bidirectional links if changed
         if (input.linksOut) {
           await updateBidirectionalLinks(id, existingNote.linksOut, input.linksOut);
+          logger.debug('Bidirectional links updated', { 
+            noteId: id,
+            oldLinks: existingNote.linksOut,
+            newLinks: input.linksOut
+          });
         }
 
         const selectedFields = getSelectedFields(info);
@@ -167,17 +196,19 @@ const notePageMutations = {
         
         // Invalidate related caches
         await Promise.all([
-          // Invalidate user's note list cache
           global.redisClient.clearByPattern(`user:${existingNote.userId}:notes:*`),
-          // Invalidate linked notes' caches
           ...existingNote.linksOut.map(linkedId => 
             global.redisClient.invalidateCache('note', linkedId)
           ),
-          // Invalidate incoming links' caches
           ...existingNote.linksIn.map(linkedId => 
             global.redisClient.invalidateCache('note', linkedId)
           )
         ]);
+
+        logger.info('Note page update completed', { 
+          noteId: id,
+          userId: existingNote.userId
+        });
 
         return {
           success: true,
@@ -186,16 +217,24 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        logger.error('Error in updateNotePage', {
+          error: error.message,
+          stack: error.stack,
+          noteId: args.id,
+          input: args.input
+        });
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof NotFoundError ? 'NOT_FOUND' :
                   error instanceof DatabaseError ? 'DATABASE_ERROR' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   },
@@ -205,6 +244,7 @@ const notePageMutations = {
     async resolve(parent, args, context, info) {
       try {
         const { id } = args;
+        logger.debug('Deleting note page', { noteId: id });
 
         if (!id) {
           throw new ValidationError('Note ID is required', 'id');
@@ -218,10 +258,15 @@ const notePageMutations = {
         // Soft delete
         note.isDeleted = true;
         await note.save();
+        logger.info('Note page marked as deleted', { noteId: id });
 
         // Remove bidirectional links
         if (note.linksOut?.length > 0) {
           await updateBidirectionalLinks(id, note.linksOut, []);
+          logger.debug('Bidirectional links removed', { 
+            noteId: id,
+            linksOut: note.linksOut
+          });
         }
 
         const selectedFields = getSelectedFields(info);
@@ -231,19 +276,20 @@ const notePageMutations = {
 
         // Invalidate all related caches
         await Promise.all([
-          // Invalidate note cache
           global.redisClient.invalidateCache('note', id),
-          // Invalidate user's note list cache
           global.redisClient.clearByPattern(`user:${note.userId}:notes:*`),
-          // Invalidate linked notes' caches
           ...note.linksOut.map(linkedId => 
             global.redisClient.invalidateCache('note', linkedId)
           ),
-          // Invalidate incoming links' caches
           ...note.linksIn.map(linkedId => 
             global.redisClient.invalidateCache('note', linkedId)
           )
         ]);
+
+        logger.info('Note page deletion completed', { 
+          noteId: id,
+          userId: note.userId
+        });
 
         return {
           success: true,
@@ -252,15 +298,22 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
+        logger.error('Error in deleteNotePage', {
+          error: error.message,
+          stack: error.stack,
+          noteId: args.id
+        });
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
             message: error.message,
             field: error.field,
             code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
                   error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
           }]
-        );
+        };
       }
     }
   },
@@ -273,6 +326,7 @@ const notePageMutations = {
     async resolve(parent, args, context, info) {
       try {
         const { id, favorited } = args;
+        logger.debug('Toggling favorite status', { noteId: id, favorited });
 
         if (!id) {
           throw new ValidationError('Note ID is required', 'id');
@@ -290,14 +344,25 @@ const notePageMutations = {
         note.favorited = favorited;
         await note.save();
 
+        // Update cache
+        if (context.redisClient) {
+          try {
+            await context.redisClient.setNotePage(id, note.toObject());
+          } catch (cacheError) {
+            logger.warn('Failed to update note cache', { 
+              error: cacheError.message,
+              noteId: id 
+            });
+          }
+        }
+
+        logger.info('Note favorite status updated', { noteId: id, favorited });
+
         const selectedFields = getSelectedFields(info);
         const updatedNote = await NotePage.findById(id)
           .select(selectedFields)
           .lean();
 
-        // Update cache
-        await global.redisClient.setNotePage(id, updatedNote);
-        
         // Invalidate user's note list cache
         await global.redisClient.clearByPattern(`user:${note.userId}:notes:*`);
 
@@ -308,15 +373,17 @@ const notePageMutations = {
           errors: null
         };
       } catch (error) {
-        return createErrorResponse(
-          error.message,
-          [{
-            message: error.message,
-            field: error.field,
-            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
-                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
-          }]
-        );
+        logger.error('Error in toggleFavorite', {
+          error: error.message,
+          stack: error.stack,
+          noteId: id,
+          favorited
+        });
+
+        if (error instanceof BaseError) {
+          throw error;
+        }
+        throw new DatabaseError(`Failed to toggle favorite status: ${error.message}`);
       }
     }
   }

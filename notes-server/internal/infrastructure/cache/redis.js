@@ -2,6 +2,8 @@ const Redis = require('ioredis');
 const { promisify } = require('util');
 const { gzip, gunzip } = require('zlib');
 const NotePage = require('../../domain/notes/model');
+const { logger } = require('../../../pkg/utils/logger');
+const { DatabaseError } = require('../../../pkg/utils/errorHandler');
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -21,15 +23,43 @@ class RedisClient {
       ...config
     };
 
+    logger.info('Initializing Redis client', { 
+      host: this.config.host,
+      port: this.config.port,
+      db: this.config.db
+    });
+
     this.client = new Redis({
       host: this.config.host,
       port: this.config.port,
       password: this.config.password,
       db: this.config.db,
       retryStrategy: (times) => {
-        if (times > this.config.maxRetries) return null;
-        return this.config.retryDelay * Math.pow(2, times);
-      }
+        const delay = Math.min(times * 50, 2000);
+        logger.info('Redis reconnecting...', { attempt: times, delay });
+        return delay;
+      },
+      maxRetriesPerRequest: 3
+    });
+
+    this.client.on('error', (error) => {
+      logger.error('Redis client error:', { error: error.message });
+    });
+
+    this.client.on('connect', () => {
+      logger.info('Redis client connected');
+    });
+
+    this.client.on('ready', () => {
+      logger.info('Redis client ready');
+    });
+
+    this.client.on('reconnecting', () => {
+      logger.info('Redis client reconnecting');
+    });
+
+    this.client.on('end', () => {
+      logger.info('Redis client connection ended');
     });
 
     this.metrics = {
@@ -50,13 +80,22 @@ class RedisClient {
         this.health = true;
       } catch (error) {
         this.health = false;
-        console.error('Redis health check failed:', error);
+        logger.error('Redis health check failed:', { error: error.message });
       }
     }, 10000); // Check every 10 seconds
   }
 
-  isHealthy() {
-    return this.health;
+  async isHealthy() {
+    try {
+      if (!this.client.status === 'ready') {
+        return false;
+      }
+      await this.client.ping();
+      return true;
+    } catch (error) {
+      logger.error('Redis health check failed:', { error: error.message });
+      return false;
+    }
   }
 
   async compress(data) {
@@ -65,7 +104,7 @@ class RedisClient {
       const buffer = await gzipAsync(JSON.stringify(data));
       return buffer.toString('base64');
     } catch (error) {
-      console.error('Compression failed:', error);
+      logger.error('Compression failed:', { error: error.message });
       return data;
     }
   }
@@ -77,7 +116,7 @@ class RedisClient {
       const decompressed = await gunzipAsync(buffer);
       return JSON.parse(decompressed.toString());
     } catch (error) {
-      console.error('Decompression failed:', error);
+      logger.error('Decompression failed:', { error: error.message });
       return data;
     }
   }
@@ -88,52 +127,46 @@ class RedisClient {
 
   async get(key) {
     try {
-      const data = await this.client.get(key);
-      if (!data) {
-        this.trackCacheEvent(false, 'get');
-        return null;
-      }
-      this.trackCacheEvent(true, 'get');
-      // Parse the JSON string back to an object
-      return JSON.parse(data);
+      const value = await this.client.get(key);
+      return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error('Redis get error:', error);
-      return null;
+      logger.error('Redis get error:', { key, error: error.message });
+      throw new DatabaseError(`Failed to get value from Redis: ${error.message}`);
     }
   }
 
-  async set(key, value, ttl = this.config.defaultTTL) {
+  async set(key, value, ttl = null) {
     try {
-      // Always stringify the value before storing
       const stringValue = JSON.stringify(value);
-      await this.client.set(key, stringValue, 'EX', ttl);
-      return true;
+      if (ttl) {
+        await this.client.setex(key, ttl, stringValue);
+      } else {
+        await this.client.set(key, stringValue);
+      }
     } catch (error) {
-      console.error('Redis set error:', error);
-      return false;
+      logger.error('Redis set error:', { key, error: error.message });
+      throw new DatabaseError(`Failed to set value in Redis: ${error.message}`);
     }
   }
 
-  async delete(key) {
+  async del(key) {
     try {
       await this.client.del(key);
-      return true;
     } catch (error) {
-      console.error('Redis delete error:', error);
-      return false;
+      logger.error('Redis delete error:', { key, error: error.message });
+      throw new DatabaseError(`Failed to delete value from Redis: ${error.message}`);
     }
   }
 
   async clearByPattern(pattern) {
     try {
-      const keys = await this.client.keys(`${this.config.keyPrefix}${pattern}`);
+      const keys = await this.client.keys(pattern);
       if (keys.length > 0) {
         await this.client.del(keys);
       }
-      return true;
     } catch (error) {
-      console.error('Redis clear pattern error:', error);
-      return false;
+      logger.error('Redis clear pattern error:', { pattern, error: error.message });
+      throw new DatabaseError(`Failed to clear pattern from Redis: ${error.message}`);
     }
   }
 
@@ -157,13 +190,16 @@ class RedisClient {
     const total = this.metrics.hits + this.metrics.misses;
     const hitRate = total > 0 ? (this.metrics.hits / total) * 100 : 0;
 
-    return {
+    const metrics = {
       hits: this.metrics.hits,
       misses: this.metrics.misses,
       hitRate: hitRate.toFixed(2) + '%',
       byType: Object.fromEntries(this.metrics.byType),
       health: this.isHealthy()
     };
+
+    logger.debug('Cache metrics', { metrics });
+    return metrics;
   }
 
   async cacheResponse(key, ttl, type, fn) {
@@ -254,7 +290,7 @@ class RedisClient {
       
       // Delete all keys and their tag associations
       await Promise.all([
-        ...uniqueKeys.map(key => this.delete(key)),
+        ...uniqueKeys.map(key => this.del(key)),
         ...tagSets.map(tagSet => this.client.del(tagSet))
       ]);
       
@@ -287,12 +323,27 @@ class RedisClient {
   }
 
   async setNotePage(noteId, data) {
-    const key = this.generateKey('note', noteId);
-    return this.cacheWithTags(
-      key,
-      data,
-      [data.userId.toString(), ...data.tags]
-    );
+    try {
+      if (!noteId || !data) {
+        logger.warn('Invalid note data for caching', { noteId, hasData: !!data });
+        return false;
+      }
+
+      const key = this.generateKey('note', noteId);
+      const tags = [
+        data.userId?.toString() || 'unknown',
+        ...(Array.isArray(data.tags) ? data.tags : [])
+      ];
+
+      return this.cacheWithTags(key, data, tags);
+    } catch (error) {
+      logger.error('Error caching note page', { 
+        error: error.message,
+        noteId,
+        hasData: !!data
+      });
+      return false;
+    }
   }
 
   async getNotePagesByUser(userId, page = 1, limit = 10, filters = {}) {
@@ -373,7 +424,13 @@ class RedisClient {
 
   // Close the Redis connection
   async close() {
-    await this.client.quit();
+    try {
+      await this.client.quit();
+      logger.info('Redis connection closed');
+    } catch (error) {
+      logger.error('Error closing Redis connection:', { error: error.message });
+      throw new DatabaseError(`Failed to close Redis connection: ${error.message}`);
+    }
   }
 }
 

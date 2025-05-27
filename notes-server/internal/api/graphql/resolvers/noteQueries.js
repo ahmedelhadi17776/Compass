@@ -10,6 +10,7 @@ const {
 const { createErrorResponse, createPaginatedResponse } = require('../schemas/responseTypes');
 const NotePage = require('../../../domain/notes/model');
 const { NotFoundError, ValidationError } = require('../../../../pkg/utils/errorHandler');
+const { logger } = require('../../../../pkg/utils/logger');
 
 // Search input type for more granular search control
 const NoteSearchInput = new GraphQLInputObjectType({
@@ -29,9 +30,12 @@ const notePageQueries = {
           throw new ValidationError('Note ID is required', 'id');
         }
 
+        logger.debug('Fetching note page', { noteId: args.id });
+
         // Try to get from cache first
         const cachedNote = await global.redisClient.getNotePage(args.id);
         if (cachedNote) {
+          logger.debug('Note retrieved from cache', { noteId: args.id });
           return {
             success: true,
             message: 'Note retrieved from cache',
@@ -48,11 +52,16 @@ const notePageQueries = {
         .select(selectedFields)
         .lean();
         
-        if (!note) throw new NotFoundError('Note');
+        if (!note) {
+          logger.warn('Note not found', { noteId: args.id });
+          throw new NotFoundError('Note');
+        }
 
         // Cache the note
         await global.redisClient.setNotePage(args.id, note);
+        logger.debug('Note cached', { noteId: args.id });
         
+        logger.info('Note retrieved successfully', { noteId: args.id });
         return {
           success: true,
           message: 'Note retrieved successfully',
@@ -60,6 +69,11 @@ const notePageQueries = {
           errors: null
         };
       } catch (error) {
+        logger.error('Error in notePage query', {
+          error: error.message,
+          stack: error.stack,
+          noteId: args.id
+        });
         return createErrorResponse(
           error.message,
           [{
@@ -87,6 +101,16 @@ const notePageQueries = {
       try {
         const { userId, search, page, limit, sortField, sortOrder, filter } = args;
         
+        logger.debug('Fetching note pages', { 
+          userId,
+          page,
+          limit,
+          sortField,
+          sortOrder,
+          filter,
+          search
+        });
+        
         if (!userId) {
           throw new ValidationError('User ID is required', 'userId');
         }
@@ -97,7 +121,11 @@ const notePageQueries = {
         // Try to get from cache first
         const cachedResult = await global.redisClient.get(cacheKey);
         if (cachedResult) {
-          console.log('Cache hit:', cacheKey);
+          logger.debug('Note pages retrieved from cache', { 
+            userId,
+            page,
+            limit
+          });
           return cachedResult;
         }
 
@@ -133,6 +161,7 @@ const notePageQueries = {
         let totalItems;
 
         if (search?.query) {
+          logger.debug('Performing text search', { query: search.query });
           // Use MongoDB's text search with index
           query.$text = { 
             $search: search.query,
@@ -173,10 +202,30 @@ const notePageQueries = {
 
         // Cache the result
         await global.redisClient.set(cacheKey, result);
-        console.log('Cached result:', cacheKey);
+        logger.debug('Note pages cached', { 
+          userId,
+          page,
+          limit,
+          totalItems
+        });
+
+        logger.info('Note pages retrieved successfully', {
+          userId,
+          page,
+          limit,
+          totalItems,
+          hasSearch: !!search?.query
+        });
 
         return result;
       } catch (error) {
+        logger.error('Error in notePages query', {
+          error: error.message,
+          stack: error.stack,
+          userId: args.userId,
+          page: args.page,
+          limit: args.limit
+        });
         return createErrorResponse(
           error.message,
           [{
