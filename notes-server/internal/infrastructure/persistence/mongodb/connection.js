@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { DatabaseError } = require('../../../../pkg/utils/errorHandler');
+const logger = require('../../../../pkg/utils/logger');
 
 const connectDB = async () => {
   try {
@@ -17,18 +18,17 @@ const connectDB = async () => {
       heartbeatFrequencyMS: 10000
     });
 
-    
     mongoose.connection.on('connected', () => {
-      console.log('Connected to MongoDB');
+      logger.info('Connected to MongoDB');
     });
 
     mongoose.connection.on('error', (err) => {
-      console.error('MongoDB connection error:', err);
+      logger.error('MongoDB connection error:', { error: err.message });
       throw new DatabaseError(`MongoDB connection error: ${err.message}`);
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB disconnected');
+      logger.warn('MongoDB disconnected');
     });
 
     // Handle process termination
@@ -37,7 +37,7 @@ const connectDB = async () => {
 
     return mongoose.connection;
   } catch (err) {
-    console.error('MongoDB initial connection error:', err);
+    logger.error('MongoDB initial connection error:', { error: err.message });
     throw new DatabaseError(`Failed to connect to MongoDB: ${err.message}`);
   }
 };
@@ -45,10 +45,10 @@ const connectDB = async () => {
 const cleanup = async () => {
   try {
     await mongoose.connection.close();
-    console.log('MongoDB connection closed through app termination');
+    logger.info('MongoDB connection closed through app termination');
     process.exit(0);
   } catch (err) {
-    console.error('Error during MongoDB cleanup:', err);
+    logger.error('Error during MongoDB cleanup:', { error: err.message });
     process.exit(1);
   }
 };

@@ -1,130 +1,72 @@
 require('dotenv').config();
 
 const express = require('express');
-const cors = require('cors');
-const { graphqlHTTP } = require('express-graphql');
-const mongoose = require('mongoose');
-const { connectDB } = require('../../internal/infrastructure/persistence/mongodb/connection');
-const schema = require('../../internal/api/graphql');
-const { formatGraphQLError } = require('../../pkg/utils/errorHandler');
-const createRateLimiter = require('../../internal/api/middleware/rateLimiter');
-const RedisClient = require('../../internal/infrastructure/cache/redis');
-const redisConfig = require('../../internal/infrastructure/cache/config');
+const { logger } = require('../../pkg/utils/logger');
+const { createRateLimiter } = require('../../internal/api/middleware');
+const healthRoutes = require('../../internal/api/routes/health');
+const graphqlRoutes = require('../../internal/api/routes/graphql');
+const configureServer = require('../../internal/config/server');
+const setupShutdownHandlers = require('../../internal/config/shutdown');
+const initializeDatabases = require('../../internal/config/database');
 
 const app = express();
 let server;
 let redisClient;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  const redisStatus = redisClient?.isHealthy() ? 'connected' : 'disconnected';
-  
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    database: dbStatus,
-    redis: redisStatus
-  });
-});
+// Configure server middleware and error handling
+configureServer(app);
 
 // Initialize server
 const initializeServer = async () => {
   try {
-    // Connect to MongoDB
-    await connectDB();
+    logger.info('Initializing server...');
     
-    // Initialize Redis
-    redisClient = new RedisClient(redisConfig);
-    
-    // Make Redis client available globally
-    global.redisClient = redisClient;
-    
-    // Wait for Redis to be ready
-    await redisClient.client.ping();
+    // Initialize databases
+    redisClient = await initializeDatabases();
     
     // Initialize rate limiter with Redis client
     const { limiter, rateLimitHeaders, getRateLimitInfo } = createRateLimiter(redisClient);
+    logger.info('Rate limiter initialized');
     
     // Apply rate limiting middleware globally
     app.use(limiter);
     app.use(rateLimitHeaders);
 
+    // Routes
+    app.use('/health', healthRoutes);
+    app.use('/graphql', graphqlRoutes);
+
     // Add rate limit info endpoint
     app.get('/rate-limit-info', async (req, res) => {
-      const info = await getRateLimitInfo(req);
-      res.json(info);
-    });
-
-    // GraphQL endpoint with rate limiting
-    app.use('/graphql', limiter, graphqlHTTP({
-      schema,
-      graphiql: true,
-      customFormatErrorFn: formatGraphQLError
-    }));
-
-    // Error handling middleware for non-GraphQL errors
-    app.use((err, req, res, next) => {
-      console.error(err.stack);
-      
-      const status = err.status || 500;
-      const errorResponse = {
-        success: false,
-        message: err.message || 'Internal Server Error',
-        errors: [{
-          message: err.message || 'Internal Server Error',
-          code: err.code || 'INTERNAL_ERROR'
-        }]
-      };
-      
-      res.status(status).json(errorResponse);
+      try {
+        const info = await getRateLimitInfo(req);
+        logger.debug('Rate limit info requested', { info });
+        res.json(info);
+      } catch (error) {
+        logger.error('Error getting rate limit info', { error: error.message });
+        res.status(500).json({
+          success: false,
+          message: 'Error getting rate limit info',
+          error: error.message
+        });
+      }
     });
 
     const PORT = process.env.PORT || 5000;
 
     // Start server
     server = app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      logger.info(`Server running on port ${PORT}`);
     });
 
-    // Handle server-specific shutdown
-    const gracefulShutdown = async () => {
-      console.log('Starting graceful shutdown...');
-      
-      // Close Redis connection
-      if (redisClient) {
-        await redisClient.close();
-        console.log('Redis connection closed');
-      }
-      
-      // Close server
-      if (server) {
-        server.close(() => {
-          console.log('Express server closed');
-        });
-      }
-    };
+    // Setup shutdown handlers
+    setupShutdownHandlers(server, redisClient);
 
-    // Handle various shutdown signals
-    process.on('SIGTERM', gracefulShutdown);
-    process.on('SIGINT', gracefulShutdown);
-    
-    // Handle uncaught errors
-    process.on('uncaughtException', (error) => {
-      console.error('Uncaught Exception:', error);
-      gracefulShutdown();
-    });
-    
-    process.on('unhandledRejection', (error) => {
-      console.error('Unhandled Rejection:', error);
-      gracefulShutdown();
-    });
   } catch (error) {
-    console.error('Failed to initialize server:', error);
+    logger.error('Failed to initialize server', { 
+      error: error.stack,
+      message: error.message
+    });
     process.exit(1);
   }
 };

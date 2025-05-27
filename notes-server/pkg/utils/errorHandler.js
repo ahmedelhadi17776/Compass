@@ -1,32 +1,53 @@
 const { z } = require('zod');
+const { logger } = require('./logger');
 
 class BaseError extends Error {
-  constructor(message, code, status) {
+  constructor(message, code = 'INTERNAL_ERROR') {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
-    this.status = status;
-    Error.captureStackTrace(this, this.constructor);
+    this.timestamp = new Date().toISOString();
+    
+    // Log the error
+    logger.error(message, {
+      error: {
+        name: this.name,
+        code: this.code,
+        stack: this.stack
+      }
+    });
   }
 }
 
 class ValidationError extends BaseError {
-  constructor(message, field) {
-    super(message, 'VALIDATION_ERROR', 400);
+  constructor(message, field = null) {
+    super(message, 'VALIDATION_ERROR');
     this.field = field;
   }
 }
 
 class NotFoundError extends BaseError {
-  constructor(resource) {
-    super(`${resource} not found`, 'NOT_FOUND', 404);
-    this.resource = resource;
+  constructor(entity) {
+    super(`${entity} not found`, 'NOT_FOUND');
+    this.entity = entity;
   }
 }
 
 class DatabaseError extends BaseError {
   constructor(message) {
-    super(message, 'DATABASE_ERROR', 500);
+    super(message, 'DATABASE_ERROR');
+  }
+}
+
+class AuthenticationError extends BaseError {
+  constructor(message) {
+    super(message, 'AUTHENTICATION_ERROR');
+  }
+}
+
+class AuthorizationError extends BaseError {
+  constructor(message) {
+    super(message, 'AUTHORIZATION_ERROR');
   }
 }
 
@@ -35,6 +56,7 @@ const handleZodError = (error) => {
     throw error;
   }
 
+  logger.warn('Zod Validation Error', { errors: error.errors });
   return error.errors.map(err => ({
     message: err.message,
     field: err.path.join('.'),
@@ -44,23 +66,29 @@ const handleZodError = (error) => {
 
 const formatGraphQLError = (error) => {
   const originalError = error.originalError;
-
+  
   if (originalError instanceof BaseError) {
     return {
       message: originalError.message,
       code: originalError.code,
-      status: originalError.status,
       field: originalError.field,
-      resource: originalError.resource
+      timestamp: originalError.timestamp
     };
   }
 
+  // Log unexpected errors
+  logger.error('Unexpected GraphQL error', {
+    error: {
+      message: error.message,
+      stack: error.stack,
+      originalError: originalError?.message
+    }
+  });
+
   return {
-    message: error.message || 'Internal Server Error',
+    message: 'An unexpected error occurred',
     code: 'INTERNAL_ERROR',
-    status: 500,
-    locations: error.locations,
-    path: error.path
+    timestamp: new Date().toISOString()
   };
 };
 
@@ -69,6 +97,8 @@ module.exports = {
   ValidationError,
   NotFoundError,
   DatabaseError,
+  AuthenticationError,
+  AuthorizationError,
   handleZodError,
   formatGraphQLError
 }; 
