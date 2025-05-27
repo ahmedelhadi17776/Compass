@@ -8,9 +8,12 @@ const { connectDB } = require('../../internal/infrastructure/persistence/mongodb
 const schema = require('../../internal/api/graphql');
 const { formatGraphQLError } = require('../../pkg/utils/errorHandler');
 const { limiter } = require('../../internal/api/middleware/rateLimiter');
+const RedisClient = require('../../internal/infrastructure/cache/redis');
+const redisConfig = require('../../internal/infrastructure/cache/config');
 
 const app = express();
 let server;
+let redisClient;
 
 // Middleware
 app.use(cors());
@@ -19,17 +22,27 @@ app.use(express.json());
 // Health check endpoint
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  const redisStatus = redisClient?.isHealthy() ? 'connected' : 'disconnected';
+  
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    database: dbStatus
+    database: dbStatus,
+    redis: redisStatus
   });
 });
 
 // Connect to MongoDB and initialize rate limiter
 const initializeServer = async () => {
   try {
+    // Connect to MongoDB
     await connectDB();
+    
+    // Initialize Redis
+    redisClient = new RedisClient(redisConfig);
+    
+    // Make Redis client available globally
+    global.redisClient = redisClient;
     
     // GraphQL endpoint with rate limiting
     app.use('/graphql', limiter, graphqlHTTP({
@@ -66,7 +79,13 @@ const initializeServer = async () => {
     const gracefulShutdown = async () => {
       console.log('Starting graceful shutdown...');
       
-      // Close server first
+      // Close Redis connection
+      if (redisClient) {
+        await redisClient.close();
+        console.log('Redis connection closed');
+      }
+      
+      // Close server
       if (server) {
         server.close(() => {
           console.log('Express server closed');

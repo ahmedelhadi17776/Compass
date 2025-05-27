@@ -29,6 +29,17 @@ const notePageQueries = {
           throw new ValidationError('Note ID is required', 'id');
         }
 
+        // Try to get from cache first
+        const cachedNote = await global.redisClient.getNotePage(args.id);
+        if (cachedNote) {
+          return {
+            success: true,
+            message: 'Note retrieved from cache',
+            data: cachedNote,
+            errors: null
+          };
+        }
+
         const selectedFields = getSelectedFields(info);
         const note = await NotePage.findOne({
           _id: args.id,
@@ -38,6 +49,9 @@ const notePageQueries = {
         .lean();
         
         if (!note) throw new NotFoundError('Note');
+
+        // Cache the note
+        await global.redisClient.setNotePage(args.id, note);
         
         return {
           success: true,
@@ -75,6 +89,16 @@ const notePageQueries = {
         
         if (!userId) {
           throw new ValidationError('User ID is required', 'userId');
+        }
+
+        // Generate cache key based on query parameters
+        const cacheKey = `user:${userId}:notes:${page}:${limit}:${sortField}:${sortOrder}:${JSON.stringify(filter || {})}:${JSON.stringify(search || {})}`;
+
+        // Try to get from cache first
+        const cachedResult = await global.redisClient.get(cacheKey);
+        if (cachedResult) {
+          console.log('Cache hit:', cacheKey);
+          return cachedResult;
         }
 
         const skip = (page - 1) * limit;
@@ -136,7 +160,22 @@ const notePageQueries = {
         
         totalItems = await NotePage.countDocuments(query);
 
-        return createPaginatedResponse(notes, page, limit, totalItems);
+        const result = {
+          success: true,
+          message: 'Notes retrieved successfully',
+          data: notes,
+          pageInfo: {
+            totalItems,
+            currentPage: page,
+            totalPages: Math.ceil(totalItems / limit)
+          }
+        };
+
+        // Cache the result
+        await global.redisClient.set(cacheKey, result);
+        console.log('Cached result:', cacheKey);
+
+        return result;
       } catch (error) {
         return createErrorResponse(
           error.message,

@@ -94,12 +94,23 @@ const notePageMutations = {
           .select(selectedFields)
           .lean();
 
-        return {
+        const result = {
           success: true,
           message: 'Note created successfully',
           data: savedNote,
           errors: null
         };
+
+        // Cache the new note
+        await global.redisClient.set(
+          `note:${note._id}`,
+          savedNote
+        );
+
+        // Invalidate user's note list cache
+        await global.redisClient.clearByPattern(`user:${input.userId}:notes:*`);
+
+        return result;
       } catch (error) {
         return createErrorResponse(
           error.message,
@@ -151,6 +162,23 @@ const notePageMutations = {
           .select(selectedFields)
           .lean();
 
+        // Update cache
+        await global.redisClient.setNotePage(id, updatedNote);
+        
+        // Invalidate related caches
+        await Promise.all([
+          // Invalidate user's note list cache
+          global.redisClient.clearByPattern(`user:${existingNote.userId}:notes:*`),
+          // Invalidate linked notes' caches
+          ...existingNote.linksOut.map(linkedId => 
+            global.redisClient.invalidateCache('note', linkedId)
+          ),
+          // Invalidate incoming links' caches
+          ...existingNote.linksIn.map(linkedId => 
+            global.redisClient.invalidateCache('note', linkedId)
+          )
+        ]);
+
         return {
           success: true,
           message: 'Note updated successfully',
@@ -201,6 +229,22 @@ const notePageMutations = {
           .select(selectedFields)
           .lean();
 
+        // Invalidate all related caches
+        await Promise.all([
+          // Invalidate note cache
+          global.redisClient.invalidateCache('note', id),
+          // Invalidate user's note list cache
+          global.redisClient.clearByPattern(`user:${note.userId}:notes:*`),
+          // Invalidate linked notes' caches
+          ...note.linksOut.map(linkedId => 
+            global.redisClient.invalidateCache('note', linkedId)
+          ),
+          // Invalidate incoming links' caches
+          ...note.linksIn.map(linkedId => 
+            global.redisClient.invalidateCache('note', linkedId)
+          )
+        ]);
+
         return {
           success: true,
           message: 'Note deleted successfully',
@@ -250,6 +294,12 @@ const notePageMutations = {
         const updatedNote = await NotePage.findById(id)
           .select(selectedFields)
           .lean();
+
+        // Update cache
+        await global.redisClient.setNotePage(id, updatedNote);
+        
+        // Invalidate user's note list cache
+        await global.redisClient.clearByPattern(`user:${note.userId}:notes:*`);
 
         return {
           success: true,
