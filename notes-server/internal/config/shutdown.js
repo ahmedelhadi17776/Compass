@@ -3,18 +3,29 @@ const { logger } = require('../../pkg/utils/logger');
 const setupShutdownHandlers = (server, redisClient) => {
   const gracefulShutdown = async () => {
     logger.info('Starting graceful shutdown...');
-    
-    // Close Redis connection
-    if (redisClient) {
-      await redisClient.close();
-      logger.info('Redis connection closed');
-    }
-    
-    // Close server
-    if (server) {
-      server.close(() => {
-        logger.info('Express server closed');
-      });
+    let shutdownTimeout = setTimeout(() => {
+      logger.error('Graceful shutdown timed out, forcing exit.');
+      process.exit(1);
+    }, 5000); // 5 seconds fallback
+    try {
+      // Close Redis connection
+      if (redisClient) {
+        await redisClient.close();
+        logger.info('Redis connection closed');
+      }
+      // Close server
+      if (server) {
+        server.close(() => {
+          logger.info('Express server closed');
+          clearTimeout(shutdownTimeout);
+        });
+      } else {
+        clearTimeout(shutdownTimeout);
+      }
+    } catch (err) {
+      logger.error('Error during graceful shutdown', { error: err.message });
+      clearTimeout(shutdownTimeout);
+      process.exit(1);
     }
   };
 

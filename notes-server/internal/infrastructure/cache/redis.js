@@ -161,9 +161,18 @@ class RedisClient {
 
   async clearByPattern(pattern) {
     try {
-      const keys = await this.client.keys(pattern);
+      let cursor = '0';
+      let keys = [];
+      do {
+        const [nextCursor, foundKeys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        keys = keys.concat(foundKeys);
+      } while (cursor !== '0');
       if (keys.length > 0) {
-        await this.client.del(keys);
+        if (keys.length > 1000) {
+          logger.warn('Large number of keys to delete in clearByPattern', { pattern, count: keys.length });
+        }
+        await this.client.del(...keys);
       }
     } catch (error) {
       logger.error('Redis clear pattern error:', { pattern, error: error.message });
@@ -325,14 +334,14 @@ class RedisClient {
 
   async setNotePage(noteId, data) {
     try {
-      if (!noteId || !data) {
-        logger.warn('Invalid note data for caching', { noteId, hasData: !!data });
+      if (!noteId || !data || !data.userId) {
+        logger.error('Invalid note data for caching: missing userId', { noteId, hasData: !!data, data });
         return false;
       }
 
       const key = this.generateKey('note', noteId);
       const tags = [
-        data.userId?.toString() || 'unknown',
+        data.userId.toString(),
         ...(Array.isArray(data.tags) ? data.tags : [])
       ];
 

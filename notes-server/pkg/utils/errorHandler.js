@@ -66,7 +66,19 @@ const handleZodError = (error) => {
 
 const formatGraphQLError = (error) => {
   const originalError = error.originalError;
-  
+
+  // Surface GraphQL validation errors (e.g., unknown argument/field)
+  if (error.message && error.message.match(/Unknown argument|Cannot query field/)) {
+    // Try to extract the field/argument name from the message
+    const fieldMatch = error.message.match(/"([^"]+)"/);
+    return {
+      message: error.message,
+      code: 'GRAPHQL_VALIDATION_ERROR',
+      field: fieldMatch ? fieldMatch[1] : undefined,
+      timestamp: new Date().toISOString()
+    };
+  }
+
   if (originalError instanceof BaseError) {
     return {
       message: originalError.message,
@@ -86,8 +98,9 @@ const formatGraphQLError = (error) => {
   });
 
   return {
-    message: 'An unexpected error occurred',
+    message: error.message || 'An unexpected error occurred',
     code: 'INTERNAL_ERROR',
+    field: undefined,
     timestamp: new Date().toISOString()
   };
 };
