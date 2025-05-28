@@ -38,9 +38,10 @@ class NoteService {
       .lean();
 
     // Cache the new note
-    await global.redisClient.setNotePage(
-      note._id.toString(), 
-      savedNote
+    await global.redisClient.cacheWithTags(
+      global.redisClient.generateKey('note', note._id.toString()),
+      savedNote,
+      [input.userId, ...(Array.isArray(input.tags) ? input.tags : [])]
     );
 
     // Invalidate user's note list cache
@@ -83,11 +84,14 @@ class NoteService {
       await validateLinks(input.linksOut);
     }
 
-    // Invalidate old tag sets before update
+    // Invalidate by tags for old note before update
     await global.redisClient.invalidateByTags([
       oldNote.userId.toString(),
       ...(Array.isArray(oldNote.tags) ? oldNote.tags : [])
     ]);
+    // Invalidate old cache key and remove from tag sets
+    const cacheKey = global.redisClient.generateKey('note', id);
+    await global.redisClient.del(cacheKey);
 
     // Update note
     Object.assign(oldNote, input);
@@ -98,22 +102,20 @@ class NoteService {
       .select(selectedFields)
       .lean();
 
-    // Update cache
-    await global.redisClient.setNotePage(
-      id.toString(),
-      updatedNote
+    // Invalidate by tags for updated note after update
+    await global.redisClient.invalidateByTags([
+      updatedNote.userId.toString(),
+      ...(Array.isArray(updatedNote.tags) ? updatedNote.tags : [])
+    ]);
+    // Cache the updated note
+    await global.redisClient.cacheWithTags(
+      global.redisClient.generateKey('note', id.toString()),
+      updatedNote,
+      [updatedNote.userId, ...(Array.isArray(updatedNote.tags) ? updatedNote.tags : [])]
     );
     
-    // Invalidate related caches
-    await Promise.all([
-      global.redisClient.clearByPattern(`user:${oldNote.userId}:notes:*`),
-      ...oldNote.linksOut.map(linkedId => 
-        global.redisClient.invalidateCache('note', linkedId)
-      ),
-      ...oldNote.linksIn.map(linkedId => 
-        global.redisClient.invalidateCache('note', linkedId)
-      )
-    ]);
+    // Invalidate user's note list cache
+    await global.redisClient.clearByPattern(`user:${updatedNote.userId}:notes:*`);
 
     logger.info('Note page update completed', { 
       noteId: id,
@@ -141,7 +143,7 @@ class NoteService {
       throw new NotFoundError('Note');
     }
 
-    // Invalidate old tag sets before delete
+    // Invalidate by tags for note before delete
     await global.redisClient.invalidateByTags([
       note.userId.toString(),
       ...(Array.isArray(note.tags) ? note.tags : [])
@@ -156,17 +158,8 @@ class NoteService {
       .select(selectedFields)
       .lean();
 
-    // Invalidate all related caches
-    await Promise.all([
-      global.redisClient.invalidateCache('note', id),
-      global.redisClient.clearByPattern(`user:${note.userId}:notes:*`),
-      ...note.linksOut.map(linkedId => 
-        global.redisClient.invalidateCache('note', linkedId)
-      ),
-      ...note.linksIn.map(linkedId => 
-        global.redisClient.invalidateCache('note', linkedId)
-      )
-    ]);
+    // Invalidate user's note list cache
+    await global.redisClient.clearByPattern(`user:${note.userId}:notes:*`);
 
     logger.info('Note page deletion completed', { 
       noteId: id,
@@ -204,7 +197,11 @@ class NoteService {
     // Update cache
     if (global.redisClient) {
         try {
-          await global.redisClient.setNotePage(id, note.toObject());
+          await global.redisClient.cacheWithTags(
+            global.redisClient.generateKey('note', id.toString()),
+            note.toObject(),
+            [note.userId, ...(Array.isArray(note.tags) ? note.tags : [])]
+          );
           await global.redisClient.clearByPattern(`user:${note.userId}:notes:*`);
         } catch (cacheError) {
           logger.warn('Failed to update note cache', { 

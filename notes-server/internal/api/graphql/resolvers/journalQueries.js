@@ -23,6 +23,9 @@ const journalQueries = {
       try {
         const selectedFields = getSelectedFields(info);
         const journal = await journalService.getJournal(args.id, selectedFields, args.includeArchived);
+        if (journal.isDeleted) {
+          throw new NotFoundError('Journal');
+        }
         
         return {
           success: true,
@@ -101,13 +104,14 @@ const journalQueries = {
           userId,
           selectedFields
         );
-
+        // Filter out deleted journals
+        const filteredJournals = journals.filter(j => !j.isDeleted);
         return {
           success: true,
           message: 'Journals retrieved successfully',
-          data: journals,
+          data: filteredJournals,
           pageInfo: {
-            totalItems: journals.length,
+            totalItems: filteredJournals.length,
             currentPage: 1,
             totalPages: 1
           }
