@@ -32,9 +32,10 @@ class JournalService {
       .lean();
 
     // Cache the new journal
-    await global.redisClient.setJournal(
-      journal._id,
-      savedJournal
+    await global.redisClient.cacheWithTags(
+      global.redisClient.generateKey('journal', journal._id.toString()),
+      savedJournal,
+      [input.userId, ...(Array.isArray(input.tags) ? input.tags : [])]
     );
 
     // Invalidate user's journal list cache
@@ -61,10 +62,21 @@ class JournalService {
       throw new ValidationError('Journal ID is required', 'id');
     }
 
-    const existingJournal = await Journal.findById(id);
-    if (!existingJournal) {
+    // Fetch the old journal before updating
+    const oldJournal = await Journal.findById(id);
+    if (!oldJournal) {
       throw new NotFoundError('Journal');
     }
+
+    // Invalidate by tags for old journal before update
+    await global.redisClient.invalidateByTags([
+      oldJournal.userId.toString(),
+      ...(Array.isArray(oldJournal.tags) ? oldJournal.tags : [])
+    ]);
+
+    // Invalidate old cache key and remove from tag sets
+    const cacheKey = global.redisClient.generateKey('journal', id);
+    await global.redisClient.del(cacheKey);
 
     // Add validation for required fields if they're included in the update
     if (input.title !== undefined && !input.title?.trim()) {
@@ -76,23 +88,33 @@ class JournalService {
     }
 
     // Update journal
-    Object.assign(existingJournal, input);
-    await existingJournal.save();
+    Object.assign(oldJournal, input);
+    await oldJournal.save();
     logger.info('Journal entry updated', { journalId: id });
 
     const updatedJournal = await Journal.findById(id)
-      .select(selectedFields)
+      .select(`${selectedFields} userId tags`)
       .lean();
 
-    // Update cache
-    await global.redisClient.setJournal(id, updatedJournal);
+    // Invalidate by tags for updated journal after update
+    await global.redisClient.invalidateByTags([
+      updatedJournal.userId.toString(),
+      ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])
+    ]);
+
+    // Cache the updated journal
+    await global.redisClient.cacheWithTags(
+      global.redisClient.generateKey('journal', id.toString()),
+      updatedJournal,
+      [updatedJournal.userId, ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])]
+    );
     
     // Invalidate user's journal list cache
-    await global.redisClient.clearByPattern(`user:${existingJournal.userId}:journals:*`);
+    await global.redisClient.clearByPattern(`user:${updatedJournal.userId}:journals:*`);
 
     logger.info('Journal entry update completed', { 
       journalId: id,
-      userId: existingJournal.userId
+      userId: updatedJournal.userId
     });
 
     return updatedJournal;
@@ -110,25 +132,30 @@ class JournalService {
       throw new ValidationError('Journal ID is required', 'id');
     }
 
-    const journal = await Journal.findById(id);
+    // Fetch the old journal before deleting
+    const journal = await Journal.findOne({ _id: id, isDeleted: false });
     if (!journal) {
       throw new NotFoundError('Journal');
     }
 
-    // Store journal data before deletion
+    // Soft delete
+    journal.isDeleted = true;
+    await journal.save();
+
+    // Invalidate by tags for journal before delete
+    await global.redisClient.invalidateByTags([
+      journal.userId.toString(),
+      ...(Array.isArray(journal.tags) ? journal.tags : [])
+    ]);
+    const cacheKey = global.redisClient.generateKey('journal', id);
+    await global.redisClient.del(`journal:${id}`);
+
     const deletedJournal = await Journal.findById(id)
       .select(selectedFields)
       .lean();
 
-    // Delete the journal
-    await Journal.deleteOne({ _id: id });
-    logger.info('Journal entry deleted', { journalId: id });
-
-    // Invalidate caches
-    await Promise.all([
-      global.redisClient.del(`journal:${id}`),
-      global.redisClient.clearByPattern(`user:${journal.userId}:journals:*`)
-    ]);
+    // Invalidate user's journal list cache
+    await global.redisClient.clearByPattern(`user:${journal.userId}:journals:*`);
 
     logger.info('Journal entry deletion completed', { 
       journalId: id,
@@ -164,7 +191,11 @@ class JournalService {
       .lean();
 
     // Update the journal cache instead of invalidating it
-    await global.redisClient.setJournal(id, archivedJournal);
+    await global.redisClient.cacheWithTags(
+      global.redisClient.generateKey('journal', id.toString()),
+      archivedJournal,
+      [journal.userId.toString(), ...(Array.isArray(journal.tags) ? journal.tags : [])]
+    );
     
     // Only invalidate the user's journal list caches
     await global.redisClient.clearByPattern(`user:${journal.userId}:journals:*`);
@@ -187,13 +218,21 @@ class JournalService {
   async getJournalsByDateRange(startDate, endDate, userId, selectedFields = '') {
     logger.debug('Getting journals by date range', { startDate, endDate, userId });
 
+    const cacheKey = `user:${userId}:journals:dateRange:${startDate}:${endDate}:${selectedFields}`;
+    const cachedResult = await global.redisClient.get(cacheKey);
+    if (cachedResult) {
+      logger.debug('Journals by date range retrieved from cache', { userId, startDate, endDate });
+      return cachedResult;
+    }
+
     const journals = await Journal.find({
       date: {
         $gte: startDate,
         $lte: endDate
       },
       userId,
-      archived: false
+      archived: false,
+      isDeleted: false
     })
     .select(selectedFields)
     .lean();
@@ -204,6 +243,10 @@ class JournalService {
       startDate,
       endDate
     });
+
+    // Cache the result
+    const allTags = Array.from(new Set(journals.flatMap(j => j.tags || [])));
+    await global.redisClient.cacheWithTags(cacheKey, journals, [userId, ...allTags]);
 
     return journals;
   }
@@ -230,10 +273,13 @@ class JournalService {
       if (!includeArchived && cachedJournal.archived) {
         throw new NotFoundError('Journal');
       }
+      if (cachedJournal.isDeleted) {
+        throw new NotFoundError('Journal');
+      }
       return cachedJournal;
     }
 
-    const query = { _id: id };
+    const query = { _id: id, isDeleted: false };
     // Only filter by archived status if we're not including archived journals
     if (!includeArchived) {
       query.archived = false;
@@ -247,8 +293,9 @@ class JournalService {
       throw new NotFoundError('Journal');
     }
 
-    // Cache the journal
-    await global.redisClient.setJournal(id, journal);
+    // Cache the result
+    const tags = [journal.userId.toString(), ...(Array.isArray(journal.tags) ? journal.tags : [])];
+    await global.redisClient.cacheWithTags(cacheKey, result, tags);
     logger.debug('Journal cached', { journalId: id });
 
     logger.info('Journal retrieved successfully', { journalId: id });
@@ -285,7 +332,7 @@ class JournalService {
     }
 
     const skip = (page - 1) * limit;
-    const query = { userId };
+    const query = { userId, isDeleted: false };
     
     // Only apply archived: false if filter.archived is not explicitly set
     if (filter.archived !== undefined) {
@@ -333,7 +380,9 @@ class JournalService {
     };
 
     // Cache the result
-    await global.redisClient.set(cacheKey, result);
+    // Collect all tags from the result set for robust invalidation
+    const allTags = Array.from(new Set(journals.flatMap(j => j.tags || [])));
+    await global.redisClient.cacheWithTags(cacheKey, result, [userId, ...allTags]);
     logger.debug('Journals cached', { userId, page, limit, totalItems });
 
     logger.info('Journals retrieved successfully', { userId, page, limit, totalItems });

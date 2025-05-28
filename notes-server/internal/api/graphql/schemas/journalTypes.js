@@ -69,6 +69,10 @@ const JournalInput = new GraphQLInputObjectType({
     wordCount: {
       type: GraphQLInt,
       description: 'Word count of the journal'
+    },
+    isDeleted: {
+      type: GraphQLBoolean,
+      description: 'Whether the journal is deleted (soft delete)'
     }
   }
 });
@@ -125,17 +129,26 @@ const JournalFilterInput = new GraphQLInputObjectType({
 
 // Helper function to get selected fields from GraphQL query
 const getSelectedFields = (info) => {
-  const selections = info.fieldNodes[0].selectionSet.selections;
-  return selections
-    .find(selection => selection.name.value === 'data')
-    ?.selectionSet.selections
-    .map(selection => selection.name.value)
-    .join(' ');
+  try {
+    const selections = info.fieldNodes[0].selectionSet.selections;
+    const dataSelection = selections.find(selection => selection.name.value === 'data');
+    if (dataSelection && dataSelection.selectionSet) {
+      return dataSelection.selectionSet.selections.map(sel => sel.name.value).join(' ');
+    }
+    return 'title content tags mood date wordCount createdAt updatedAt userId';
+  } catch (e) {
+    return 'title content tags mood date wordCount createdAt updatedAt userId';
+  }
 };
 
 const JournalType = new GraphQLObjectType({
   name: 'Journal',
   fields: () => ({
+    id: {
+      type: GraphQLID,
+      description: 'String ID for GraphQL compatibility',
+      resolve: (parent) => parent._id ? parent._id.toString() : null
+    },
     _id: { type: GraphQLID },
     userId: { type: GraphQLID },
     title: { type: GraphQLString },
@@ -148,7 +161,8 @@ const JournalType = new GraphQLObjectType({
     archived: { type: GraphQLBoolean },
     wordCount: { type: GraphQLInt },
     createdAt: { type: GraphQLString },
-    updatedAt: { type: GraphQLString }
+    updatedAt: { type: GraphQLString },
+    isDeleted: { type: GraphQLBoolean }
   })
 });
 

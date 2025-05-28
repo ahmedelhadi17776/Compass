@@ -52,6 +52,11 @@ const JournalSchema = new Schema({
   wordCount: {
     type: Number,
     default: 0
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
   }
 }, {
   timestamps: true,
@@ -76,6 +81,7 @@ JournalSchema.index({ userId: 1, date: -1 });
 JournalSchema.index({ userId: 1, archived: 1, date: -1 });
 JournalSchema.index({ userId: 1, tags: 1, date: -1 });
 JournalSchema.index({ userId: 1, mood: 1, date: -1 });
+JournalSchema.index({ userId: 1, isDeleted: 1 });
 
 // Pre-save middleware to ensure unique tags
 JournalSchema.pre('save', function(next) {
@@ -106,18 +112,19 @@ JournalSchema.statics.findByDateRange = function(startDate, endDate, userId) {
         $gte: startDate,
         $lte: endDate
       },
-      archived: false
+      archived: false,
+      isDeleted: false
     });
   };
 
 // Static method to find journals by tag
 JournalSchema.statics.findByTag = function(tag) {
-  return this.find({ tags: tag, archived: false });
+  return this.find({ tags: tag, archived: false, isDeleted: false });
 };
 
 // Static method to find journals by mood
 JournalSchema.statics.findByMood = function(mood) {
-  return this.find({ mood, archived: false });
+  return this.find({ mood, archived: false, isDeleted: false });
 };
 
 module.exports = mongoose.model('Journal', JournalSchema); 

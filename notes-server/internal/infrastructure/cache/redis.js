@@ -150,9 +150,25 @@ class RedisClient {
     }
   }
 
+  async removeKeyFromAllTagSets(key) {
+    try {
+      let cursor = '0';
+      do {
+        const [nextCursor, tagSets] = await this.client.scan(cursor, 'MATCH', `${this.config.keyPrefix}tag:*`, 'COUNT', 100);
+        cursor = nextCursor;
+        for (const tagSet of tagSets) {
+          await this.client.srem(tagSet, key);
+        }
+      } while (cursor !== '0');
+    } catch (error) {
+      logger.error('Failed to remove key from tag sets', { key, error: error.message });
+    }
+  }
+
   async del(key) {
     try {
       await this.client.del(key);
+      await this.removeKeyFromAllTagSets(key);
     } catch (error) {
       logger.error('Redis delete error:', { key, error: error.message });
       throw new DatabaseError(`Failed to delete value from Redis: ${error.message}`);
@@ -172,7 +188,10 @@ class RedisClient {
         if (keys.length > 1000) {
           logger.warn('Large number of keys to delete in clearByPattern', { pattern, count: keys.length });
         }
-        await this.client.del(...keys);
+        await Promise.all(keys.map(async (key) => {
+          await this.client.del(key);
+          await this.removeKeyFromAllTagSets(key);
+        }));
       }
     } catch (error) {
       logger.error('Redis clear pattern error:', { pattern, error: error.message });
@@ -307,171 +326,6 @@ class RedisClient {
       return true;
     } catch (error) {
       console.error('Invalidate by tags error:', error);
-      return false;
-    }
-  }
-
-  // Enhanced note-specific methods
-  async getNotePage(noteId) {
-    return this.cacheResponse(
-      this.generateKey('note', noteId),
-      this.config.defaultTTL,
-      'note',
-      async () => {
-        const note = await NotePage.findById(noteId).lean();
-        if (note) {
-          // Cache with tags for better invalidation
-          await this.cacheWithTags(
-            this.generateKey('note', noteId),
-            note,
-            [note.userId.toString(), ...note.tags]
-          );
-        }
-        return note;
-      }
-    );
-  }
-
-  async setNotePage(noteId, data) {
-    try {
-      if (!noteId || !data || !data.userId) {
-        logger.error('Invalid note data for caching: missing userId', { noteId, hasData: !!data, data });
-        return false;
-      }
-
-      const key = this.generateKey('note', noteId);
-      const tags = [
-        data.userId.toString(),
-        ...(Array.isArray(data.tags) ? data.tags : [])
-      ];
-
-      return this.cacheWithTags(key, data, tags);
-    } catch (error) {
-      logger.error('Error caching note page', { 
-        error: error.message,
-        noteId,
-        hasData: !!data
-      });
-      return false;
-    }
-  }
-
-  async getNotePagesByUser(userId, page = 1, limit = 10, filters = {}) {
-    const key = this.generateKey('user', userId, `notes:${page}:${limit}:${JSON.stringify(filters)}`);
-    return this.cacheResponse(
-      key,
-      this.config.defaultTTL,
-      'user_notes',
-      async () => {
-        const notes = await NotePage.find({
-          userId,
-          isDeleted: false,
-          ...filters
-        })
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-
-        // Cache individual notes
-        await Promise.all(notes.map(note => 
-          this.setNotePage(note._id.toString(), note)
-        ));
-
-        return notes;
-      }
-    );
-  }
-
-  // Note-specific cache methods
-  async getNotePagesByUser(userId, page = 1, limit = 10) {
-    return this.get(this.generateKey('user', userId, `notes:${page}:${limit}`));
-  }
-
-  async setNotePagesByUser(userId, data, page = 1, limit = 10) {
-    return this.set(this.generateKey('user', userId, `notes:${page}:${limit}`), data);
-  }
-
-  async getTemplate(templateId) {
-    return this.get(this.generateKey('template', templateId));
-  }
-
-  async setTemplate(templateId, data) {
-    return this.set(this.generateKey('template', templateId), data);
-  }
-
-  async getAINoteSnapshot(snapshotId) {
-    return this.get(this.generateKey('ai_note', snapshotId));
-  }
-
-  async setAINoteSnapshot(snapshotId, data) {
-    return this.set(this.generateKey('ai_note', snapshotId), data);
-  }
-
-  async getFlashcards(userId, page = 1, limit = 10) {
-    return this.get(this.generateKey('user', userId, `flashcards:${page}:${limit}`));
-  }
-
-  async setFlashcards(userId, data, page = 1, limit = 10) {
-    return this.set(this.generateKey('user', userId, `flashcards:${page}:${limit}`), data);
-  }
-
-  async getJournalEntry(userId, date) {
-    return this.get(this.generateKey('user', userId, `journal:${date}`));
-  }
-
-  async setJournalEntry(userId, date, data) {
-    return this.set(this.generateKey('user', userId, `journal:${date}`), data);
-  }
-
-  async getCanvasNode(canvasId, nodeId) {
-    return this.get(this.generateKey('canvas', canvasId, `node:${nodeId}`));
-  }
-
-  async setCanvasNode(canvasId, nodeId, data) {
-    return this.set(this.generateKey('canvas', canvasId, `node:${nodeId}`), data);
-  }
-
-  async getJournal(journalId) {
-    return this.cacheResponse(
-      this.generateKey('journal', journalId),
-      this.config.defaultTTL,
-      'journal',
-      async () => {
-        const journal = await Journal.findById(journalId).lean();
-        if (journal) {
-          // Cache with tags for better invalidation
-          await this.cacheWithTags(
-            this.generateKey('journal', journalId),
-            journal,
-            [journal.userId.toString(), ...(journal.tags || [])]
-          );
-        }
-        return journal;
-      }
-    );
-  }
-
-  async setJournal(journalId, data) {
-    try {
-      if (!journalId || !data) {
-        logger.warn('Invalid journal data for caching', { journalId, hasData: !!data });
-        return false;
-      }
-
-      const key = this.generateKey('journal', journalId);
-      const tags = [
-        data.userId?.toString() || 'unknown',
-        ...(Array.isArray(data.tags) ? data.tags : [])
-      ];
-
-      return this.cacheWithTags(key, data, tags);
-    } catch (error) {
-      logger.error('Error caching journal', { 
-        error: error.message,
-        journalId,
-        hasData: !!data
-      });
       return false;
     }
   }
