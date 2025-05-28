@@ -33,15 +33,6 @@ class NoteService {
     await note.save();
     logger.info('Note page created', { noteId: note._id });
 
-    // Update bidirectional links if any
-    if (input.linksOut?.length > 0) {
-      await updateBidirectionalLinks(note._id, [], input.linksOut);
-      logger.debug('Bidirectional links updated', { 
-        noteId: note._id,
-        linksOut: input.linksOut
-      });
-    }
-
     const savedNote = await NotePage.findById(note._id)
       .select(selectedFields)
       .lean();
@@ -76,8 +67,9 @@ class NoteService {
       throw new ValidationError('Note ID is required', 'id');
     }
 
-    const existingNote = await NotePage.findById(id);
-    if (!existingNote) {
+    // Fetch the old note before updating
+    const oldNote = await NotePage.findOne({ _id: id, isDeleted: false });
+    if (!oldNote) {
       throw new NotFoundError('Note');
     }
 
@@ -91,20 +83,16 @@ class NoteService {
       await validateLinks(input.linksOut);
     }
 
-    // Update note
-    Object.assign(existingNote, input);
-    await existingNote.save();
-    logger.info('Note page updated', { noteId: id });
+    // Invalidate old tag sets before update
+    await global.redisClient.invalidateByTags([
+      oldNote.userId.toString(),
+      ...(Array.isArray(oldNote.tags) ? oldNote.tags : [])
+    ]);
 
-    // Update bidirectional links if changed
-    if (input.linksOut) {
-      await updateBidirectionalLinks(id, existingNote.linksOut, input.linksOut);
-      logger.debug('Bidirectional links updated', { 
-        noteId: id,
-        oldLinks: existingNote.linksOut,
-        newLinks: input.linksOut
-      });
-    }
+    // Update note
+    Object.assign(oldNote, input);
+    await oldNote.save();
+    logger.info('Note page updated', { noteId: id });
 
     const updatedNote = await NotePage.findById(id)
       .select(selectedFields)
@@ -118,18 +106,18 @@ class NoteService {
     
     // Invalidate related caches
     await Promise.all([
-      global.redisClient.clearByPattern(`user:${existingNote.userId}:notes:*`),
-      ...existingNote.linksOut.map(linkedId => 
+      global.redisClient.clearByPattern(`user:${oldNote.userId}:notes:*`),
+      ...oldNote.linksOut.map(linkedId => 
         global.redisClient.invalidateCache('note', linkedId)
       ),
-      ...existingNote.linksIn.map(linkedId => 
+      ...oldNote.linksIn.map(linkedId => 
         global.redisClient.invalidateCache('note', linkedId)
       )
     ]);
 
     logger.info('Note page update completed', { 
       noteId: id,
-      userId: existingNote.userId
+      userId: oldNote.userId
     });
 
     return updatedNote;
@@ -147,24 +135,22 @@ class NoteService {
       throw new ValidationError('Note ID is required', 'id');
     }
 
-    const note = await NotePage.findById(id);
+    // Fetch the old note before deleting
+    const note = await NotePage.findOne({ _id: id, isDeleted: false });
     if (!note) {
       throw new NotFoundError('Note');
     }
+
+    // Invalidate old tag sets before delete
+    await global.redisClient.invalidateByTags([
+      note.userId.toString(),
+      ...(Array.isArray(note.tags) ? note.tags : [])
+    ]);
 
     // Soft delete
     note.isDeleted = true;
     await note.save();
     logger.info('Note page marked as deleted', { noteId: id });
-
-    // Remove bidirectional links
-    if (note.linksOut?.length > 0) {
-      await updateBidirectionalLinks(id, note.linksOut, []);
-      logger.debug('Bidirectional links removed', { 
-        noteId: id,
-        linksOut: note.linksOut
-      });
-    }
 
     const deletedNote = await NotePage.findById(id)
       .select(selectedFields)
@@ -207,7 +193,7 @@ class NoteService {
       throw new ValidationError('Favorite status is required', 'favorited');
     }
 
-    const note = await NotePage.findById(id);
+    const note = await NotePage.findOne({ _id: id, isDeleted: false });
     if (!note) {
       throw new NotFoundError('Note');
     }

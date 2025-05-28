@@ -5,7 +5,7 @@ const {
   getSelectedFields
 } = require('../schemas/noteTypes');
 const noteService = require('../../../domain/notes/noteService');
-const { ValidationError, NotFoundError, DatabaseError } = require('../../../../pkg/utils/errorHandler');
+const { ValidationError, NotFoundError, DatabaseError, BaseError } = require('../../../../pkg/utils/errorHandler');
 const { logger } = require('../../../../pkg/utils/logger');
 
 const notePageMutations = {
@@ -147,8 +147,8 @@ const notePageMutations = {
         logger.error('Error in toggleFavorite', {
           error: error.message,
           stack: error.stack,
-          noteId: id,
-          favorited
+          noteId: args.id,
+          favorited: args.favorited
         });
 
         if (error instanceof BaseError) {
