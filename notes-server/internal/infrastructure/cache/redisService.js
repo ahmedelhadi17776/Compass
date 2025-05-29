@@ -1,15 +1,10 @@
 const Redis = require('ioredis');
-const { promisify } = require('util');
-const { gzip, gunzip } = require('zlib');
-const NotePage = require('../../domain/notes/model');
 const { logger } = require('../../../pkg/utils/logger');
 const { DatabaseError } = require('../../../pkg/utils/errorHandler');
-const Journal = require('../../domain/journals/model');
+const { compress, decompress } = require('./utils/compressionUtils');
+const { generateEntityKey, generateListKey, generateTagSetKey } = require('./utils/keyUtils');
 
-const gzipAsync = promisify(gzip);
-const gunzipAsync = promisify(gunzip);
-
-class RedisClient {
+class RedisService {
   constructor(config) {
     this.config = {
       host: config.host || 'localhost',
@@ -20,11 +15,11 @@ class RedisClient {
       maxRetries: 3,
       retryDelay: 100,
       useCompression: false,
-      defaultTTL: 30 * 60, 
+      defaultTTL: 30 * 60,
       ...config
     };
 
-    logger.info('Initializing Redis client', { 
+    logger.info('Initializing Redis client', {
       host: this.config.host,
       port: this.config.port,
       db: this.config.db
@@ -46,19 +41,15 @@ class RedisClient {
     this.client.on('error', (error) => {
       logger.error('Redis client error:', { error: error.message });
     });
-
     this.client.on('connect', () => {
       logger.info('Redis client connected');
     });
-
     this.client.on('ready', () => {
       logger.info('Redis client ready');
     });
-
     this.client.on('reconnecting', () => {
       logger.info('Redis client reconnecting');
     });
-
     this.client.on('end', () => {
       logger.info('Redis client connection ended');
     });
@@ -68,8 +59,6 @@ class RedisClient {
       misses: 0,
       byType: new Map()
     };
-
-    // Initialize health check
     this.health = true;
     this.startHealthCheck();
   }
@@ -83,7 +72,7 @@ class RedisClient {
         this.health = false;
         logger.error('Redis health check failed:', { error: error.message });
       }
-    }, 10000); // Check every 10 seconds
+    }, 10000);
   }
 
   async isHealthy() {
@@ -99,41 +88,6 @@ class RedisClient {
     }
   }
 
-  async compress(data) {
-    if (!this.config.useCompression) return data;
-    try {
-      const buffer = await gzipAsync(JSON.stringify(data));
-      return buffer.toString('base64');
-    } catch (error) {
-      logger.error('Compression failed:', { error: error.message });
-      return data;
-    }
-  }
-
-  async decompress(data) {
-    if (!this.config.useCompression) return data;
-    try {
-      const buffer = Buffer.from(data, 'base64');
-      const decompressed = await gunzipAsync(buffer);
-      return JSON.parse(decompressed.toString());
-    } catch (error) {
-      logger.error('Decompression failed:', { error: error.message });
-      return data;
-    }
-  }
-
-  // Unified cache key generator for entities
-  generateKey(entityType, entityId, action = '') {
-    return `${this.config.keyPrefix}${entityType}:${entityId}${action ? ':' + action : ''}`;
-  }
-
-  // Unified cache key generator for list queries
-  generateListKey(userId, entityType, params = {}) {
-    const paramString = Object.entries(params).sort().map(([k, v]) => `${k}:${JSON.stringify(v)}`).join('|');
-    return `user:${userId}:${entityType}:${paramString}`;
-  }
-
-  // Get per-user TTL (fallback to default)
   getUserTTL(userId) {
     if (this.config.userTTLs && this.config.userTTLs[userId]) {
       return this.config.userTTLs[userId];
@@ -141,25 +95,21 @@ class RedisClient {
     return this.config.defaultTTL;
   }
 
-  // Get a single entity (note, journal, etc.)
   async getEntity(entityType, id) {
-    const key = this.generateKey(entityType, id);
+    const key = generateEntityKey(this.config.keyPrefix, entityType, id);
     return this.get(key);
   }
 
-  // Set a single entity (with tags and per-user TTL)
   async setEntity(entityType, id, value, tags, userId, ttl = null) {
-    const key = this.generateKey(entityType, id);
+    const key = generateEntityKey(this.config.keyPrefix, entityType, id);
     const effectiveTTL = ttl || this.getUserTTL(userId);
     return this.cacheWithTags(key, value, tags, effectiveTTL);
   }
 
-  // Get a list/query result
   async getList(key) {
     return this.get(key);
   }
 
-  // Set a list/query result (with tags and per-user TTL)
   async setList(key, value, tags, userId, ttl = null) {
     const effectiveTTL = ttl || this.getUserTTL(userId);
     return this.cacheWithTags(key, value, tags, effectiveTTL);
@@ -168,7 +118,7 @@ class RedisClient {
   async invalidateByPattern(pattern) {
     return this.clearByPattern(pattern);
   }
-  
+
   async get(key) {
     try {
       const value = await this.client.get(key);
@@ -197,7 +147,7 @@ class RedisClient {
     try {
       let cursor = '0';
       do {
-        const [nextCursor, tagSets] = await this.client.scan(cursor, 'MATCH', `${this.config.keyPrefix}tag:*`, 'COUNT', 100);
+        const [nextCursor, tagSets] = await this.client.scan(cursor, 'MATCH', generateTagSetKey(this.config.keyPrefix, '*'), 'COUNT', 100);
         cursor = nextCursor;
         for (const tagSet of tagSets) {
           await this.client.srem(tagSet, key);
@@ -248,7 +198,6 @@ class RedisClient {
     } else {
       this.metrics.misses++;
     }
-
     const typeMetrics = this.metrics.byType.get(type) || { hits: 0, misses: 0 };
     if (hit) {
       typeMetrics.hits++;
@@ -261,7 +210,6 @@ class RedisClient {
   getMetrics() {
     const total = this.metrics.hits + this.metrics.misses;
     const hitRate = total > 0 ? (this.metrics.hits / total) * 100 : 0;
-
     const metrics = {
       hits: this.metrics.hits,
       misses: this.metrics.misses,
@@ -269,55 +217,38 @@ class RedisClient {
       byType: Object.fromEntries(this.metrics.byType),
       health: this.isHealthy()
     };
-
     logger.debug('Cache metrics', { metrics });
     return metrics;
   }
 
-  // Enhanced caching strategies
   async cacheWithTags(key, value, tags, ttl = this.config.defaultTTL) {
     try {
-      // Store the value
       await this.set(key, value, ttl);
-      
-      // Store the key in each tag's set
-      const tagSets = tags.map(tag => `${this.config.keyPrefix}tag:${tag}`);
-      await Promise.all(tagSets.map(tagSet => 
-        this.client.sadd(tagSet, key)
-      ));
-      
+      const tagSets = tags.map(tag => generateTagSetKey(this.config.keyPrefix, tag));
+      await Promise.all(tagSets.map(tagSet => this.client.sadd(tagSet, key)));
       return true;
     } catch (error) {
-      console.error('Cache with tags error:', error);
+      logger.error('Cache with tags error:', { error: error.message });
       return false;
     }
   }
 
   async invalidateByTags(tags) {
     try {
-      // Get all keys associated with the tags
-      const tagSets = tags.map(tag => `${this.config.keyPrefix}tag:${tag}`);
-      const keys = await Promise.all(tagSets.map(tagSet => 
-        this.client.smembers(tagSet)
-      ));
-      
-      // Flatten and deduplicate keys
+      const tagSets = tags.map(tag => generateTagSetKey(this.config.keyPrefix, tag));
+      const keys = await Promise.all(tagSets.map(tagSet => this.client.smembers(tagSet)));
       const uniqueKeys = [...new Set(keys.flat())];
-      
-      // Delete all keys and their tag associations
       await Promise.all([
         ...uniqueKeys.map(key => this.del(key)),
         ...tagSets.map(tagSet => this.client.del(tagSet))
       ]);
-      
       return true;
     } catch (error) {
-      console.error('Invalidate by tags error:', error);
+      logger.error('Invalidate by tags error:', { error: error.message });
       return false;
     }
   }
 
-  // Close the Redis connection
   async close() {
     try {
       await this.client.quit();
@@ -327,6 +258,14 @@ class RedisClient {
       throw new DatabaseError(`Failed to close Redis connection: ${error.message}`);
     }
   }
+
+  generateKey(entityType, entityId, action = '') {
+    return generateEntityKey(this.config.keyPrefix, entityType, entityId, action);
+  }
+
+  generateListKey(userId, entityType, params = {}) {
+    return generateListKey(userId, entityType, params);
+  }
 }
 
-module.exports = RedisClient;
+module.exports = RedisService; 
