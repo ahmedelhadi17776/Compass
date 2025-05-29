@@ -21,6 +21,11 @@ const config = {
   retryStrategy: (times) => {
     if (times > 3) return null;
     return Math.min(times * 100, 3000);
+  },
+  userTTLs: {
+    //notes: 30 * 60,
+    //journals: 30 * 60,
+    //tags: 30 * 60
   }
 };
 
