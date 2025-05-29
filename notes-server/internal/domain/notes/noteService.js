@@ -2,6 +2,10 @@ const NotePage = require('./model');
 const { updateBidirectionalLinks, validateLinks } = require('./linkService');
 const { ValidationError, NotFoundError, DatabaseError } = require('../../../pkg/utils/errorHandler');
 const { logger } = require('../../../pkg/utils/logger');
+const RedisService = require('../../infrastructure/cache/redisService');
+const redisConfig = require('../../infrastructure/cache/config');
+
+const redisClient = new RedisService(redisConfig);
 
 class NoteService {
   /**
@@ -41,7 +45,7 @@ class NoteService {
     }
 
     // Cache the new note using unified API
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'note',
       note._id.toString(),
       savedNote,
@@ -50,7 +54,7 @@ class NoteService {
     );
 
     // Invalidate user's note list cache
-    await global.redisClient.invalidateByPattern(`user:${input.userId}:notes:*`);
+    await redisClient.invalidateByPattern(`user:${input.userId}:notes:*`);
 
     logger.info('Note page creation completed', { 
       noteId: note._id,
@@ -90,12 +94,12 @@ class NoteService {
     }
 
     // Invalidate by tags for old note before update
-    await global.redisClient.invalidateByTags([
+    await redisClient.invalidateByTags([
       oldNote.userId.toString(),
       ...(Array.isArray(oldNote.tags) ? oldNote.tags : [])
     ]);
     // Invalidate old cache key and remove from tag sets
-    await global.redisClient.invalidateByPattern(global.redisClient.generateKey('note', id));
+    await redisClient.invalidateByPattern(redisClient.generateKey('note', id));
 
     // Update note
     Object.assign(oldNote, input);
@@ -110,12 +114,12 @@ class NoteService {
     }
 
     // Invalidate by tags for updated note after update
-    await global.redisClient.invalidateByTags([
+    await redisClient.invalidateByTags([
       updatedNote.userId.toString(),
       ...(Array.isArray(updatedNote.tags) ? updatedNote.tags : [])
     ]);
     // Cache the updated note
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'note',
       id.toString(),
       updatedNote,
@@ -124,7 +128,7 @@ class NoteService {
     );
     
     // Invalidate user's note list cache
-    await global.redisClient.invalidateByPattern(`user:${updatedNote.userId}:notes:*`);
+    await redisClient.invalidateByPattern(`user:${updatedNote.userId}:notes:*`);
 
     logger.info('Note page update completed', { 
       noteId: id,
@@ -153,7 +157,7 @@ class NoteService {
     }
 
     // Invalidate by tags for note before delete
-    await global.redisClient.invalidateByTags([
+    await redisClient.invalidateByTags([
       note.userId.toString(),
       ...(Array.isArray(note.tags) ? note.tags : [])
     ]);
@@ -171,7 +175,7 @@ class NoteService {
     }
 
     // Invalidate user's note list cache
-    await global.redisClient.invalidateByPattern(`user:${note.userId}:notes:*`);
+    await redisClient.invalidateByPattern(`user:${note.userId}:notes:*`);
 
     logger.info('Note page deletion completed', { 
       noteId: id,
@@ -208,14 +212,14 @@ class NoteService {
 
     // Update cache
     try {
-      await global.redisClient.setEntity(
+      await redisClient.setEntity(
         'note',
         id.toString(),
         note.toObject(),
         [note.userId, ...(Array.isArray(note.tags) ? note.tags : [])],
         note.userId
       );
-      await global.redisClient.invalidateByPattern(`user:${note.userId}:notes:*`);
+      await redisClient.invalidateByPattern(`user:${note.userId}:notes:*`);
     } catch (cacheError) {
       logger.warn('Failed to update note cache', { 
         error: cacheError.message,
@@ -247,7 +251,7 @@ class NoteService {
       throw new ValidationError('Note ID is required', 'id');
     }
     // Try to get from cache first
-    const cachedNote = await global.redisClient.getEntity('note', id);
+    const cachedNote = await redisClient.getEntity('note', id);
     if (cachedNote) {
       logger.debug('Note retrieved from cache', { noteId: id });
       return cachedNote;
@@ -259,7 +263,7 @@ class NoteService {
       throw new NotFoundError('Note');
     }
     // Cache the note
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'note',
       id.toString(),
       note,
@@ -278,8 +282,8 @@ class NoteService {
     if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }
-    const cacheKey = global.redisClient.generateListKey(userId, 'notes', { page, limit, sortField, sortOrder, filter, search });
-    const cachedResult = await global.redisClient.getList(cacheKey);
+    const cacheKey = redisClient.generateListKey(userId, 'notes', { page, limit, sortField, sortOrder, filter, search });
+    const cachedResult = await redisClient.getList(cacheKey);
     if (cachedResult) {
       logger.debug('Notes retrieved from cache', { userId, page, limit });
       return cachedResult;
@@ -341,7 +345,7 @@ class NoteService {
     };
     // Collect all tags from the result set for robust invalidation
     const allTags = Array.from(new Set(notes.flatMap(n => n.tags || [])));
-    await global.redisClient.setList(cacheKey, result, [userId, ...allTags], userId);
+    await redisClient.setList(cacheKey, result, [userId, ...allTags], userId);
     logger.debug('Notes cached', { userId, page, limit, totalItems });
     logger.info('Notes retrieved successfully', { userId, page, limit, totalItems, hasSearch: !!search?.query });
     return result;

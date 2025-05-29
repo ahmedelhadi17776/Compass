@@ -1,5 +1,5 @@
 const { connectDB } = require('../infrastructure/persistence/mongodb/connection');
-const RedisClient = require('../infrastructure/cache/redis');
+const RedisService = require('../infrastructure/cache/redisService');
 const redisConfig = require('../infrastructure/cache/config');
 const { logger } = require('../../pkg/utils/logger');
 
@@ -10,7 +10,7 @@ const initializeDatabases = async () => {
     logger.info('Connected to MongoDB');
     
     // Initialize Redis
-    const redisClient = new RedisClient(redisConfig);
+    const redisClient = new RedisService(redisConfig);
     logger.info('Redis client initialized');
     
     // Make Redis client available globally
