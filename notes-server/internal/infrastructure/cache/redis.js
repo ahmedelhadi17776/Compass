@@ -122,10 +122,53 @@ class RedisClient {
     }
   }
 
+  // Unified cache key generator for entities
   generateKey(entityType, entityId, action = '') {
     return `${this.config.keyPrefix}${entityType}:${entityId}${action ? ':' + action : ''}`;
   }
 
+  // Unified cache key generator for list queries
+  generateListKey(userId, entityType, params = {}) {
+    const paramString = Object.entries(params).sort().map(([k, v]) => `${k}:${JSON.stringify(v)}`).join('|');
+    return `user:${userId}:${entityType}:${paramString}`;
+  }
+
+  // Get per-user TTL (fallback to default)
+  getUserTTL(userId) {
+    if (this.config.userTTLs && this.config.userTTLs[userId]) {
+      return this.config.userTTLs[userId];
+    }
+    return this.config.defaultTTL;
+  }
+
+  // Get a single entity (note, journal, etc.)
+  async getEntity(entityType, id) {
+    const key = this.generateKey(entityType, id);
+    return this.get(key);
+  }
+
+  // Set a single entity (with tags and per-user TTL)
+  async setEntity(entityType, id, value, tags, userId, ttl = null) {
+    const key = this.generateKey(entityType, id);
+    const effectiveTTL = ttl || this.getUserTTL(userId);
+    return this.cacheWithTags(key, value, tags, effectiveTTL);
+  }
+
+  // Get a list/query result
+  async getList(key) {
+    return this.get(key);
+  }
+
+  // Set a list/query result (with tags and per-user TTL)
+  async setList(key, value, tags, userId, ttl = null) {
+    const effectiveTTL = ttl || this.getUserTTL(userId);
+    return this.cacheWithTags(key, value, tags, effectiveTTL);
+  }
+
+  async invalidateByPattern(pattern) {
+    return this.clearByPattern(pattern);
+  }
+  
   async get(key) {
     try {
       const value = await this.client.get(key);
@@ -229,62 +272,6 @@ class RedisClient {
 
     logger.debug('Cache metrics', { metrics });
     return metrics;
-  }
-
-  async cacheResponse(key, ttl, type, fn) {
-    // Try to get from cache first
-    const cached = await this.get(key);
-    if (cached) {
-      return cached;
-    }
-
-    // Cache miss, execute the function
-    const result = await fn();
-    if (result) {
-      await this.set(key, result, ttl);
-    }
-    return result;
-  }
-
-  async invalidateCache(entityType, entityId) {
-    const pattern = `${entityType}:${entityId}*`;
-    return this.clearByPattern(pattern);
-  }
-
-  // Enhanced cache invalidation patterns
-  async invalidateUserCache(userId) {
-    const patterns = [
-      `user:${userId}:notes:*`,
-      `user:${userId}:flashcards:*`,
-      `user:${userId}:journal:*`,
-      `user:${userId}:canvas:*`
-    ];
-    
-    await Promise.all(patterns.map(pattern => this.clearByPattern(pattern)));
-  }
-
-  async invalidateNoteCache(noteId, userId) {
-    const patterns = [
-      `note:${noteId}`,
-      `user:${userId}:notes:*`
-    ];
-    
-    await Promise.all(patterns.map(pattern => this.clearByPattern(pattern)));
-  }
-
-  async invalidateLinkedNotesCache(noteId, linkedNoteIds) {
-    const patterns = linkedNoteIds.map(id => `note:${id}`);
-    await Promise.all(patterns.map(pattern => this.clearByPattern(pattern)));
-  }
-
-  async invalidateSearchCache(userId, query) {
-    const pattern = `user:${userId}:notes:*${query}*`;
-    await this.clearByPattern(pattern);
-  }
-
-  async invalidateTagCache(userId, tag) {
-    const pattern = `user:${userId}:notes:*${tag}*`;
-    await this.clearByPattern(pattern);
   }
 
   // Enhanced caching strategies
