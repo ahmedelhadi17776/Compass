@@ -4,6 +4,7 @@ const { gzip, gunzip } = require('zlib');
 const NotePage = require('../../domain/notes/model');
 const { logger } = require('../../../pkg/utils/logger');
 const { DatabaseError } = require('../../../pkg/utils/errorHandler');
+const Journal = require('../../domain/journals/model');
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -121,10 +122,53 @@ class RedisClient {
     }
   }
 
+  // Unified cache key generator for entities
   generateKey(entityType, entityId, action = '') {
     return `${this.config.keyPrefix}${entityType}:${entityId}${action ? ':' + action : ''}`;
   }
 
+  // Unified cache key generator for list queries
+  generateListKey(userId, entityType, params = {}) {
+    const paramString = Object.entries(params).sort().map(([k, v]) => `${k}:${JSON.stringify(v)}`).join('|');
+    return `user:${userId}:${entityType}:${paramString}`;
+  }
+
+  // Get per-user TTL (fallback to default)
+  getUserTTL(userId) {
+    if (this.config.userTTLs && this.config.userTTLs[userId]) {
+      return this.config.userTTLs[userId];
+    }
+    return this.config.defaultTTL;
+  }
+
+  // Get a single entity (note, journal, etc.)
+  async getEntity(entityType, id) {
+    const key = this.generateKey(entityType, id);
+    return this.get(key);
+  }
+
+  // Set a single entity (with tags and per-user TTL)
+  async setEntity(entityType, id, value, tags, userId, ttl = null) {
+    const key = this.generateKey(entityType, id);
+    const effectiveTTL = ttl || this.getUserTTL(userId);
+    return this.cacheWithTags(key, value, tags, effectiveTTL);
+  }
+
+  // Get a list/query result
+  async getList(key) {
+    return this.get(key);
+  }
+
+  // Set a list/query result (with tags and per-user TTL)
+  async setList(key, value, tags, userId, ttl = null) {
+    const effectiveTTL = ttl || this.getUserTTL(userId);
+    return this.cacheWithTags(key, value, tags, effectiveTTL);
+  }
+
+  async invalidateByPattern(pattern) {
+    return this.clearByPattern(pattern);
+  }
+  
   async get(key) {
     try {
       const value = await this.client.get(key);
@@ -149,9 +193,25 @@ class RedisClient {
     }
   }
 
+  async removeKeyFromAllTagSets(key) {
+    try {
+      let cursor = '0';
+      do {
+        const [nextCursor, tagSets] = await this.client.scan(cursor, 'MATCH', `${this.config.keyPrefix}tag:*`, 'COUNT', 100);
+        cursor = nextCursor;
+        for (const tagSet of tagSets) {
+          await this.client.srem(tagSet, key);
+        }
+      } while (cursor !== '0');
+    } catch (error) {
+      logger.error('Failed to remove key from tag sets', { key, error: error.message });
+    }
+  }
+
   async del(key) {
     try {
       await this.client.del(key);
+      await this.removeKeyFromAllTagSets(key);
     } catch (error) {
       logger.error('Redis delete error:', { key, error: error.message });
       throw new DatabaseError(`Failed to delete value from Redis: ${error.message}`);
@@ -160,9 +220,21 @@ class RedisClient {
 
   async clearByPattern(pattern) {
     try {
-      const keys = await this.client.keys(pattern);
+      let cursor = '0';
+      let keys = [];
+      do {
+        const [nextCursor, foundKeys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        keys = keys.concat(foundKeys);
+      } while (cursor !== '0');
       if (keys.length > 0) {
-        await this.client.del(keys);
+        if (keys.length > 1000) {
+          logger.warn('Large number of keys to delete in clearByPattern', { pattern, count: keys.length });
+        }
+        await Promise.all(keys.map(async (key) => {
+          await this.client.del(key);
+          await this.removeKeyFromAllTagSets(key);
+        }));
       }
     } catch (error) {
       logger.error('Redis clear pattern error:', { pattern, error: error.message });
@@ -200,62 +272,6 @@ class RedisClient {
 
     logger.debug('Cache metrics', { metrics });
     return metrics;
-  }
-
-  async cacheResponse(key, ttl, type, fn) {
-    // Try to get from cache first
-    const cached = await this.get(key);
-    if (cached) {
-      return cached;
-    }
-
-    // Cache miss, execute the function
-    const result = await fn();
-    if (result) {
-      await this.set(key, result, ttl);
-    }
-    return result;
-  }
-
-  async invalidateCache(entityType, entityId) {
-    const pattern = `${entityType}:${entityId}*`;
-    return this.clearByPattern(pattern);
-  }
-
-  // Enhanced cache invalidation patterns
-  async invalidateUserCache(userId) {
-    const patterns = [
-      `user:${userId}:notes:*`,
-      `user:${userId}:flashcards:*`,
-      `user:${userId}:journal:*`,
-      `user:${userId}:canvas:*`
-    ];
-    
-    await Promise.all(patterns.map(pattern => this.clearByPattern(pattern)));
-  }
-
-  async invalidateNoteCache(noteId, userId) {
-    const patterns = [
-      `note:${noteId}`,
-      `user:${userId}:notes:*`
-    ];
-    
-    await Promise.all(patterns.map(pattern => this.clearByPattern(pattern)));
-  }
-
-  async invalidateLinkedNotesCache(noteId, linkedNoteIds) {
-    const patterns = linkedNoteIds.map(id => `note:${id}`);
-    await Promise.all(patterns.map(pattern => this.clearByPattern(pattern)));
-  }
-
-  async invalidateSearchCache(userId, query) {
-    const pattern = `user:${userId}:notes:*${query}*`;
-    await this.clearByPattern(pattern);
-  }
-
-  async invalidateTagCache(userId, tag) {
-    const pattern = `user:${userId}:notes:*${tag}*`;
-    await this.clearByPattern(pattern);
   }
 
   // Enhanced caching strategies
@@ -299,127 +315,6 @@ class RedisClient {
       console.error('Invalidate by tags error:', error);
       return false;
     }
-  }
-
-  // Enhanced note-specific methods
-  async getNotePage(noteId) {
-    return this.cacheResponse(
-      this.generateKey('note', noteId),
-      this.config.defaultTTL,
-      'note',
-      async () => {
-        const note = await NotePage.findById(noteId).lean();
-        if (note) {
-          // Cache with tags for better invalidation
-          await this.cacheWithTags(
-            this.generateKey('note', noteId),
-            note,
-            [note.userId.toString(), ...note.tags]
-          );
-        }
-        return note;
-      }
-    );
-  }
-
-  async setNotePage(noteId, data) {
-    try {
-      if (!noteId || !data) {
-        logger.warn('Invalid note data for caching', { noteId, hasData: !!data });
-        return false;
-      }
-
-      const key = this.generateKey('note', noteId);
-      const tags = [
-        data.userId?.toString() || 'unknown',
-        ...(Array.isArray(data.tags) ? data.tags : [])
-      ];
-
-      return this.cacheWithTags(key, data, tags);
-    } catch (error) {
-      logger.error('Error caching note page', { 
-        error: error.message,
-        noteId,
-        hasData: !!data
-      });
-      return false;
-    }
-  }
-
-  async getNotePagesByUser(userId, page = 1, limit = 10, filters = {}) {
-    const key = this.generateKey('user', userId, `notes:${page}:${limit}:${JSON.stringify(filters)}`);
-    return this.cacheResponse(
-      key,
-      this.config.defaultTTL,
-      'user_notes',
-      async () => {
-        const notes = await NotePage.find({
-          userId,
-          isDeleted: false,
-          ...filters
-        })
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-
-        // Cache individual notes
-        await Promise.all(notes.map(note => 
-          this.setNotePage(note._id.toString(), note)
-        ));
-
-        return notes;
-      }
-    );
-  }
-
-  // Note-specific cache methods
-  async getNotePagesByUser(userId, page = 1, limit = 10) {
-    return this.get(this.generateKey('user', userId, `notes:${page}:${limit}`));
-  }
-
-  async setNotePagesByUser(userId, data, page = 1, limit = 10) {
-    return this.set(this.generateKey('user', userId, `notes:${page}:${limit}`), data);
-  }
-
-  async getTemplate(templateId) {
-    return this.get(this.generateKey('template', templateId));
-  }
-
-  async setTemplate(templateId, data) {
-    return this.set(this.generateKey('template', templateId), data);
-  }
-
-  async getAINoteSnapshot(snapshotId) {
-    return this.get(this.generateKey('ai_note', snapshotId));
-  }
-
-  async setAINoteSnapshot(snapshotId, data) {
-    return this.set(this.generateKey('ai_note', snapshotId), data);
-  }
-
-  async getFlashcards(userId, page = 1, limit = 10) {
-    return this.get(this.generateKey('user', userId, `flashcards:${page}:${limit}`));
-  }
-
-  async setFlashcards(userId, data, page = 1, limit = 10) {
-    return this.set(this.generateKey('user', userId, `flashcards:${page}:${limit}`), data);
-  }
-
-  async getJournalEntry(userId, date) {
-    return this.get(this.generateKey('user', userId, `journal:${date}`));
-  }
-
-  async setJournalEntry(userId, date, data) {
-    return this.set(this.generateKey('user', userId, `journal:${date}`), data);
-  }
-
-  async getCanvasNode(canvasId, nodeId) {
-    return this.get(this.generateKey('canvas', canvasId, `node:${nodeId}`));
-  }
-
-  async setCanvasNode(canvasId, nodeId, data) {
-    return this.set(this.generateKey('canvas', canvasId, `node:${nodeId}`), data);
   }
 
   // Close the Redis connection

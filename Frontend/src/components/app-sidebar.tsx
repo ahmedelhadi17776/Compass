@@ -9,7 +9,6 @@ import {
   ListTodo,
   AudioWaveform,
   Command,
-  Mail,
   GalleryVerticalEnd,
 } from "lucide-react"
 
@@ -27,19 +26,10 @@ import {
 
 import userAvatar from "../components/user.jpg"
 import { useAuth } from '@/hooks/useAuth';
+import { NotificationsPanel } from "./notifications-panel"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { logout, user } = useAuth();
-
-  // Read from cookie only if global state is not set
-  const defaultOpen = React.useMemo(() => {
-    if (typeof window === 'undefined') return true;
-    
-    return document.cookie
-      .split(';')
-      .find(cookie => cookie.trim().startsWith('sidebar:state='))
-      ?.split('=')[1] === 'true' ?? true;
-  }, []);
 
   // Update the data object to use the authenticated user
   const data = {
@@ -189,7 +179,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar 
       className="sidebar" 
       collapsible="icon" 
-      defaultOpen={defaultOpen}
       {...props}
     >
       <SidebarHeader>
@@ -200,7 +189,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} onLogout={logout.mutate} />
+        <NotificationsPanel />
+        <NavUser defaultUser={data.user} onLogout={logout.mutate} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

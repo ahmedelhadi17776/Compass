@@ -17,20 +17,24 @@ const createRateLimiter = (redisClient) => {
     return req.headers['x-organization-id'] ? `${key}-${req.headers['x-organization-id']}` : key;
   };
 
+  const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000;
+  const max = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100;
+  const blockDuration = parseInt(process.env.RATE_LIMIT_BLOCK_DURATION, 10) || 60 * 60;
+
   const limiter = rateLimit({
     store: new RedisStore({
       sendCommand: (...args) => redisClient.client.call(...args),
       prefix: 'rate-limit:',
-      windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
-      max: process.env.RATE_LIMIT_MAX_REQUESTS || 100, // Limit each IP to 100 requests per windowMs
-      blockDuration: process.env.RATE_LIMIT_BLOCK_DURATION || 60 * 60, // Block for 1 hour if limit is exceeded
+      windowMs,
+      max,
+      blockDuration,
       onError: (err) => {
         logger.error('Rate limit store error:', err);
         throw new DatabaseError(`Rate limit store error: ${err.message}`);
       }
     }),
-    windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000,
-    max: process.env.RATE_LIMIT_MAX_REQUESTS || 100,
+    windowMs,
+    max,
     standardHeaders: true,
     legacyHeaders: false,
     message: {

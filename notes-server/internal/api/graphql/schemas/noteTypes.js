@@ -91,25 +91,35 @@ const EntityType = new GraphQLObjectType({
 
 // Helper function to get selected fields from GraphQL query
 const getSelectedFields = (info) => {
-  const selections = info.fieldNodes[0].selectionSet.selections;
-  return selections
-    .find(selection => selection.name.value === 'data')
-    ?.selectionSet.selections
-    .map(selection => selection.name.value)
-    .join(' ');
+  try {
+    const selections = info.fieldNodes[0].selectionSet.selections;
+    const dataSelection = selections.find(selection => selection.name.value === 'data');
+    if (dataSelection && dataSelection.selectionSet) {
+      return dataSelection.selectionSet.selections.map(sel => sel.name.value).join(' ');
+    }
+    // If 'data' is not present, fallback to default fields
+    return 'title content tags favorited icon createdAt updatedAt userId';
+  } catch (e) {
+    // Fallback in case of any error
+    return 'title content tags favorited icon createdAt updatedAt userId';
+  }
 };
 
 const NotePageType = new GraphQLObjectType({
   name: 'NotePage',
   fields: () => ({
-    id: { type: GraphQLID },
+    id: {
+      type: GraphQLID,
+      description: 'String ID for GraphQL compatibility',
+      resolve: (parent) => parent._id ? parent._id.toString() : null
+    },
+    _id: { type: GraphQLID },
     userId: { type: GraphQLID },
     title: { type: GraphQLString },
     content: { type: GraphQLString },
     linksOut: { 
       type: new GraphQLList(NotePageType),
       resolve: async (parent, args, context, info) => {
-        // Only fetch if the field is requested
         if (!info.fieldNodes[0].selectionSet) return [];
         const selectedFields = getSelectedFields(info);
         return NotePage.find({ _id: { $in: parent.linksOut } })
@@ -136,7 +146,7 @@ const NotePageType = new GraphQLObjectType({
     updatedAt: { type: GraphQLString },
     linkedNotesCount: {
       type: GraphQLInt,
-      resolve: (parent) => parent.linksOut.length + parent.linksIn.length
+      resolve: (parent) => (parent.linksOut?.length || 0) + (parent.linksIn?.length || 0)
     }
   })
 });

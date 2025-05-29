@@ -20,4 +20,4 @@ router.use('/', graphqlHTTP({
   }
 }));
 
-module.exports = router; 
+module.exports = router;

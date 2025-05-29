@@ -4,7 +4,7 @@ const config = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6380'),
   password: process.env.REDIS_PASSWORD || '',
-  db: 2, 
+  db: 2,
   keyPrefix: 'compass:notes:',
   maxRetries: 3,
   retryDelay: 100,
@@ -21,6 +21,11 @@ const config = {
   retryStrategy: (times) => {
     if (times > 3) return null;
     return Math.min(times * 100, 3000);
+  },
+  userTTLs: {
+    //notes: 30 * 60,
+    //journals: 30 * 60,
+    //tags: 30 * 60
   }
 };
 
