@@ -65,7 +65,13 @@ const journalQueries = {
     async resolve(parent, args, context, info) {
       try {
         const selectedFields = getSelectedFields(info);
-        return await journalService.getJournals(args, selectedFields);
+        const currentUserId = context.user && context.user.id;
+        // Only allow userId if it matches context.user.id
+        let userId = args.userId || currentUserId;
+        if (args.userId && args.userId !== currentUserId) {
+          throw new ValidationError('You are not authorized to access other users\' journals', 'userId');
+        }
+        return await journalService.getJournals({ ...args, userId }, selectedFields);
       } catch (error) {
         logger.error('Error in journals query', {
           error: error.message,
@@ -95,12 +101,16 @@ const journalQueries = {
     },
     async resolve(parent, args, context, info) {
       try {
-        const { userId, startDate, endDate } = args;
         const selectedFields = getSelectedFields(info);
-        
+        const currentUserId = context.user && context.user.id;
+        // Only allow userId if it matches context.user.id
+        let userId = args.userId || currentUserId;
+        if (args.userId && args.userId !== currentUserId) {
+          throw new ValidationError('You are not authorized to access other users\' journals', 'userId');
+        }
         const journals = await journalService.getJournalsByDateRange(
-          new Date(startDate),
-          new Date(endDate),
+          new Date(args.startDate),
+          new Date(args.endDate),
           userId,
           selectedFields
         );

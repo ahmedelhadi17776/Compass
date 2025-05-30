@@ -1,5 +1,8 @@
 function paramStringify(params = {}) {
-  return Object.entries(params).sort().map(([k, v]) => `${k}:${JSON.stringify(v)}`).join('|');
+  return Object.entries(params)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}:${JSON.stringify(v)}`)
+    .join('|');
 }
 
 function generateEntityKey(keyPrefix, entityType, entityId, action = '') {

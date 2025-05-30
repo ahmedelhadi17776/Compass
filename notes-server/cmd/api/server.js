@@ -34,7 +34,7 @@ const initializeServer = async () => {
 
     // Routes
     app.use('/health', healthRoutes);
-    app.use('/graphql', graphqlRoutes);
+    app.use('/notes/graphql', graphqlRoutes);
 
     // Add rate limit info endpoint
     app.get('/rate-limit-info', async (req, res) => {
