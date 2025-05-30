@@ -11,13 +11,40 @@ const {
 const NotePage = require('../../../domain/notes/model');
 const { createResponseType } = require('./responseTypes');
 
+// Permission enums and input must be defined before NotePageInput
+const PermissionLevelEnum = new GraphQLEnumType({
+  name: 'PermissionLevel',
+  values: {
+    VIEW: { value: 'view' },
+    EDIT: { value: 'edit' },
+    COMMENT: { value: 'comment' }
+  }
+});
+
+const PermissionInput = new GraphQLInputObjectType({
+  name: 'PermissionInput',
+  fields: {
+    userId: { type: GraphQLID },
+    level: { type: PermissionLevelEnum }
+  }
+});
+
+// Output type for permissions
+const PermissionType = new GraphQLObjectType({
+  name: 'Permission',
+  fields: {
+    userId: { type: GraphQLID },
+    level: { type: PermissionLevelEnum }
+  }
+});
+
 // Input types for better mutation handling
 const NotePageInput = new GraphQLInputObjectType({
   name: 'NotePageInput',
   fields: {
     userId: { 
       type: GraphQLID,
-      description: 'ID of the user who owns the note'
+      description: '[IGNORED] ID of the user who owns the note. Always set from backend.'
     },
     title: { 
       type: GraphQLString,
@@ -42,6 +69,14 @@ const NotePageInput = new GraphQLInputObjectType({
     linksOut: { 
       type: new GraphQLList(GraphQLID),
       description: 'List of note IDs this note links to'
+    },
+    sharedWith: {
+      type: new GraphQLList(GraphQLID),
+      description: 'List of user IDs the note is shared with'
+    },
+    permissions: {
+      type: new GraphQLList(PermissionInput),
+      description: 'List of permissions for users'
     }
   }
 });
@@ -147,6 +182,14 @@ const NotePageType = new GraphQLObjectType({
     linkedNotesCount: {
       type: GraphQLInt,
       resolve: (parent) => (parent.linksOut?.length || 0) + (parent.linksIn?.length || 0)
+    },
+    sharedWith: {
+      type: new GraphQLList(GraphQLID),
+      description: 'List of user IDs the note is shared with'
+    },
+    permissions: {
+      type: new GraphQLList(PermissionType),
+      description: 'List of permissions for users'
     }
   })
 });

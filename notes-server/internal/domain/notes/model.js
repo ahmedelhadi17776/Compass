@@ -4,8 +4,7 @@ const { updateBidirectionalLinks, handleCascadingDelete } = require('./linkServi
 
 const NotePageSchema = new Schema({
   userId: { 
-    type: ObjectId, 
-    ref: 'User', 
+    type: String, // UUID from Go backend
     required: [true, 'User ID is required'], 
     index: true 
   },
@@ -64,7 +63,15 @@ const NotePageSchema = new Schema({
     type: String,
     trim: true,
     maxlength: [50, 'Icon name or emoji too long']
-  }
+  },
+  sharedWith: [{
+    type: String, // UUID from Go backend
+    index: true
+  }],
+  permissions: [{
+    userId: { type: String, required: true }, // UUID from Go backend
+    level: { type: String, enum: ['view', 'edit', 'comment'], default: 'view' }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

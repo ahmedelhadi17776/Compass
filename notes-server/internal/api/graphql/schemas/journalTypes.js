@@ -32,7 +32,7 @@ const JournalInput = new GraphQLInputObjectType({
   fields: {
     userId: { 
       type: GraphQLID,
-      description: 'ID of the user who owns the journal'
+      description: '[IGNORED] ID of the user who owns the journal. Always set from backend.'
     },
     title: { 
       type: GraphQLString,
