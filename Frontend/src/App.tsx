@@ -9,6 +9,7 @@ import Calendar from './components/calendar/components/Calendar';
 import AIAssistant from './components/ai/AIAssistant';
 import FocusMode from './components/productivity/FocusMode';
 import FileManager from './components/files/FileManager';
+import Notes from './components/notes/Notes';
 import { ThemeProvider } from './contexts/theme-provider';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
@@ -57,6 +58,7 @@ function App() {
                           <Route path="health" element={<HealthDashboard />} />
                           <Route path="workflow" element={<Workflow />} />
                           <Route path="workflow/:id" element={<WorkflowDetailPage />} />
+                          <Route path="notes" element={<Notes />} />
                         </Routes>
                       </main>
                       <Chatbot />

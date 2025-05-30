@@ -210,8 +210,3 @@ dump.rdb
 *.tmp
 *.temp
 .tmp* 
-
-*.parquet
-*.parquet.gz
-*.duckdb
-*.wal

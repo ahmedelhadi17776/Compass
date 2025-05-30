@@ -9,6 +9,8 @@ module.exports = {
     extend: {
       fontFamily: {
         poppins: ['Poppins', 'sans-serif'],
+        custom: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        apple: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -51,6 +53,67 @@ module.exports = {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))'
         },
+        typography: {
+          DEFAULT: {
+            css: {
+              color: 'hsl(var(--foreground))',
+              a: {
+                color: 'hsl(var(--primary))',
+                '&:hover': {
+                  color: 'hsl(var(--primary))',
+                },
+              },
+              strong: {
+                color: 'hsl(var(--foreground))',
+              },
+              'ol > li::marker': {
+                color: 'hsl(var(--foreground))',
+              },
+              'ul > li::marker': {
+                color: 'hsl(var(--foreground))',
+              },
+              hr: {
+                borderColor: 'hsl(var(--border))',
+              },
+              blockquote: {
+                borderLeftColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+              },
+              h1: {
+                color: 'hsl(var(--foreground))',
+              },
+              h2: {
+                color: 'hsl(var(--foreground))',
+              },
+              h3: {
+                color: 'hsl(var(--foreground))',
+              },
+              h4: {
+                color: 'hsl(var(--foreground))',
+              },
+              'figure figcaption': {
+                color: 'hsl(var(--muted-foreground))',
+              },
+              code: {
+                color: 'hsl(var(--foreground))',
+              },
+              'a code': {
+                color: 'hsl(var(--primary))',
+              },
+              pre: {
+                color: 'hsl(var(--foreground))',
+                backgroundColor: 'hsl(var(--muted))',
+              },
+              thead: {
+                color: 'hsl(var(--foreground))',
+                borderBottomColor: 'hsl(var(--border))',
+              },
+              'tbody tr': {
+                borderBottomColor: 'hsl(var(--border))',
+              },
+            },
+          },
+        },
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar-background))',
           foreground: 'hsl(var(--sidebar-foreground))',
@@ -71,6 +134,7 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/forms'),
-    require("tailwindcss-animate")
+    require("tailwindcss-animate"),
+    require('@tailwindcss/typography'),
   ],
 }
