@@ -30,7 +30,13 @@ func (cr *CalendarRoutes) RegisterRoutes(router *gin.Engine) {
 	// Event routes
 	events := calendarGroup.Group("/events")
 	{
-		// Core event operations
+		// Collaboration endpoints FIRST
+		events.POST("/invite", cr.handler.InviteCollaborator)
+		events.POST("/invite/respond", cr.handler.RespondToInvite)
+		events.GET("/:id/collaborators", cr.handler.ListCollaborators)
+		events.DELETE("/:id/collaborators/:user_id", cr.handler.RemoveCollaborator)
+
+		// Core event operations AFTER
 		events.POST("", cr.handler.CreateEvent)
 		events.GET("", cr.handler.ListEvents)
 		events.GET("/:id", cr.handler.GetEvent)
@@ -44,6 +50,9 @@ func (cr *CalendarRoutes) RegisterRoutes(router *gin.Engine) {
 		events.PUT("/occurrences/:id", cr.handler.UpdateOccurrenceById)
 
 		// Reminder operations
-		events.POST("/:event_id/reminders", cr.handler.AddReminder)
+		events.POST("/:id/reminders", cr.handler.AddReminder)
 	}
+
+	// Shared-with-me endpoint (not in events group, but under /api/calendar/events)
+	calendarGroup.GET("/events/shared-with-me", cr.handler.ListEventsSharedWithMe)
 }

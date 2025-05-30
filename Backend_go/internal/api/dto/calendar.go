@@ -85,3 +85,38 @@ type ListEventsParams struct {
 	PageSize  int                 `form:"page_size,default=10" binding:"min=1,max=100"`
 	Search    string              `form:"search"`
 }
+
+// Collaboration DTOs
+
+type InviteCollaboratorRequest struct {
+	EventID uuid.UUID `json:"event_id" binding:"required"`
+	UserID  uuid.UUID `json:"user_id" binding:"required"`
+	Role    string    `json:"role" binding:"required"`
+}
+
+type RespondToInviteRequest struct {
+	EventID uuid.UUID `json:"event_id" binding:"required"`
+	Accept  bool      `json:"accept" binding:"required"`
+}
+
+type CollaboratorResponse struct {
+	ID          uuid.UUID  `json:"id"`
+	EventID     uuid.UUID  `json:"event_id"`
+	UserID      uuid.UUID  `json:"user_id"`
+	Role        string     `json:"role"`
+	Status      string     `json:"status"`
+	InvitedBy   uuid.UUID  `json:"invited_by"`
+	InvitedAt   time.Time  `json:"invited_at"`
+	RespondedAt *time.Time `json:"responded_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type ListCollaboratorsResponse struct {
+	Collaborators []CollaboratorResponse `json:"collaborators"`
+}
+
+type RemoveCollaboratorRequest struct {
+	EventID uuid.UUID `json:"event_id" binding:"required"`
+	UserID  uuid.UUID `json:"user_id" binding:"required"`
+}

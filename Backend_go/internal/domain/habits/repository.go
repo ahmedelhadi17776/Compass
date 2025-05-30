@@ -88,7 +88,7 @@ func (r *repository) FindAll(ctx context.Context, filter HabitFilter) ([]Habit, 
 	query := r.db.WithContext(ctx).Model(&Habit{})
 
 	if filter.UserID != nil {
-		query = query.Where("user_id = ?", filter.UserID)
+		query = query.Where("user_id = ?", *filter.UserID)
 	}
 
 	if filter.Title != nil {
