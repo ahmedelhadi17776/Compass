@@ -29,6 +29,12 @@ const (
 	HabitBroken    = "habit_broken"
 	HabitReminder  = "habit_reminder"
 	HabitMilestone = "habit_milestone"
+
+	// Event collaboration notification types
+	EventInvite            = "event_invite"
+	EventInviteAccepted    = "event_invite_accepted"
+	EventInviteDeclined    = "event_invite_declined"
+	EventRemovedFromCollab = "event_removed_from_collab"
 )
 
 // Status represents the status of a notification

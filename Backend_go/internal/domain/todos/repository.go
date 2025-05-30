@@ -65,6 +65,9 @@ func (r *todoRepository) FindAll(ctx context.Context, filter TodoFilter) ([]Todo
 	query := r.db.WithContext(ctx)
 
 	// Apply filters
+	if filter.UserID != nil {
+		query = query.Where("user_id = ?", *filter.UserID)
+	}
 	if filter.Status != nil {
 		query = query.Where("status = ?", filter.Status)
 	}

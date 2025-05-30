@@ -157,6 +157,11 @@ func (h *TodoHandler) GetTodo(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /api/todos [get]
 func (h *TodoHandler) ListTodos(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 	pageStr := c.DefaultQuery("page", "0")
 	pageSizeStr := c.DefaultQuery("pageSize", "10")
 
@@ -174,6 +179,7 @@ func (h *TodoHandler) ListTodos(c *gin.Context) {
 	filter := todos.TodoFilter{
 		Page:     page,
 		PageSize: pageSize,
+		UserID:   &userID,
 	}
 
 	// Parse optional filters
@@ -644,7 +650,7 @@ func (h *TodoHandler) GetAllTodoLists(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return
 	}
-	
+
 	lists, err := h.service.GetAllTodoLists(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
