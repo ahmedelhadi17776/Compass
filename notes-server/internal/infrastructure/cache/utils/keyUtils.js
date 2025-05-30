@@ -1,10 +1,13 @@
+function paramStringify(params = {}) {
+  return Object.entries(params).sort().map(([k, v]) => `${k}:${JSON.stringify(v)}`).join('|');
+}
+
 function generateEntityKey(keyPrefix, entityType, entityId, action = '') {
   return `${keyPrefix}${entityType}:${entityId}${action ? ':' + action : ''}`;
 }
 
 function generateListKey(userId, entityType, params = {}) {
-  const paramString = Object.entries(params).sort().map(([k, v]) => `${k}:${JSON.stringify(v)}`).join('|');
-  return `user:${userId}:${entityType}:${paramString}`;
+  return `user:${userId}:${entityType}:${paramStringify(params)}`;
 }
 
 function generateTagSetKey(keyPrefix, tag) {
@@ -14,5 +17,6 @@ function generateTagSetKey(keyPrefix, tag) {
 module.exports = {
   generateEntityKey,
   generateListKey,
-  generateTagSetKey
+  generateTagSetKey,
+  paramStringify
 }; 
