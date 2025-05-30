@@ -14,23 +14,20 @@ class JournalService {
    */
   async createJournal(input, selectedFields = '') {
     logger.debug('Creating journal entry', { input });
-    
-    if (!input.userId) {
+    // Always set userId from input.userId (which is set by resolver from context)
+    const userId = input.userId;
+    if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }
-
     if (!input.title?.trim()) {
       throw new ValidationError('Title is required', 'title');
     }
-
     if (!input.date) {
       throw new ValidationError('Date is required', 'date');
     }
-
-    const journal = new Journal(input);
+    const journal = new Journal({ ...input, userId });
     await journal.save();
     logger.info('Journal entry created', { journalId: journal._id });
-
     const savedJournal = await Journal.findById(journal._id)
       .select(`${selectedFields} userId tags`)
       .lean();
@@ -43,16 +40,16 @@ class JournalService {
       'journal',
       journal._id.toString(),
       savedJournal,
-      [input.userId, ...(Array.isArray(input.tags) ? input.tags : [])],
-      input.userId
+      [userId, ...(Array.isArray(input.tags) ? input.tags : [])],
+      userId
     );
 
     // Invalidate user's journal list cache
-    await redisClient.invalidateByPattern(`user:${input.userId}:journals:*`);
+    await redisClient.invalidateByPattern(`user:${userId}:journals:*`);
 
     logger.info('Journal entry creation completed', { 
       journalId: journal._id,
-      userId: input.userId
+      userId: userId
     });
 
     return savedJournal;
@@ -66,53 +63,39 @@ class JournalService {
    */
   async updateJournal(id, input, selectedFields = '') {
     logger.debug('Updating journal entry', { journalId: id, input });
-
     if (!id) {
       throw new ValidationError('Journal ID is required', 'id');
     }
-
     // Fetch the old journal before updating
     const oldJournal = await Journal.findById(id);
     if (!oldJournal) {
       throw new NotFoundError('Journal');
     }
-
-    // Invalidate by tags for old journal before update
     await redisClient.invalidateByTags([
       oldJournal.userId.toString(),
       ...(Array.isArray(oldJournal.tags) ? oldJournal.tags : [])
     ]);
-    // Invalidate old cache key and remove from tag sets
     await redisClient.invalidateByPattern(redisClient.generateKey('journal', id));
-
-    // Add validation for required fields if they're included in the update
     if (input.title !== undefined && !input.title?.trim()) {
       throw new ValidationError('Title is required', 'title');
     }
-
     if (input.date !== undefined && !input.date) {
       throw new ValidationError('Date is required', 'date');
     }
-
-    // Update journal
-    Object.assign(oldJournal, input);
+    // Always set userId from input.userId (which is set by resolver from context)
+    Object.assign(oldJournal, { ...input, userId: input.userId });
     await oldJournal.save();
     logger.info('Journal entry updated', { journalId: id });
-
     const updatedJournal = await Journal.findById(id)
       .select(`${selectedFields} userId tags`)
       .lean();
     if (!updatedJournal || !updatedJournal.userId) {
       throw new Error('Updated journal is missing userId or does not exist');
     }
-
-    // Invalidate by tags for updated journal after update
     await redisClient.invalidateByTags([
       updatedJournal.userId.toString(),
       ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])
     ]);
-
-    // Cache the updated journal
     await redisClient.setEntity(
       'journal',
       id.toString(),
@@ -120,15 +103,8 @@ class JournalService {
       [updatedJournal.userId, ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])],
       updatedJournal.userId
     );
-    
-    // Invalidate user's journal list cache
     await redisClient.invalidateByPattern(`user:${updatedJournal.userId}:journals:*`);
-
-    logger.info('Journal entry update completed', { 
-      journalId: id,
-      userId: updatedJournal.userId
-    });
-
+    logger.info('Journal entry update completed', { journalId: id, userId: updatedJournal.userId });
     return updatedJournal;
   }
   
@@ -236,6 +212,10 @@ class JournalService {
    */
   async getJournalsByDateRange(startDate, endDate, userId, selectedFields = '') {
     logger.debug('Getting journals by date range', { startDate, endDate, userId });
+    // Always require userId from argument, never from input
+    if (!userId) {
+      throw new ValidationError('User ID is required', 'userId');
+    }
 
     const cacheKey = redisClient.generateListKey(userId, 'journals:dateRange', { startDate, endDate, selectedFields });
     const cachedResult = await redisClient.getList(cacheKey);
@@ -335,7 +315,7 @@ class JournalService {
    */
   async getJournals({ userId, page = 1, limit = 10, sortField = 'date', sortOrder = -1, filter = {} }, selectedFields = '') {
     logger.debug('Getting journals', { userId, page, limit, sortField, sortOrder, filter });
-
+    // Always require userId from argument, never from input
     if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }

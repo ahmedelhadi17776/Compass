@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/gin-gonic/gin"
@@ -249,15 +250,15 @@ func (h *CalendarHandler) DeleteOccurrence(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param event_id path string true "Event ID" format(uuid)
+// @Param id path string true "Event ID" format(uuid)
 // @Param reminder body calendar.CreateEventReminderRequest true "Reminder information"
 // @Success 201 "Reminder added successfully"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Unauthorized"
 // @Failure 500 {object} map[string]string "Internal server error"
-// @Router /api/calendar/events/{event_id}/reminders [post]
+// @Router /api/calendar/events/{id}/reminders [post]
 func (h *CalendarHandler) AddReminder(c *gin.Context) {
-	eventID, err := uuid.Parse(c.Param("event_id"))
+	eventID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event ID"})
 		return
@@ -275,6 +276,162 @@ func (h *CalendarHandler) AddReminder(c *gin.Context) {
 	}
 
 	c.Status(http.StatusCreated)
+}
+
+// InviteCollaborator godoc
+// @Summary Invite a user to collaborate on an event
+// @Tags calendar
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param invite body dto.InviteCollaboratorRequest true "Invite collaborator info"
+// @Success 201 "Collaborator invited"
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/calendar/events/invite [post]
+func (h *CalendarHandler) InviteCollaborator(c *gin.Context) {
+	var req dto.InviteCollaboratorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	invitedBy, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	if err := h.service.ShareEvent(c.Request.Context(), req.EventID, req.UserID, invitedBy, req.Role); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusCreated)
+}
+
+// RespondToInvite godoc
+// @Summary Respond to an event invitation (accept/decline)
+// @Tags calendar
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param response body dto.RespondToInviteRequest true "Respond to invite"
+// @Success 200 "Response recorded"
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/calendar/events/invite/respond [post]
+func (h *CalendarHandler) RespondToInvite(c *gin.Context) {
+	var req dto.RespondToInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	if err := h.service.RespondToEventInvite(c.Request.Context(), req.EventID, userID, req.Accept); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+// ListCollaborators godoc
+// @Summary List collaborators for an event
+// @Tags calendar
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Event ID" format(uuid)
+// @Success 200 {object} dto.ListCollaboratorsResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/calendar/events/{id}/collaborators [get]
+func (h *CalendarHandler) ListCollaborators(c *gin.Context) {
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event ID"})
+		return
+	}
+	collaborators, err := h.service.ListCollaborators(c.Request.Context(), eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var resp []dto.CollaboratorResponse
+	for _, c := range collaborators {
+		resp = append(resp, dto.CollaboratorResponse{
+			ID:          c.ID,
+			EventID:     c.EventID,
+			UserID:      c.UserID,
+			Role:        c.Role,
+			Status:      c.Status,
+			InvitedBy:   c.InvitedBy,
+			InvitedAt:   c.InvitedAt,
+			RespondedAt: c.RespondedAt,
+			CreatedAt:   c.CreatedAt,
+			UpdatedAt:   c.UpdatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, dto.ListCollaboratorsResponse{Collaborators: resp})
+}
+
+// RemoveCollaborator godoc
+// @Summary Remove a collaborator from an event
+// @Tags calendar
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Event ID" format(uuid)
+// @Param user_id path string true "User ID" format(uuid)
+// @Success 204 "Collaborator removed"
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/calendar/events/{id}/collaborators/{user_id} [delete]
+func (h *CalendarHandler) RemoveCollaborator(c *gin.Context) {
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid event ID"})
+		return
+	}
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	if err := h.service.RemoveCollaborator(c.Request.Context(), eventID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ListEventsSharedWithMe godoc
+// @Summary List events shared with the current user
+// @Tags calendar
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} calendar.CalendarEventListResponse
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/calendar/events/shared-with-me [get]
+func (h *CalendarHandler) ListEventsSharedWithMe(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	events, err := h.service.ListEventsSharedWithMe(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, calendar.CalendarEventListResponse{Events: events, Total: int64(len(events))})
 }
 
 // UpdateOccurrenceById godoc

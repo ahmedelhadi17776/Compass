@@ -3,8 +3,7 @@ const { Schema, ObjectId } = mongoose;
 
 const JournalSchema = new Schema({
   userId: { 
-    type: ObjectId, 
-    ref: 'User', 
+    type: String,
     required: [true, 'User ID is required'], 
     index: true 
   },

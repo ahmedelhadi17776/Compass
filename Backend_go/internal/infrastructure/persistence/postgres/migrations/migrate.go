@@ -97,6 +97,7 @@ func AutoMigrate(db *connection.Database, logger *zap.Logger) error {
 			&calendar.EventOccurrence{},
 			&calendar.EventException{},
 			&calendar.EventReminder{},
+			&calendar.EventCollaborator{},
 			&workflow.Workflow{},
 			&workflow.WorkflowStep{},
 			&workflow.WorkflowExecution{},

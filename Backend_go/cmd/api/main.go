@@ -225,7 +225,7 @@ func main() {
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
 	habitsService := habits.NewService(habitsRepo, habitNotifySvc)
-	calendarService := calendar.NewService(calendarRepo)
+	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
 		Repository: workflowRepo,
 		Logger:     workflowLogger,

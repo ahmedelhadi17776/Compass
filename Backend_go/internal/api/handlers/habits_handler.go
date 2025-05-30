@@ -159,6 +159,11 @@ func (h *HabitsHandler) GetHabit(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /api/habits [get]
 func (h *HabitsHandler) ListHabits(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 	pageStr := c.DefaultQuery("page", "0")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 
@@ -176,6 +181,7 @@ func (h *HabitsHandler) ListHabits(c *gin.Context) {
 	filter := habits.HabitFilter{
 		Page:     page,
 		PageSize: pageSize,
+		UserID:   &userID,
 	}
 
 	habitsData, total, err := h.service.ListHabits(c.Request.Context(), filter)
@@ -185,26 +191,23 @@ func (h *HabitsHandler) ListHabits(c *gin.Context) {
 	}
 
 	// Record habit list view analytics
-	userID, exists := middleware.GetUserID(c)
-	if exists {
-		go func() {
-			ctx := context.Background()
-			h.service.RecordHabitActivity(ctx, habits.RecordHabitActivityInput{
-				HabitID: uuid.Nil, // No specific habit ID for list view
-				UserID:  userID,
-				Action:  habits.ActionHabitListView,
-				Metadata: map[string]interface{}{
-					"page":      page,
-					"page_size": pageSize,
-					"total":     total,
-					"count":     len(habitsData),
-					"via":       "api",
-					"path":      c.Request.URL.Path,
-					"method":    c.Request.Method,
-				},
-			})
-		}()
-	}
+	go func() {
+		ctx := context.Background()
+		h.service.RecordHabitActivity(ctx, habits.RecordHabitActivityInput{
+			HabitID: uuid.Nil, // No specific habit ID for list view
+			UserID:  userID,
+			Action:  habits.ActionHabitListView,
+			Metadata: map[string]interface{}{
+				"page":      page,
+				"page_size": pageSize,
+				"total":     total,
+				"count":     len(habitsData),
+				"via":       "api",
+				"path":      c.Request.URL.Path,
+				"method":    c.Request.Method,
+			},
+		})
+	}()
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {

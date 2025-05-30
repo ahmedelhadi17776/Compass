@@ -42,6 +42,14 @@ type Repository interface {
 	UpdateReminder(ctx context.Context, reminder *EventReminder) error
 	DeleteReminder(ctx context.Context, id uuid.UUID) error
 	GetUpcomingReminders(ctx context.Context, startTime, endTime time.Time) ([]EventReminder, error)
+
+	// Collaborator operations
+	AddCollaborator(ctx context.Context, collaborator *EventCollaborator) error
+	RemoveCollaborator(ctx context.Context, eventID, userID uuid.UUID) error
+	ListCollaboratorsByEventID(ctx context.Context, eventID uuid.UUID) ([]EventCollaborator, error)
+	ListEventsSharedWithUser(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error)
+	UpdateCollaboratorStatus(ctx context.Context, eventID, userID uuid.UUID, status string, respondedAt *time.Time) error
+	GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error)
 }
 
 // Transaction represents a database transaction
@@ -357,4 +365,49 @@ func (t *transaction) GetOccurrences(eventID uuid.UUID, startTime, endTime time.
 	err := t.tx.Where("event_id = ? AND occurrence_time BETWEEN ? AND ?", eventID, startTime, endTime).
 		Find(&occurrences).Error
 	return occurrences, err
+}
+
+func (r *repository) AddCollaborator(ctx context.Context, collaborator *EventCollaborator) error {
+	return r.db.WithContext(ctx).Create(collaborator).Error
+}
+
+func (r *repository) RemoveCollaborator(ctx context.Context, eventID, userID uuid.UUID) error {
+	return r.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).Delete(&EventCollaborator{}).Error
+}
+
+func (r *repository) ListCollaboratorsByEventID(ctx context.Context, eventID uuid.UUID) ([]EventCollaborator, error) {
+	var collaborators []EventCollaborator
+	err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Find(&collaborators).Error
+	return collaborators, err
+}
+
+func (r *repository) ListEventsSharedWithUser(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error) {
+	var events []CalendarEvent
+	err := r.db.WithContext(ctx).
+		Joins("JOIN event_collaborators ON event_collaborators.event_id = calendar_events.id").
+		Where("event_collaborators.user_id = ? AND event_collaborators.status = ?", userID, "accepted").
+		Preload("RecurrenceRules").
+		Preload("Reminders").
+		Find(&events).Error
+	return events, err
+}
+
+func (r *repository) UpdateCollaboratorStatus(ctx context.Context, eventID, userID uuid.UUID, status string, respondedAt *time.Time) error {
+	updates := map[string]interface{}{"status": status}
+	if respondedAt != nil {
+		updates["responded_at"] = *respondedAt
+	}
+	return r.db.WithContext(ctx).
+		Model(&EventCollaborator{}).
+		Where("event_id = ? AND user_id = ?", eventID, userID).
+		Updates(updates).Error
+}
+
+func (r *repository) GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error) {
+	var collaborator EventCollaborator
+	err := r.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).First(&collaborator).Error
+	if err != nil {
+		return nil, err
+	}
+	return &collaborator, nil
 }

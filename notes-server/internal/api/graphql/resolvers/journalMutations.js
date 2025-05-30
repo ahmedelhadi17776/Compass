@@ -18,8 +18,9 @@ const journalMutations = {
       try {
         const { input } = args;
         const selectedFields = getSelectedFields(info);
-        
-        const savedJournal = await journalService.createJournal(input, selectedFields);
+        const currentUserId = context.user && context.user.id;
+        const inputWithUser = { ...input, userId: currentUserId };
+        const savedJournal = await journalService.createJournal(inputWithUser, selectedFields);
         
         return {
           success: true,
@@ -57,8 +58,9 @@ const journalMutations = {
       try {
         const { id, input } = args;
         const selectedFields = getSelectedFields(info);
-        
-        const updatedJournal = await journalService.updateJournal(id, input, selectedFields);
+        const currentUserId = context.user && context.user.id;
+        const inputWithUser = { ...input, userId: currentUserId };
+        const updatedJournal = await journalService.updateJournal(id, inputWithUser, selectedFields);
         
         return {
           success: true,

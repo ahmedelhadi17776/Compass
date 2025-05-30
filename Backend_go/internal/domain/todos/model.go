@@ -230,6 +230,7 @@ func (t *Todo) BeforeUpdate(tx *gorm.DB) error {
 }
 
 type TodoFilter struct {
+	UserID                *uuid.UUID
 	Status                *TodoStatus
 	Priority              *TodoPriority
 	IsCompleted           *bool

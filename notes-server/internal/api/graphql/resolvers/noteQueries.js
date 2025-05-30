@@ -31,7 +31,8 @@ const notePageQueries = {
           throw new ValidationError('Note ID is required', 'id');
         }
         const selectedFields = getSelectedFields(info);
-        const note = await noteService.getNote(args.id, selectedFields);
+        const currentUserId = context.user && context.user.id;
+        const note = await noteService.getNote(args.id, selectedFields, currentUserId);
         return {
           success: true,
           message: 'Note retrieved successfully',
@@ -70,7 +71,13 @@ const notePageQueries = {
     async resolve(parent, args, context, info) {
       try {
         const selectedFields = getSelectedFields(info);
-        const result = await noteService.getNotes(args, selectedFields);
+        const currentUserId = context.user && context.user.id;
+        // Only allow userId if it matches context.user.id
+        let userId = args.userId || currentUserId;
+        if (args.userId && args.userId !== currentUserId) {
+          throw new ValidationError('You are not authorized to access other users\' notes', 'userId');
+        }
+        const result = await noteService.getNotes({ ...args, userId }, selectedFields);
         return result;
       } catch (error) {
         logger.error('Error in notePages query', {
@@ -89,6 +96,20 @@ const notePageQueries = {
           }]
         );
       }
+    }
+  },
+  notesSharedWithMe: {
+    type: NotePageListResponseType,
+    args: {
+      page: { type: GraphQLInt, defaultValue: 1 },
+      limit: { type: GraphQLInt, defaultValue: 10 },
+      filter: { type: NoteFilterInput }
+    },
+    async resolve(parent, args, context, info) {
+      const currentUserId = context.user.id;
+      const selectedFields = getSelectedFields(info);
+      const result = await noteService.getNotesSharedWithUser(currentUserId, args, selectedFields);
+      return result;
     }
   }
 };

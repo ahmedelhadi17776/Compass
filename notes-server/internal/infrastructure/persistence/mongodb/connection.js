@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { DatabaseError } = require('../../../../pkg/utils/errorHandler');
-const logger = require('../../../../pkg/utils/logger');
+const { logger } = require('../../../../pkg/utils/logger');
 
 const connectDB = async () => {
   try {

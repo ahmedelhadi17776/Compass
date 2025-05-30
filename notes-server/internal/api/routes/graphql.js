@@ -3,10 +3,11 @@ const { graphqlHTTP } = require('express-graphql');
 const schema = require('../graphql');
 const { formatGraphQLError } = require('../../../pkg/utils/errorHandler');
 const { logger } = require('../../../pkg/utils/logger');
+const { userContextMiddleware } = require('../middleware');
 
 const router = express.Router();
 
-router.use('/', graphqlHTTP({
+router.use('/', userContextMiddleware, graphqlHTTP({
   schema,
   graphiql: true,
   customFormatErrorFn: (error) => {
