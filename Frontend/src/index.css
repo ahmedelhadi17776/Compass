@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
 
 @tailwind base;
@@ -29,43 +30,36 @@
     --radius: 0.5rem;
  
     --sidebar-background: 0 0% 98%;
- 
     --sidebar-foreground: 240 5.3% 26.1%;
- 
     --sidebar-primary: 240 5.9% 10%;
- 
     --sidebar-primary-foreground: 0 0% 98%;
- 
     --sidebar-accent: 240 4.8% 95.9%;
- 
     --sidebar-accent-foreground: 240 5.9% 10%;
- 
     --sidebar-border: 220 13% 91%;
- 
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
  
   .dark {
-    --background: 0 0% 10%; /* #1a1a1a */
+    --background: 210, 11%, 4%;
     --foreground: 210 40% 98%;
-    --card: 220 3% 13%; /* #202023 */
-    --card-foreground: 0 0% 100%;
-    --popover: 220 3% 13%;
+    --card: 240, 5%, 8%;
+    --card-foreground: ;
+    --popover: 240, 5%, 8%;
     --popover-foreground: 0 0% 100%;
-    --primary: 0, 0%, 91%;
+    --primary: 240, 5%, 8%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 220 3% 16%; /* Matching sidebar hover */
+    --secondary: 220 3% 16%;
     --secondary-foreground: 210 40% 98%;
     --muted: 220 3% 16%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 220 3% 18%; /* Matching sidebar hover */
+    --accent: 220 3% 18%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 3% 18%; /* Matching the darker theme */
+    --border: 220 3% 18%;
     --input: 220 3% 16%;
     --ring: 220 3% 16%;
-    --sidebar-background: 220 3% 13%; /* #25262B */
+    --sidebar-background: 210, 11%, 4%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-muted: 220 3% 18%;
     --sidebar-muted-foreground: 220 3% 70%;
@@ -95,7 +89,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-apple;
   }
 }
 
@@ -153,7 +147,6 @@
 }
 
 ::-webkit-scrollbar-track {
-
   border-radius: 4px;
 }
 
@@ -176,4 +169,81 @@
     -webkit-app-region: no-drag;
     app-region: no-drag;
   }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Markdown Editor Dark Mode */
+.dark {
+  --md-dark-bg: hsl(var(--card));
+  --md-dark-border: hsl(var(--border));
+}
+
+.dark .w-md-editor {
+  background-color: var(--md-dark-bg);
+  border-color: var(--md-dark-border);
+}
+
+.dark .w-md-editor-text {
+  background-color: var(--md-dark-bg);
+  color: hsl(var(--foreground));
+}
+
+.dark .w-md-editor-toolbar {
+  background-color: var(--md-dark-bg);
+  border-color: var(--md-dark-border);
+}
+
+.dark .w-md-editor-toolbar li button {
+  color: hsl(var(--foreground));
+}
+
+.dark .w-md-editor-toolbar li.active button {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.dark .w-md-editor-toolbar li button:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.dark .wmde-markdown {
+  background-color: var(--md-dark-bg);
+  color: hsl(var(--foreground));
+}
+
+.dark .wmde-markdown-color {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .w-md-editor-preview {
+  background-color: var(--md-dark-bg);
+  box-shadow: inset 1px 0 0 0 var(--md-dark-border);
+}
+
+.dark .w-md-editor-text-pre > code,
+.dark .w-md-editor-text-input {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Marquee animation for sidebar */
+@keyframes marquee-vertical {
+  0% {
+    transform: translateY(0) rotate(180deg);
+  }
+  100% {
+    transform: translateY(-50%) rotate(180deg);
+  }
+}
+
+.marquee-animation {
+  animation: marquee-vertical 60s linear infinite;
 }
