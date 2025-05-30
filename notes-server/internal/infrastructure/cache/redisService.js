@@ -1,8 +1,8 @@
 const Redis = require('ioredis');
 const { logger } = require('../../../pkg/utils/logger');
 const { DatabaseError } = require('../../../pkg/utils/errorHandler');
-const { compress, decompress } = require('./utils/compressionUtils');
-const { generateEntityKey, generateListKey, generateTagSetKey } = require('./utils/keyUtils');
+const { compress, decompress, safeStringify, safeParse, toBase64, fromBase64 } = require('./utils/compressionUtils');
+const { generateEntityKey, generateListKey, generateTagSetKey, paramStringify } = require('./utils/keyUtils');
 
 class RedisService {
   constructor(config) {
@@ -122,7 +122,7 @@ class RedisService {
   async get(key) {
     try {
       const value = await this.client.get(key);
-      return value ? JSON.parse(value) : null;
+      return value ? safeParse(value) : null;
     } catch (error) {
       logger.error('Redis get error:', { key, error: error.message });
       throw new DatabaseError(`Failed to get value from Redis: ${error.message}`);
@@ -131,7 +131,7 @@ class RedisService {
 
   async set(key, value, ttl = null) {
     try {
-      const stringValue = JSON.stringify(value);
+      const stringValue = safeStringify(value);
       if (ttl) {
         await this.client.setex(key, ttl, stringValue);
       } else {
