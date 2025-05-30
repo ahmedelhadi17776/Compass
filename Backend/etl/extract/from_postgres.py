@@ -16,3 +16,13 @@ def get_engine():
 def fetch_table(table):
     engine = get_engine()
     return pd.read_sql(f"SELECT * FROM {table}", engine)
+
+
+def fetch_users():
+    engine = get_engine()
+    return pd.read_sql("SELECT * FROM users", engine)
+
+
+def fetch_projects():
+    engine = get_engine()
+    return pd.read_sql("SELECT * FROM projects", engine)
