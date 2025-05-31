@@ -21,6 +21,7 @@
     "rate-limit-redis": "^4.2.0",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
+    "zlib": "^1.0.5",
     "zod": "^3.25.28"
   },
   "devDependencies": {
