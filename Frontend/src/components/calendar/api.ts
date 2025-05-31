@@ -6,7 +6,7 @@ import {
   CalendarEventResponse 
 } from './types';
 
-export const API_BASE_URL = 'http://localhost:8000/api/calendar';
+export const API_BASE_URL = '/api/calendar';
 
 export const fetchEvents = async (startTime: Date, endTime: Date): Promise<CalendarEvent[]> => {
   const response = await axios.get<{ events: CalendarEvent[]; total: number }>(`${API_BASE_URL}/events`, {
