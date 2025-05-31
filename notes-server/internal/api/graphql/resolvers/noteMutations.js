@@ -7,7 +7,6 @@ const {
 const noteService = require('../../../domain/notes/noteService');
 const { ValidationError, NotFoundError, DatabaseError, BaseError } = require('../../../../pkg/utils/errorHandler');
 const { logger } = require('../../../../pkg/utils/logger');
-const { pubsub } = require('../../../infrastructure/cache/pubsub');
 
 const notePageMutations = {
   createNotePage: {
@@ -22,9 +21,6 @@ const notePageMutations = {
         const currentUserId = context.user && context.user.id;
         const inputWithUser = { ...input, userId: currentUserId };
         const savedNote = await noteService.createNote(inputWithUser, selectedFields, currentUserId);
-        
-        // Publish subscription event
-        pubsub.publish('NOTE_PAGE_CREATED', { notePageCreated: { success: true, message: 'Note created', data: savedNote, errors: null } });
         
         return {
           success: true,
@@ -66,9 +62,6 @@ const notePageMutations = {
         const inputWithUser = { ...input, userId: currentUserId };
         const updatedNote = await noteService.updateNote(id, inputWithUser, selectedFields, currentUserId);
         
-        // Publish subscription event
-        pubsub.publish('NOTE_PAGE_UPDATED', { notePageUpdated: { success: true, message: 'Note updated', data: updatedNote, errors: null } });
-        
         return {
           success: true,
           message: 'Note updated successfully',
@@ -106,9 +99,6 @@ const notePageMutations = {
         const selectedFields = getSelectedFields(info);
         const currentUserId = context.user && context.user.id;
         const deletedNote = await noteService.deleteNote(id, selectedFields, currentUserId);
-        
-        // Publish subscription event
-        pubsub.publish('NOTE_PAGE_DELETED', { notePageDeleted: { success: true, message: 'Note deleted', data: deletedNote, errors: null } });
         
         return {
           success: true,

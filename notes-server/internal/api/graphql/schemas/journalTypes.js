@@ -170,25 +170,6 @@ const JournalType = new GraphQLObjectType({
 const JournalResponseType = createResponseType(JournalType, 'Journal');
 const JournalListResponseType = createResponseType(new GraphQLList(JournalType), 'JournalList');
 
-// --- Subscription Fields for Journals ---
-const journalSubscriptionFields = {
-  journalCreated: {
-    type: JournalResponseType,
-    args: { userId: { type: GraphQLID } },
-    description: 'Triggered when a journal is created.'
-  },
-  journalUpdated: {
-    type: JournalResponseType,
-    args: { userId: { type: GraphQLID } },
-    description: 'Triggered when a journal is updated.'
-  },
-  journalDeleted: {
-    type: JournalResponseType,
-    args: { userId: { type: GraphQLID } },
-    description: 'Triggered when a journal is deleted.'
-  }
-};
-
 module.exports = { 
   JournalType,
   JournalResponseType,
@@ -199,6 +180,5 @@ module.exports = {
   JournalFilterInput,
   JournalInput,
   PaginationInput,
-  getSelectedFields,
-  journalSubscriptionFields
+  getSelectedFields
 }; 

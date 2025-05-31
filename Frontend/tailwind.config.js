@@ -8,9 +8,39 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        poppins: ['Poppins', 'sans-serif'],
-        custom: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        apple: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        mono: ['"Berkeley Mono"', '"SFMono Regular"', 'Consolas', '"Liberation Mono"', 'Menlo', 'Courier', 'monospace'],
+        sans: ['"Inter Variable"', '"SF Pro Display"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', '"Open Sans"', '"Helvetica Neue"', 'sans-serif'],
+        display: ['"Inter Variable"', '"SF Pro Display"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', '"Open Sans"', '"Helvetica Neue"', 'sans-serif'],
+        emoji: ['"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Segoe UI"', '"Twemoji Mozilla"', '"Noto Color Emoji"', '"Android Emoji"'],
+      },
+      fontSize: {
+        'micro': ['0.6875rem', { lineHeight: '1.1' }],
+        'micro-plus': ['0.6875rem', { lineHeight: '1.2' }],
+        'mini': ['0.75rem', { lineHeight: '1.1' }],
+        'mini-plus': ['0.75rem', { lineHeight: '1.2' }],
+        'small': ['0.8125rem', { lineHeight: '1.1' }],
+        'small-plus': ['0.8125rem', { lineHeight: '1.2' }],
+        'regular': ['0.9375rem', { lineHeight: '1.1' }],
+        'regular-plus': ['0.9375rem', { lineHeight: '1.2' }],
+        'large': ['1.125rem', { lineHeight: '1.1' }],
+        'large-plus': ['1.125rem', { lineHeight: '1.2' }],
+        'title1': ['2.25rem', { lineHeight: '1.1' }],
+        'title2': ['1.5rem', { lineHeight: '1.1' }],
+        'title3': ['1.25rem', { lineHeight: '1.1' }],
+      },
+      fontWeight: {
+        light: 300,
+        normal: 450,
+        medium: 500,
+        semibold: 600,
+        bold: 700,
+      },
+      transitionDuration: {
+        'highlight-fade-in': '0ms',
+        'highlight-fade-out': '150ms',
+        'quick': '100ms',
+        'regular': '250ms',
+        'slow': '350ms',
       },
       colors: {
         border: 'hsl(var(--border))',

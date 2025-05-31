@@ -121,18 +121,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar 
-      className="sidebar" 
+      className="sidebar text-small" 
       collapsible="icon" 
       {...props}
     >
       <SidebarHeader>
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="text-small">
         <NavMain items={data.navMain} />
         <NavProjects projects={data.projects} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="text-small">
         <NotificationsPanel />
         <NavUser defaultUser={data.user} onLogout={logout.mutate} />
       </SidebarFooter>
