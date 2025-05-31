@@ -51,7 +51,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ darkMode = false }) => {
 
   return (
     <header className={cn(
-      "h-8 flex items-center justify-between select-none bg-background drag-region"
+      "h-8 flex items-center justify-between select-none bg-[#1A1A1A] drag-region"
     )}>
       <div className="flex items-center gap-2 px-2 drag-region translate-y-[8px]">
         <div className="flex items-center h-8 left-1 no-drag">

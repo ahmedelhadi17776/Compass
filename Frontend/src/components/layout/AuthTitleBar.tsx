@@ -28,7 +28,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ darkMode = false }) => {
 
   return (
     <div className={cn(
-      "fixed top-0 left-0 w-full h-11 flex items-center justify-between px-4 select-none z-10 drag-region bg-background"
+      "fixed top-0 left-0 w-full h-11 flex items-center justify-between px-4 select-none z-10 drag-region bg-[#1A1A1A]"
     )}>
       <div className="flex items-center">
       </div>

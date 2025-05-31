@@ -10,9 +10,6 @@ import {
   AudioWaveform,
   Command,
   GalleryVerticalEnd,
-  Calendar,
-  Activity,
-  StickyNote,
 } from "lucide-react"
 
 import { NavMain } from "../components/nav-main"
@@ -34,12 +31,12 @@ import { NotificationsPanel } from "./notifications-panel"
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { logout, user } = useAuth();
 
-  // Updated data structure with flattened navigation
+  // Update the data object to use the authenticated user
   const data = {
     user: {
       name: user ? `${user.first_name} ${user.last_name}` : 'Loading...',
       email: user?.email || 'Loading...',
-      avatar: userAvatar,
+      avatar: userAvatar, // Keep the default avatar for now
     },
     teams: [
       {
@@ -63,41 +60,100 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Dashboard",
         url: "/dashboard",
         icon: LayoutDashboard,
+        isActive: true,
+        items: [
+          {
+            title: "Overview",
+            url: "/dashboard",
+          },
+          {
+            title: "Todos & Habits",
+            url: "/Todos&Habits",
+          },
+          {
+            title: "Calendar Overview",
+            url: "/calendar",
+          },
+          {
+            title: "Productivity Insights",
+            url: "/health",
+          },
+          {
+            title: "Emotional Intelligence",
+            url: "/wellness",
+          },
+        ],
       },
       {
-        title: "Todos & Habits",
-        url: "/Todos&Habits",
-        icon: ListTodo,
-      },
-      {
-        title: "Calendar",
-        url: "/calendar",
-        icon: Calendar,
-      },
-      {
-        title: "Notes",
-        url: "/notes",
-        icon: StickyNote,
-      },
-      {
-        title: "Workflows",
+        title: "Workflow",
         url: "/workflow",
         icon: Command,
+        items: [
+          {
+            title: "Overview",
+            url: "/workflow",
+          },
+          {
+            title: "Builder",
+            url: "/workflow/builder",
+          },
+          {
+            title: "Templates",
+            url: "/workflow/templates",
+          },
+          {
+            title: "History",
+            url: "/workflow/history",
+          },
+        ],
       },
       {
-        title: "AI Assistant",
+        title: "TaskManagement",
+        url: "/Todos&Habits",
+        icon: ListTodo,
+        items: [
+          {
+            title: "Todos & Habits",
+            url: "/Todos&Habits",
+          },
+          {
+            title: "Calendar View",
+            url: "/calendar",
+          },
+        ],
+      },
+      {
+        title: "AIAssistant",
         url: "/ai",
         icon: Brain,
+        items: [
+          {
+            title: "Chatbot",
+            url: "/ai",
+          },
+        ],
       },
       {
-        title: "Focus Mode",
+        title: "Focus",
         url: "/focus",
         icon: Timer,
+        items: [
+          {
+            title: "Focus Mode",
+            url: "/focus",
+          },
+        ],
       },
       {
         title: "Search",
         url: "/files",
         icon: FolderSearch,
+        items: [
+          {
+            title: "Search & Retrieval",
+            url: "/files",
+          },
+        ],
       },
     ],
     projects: [
