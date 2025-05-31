@@ -41,6 +41,7 @@ config.py
 *.ini
 
 /Frontend/dist-electron/
+/Frontend/src/components/notes/tiptap-ui-components/
 !Backend/ai_services/rag/chroma_store/
 !Backend/ai_services/rag/chroma_store
 /Backend/ai_services/rag/chroma_store/
