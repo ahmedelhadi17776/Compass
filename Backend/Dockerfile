@@ -47,8 +47,6 @@ COPY . .
 # Make entrypoint script executable
 RUN chmod +x docker-entrypoint.sh
 
-# Install the package in development mode
-RUN pip install -e .
 
 # Copy .env file
 COPY .env .env
