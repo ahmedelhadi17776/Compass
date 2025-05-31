@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Position } from './types';
+import { Position } from '@/components/Chatbot/types';
 import { useTheme } from '@/contexts/theme-provider';
 import { useNavigate } from 'react-router-dom';
-import { useChat } from '@/contexts/chat-context';
+import { useChat } from '@/components/Chatbot/chat-context';
 
 interface ChatWindowProps {
   inputText: string;

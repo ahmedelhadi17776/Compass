@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_URL } from '@/config';
+import { GO_API_URL } from '@/config';
 
 // Types
 export interface LoginCredentials {
@@ -49,7 +49,7 @@ export interface User {
 // API client
 const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await axios.post(`${API_URL}/api/users/login`, {
+    const response = await axios.post(`${GO_API_URL}/users/login`, {
       email: credentials.email,
       password: credentials.password
     }, {
@@ -77,12 +77,12 @@ const authApi = {
   },
 
   getMe: async (): Promise<User> => {
-    const response = await axios.get(`${API_URL}/api/users/profile`);
+    const response = await axios.get(`${GO_API_URL}/users/profile`);
     return response.data.data;
   },
 
   logout: async (): Promise<void> => {
-    await axios.post(`${API_URL}/api/users/logout`, null);
+    await axios.post(`${GO_API_URL}/users/logout`, null);
     delete axios.defaults.headers.common['Authorization'];
   },
 
@@ -91,7 +91,7 @@ const authApi = {
     last_name?: string;
     email?: string;
   }): Promise<User> => {
-    const response = await axios.patch(`${API_URL}/api/users/profile`, userData);
+    const response = await axios.patch(`${GO_API_URL}/users/profile`, userData);
     return response.data.data;
   },
 };

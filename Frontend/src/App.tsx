@@ -21,7 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useQueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
-import Chatbot from './components/chatbot/Chatbot';
+import Chatbot from './components/Chatbot/Chatbot';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();

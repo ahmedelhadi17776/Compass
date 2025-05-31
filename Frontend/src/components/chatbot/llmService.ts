@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { API_URL, PYTHON_API_URL } from '@/config';
+import { useMutation } from '@tanstack/react-query';
+import { PYTHON_API_URL } from '@/config';
 
 // Types
 export interface LLMRequest {
@@ -67,7 +67,7 @@ export const llmService = {
     
     try {
       await axios.post(
-        `${PYTHON_API_URL}/ai/clear-session`,
+        `${PYTHON_API_URL}/clear-session`,
         { session_id: sessionId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -93,7 +93,7 @@ export const llmService = {
     };
 
     const response = await axios.post<LLMResponse>(
-      `${PYTHON_API_URL}/ai/process`, 
+      `${PYTHON_API_URL}/process`, 
       requestWithSession,
       { 
         headers: { 
@@ -124,13 +124,13 @@ export const llmService = {
     const sessionId = getOrCreateSessionId();
 
     try {
-      console.log('Connecting to SSE endpoint:', `${PYTHON_API_URL}/ai/process/stream`);
+      console.log('Connecting to SSE endpoint:', `${PYTHON_API_URL}/process/stream`);
       console.log('With session ID:', sessionId);
       console.log('Auth token available:', !!token);
       console.log('Auth token preview:', token.substring(0, 10) + '...');
       
       // Set up fetch with proper headers for SSE
-      const response = await fetch(`${PYTHON_API_URL}/ai/process/stream`, {
+      const response = await fetch(`${PYTHON_API_URL}/process/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

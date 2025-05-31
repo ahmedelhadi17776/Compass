@@ -97,7 +97,7 @@ export function NotificationsPanel() {
                   className={cn(
                     "flex-1 py-2 text-sm font-medium text-center transition-colors",
                     activeTab === "all" 
-                      ? "text-primary border-b-2 border-primary" 
+                      ? "text-foreground border-b-2 border-foreground" 
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -108,7 +108,7 @@ export function NotificationsPanel() {
                   className={cn(
                     "flex-1 py-2 text-sm font-medium text-center transition-colors",
                     activeTab === "unread" 
-                      ? "text-primary border-b-2 border-primary" 
+                      ? "text-foreground border-b-2 border-foreground" 
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -175,7 +175,7 @@ export function NotificationsPanel() {
                 <div className="p-2 border-t text-center">
                   <button
                     onClick={clearNotifications}
-                    className="text-sm text-primary hover:text-primary/90 transition-colors"
+                    className="text-sm text-foreground hover:text-foreground/90 transition-colors"
                   >
                     Mark all as read
                   </button>
@@ -229,8 +229,8 @@ function NotificationItem({ notification, markAsRead }: NotificationItemProps) {
     >
       <div className="flex items-start">
         <div className="flex-shrink-0 mr-3">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <NotificationIcon className="h-4 w-4" />
+          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+            <NotificationIcon className="h-4 w-4 text-foreground" />
           </div>
         </div>
         <div className="flex-1">
