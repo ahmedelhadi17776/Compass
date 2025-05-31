@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { Todo, TodosResponse, TodoList, TodoListsResponse, CreateTodoListInput, UpdateTodoListInput } from './types-todo';
 import { Habit } from './types-habit';
+import { GO_API_URL } from '@/config';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = `${GO_API_URL}`;
 
 // Configure axios defaults
 //axios.defaults.headers.common['Accept-Encoding'] = 'gzip, deflate';

@@ -147,7 +147,7 @@ export default function Dashboard({ view }: DashboardProps) {
   ])
   
   // Use the habit heatmap hook with proper userId
-  const { data: heatmapData, loading: heatmapLoading, error: heatmapError, period, setPeriod } = useHabitHeatmap(user?.id || '')
+  const { data: heatmapData, loading: heatmapLoading, error: heatmapError } = useHabitHeatmap(user?.id || '')
 
   // Simulated data - replace with actual API calls
   useEffect(() => {
@@ -175,11 +175,11 @@ export default function Dashboard({ view }: DashboardProps) {
       const now = new Date()
       const hours = now.getHours()
       if (hours < 12) {
-        setGreeting("Morning!")
+        setGreeting("Morning")
       } else if (hours < 18) {
-        setGreeting("Afternoon!")
+        setGreeting("Afternoon")
       } else {
-        setGreeting("Evening!")
+        setGreeting("Evening")
       }
 
       // Format time (HH:MM am/pm)
@@ -209,37 +209,53 @@ export default function Dashboard({ view }: DashboardProps) {
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-6">
+        {/* Dashboard Label */}
+        <p className="text-xs uppercase text-muted-foreground tracking-wider">Dashboard</p>
+        
         {/* Header with Greeting and Quick Actions */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-start">
           {/* Greeting Header */}
-          <div className="py-2">
+          <div>
             <h1 className="text-2xl font-bold tracking-tight leading-none">
               {greeting}, {user?.first_name}
             </h1>
             <p className="text-sm text-muted-foreground mt-2 tracking-wide">{currentDate} · {currentTime}</p>
           </div>
-
-          {/* Quick Actions */}
+          <div className="col-span-4 mb-4 flex items-center ml-auto">
+                      {/* Quick Actions */}
           <div className="flex gap-2">
             <Button 
-              variant="outline" 
-              className="flex items-center gap-2"
+              variant="outline"
+              size="sm"
+              className="gap-2"
               onClick={() => setShowTodoForm(true)}
             >
               <Plus className="h-4 w-4" />
               New Todo
             </Button>
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
               <Calendar className="h-4 w-4" />
               Schedule Meeting
             </Button>
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
               <Brain className="h-4 w-4" />
               AI Assistant
             </Button>
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
                   <ActivityIcon className="h-4 w-4" />
                   System Status
                 </Button>
@@ -301,7 +317,17 @@ export default function Dashboard({ view }: DashboardProps) {
               </DialogContent>
             </Dialog>
           </div>
+          </div>
         </div>
+
+                  {/* Habit Heatmap */}
+        <div className="w-[190px]">
+          <HabitHeatmap 
+            data={heatmapData}
+            loading={heatmapLoading}
+            error={heatmapError}
+            />
+          </div>
 
         {/* Today's Meetings */}
         <Card className="col-span-3">
@@ -309,7 +335,7 @@ export default function Dashboard({ view }: DashboardProps) {
             <CardTitle>Today's meetings</CardTitle>
             <Button
               variant="ghost"
-              className="text-sm text-blue-500 hover:text-blue-600"
+              className="text-sm text-primary hover:text-primary/90 hover:bg-primary/10 transition-colors"
             >
               View all
             </Button>
@@ -319,7 +345,7 @@ export default function Dashboard({ view }: DashboardProps) {
               {meetings.map((meeting) => (
                 <div
                   key={meeting.id}
-                  className="rounded-lg bg-zinc-900 p-4 dark:bg-zinc-800/90"
+                  className="rounded-lg bg-[#292a2c] p-4"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -336,11 +362,11 @@ export default function Dashboard({ view }: DashboardProps) {
                 </div>
               ))}
               <div
-                className="flex cursor-pointer items-center justify-center rounded-lg bg-blue-950/50 p-4 hover:bg-blue-900/50"
+                className="flex cursor-pointer items-center justify-center rounded-lg bg-primary/10 p-4 hover:bg-primary/20 transition-colors"
               >
                 <div className="text-center">
-                  <Plus className="mx-auto h-6 w-6 text-blue-500" />
-                  <div className="mt-1 text-sm text-blue-500">
+                  <Plus className="mx-auto h-6 w-6 text-primary" />
+                  <div className="mt-1 text-sm text-primary">
                     Schedule meeting
                   </div>
                 </div>
@@ -390,16 +416,6 @@ export default function Dashboard({ view }: DashboardProps) {
               </div>
             </CardContent>
           </Card>
-
-          {/* Habit Heatmap */}
-          <HabitHeatmap 
-            title="Habit Consistency"
-            data={heatmapData}
-            loading={heatmapLoading}
-            error={heatmapError}
-            period={period}
-            onPeriodChange={setPeriod}
-          />
         </div>
 
         {/* System Monitoring Grid */}

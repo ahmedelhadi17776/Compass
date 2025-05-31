@@ -610,13 +610,15 @@ const TodoList: React.FC = () => {
 
   return (
     <div className="grid grid-cols-4 gap-4 p-6 h-full w-full">
-      <div className="col-span-4 mb-4 flex items-center justify-between">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-xl font-semibold">Todos & Habits</h2>
-          <Separator orientation="vertical" className="h-5 my-auto z-[100] -mr-1" />
+      {/* Todo Label - Main page title */}
+      <div className="col-span-4">
+        <p className="text-xs uppercase text-muted-foreground tracking-wider mb-4">todo</p>
+        <div className="flex justify-start">
+          <h1 className="text-2xl font-bold tracking-tight leading-none mr-2">Todos & Habits</h1>
+          <Separator orientation="vertical" className="h-5 relative top-[6px] z-[1] mr-1" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="-ml-2 bg-[#1a1a1a] text-white">
+              <Button size="sm" className="-ml-2 bg-background hover:bg-background relative top-[-1px]">
                 {todoLists.find(list => list.id === currentListId)?.name}
                 <ChevronDown className="h-4 w-4 opacity-70" />
               </Button>
@@ -650,7 +652,7 @@ const TodoList: React.FC = () => {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuItem 
-                className="border-t mt-1 pt-1 cursor-pointer text-primary font-medium"
+                className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
                 onClick={() => {
                   setShowNewListInput(true);
                   setTimeout(() => {
@@ -663,50 +665,52 @@ const TodoList: React.FC = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          
-          {/* New list input */}
-          {showNewListInput && (
-            <div className="flex gap-2 items-center">
-              <Input
-                ref={newListInputRef}
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                placeholder="List name..."
-                className="w-40 h-8"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddNewList()}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowNewListInput(false)}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleAddNewList}
-                className="h-8 w-8 p-0"
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <div className="flex items-baseline">
+            {/* New list input */}
+            {showNewListInput && (
+              <div className="flex gap-2 items-center ml-1"> {/* //////Remove the outline and focus styles */}
+                <Input
+                  ref={newListInputRef}
+                  value={newListName}
+                  onChange={(e) => setNewListName(e.target.value)}
+                  placeholder="List name..."
+                  className="w-40 h-8"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddNewList()}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowNewListInput(false)}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleAddNewList}
+                  className="h-8 w-8 p-0"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="col-span-4 mb-4 flex items-center ml-auto"> 
+              <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2" 
+              onClick={() => {
+                setEditingTodo(null);
+                setShowTodoForm(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              New Todo
+            </Button>
+          </div>
         </div>
-        
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="gap-2" 
-          onClick={() => {
-            setEditingTodo(null);
-            setShowTodoForm(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New Todo
-        </Button>
       </div>
       {renderTodoColumn('log', 'Log')}
       {renderTodoColumn('thisWeek', 'This Week')}

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Bell, X, Check, Calendar, Users, FileText, User, RefreshCw, PlusCircle } from "lucide-react"
+import { Bell, X, Check, Calendar, Users, FileText, User, RefreshCw, PlusCircle, Settings, HelpCircle } from "lucide-react"
 import { useWebSocket } from "@/hooks/useWebSocket"
 import { cn } from "@/lib/utils"
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
@@ -58,13 +58,12 @@ export function NotificationsPanel() {
           <SidebarMenuButton
             onClick={() => setIsOpen(!isOpen)}
             className={cn(
-              "relative flex items-center gap-2 text-sidebar-foreground",
-              isOpen && "bg-sidebar-accent text-sidebar-accent-foreground"
+              "group/nav-item flex items-center gap-2 w-full text-[#e3e4e5] hover:text-foreground hover:bg-[#151619] transition-colors text-small font-medium"
             )}
             aria-label="Notifications"
           >
-            <Bell className="h-4 w-4" />
-            <span className="font-medium text-sm">Notifications</span>
+            <Bell className="h-4 w-4 text-[#949597] group-hover/nav-item:text-[#ffffff] transition-colors" />
+            <span>Notifications</span>
             {unreadCount > 0 && (
               <div className="ml-auto">
                 <span className="flex items-center justify-center h-5 w-5 text-[11px] font-medium text-red-100 bg-red-600 rounded-full">
@@ -97,7 +96,7 @@ export function NotificationsPanel() {
                   className={cn(
                     "flex-1 py-2 text-sm font-medium text-center transition-colors",
                     activeTab === "all" 
-                      ? "text-primary border-b-2 border-primary" 
+                      ? "text-foreground border-b-2 border-foreground" 
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -108,7 +107,7 @@ export function NotificationsPanel() {
                   className={cn(
                     "flex-1 py-2 text-sm font-medium text-center transition-colors",
                     activeTab === "unread" 
-                      ? "text-primary border-b-2 border-primary" 
+                      ? "text-foreground border-b-2 border-foreground" 
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -175,7 +174,7 @@ export function NotificationsPanel() {
                 <div className="p-2 border-t text-center">
                   <button
                     onClick={clearNotifications}
-                    className="text-sm text-primary hover:text-primary/90 transition-colors"
+                    className="text-sm text-foreground hover:text-foreground/90 transition-colors"
                   >
                     Mark all as read
                   </button>
@@ -184,6 +183,24 @@ export function NotificationsPanel() {
             </div>
           )}
         </div>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          className="group/nav-item flex items-center gap-2 w-full text-[#e3e4e5] hover:text-foreground hover:bg-[#151619] transition-colors text-small font-medium"
+          aria-label="Settings"
+        >
+          <Settings className="h-4 w-4 text-[#949597] group-hover/nav-item:text-[#ffffff] transition-colors" />
+          <span>Settings</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          className="group/nav-item flex items-center gap-2 w-full text-[#e3e4e5] hover:text-foreground hover:bg-[#151619] transition-colors text-small font-medium"
+          aria-label="Get Help"
+        >
+          <HelpCircle className="h-4 w-4 text-[#949597] group-hover/nav-item:text-[#ffffff] transition-colors" />
+          <span>Get Help</span>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   )
@@ -229,8 +246,8 @@ function NotificationItem({ notification, markAsRead }: NotificationItemProps) {
     >
       <div className="flex items-start">
         <div className="flex-shrink-0 mr-3">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <NotificationIcon className="h-4 w-4" />
+          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+            <NotificationIcon className="h-4 w-4 text-foreground" />
           </div>
         </div>
         <div className="flex-1">
