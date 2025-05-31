@@ -198,6 +198,25 @@ const NotePageType = new GraphQLObjectType({
 const NotePageResponseType = createResponseType(NotePageType, 'NotePage');
 const NotePageListResponseType = createResponseType(new GraphQLList(NotePageType), 'NotePageList');
 
+// --- Subscription Fields for Notes ---
+const noteSubscriptionFields = {
+  notePageCreated: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is created.'
+  },
+  notePageUpdated: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is updated.'
+  },
+  notePageDeleted: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is deleted.'
+  }
+};
+
 module.exports = { 
   NotePageType,
   NotePageResponseType,
@@ -207,5 +226,6 @@ module.exports = {
   NoteFilterInput,
   NotePageInput,
   PaginationInput,
-  getSelectedFields
+  getSelectedFields,
+  noteSubscriptionFields
 }; 
