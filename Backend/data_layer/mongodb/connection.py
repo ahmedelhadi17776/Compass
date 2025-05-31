@@ -26,22 +26,7 @@ MAX_CONNECTING = 50  # Maximum number of connections being established simultane
 @lru_cache(maxsize=1)
 def get_mongodb_uri() -> str:
     """Get MongoDB URI from settings or environment variables."""
-    # Use settings first, with fallback to explicit connection parameters
-    if hasattr(settings, 'mongodb_uri') and settings.mongodb_uri:
-        return settings.mongodb_uri
-
-    # Construct URI from individual components
-    host = settings.mongodb_host if hasattr(
-        settings, 'mongodb_host') else "mongodb"
-    port = settings.mongodb_port if hasattr(
-        settings, 'mongodb_port') else 27017
-    username = getattr(settings, 'mongodb_username', "")
-    password = getattr(settings, 'mongodb_password', "")
-
-    # Build connection string
-    if username and password:
-        return f"mongodb://{username}:{password}@{host}:{port}"
-    return f"mongodb://{host}:{port}"
+    return settings.mongodb_uri
 
 
 def get_mongodb_client() -> Any:
@@ -69,7 +54,8 @@ def get_mongodb_client() -> Any:
 
             # Test connection
             _mongodb_client.admin.command('ping')
-            logger.info(f"Successfully connected to MongoDB with pool size: {MAX_POOL_SIZE}")
+            logger.info(
+                f"Successfully connected to MongoDB with pool size: {MAX_POOL_SIZE}")
         except (ConnectionFailure, ServerSelectionTimeoutError) as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
             raise
@@ -99,7 +85,8 @@ def get_async_mongodb_client() -> Any:
                 maxConnecting=MAX_CONNECTING,
                 waitQueueTimeoutMS=2000
             )
-            logger.info(f"Successfully created async MongoDB client with pool size: {MAX_POOL_SIZE}")
+            logger.info(
+                f"Successfully created async MongoDB client with pool size: {MAX_POOL_SIZE}")
         except Exception as e:
             logger.error(f"Failed to create async MongoDB client: {e}")
             raise
