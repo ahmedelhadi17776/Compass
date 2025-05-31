@@ -616,7 +616,7 @@ const TodoList: React.FC = () => {
           <Separator orientation="vertical" className="h-5 my-auto z-[100] -mr-1" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="-ml-2 bg-[#1a1a1a] text-white">
+              <Button size="sm" className="-ml-2 bg-background text-foreground">
                 {todoLists.find(list => list.id === currentListId)?.name}
                 <ChevronDown className="h-4 w-4 opacity-70" />
               </Button>
@@ -650,7 +650,7 @@ const TodoList: React.FC = () => {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuItem 
-                className="border-t mt-1 pt-1 cursor-pointer text-primary font-medium"
+                className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
                 onClick={() => {
                   setShowNewListInput(true);
                   setTimeout(() => {

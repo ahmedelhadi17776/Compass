@@ -1,2 +1,2 @@
-export const API_URL = '/api';
-export const PYTHON_API_URL = '/ai';
+export const GO_API_URL = 'http://localhost:8000/api';
+export const PYTHON_API_URL = 'http://localhost:8001/ai';

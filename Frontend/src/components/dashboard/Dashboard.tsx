@@ -175,11 +175,11 @@ export default function Dashboard({ view }: DashboardProps) {
       const now = new Date()
       const hours = now.getHours()
       if (hours < 12) {
-        setGreeting("Morning!")
+        setGreeting("Morning")
       } else if (hours < 18) {
-        setGreeting("Afternoon!")
+        setGreeting("Afternoon")
       } else {
-        setGreeting("Evening!")
+        setGreeting("Evening")
       }
 
       // Format time (HH:MM am/pm)
