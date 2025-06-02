@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@apollo/client": "^3.13.8",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-tabs": "^1.1.12",
@@ -19,6 +20,8 @@
     "@tiptap/starter-kit": "^2.12.0",
     "@uiw/react-md-editor": "^4.0.7",
     "date-fns": "^4.1.0",
+    "graphql": "^16.11.0",
+    "graphql-ws": "^6.0.5",
     "lucide-react": "^0.511.0",
     "sass": "^1.89.0"
   }

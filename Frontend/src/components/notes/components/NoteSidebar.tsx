@@ -5,30 +5,16 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Star, Tag as TagIcon, SortAsc, Filter, ChevronLeft } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-
-interface Note {
-  id: string
-  title: string
-  content: string
-  tags: string[]
-  favorited: boolean
-  updatedAt: string
-}
-
-interface NoteSidebarProps {
-  notes: Note[]
-  onNoteSelect: (noteId: string) => void
-  onCreateNote: () => void
-  isCollapsed: boolean
-  onToggleCollapse: () => void
-}
+import { NoteSidebarProps } from '@/components/notes/types'
 
 export default function NoteSidebar({ 
   notes, 
   onNoteSelect, 
   onCreateNote,
   isCollapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  loading = false,
+  selectedNoteId
 }: NoteSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -53,10 +39,11 @@ export default function NoteSidebar({
   // Filter and sort notes
   const filteredNotes = notes
     .filter(note => {
-      const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          note.content.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesSearch = searchQuery ? 
+        (note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+         note.content?.toLowerCase().includes(searchQuery.toLowerCase())) : true
       const matchesTags = selectedTags.length === 0 || 
-                         selectedTags.every(tag => note.tags.includes(tag))
+                         selectedTags.every(tag => note.tags?.includes(tag))
       const matchesFavorited = !showFavorited || note.favorited
       return matchesSearch && matchesTags && matchesFavorited
     })
@@ -66,6 +53,11 @@ export default function NoteSidebar({
       }
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     })
+
+  const handleNoteClick = (noteId: string) => {
+    console.log('Note clicked:', noteId) // Debug log
+    onNoteSelect(noteId)
+  }
 
   return (
     <div 
@@ -158,68 +150,81 @@ export default function NoteSidebar({
           </div>
         </div>
         <div className="flex-1 overflow-auto p-4">
-          <div className="space-y-2">
-            {filteredNotes.map(note => (
-              <div
-                key={note.id}
-                className={cn(
-                  "group relative flex flex-col gap-2 p-3 rounded-lg border cursor-pointer",
-                  "hover:bg-accent hover:border-accent-foreground/20",
-                  "transition-colors duration-200"
-                )}
-                onClick={() => onNoteSelect(note.id)}
-              >
-                {/* Title and Favorite Icon */}
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium line-clamp-1 flex-1">{note.title}</h3>
-                  {note.favorited && (
-                    <Star className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading notes...
+            </div>
+          ) : filteredNotes.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No notes found
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredNotes.map(note => (
+                <div
+                  key={note.id}
+                  className={cn(
+                    "group relative flex flex-col gap-2 p-3 rounded-lg border cursor-pointer",
+                    "hover:bg-accent hover:border-accent-foreground/20",
+                    "transition-colors duration-200",
+                    selectedNoteId === note.id && "bg-accent border-accent-foreground/20"
                   )}
-                </div>
+                  onClick={() => handleNoteClick(note.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      handleNoteClick(note.id)
+                    }
+                  }}
+                >
+                  {/* Title and Favorite Icon */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium line-clamp-1 flex-1">{note.title}</h3>
+                    {note.favorited && (
+                      <Star className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                    )}
+                  </div>
 
-                {/* Preview Text */}
-                <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
-                  {note.content.replace(/<[^>]*>/g, '')}
-                </p>
+                  {/* Preview Text */}
+                  <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
+                    {note.content.replace(/<[^>]*>/g, '')}
+                  </p>
 
-                {/* Tags and Date */}
-                <div className="flex items-center justify-between gap-2 mt-1">
-                  {note.tags.length > 0 && (
-                    <div className="flex items-center gap-1 flex-1 min-w-0">
-                      <TagIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                      <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                        {note.tags.map(tag => (
-                          <Badge 
-                            key={tag} 
-                            variant="secondary" 
-                            className="text-xs px-1 py-0 whitespace-nowrap"
-                          >
-                            {tag}
-                          </Badge>
-                        ))}
+                  {/* Tags and Date */}
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    {note.tags.length > 0 && (
+                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                        <TagIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                          {note.tags.map(tag => (
+                            <Badge 
+                              key={tag} 
+                              variant="secondary" 
+                              className="text-xs px-1 py-0 whitespace-nowrap"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                    {new Date(note.updatedAt).toLocaleDateString()}
-                  </span>
-                </div>
+                    )}
+                    <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                      {new Date(note.updatedAt).toLocaleDateString()}
+                    </span>
+                  </div>
 
-                {/* Hover Effect Gradient Border */}
-                <div className={cn(
-                  "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100",
-                  "transition-opacity duration-200",
-                  "pointer-events-none",
-                  "border-2 border-accent-foreground/20"
-                )} />
-              </div>
-            ))}
-            {filteredNotes.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No notes found
-              </div>
-            )}
-          </div>
+                  {/* Hover Effect Gradient Border */}
+                  <div className={cn(
+                    "absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100",
+                    "transition-opacity duration-200",
+                    "pointer-events-none",
+                    "border-2 border-accent-foreground/20"
+                  )} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
