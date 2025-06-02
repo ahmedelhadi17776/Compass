@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -12,52 +12,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import debounce from 'lodash/debounce'
+import { NotePageProps } from '@/components/notes/types'
 
 const titleSchema = z.string()
   .min(1, "Title is required")
   .max(200, "Title cannot be more than 200 characters")
 
-interface Entity {
-  type: 'idea' | 'tasks' | 'person' | 'todos'
-  refId: string
-}
-
-interface Permission {
-  userId: string
-  level: 'view' | 'edit' | 'comment'
-}
-
-interface NotePageProps {
-  id?: string
-  userId: string
-  title: string
-  content: string
-  linksOut?: string[]
-  linksIn?: string[]
-  entities?: Entity[]
-  tags?: string[]
-  isDeleted?: boolean
-  favorited?: boolean
-  icon?: string
-  sharedWith?: string[]
-  permissions?: Permission[]
-  onSave?: (note: Partial<NotePageProps>) => void
-  onDelete?: () => void
-}
-
 export default function NotePage({
   id,
-  userId,
   title: initialTitle,
   content: initialContent,
   linksOut = [],
   linksIn = [],
-  entities = [],
   tags = [],
-  isDeleted = false,
   favorited = false,
-  icon,
-  sharedWith = [],
   onSave,
   onDelete
 }: NotePageProps) {
@@ -67,30 +36,71 @@ export default function NotePage({
   const [newTag, setNewTag] = useState('')
   const [localTags, setLocalTags] = useState(tags)
   const [titleError, setTitleError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleTitleChange = (newTitle: string) => {
+  // Debounced save function
+  const debouncedSave = useCallback(
+    debounce(async (updates: Partial<NotePageProps>) => {
+      try {
+        setIsSaving(true)
+        await onSave?.(updates)
+      } catch (error) {
+        console.error('Error saving note:', error)
+      } finally {
+        setIsSaving(false)
+      }
+    }, 1000), // Increased debounce time to 1 second
+    [onSave]
+  )
+
+  const handleTitleChange = useCallback((newTitle: string) => {
     setTitle(newTitle)
     try {
       titleSchema.parse(newTitle)
       setTitleError(null)
-      onSave?.({ title: newTitle })
+      debouncedSave({ title: newTitle })
     } catch (error) {
       if (error instanceof z.ZodError) {
         setTitleError(error.errors[0].message)
       }
     }
-  }
+  }, [debouncedSave])
 
-  const handleAddTag = (tag: string) => {
+  const handleContentChange = useCallback((newContent: string) => {
+    setContent(newContent)
+    debouncedSave({ content: newContent })
+  }, [debouncedSave])
+
+  const handleAddTag = useCallback((tag: string) => {
     if (tag && !localTags.includes(tag)) {
-      setLocalTags([...localTags, tag])
-      setNewTag('')
+      const newTags = [...localTags, tag]
+      setLocalTags(newTags)
+      debouncedSave({ tags: newTags })
     }
-  }
+  }, [localTags, debouncedSave])
 
-  const handleRemoveTag = (tag: string) => {
-    setLocalTags(localTags.filter(t => t !== tag))
-  }
+  const handleRemoveTag = useCallback((tag: string) => {
+    const newTags = localTags.filter(t => t !== tag)
+    setLocalTags(newTags)
+    debouncedSave({ tags: newTags })
+  }, [localTags, debouncedSave])
+
+  const handleToggleFavorite = useCallback(() => {
+    const newFavorited = !isFavorited
+    setIsFavorited(newFavorited)
+    // Remove debounce for favorite toggle to make it instant
+    onSave?.({ favorited: newFavorited })
+  }, [isFavorited, onSave])
+
+  // Only update local state when the note ID changes or when props update
+  useEffect(() => {
+    if (id) {
+      setTitle(initialTitle)
+      setContent(initialContent)
+      setIsFavorited(favorited)
+      setLocalTags(tags)
+    }
+  }, [id, initialTitle, initialContent, favorited, tags])
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -99,10 +109,7 @@ export default function NotePage({
         <Button
           variant="outline"
           size="icon"
-          onClick={() => {
-            setIsFavorited(!isFavorited)
-            onSave?.({ favorited: !isFavorited })
-          }}
+          onClick={handleToggleFavorite}
           className={isFavorited ? 'text-yellow-500' : ''}
         >
           <Star className="h-4 w-4" />
@@ -163,7 +170,7 @@ export default function NotePage({
           </Button>
         )}
       </div>
-      <div className="mb-10 text-center">
+      <div className="mb-10 text-center relative">
         <Input
           value={title}
           onChange={(e) => handleTitleChange(e.target.value)}
@@ -177,14 +184,15 @@ export default function NotePage({
         {titleError && (
           <p className="text-sm text-red-500 mt-1">{titleError}</p>
         )}
+        {isSaving && (
+          <p></p>
+        )}
       </div>
 
       <TiptapEditor
-        content={content || "<p>Start writing...</p>"}
-        onChange={(newContent) => {
-          setContent(newContent)
-          onSave?.({ content: newContent })
-        }}
+        key={id} // Add key prop to force re-render when note changes
+        content={content}
+        onChange={handleContentChange}
         editable={true}
         className="min-h-[500px] bg-transparent border-0"
       />
