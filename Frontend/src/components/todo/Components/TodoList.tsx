@@ -653,6 +653,7 @@ const TodoList: React.FC = () => {
               ))}
               <DropdownMenuItem 
                 className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
+                className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
                 onClick={() => {
                   setShowNewListInput(true);
                   setTimeout(() => {

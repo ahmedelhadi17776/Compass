@@ -10,33 +10,7 @@ const {
 } = require('graphql');
 const NotePage = require('../../../domain/notes/model');
 const { createResponseType } = require('./responseTypes');
-
-// Permission enums and input must be defined before NotePageInput
-const PermissionLevelEnum = new GraphQLEnumType({
-  name: 'PermissionLevel',
-  values: {
-    VIEW: { value: 'view' },
-    EDIT: { value: 'edit' },
-    COMMENT: { value: 'comment' }
-  }
-});
-
-const PermissionInput = new GraphQLInputObjectType({
-  name: 'PermissionInput',
-  fields: {
-    userId: { type: GraphQLID },
-    level: { type: PermissionLevelEnum }
-  }
-});
-
-// Output type for permissions
-const PermissionType = new GraphQLObjectType({
-  name: 'Permission',
-  fields: {
-    userId: { type: GraphQLID },
-    level: { type: PermissionLevelEnum }
-  }
-});
+const { PermissionLevelEnum, PermissionInput, PermissionType } = require('./permissionTypes');
 
 // Input types for better mutation handling
 const NotePageInput = new GraphQLInputObjectType({
@@ -198,6 +172,25 @@ const NotePageType = new GraphQLObjectType({
 const NotePageResponseType = createResponseType(NotePageType, 'NotePage');
 const NotePageListResponseType = createResponseType(new GraphQLList(NotePageType), 'NotePageList');
 
+// --- Subscription Fields for Notes ---
+const noteSubscriptionFields = {
+  notePageCreated: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is created.'
+  },
+  notePageUpdated: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is updated.'
+  },
+  notePageDeleted: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is deleted.'
+  }
+};
+
 module.exports = { 
   NotePageType,
   NotePageResponseType,
@@ -207,5 +200,6 @@ module.exports = {
   NoteFilterInput,
   NotePageInput,
   PaginationInput,
-  getSelectedFields
+  getSelectedFields,
+  noteSubscriptionFields
 }; 
