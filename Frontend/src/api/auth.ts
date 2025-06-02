@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { GO_API_URL } from '@/config';
+import { GO_API_URL } from '@/config';
 
 // Types
 export interface LoginCredentials {
@@ -134,6 +135,7 @@ const authApi = {
   },
 
   logout: async (): Promise<void> => {
+    await axios.post(`${GO_API_URL}/users/logout`, null);
     await axios.post(`${GO_API_URL}/users/logout`, null);
     delete axios.defaults.headers.common['Authorization'];
   },
