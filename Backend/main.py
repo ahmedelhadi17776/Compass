@@ -19,6 +19,7 @@ import sys
 import codecs
 import datetime
 import io
+from api.focus_routes import router as focus_router
 
 # Set up proper encoding for stdout/stderr
 try:
@@ -149,7 +150,7 @@ async def lifespan(app: FastAPI):
             logger.info("Redis connection closed")
         except Exception as e:
             logger.error(f"Error closing Redis connection: {str(e)}")
-            
+
         logger.info("All resources cleaned up")
 
 # Create FastAPI app with lifespan
@@ -166,6 +167,7 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(ai_router)
+app.include_router(focus_router)
 
 # Mount static files directory only if it exists
 static_dir = pathlib.Path("static")

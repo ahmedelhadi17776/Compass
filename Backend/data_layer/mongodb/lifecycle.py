@@ -24,6 +24,7 @@ async def init_collections():
             "ai_models",
             "model_usages",
             "conversations",
+            "focus_sessions",
             # future collections here
         ]
 
