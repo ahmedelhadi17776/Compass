@@ -6,12 +6,11 @@ from data_layer.models.system_metric_model import SystemMetric
 from utils.jwt import extract_user_id_from_token
 from datetime import datetime
 import json
+from data_layer.cache.pubsub_manager import pubsub_manager
+from fastapi.encoders import jsonable_encoder
 
 router = APIRouter(prefix="/system-metrics", tags=["System Metrics"])
 metric_repo = SystemMetricRepository()
-
-# In-memory store for active dashboard WebSocket connections per user
-active_dashboard_connections: Dict[str, List[WebSocket]] = {}
 
 
 @router.post("/", response_model=SystemMetricResponse)
@@ -22,6 +21,11 @@ def create_metric(metric: SystemMetricCreate, user_id: str = Depends(extract_use
         metric_data["timestamp"] = datetime.utcnow()
     metric_obj = SystemMetric(**metric_data)
     metric_id = metric_repo.create_metric(metric_obj)
+    # Publish to Redis pub/sub for real-time update
+    import asyncio
+    serializable_data = jsonable_encoder(metric_obj.model_dump())
+    asyncio.create_task(pubsub_manager.publish(
+        user_id, "system_metric", serializable_data))
     return SystemMetricResponse(id=str(metric_id), user_id=user_id, **metric.dict())
 
 
@@ -48,16 +52,16 @@ async def system_metrics_ws(websocket: WebSocket):
     await websocket.accept()
     user_id = None
     try:
-        # Expect JWT in query params or headers
         token = websocket.headers.get("authorization")
         if not token:
             await websocket.close(code=4001)
             return
         user_id = extract_user_id_from_token(token)
-        # Register this connection for dashboard updates
-        if user_id not in active_dashboard_connections:
-            active_dashboard_connections[user_id] = []
-        active_dashboard_connections[user_id].append(websocket)
+        # Subscribe to Redis pub/sub for this user
+
+        async def ws_callback(message):
+            await websocket.send_text(message)
+        await pubsub_manager.subscribe(user_id, ws_callback)
         while True:
             data = await websocket.receive_text()
             metric_data = json.loads(data)
@@ -66,21 +70,17 @@ async def system_metrics_ws(websocket: WebSocket):
                 metric_data["timestamp"] = datetime.utcnow().isoformat()
             metric = SystemMetric(**metric_data)
             metric_repo.create_metric(metric)
-            # Broadcast to all dashboard clients for this user
-            for ws in active_dashboard_connections.get(user_id, []):
-                if ws != websocket:
-                    try:
-                        await ws.send_text(json.dumps({"event": "system_metric", "data": metric_data}))
-                    except Exception:
-                        pass
+            # Publish to Redis pub/sub for real-time update
+            serializable_metric_data = jsonable_encoder(metric_data)
+            await pubsub_manager.publish(user_id, "system_metric", serializable_metric_data)
     except WebSocketDisconnect:
-        if user_id and user_id in active_dashboard_connections:
-            active_dashboard_connections[user_id].remove(websocket)
-            if not active_dashboard_connections[user_id]:
-                del active_dashboard_connections[user_id]
+        if user_id:
+            await pubsub_manager.unsubscribe(user_id)
     except Exception:
         if websocket.client_state.value == 1:  # OPEN
             await websocket.close(code=4002)
+        if user_id:
+            await pubsub_manager.unsubscribe(user_id)
 
 
 @router.get("/summary", response_model=List[Dict])
