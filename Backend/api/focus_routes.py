@@ -7,6 +7,7 @@ from typing import List, Dict
 from datetime import timezone
 import asyncio
 from fastapi.encoders import jsonable_encoder
+from data_layer.cache.pubsub_manager import pubsub_manager
 
 router = APIRouter(prefix="/focus", tags=["Focus"])
 repo = FocusSessionRepository()
@@ -36,10 +37,12 @@ async def start_focus_session(data: FocusSessionCreate, user_id: str = Depends(e
         raise HTTPException(
             status_code=500, detail="Failed to create focus session")
     response = FocusSessionResponse(**session.model_dump())
-    asyncio.create_task(broadcast_focus_update(
-        user_id, "focus_session_started", response.model_dump()))
+    # Publish to Redis pub/sub for real-time update
+    serializable_response = jsonable_encoder(response.model_dump())
+    await pubsub_manager.publish(user_id, "focus_session_started", serializable_response)
     stats = repo.get_stats(user_id)
-    asyncio.create_task(broadcast_focus_update(user_id, "focus_stats", stats))
+    serializable_stats = jsonable_encoder(stats)
+    await pubsub_manager.publish(user_id, "focus_stats", serializable_stats)
     return response
 
 
@@ -67,10 +70,12 @@ async def stop_focus_session(data: FocusSessionStop, user_id: str = Depends(extr
         raise HTTPException(
             status_code=500, detail="Failed to update focus session")
     response = FocusSessionResponse(**updated.model_dump())
-    asyncio.create_task(broadcast_focus_update(
-        user_id, "focus_session_stopped", response.model_dump()))
+    # Publish to Redis pub/sub for real-time update
+    serializable_response = jsonable_encoder(response.model_dump())
+    await pubsub_manager.publish(user_id, "focus_session_stopped", serializable_response)
     stats = repo.get_stats(user_id)
-    asyncio.create_task(broadcast_focus_update(user_id, "focus_stats", stats))
+    serializable_stats = jsonable_encoder(stats)
+    await pubsub_manager.publish(user_id, "focus_stats", serializable_stats)
     return response
 
 
@@ -90,38 +95,26 @@ def get_stats(user_id: str = Depends(extract_user_id_from_token)):
 async def focus_ws(websocket: WebSocket):
     await websocket.accept()
     user_id = None
+    pubsub_task = None
     try:
         token = websocket.headers.get("authorization")
         if not token:
             await websocket.close(code=4001)
             return
         user_id = extract_user_id_from_token(token)
-        if user_id not in active_focus_ws_connections:
-            active_focus_ws_connections[user_id] = []
-        active_focus_ws_connections[user_id].append(websocket)
+        # Subscribe to Redis pub/sub for this user
+
+        async def ws_callback(message):
+            await websocket.send_text(message)
+        await pubsub_manager.subscribe(user_id, ws_callback)
         while True:
             data = await websocket.receive_text()
             await websocket.send_text(data)
     except WebSocketDisconnect:
-        if user_id and user_id in active_focus_ws_connections:
-            active_focus_ws_connections[user_id].remove(websocket)
-            if not active_focus_ws_connections[user_id]:
-                del active_focus_ws_connections[user_id]
+        if user_id:
+            await pubsub_manager.unsubscribe(user_id)
     except Exception:
         if websocket.client_state.value == 1:  # OPEN
             await websocket.close(code=4002)
-
-
-async def broadcast_focus_update(user_id: str, event: str, payload: dict):
-    import json
-    conns = active_focus_ws_connections.get(user_id, [])
-    for ws in conns[:]:
-        try:
-            await ws.send_text(json.dumps({
-                "event": event,
-                "data": jsonable_encoder(payload)
-            }))
-        except Exception:
-            conns.remove(ws)
-    if not conns:
-        active_focus_ws_connections.pop(user_id, None)
+        if user_id:
+            await pubsub_manager.unsubscribe(user_id)

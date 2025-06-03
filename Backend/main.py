@@ -4,6 +4,7 @@ from core.config import settings
 from core.mcp_state import set_mcp_client, get_mcp_client
 from api.ai_routes import router as ai_router
 from data_layer.cache.redis_client import redis_client
+from data_layer.cache.pubsub_manager import pubsub_manager
 import pathlib
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
