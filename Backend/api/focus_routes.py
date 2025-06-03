@@ -1,30 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from data_layer.repos.focus_repo import FocusSessionRepository
 from app.schemas.focus_schemas import FocusSessionCreate, FocusSessionStop, FocusSessionResponse, FocusStatsResponse
 from utils.jwt import extract_user_id_from_token
 from data_layer.models.focus_model import FocusSession
-from typing import List
+from typing import List, Dict
 from datetime import timezone
+import asyncio
+from fastapi.encoders import jsonable_encoder
 
 router = APIRouter(prefix="/focus", tags=["Focus"])
 repo = FocusSessionRepository()
 
+# In-memory store for active dashboard WebSocket connections per user
+active_focus_ws_connections: Dict[str, List[WebSocket]] = {}
+
 
 @router.post("/start", response_model=FocusSessionResponse)
-def start_focus_session(data: FocusSessionCreate, user_id: str = Depends(extract_user_id_from_token)):
+async def start_focus_session(data: FocusSessionCreate, user_id: str = Depends(extract_user_id_from_token)):
     active = repo.find_active_session(user_id)
     if active:
         raise HTTPException(
             status_code=400, detail="Focus session already active")
     session_obj = FocusSession(
         user_id=user_id,
-        start_time=data.start_time,
+        **data.model_dump(),
         end_time=None,
         duration=None,
         status="active",
-        tags=data.tags or [],
         interruptions=0,
-        notes=data.notes,
         metadata={}
     )
     inserted_id = repo.insert(session_obj)
@@ -32,11 +35,16 @@ def start_focus_session(data: FocusSessionCreate, user_id: str = Depends(extract
     if not session:
         raise HTTPException(
             status_code=500, detail="Failed to create focus session")
-    return FocusSessionResponse(**session.model_dump())
+    response = FocusSessionResponse(**session.model_dump())
+    asyncio.create_task(broadcast_focus_update(
+        user_id, "focus_session_started", response.model_dump()))
+    stats = repo.get_stats(user_id)
+    asyncio.create_task(broadcast_focus_update(user_id, "focus_stats", stats))
+    return response
 
 
 @router.post("/stop", response_model=FocusSessionResponse)
-def stop_focus_session(data: FocusSessionStop, user_id: str = Depends(extract_user_id_from_token)):
+async def stop_focus_session(data: FocusSessionStop, user_id: str = Depends(extract_user_id_from_token)):
     active = repo.find_active_session(user_id)
     if not active or not active.id:
         raise HTTPException(status_code=404, detail="No active session")
@@ -58,7 +66,12 @@ def stop_focus_session(data: FocusSessionStop, user_id: str = Depends(extract_us
     if not updated:
         raise HTTPException(
             status_code=500, detail="Failed to update focus session")
-    return FocusSessionResponse(**updated.model_dump())
+    response = FocusSessionResponse(**updated.model_dump())
+    asyncio.create_task(broadcast_focus_update(
+        user_id, "focus_session_stopped", response.model_dump()))
+    stats = repo.get_stats(user_id)
+    asyncio.create_task(broadcast_focus_update(user_id, "focus_stats", stats))
+    return response
 
 
 @router.get("/sessions", response_model=List[FocusSessionResponse])
@@ -71,3 +84,44 @@ def list_sessions(user_id: str = Depends(extract_user_id_from_token)):
 def get_stats(user_id: str = Depends(extract_user_id_from_token)):
     stats = repo.get_stats(user_id)
     return FocusStatsResponse(**stats)
+
+
+@router.websocket("/ws")
+async def focus_ws(websocket: WebSocket):
+    await websocket.accept()
+    user_id = None
+    try:
+        token = websocket.headers.get("authorization")
+        if not token:
+            await websocket.close(code=4001)
+            return
+        user_id = extract_user_id_from_token(token)
+        if user_id not in active_focus_ws_connections:
+            active_focus_ws_connections[user_id] = []
+        active_focus_ws_connections[user_id].append(websocket)
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(data)
+    except WebSocketDisconnect:
+        if user_id and user_id in active_focus_ws_connections:
+            active_focus_ws_connections[user_id].remove(websocket)
+            if not active_focus_ws_connections[user_id]:
+                del active_focus_ws_connections[user_id]
+    except Exception:
+        if websocket.client_state.value == 1:  # OPEN
+            await websocket.close(code=4002)
+
+
+async def broadcast_focus_update(user_id: str, event: str, payload: dict):
+    import json
+    conns = active_focus_ws_connections.get(user_id, [])
+    for ws in conns[:]:
+        try:
+            await ws.send_text(json.dumps({
+                "event": event,
+                "data": jsonable_encoder(payload)
+            }))
+        except Exception:
+            conns.remove(ws)
+    if not conns:
+        active_focus_ws_connections.pop(user_id, None)
