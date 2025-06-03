@@ -7,13 +7,13 @@ const fetch = require('cross-fetch');
 const gql = require('graphql-tag');
 
 // Set your test userId here or use process.env.TEST_USER_ID
-const userId = process.env.TEST_USER_ID || '11e41910-a77c-4818-b073-28019b0fbc92';
+const jwtToken = process.env.TEST_JWT_TOKEN || '<YOUR_JWT_TOKEN_HERE>';
 
 const wsLink = new GraphQLWsLink(createClient({
   url: 'ws://localhost:5000/notes/graphql',
   webSocketImpl: WebSocket,
   connectionParams: {
-    'X-User-Id': userId
+    'Authorization': `Bearer ${jwtToken}`
   }
 }));
 
@@ -21,7 +21,7 @@ const httpLink = new HttpLink({
   uri: 'http://localhost:5000/notes/graphql',
   fetch,
   headers: {
-    'X-User-Id': userId
+    'Authorization': `Bearer ${jwtToken}`
   }
 });
 
@@ -92,7 +92,7 @@ function subscribeAndLog(name, query) {
   return sub;
 }
 
-console.log('Subscribing to journal events for userId:', userId);
+console.log('Subscribing to journal events for userId:', jwtToken);
 subscribeAndLog('journalCreated', JOURNAL_CREATED);
 subscribeAndLog('journalUpdated', JOURNAL_UPDATED);
 subscribeAndLog('journalDeleted', JOURNAL_DELETED);
