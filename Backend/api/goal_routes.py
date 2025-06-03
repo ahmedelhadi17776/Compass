@@ -3,7 +3,7 @@ from typing import List
 from app.schemas.goal_schemas import GoalCreate, GoalUpdate, GoalResponse, GoalListResponse
 from data_layer.repos.goal_repo import GoalRepository
 from data_layer.models.goal_model import Goal
-from utils.utils import extract_user_id_from_token
+from utils.jwt import extract_user_id_from_token
 
 router = APIRouter(prefix="/goals", tags=["Goals"])
 goal_repo = GoalRepository()

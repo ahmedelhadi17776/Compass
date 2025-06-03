@@ -21,6 +21,7 @@ import datetime
 import io
 from api.focus_routes import router as focus_router
 from api.goal_routes import router as goal_router
+from api.system_metric_routes import router as system_metric_router
 
 # Set up proper encoding for stdout/stderr
 try:
@@ -170,6 +171,7 @@ app.add_middleware(
 app.include_router(ai_router)
 app.include_router(focus_router)
 app.include_router(goal_router)
+app.include_router(system_metric_router)
 
 # Mount static files directory only if it exists
 static_dir = pathlib.Path("static")
