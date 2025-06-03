@@ -81,3 +81,23 @@ async def system_metrics_ws(websocket: WebSocket):
     except Exception:
         if websocket.client_state.value == 1:  # OPEN
             await websocket.close(code=4002)
+
+
+@router.get("/summary", response_model=List[Dict])
+def summary_metrics(
+    period: str = Query(
+        "daily", description="Aggregation period: daily, weekly, monthly"),
+    metric_type: Optional[str] = Query(
+        None, description="Metric type to filter (optional)"),
+    start: Optional[datetime] = Query(
+        None, description="Start datetime (optional)"),
+    end: Optional[datetime] = Query(
+        None, description="End datetime (optional)"),
+    user_id: str = Depends(extract_user_id_from_token)
+):
+    """
+    Get aggregated system metrics for the dashboard. Returns sum, avg, min, max, count per period and metric_type.
+    """
+    results = metric_repo.aggregate_metrics(
+        user_id, period=period, metric_type=metric_type, start=start, end=end)
+    return results
