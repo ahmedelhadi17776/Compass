@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from data_layer.repos.focus_repo import FocusSessionRepository
 from app.schemas.focus_schemas import FocusSessionCreate, FocusSessionStop, FocusSessionResponse, FocusStatsResponse
-from utils.utils import extract_user_id_from_token
+from utils.jwt import extract_user_id_from_token
 from data_layer.models.focus_model import FocusSession
 from typing import List
 from datetime import timezone
