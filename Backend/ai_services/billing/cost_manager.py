@@ -25,13 +25,13 @@ class CostManager:
     async def calculate_input_cost(self, model_id: str, input_tokens: int) -> float:
         """Calculate the cost for input tokens."""
         try:
-            model = await self.mongo_client.get_model_by_id(model_id)
-            if not model:
+            # get_model_by_id is synchronous
+            model = self.mongo_client.get_model_by_id(model_id)
+            if not model or not hasattr(model, 'input_token_cost_per_million'):
                 logger.warning(
-                    f"Model {model_id} not found, using default pricing")
+                    f"Model {model_id} not found or invalid, using default pricing")
                 return 0.0
-
-            input_cost_per_million = model.get("input_cost_per_million", 0.0)
+            input_cost_per_million = model.input_token_cost_per_million
             return (input_tokens / 1_000_000) * input_cost_per_million
         except Exception as e:
             logger.error(f"Error calculating input cost: {str(e)}")
@@ -40,13 +40,13 @@ class CostManager:
     async def calculate_output_cost(self, model_id: str, output_tokens: int) -> float:
         """Calculate the cost for output tokens."""
         try:
-            model = await self.mongo_client.get_model_by_id(model_id)
-            if not model:
+            # get_model_by_id is synchronous
+            model = self.mongo_client.get_model_by_id(model_id)
+            if not model or not hasattr(model, 'output_token_cost_per_million'):
                 logger.warning(
-                    f"Model {model_id} not found, using default pricing")
+                    f"Model {model_id} not found or invalid, using default pricing")
                 return 0.0
-
-            output_cost_per_million = model.get("output_cost_per_million", 0.0)
+            output_cost_per_million = model.output_token_cost_per_million
             return (output_tokens / 1_000_000) * output_cost_per_million
         except Exception as e:
             logger.error(f"Error calculating output cost: {str(e)}")
@@ -82,19 +82,20 @@ class CostManager:
                 model_id=model_id
             )
 
-            # Get model quota limit
+            # Get model quota limit (fetch synchronously)
             model = self.mongo_client.get_model_by_id(model_id)
-            quota_limit = model.quota_limit if model else self.default_quota_limit
+            quota_limit = model.quota_limit if model and hasattr(
+                model, 'quota_limit') and model.quota_limit is not None else self.default_quota_limit
 
             # Calculate total tokens for this request
             total_tokens = current_usage + input_tokens + output_tokens
 
             # Check if quota would be exceeded
-            if total_tokens > quota_limit:
+            if quota_limit is not None and total_tokens > quota_limit:
                 return False, f"Quota exceeded. Limit: {quota_limit}, Current usage: {current_usage}, Requested: {input_tokens + output_tokens}"
 
             # Check if approaching quota limit
-            if total_tokens > quota_limit * settings.billing_quota_alert_threshold:
+            if quota_limit is not None and total_tokens > quota_limit * settings.billing_quota_alert_threshold:
                 await self._send_quota_alert(user_id, total_tokens, quota_limit)
 
             return True, ""
