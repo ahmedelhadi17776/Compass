@@ -56,6 +56,7 @@ type Service interface {
 	GetUserTaskAnalytics(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]TaskAnalytics, int64, error)
 	GetTaskActivitySummary(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time) (*TaskActivitySummary, error)
 	GetUserTaskActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (*UserTaskActivitySummary, error)
+	GetDashboardMetrics(userID uuid.UUID) (TasksDashboardMetrics, error)
 }
 
 type TaskMetrics struct {
@@ -98,6 +99,15 @@ type UpdateTaskInput struct {
 	Duration       *float64      `json:"duration,omitempty"`
 	DueDate        *time.Time    `json:"due_date,omitempty"`
 	Dependencies   []uuid.UUID   `json:"dependencies,omitempty"`
+}
+
+// Define TasksDashboardMetrics struct for dashboard metrics aggregation
+// TasksDashboardMetrics represents summary metrics for the dashboard
+// Used by GetDashboardMetrics
+type TasksDashboardMetrics struct {
+	Total     int
+	Completed int
+	Overdue   int
 }
 
 // Repository interface
@@ -727,5 +737,31 @@ func (s *service) GetUserTaskActivitySummary(ctx context.Context, userID uuid.UU
 		StartTime:    startTime,
 		EndTime:      endTime,
 		TotalActions: totalActions,
+	}, nil
+}
+
+func (s *service) GetDashboardMetrics(userID uuid.UUID) (TasksDashboardMetrics, error) {
+	ctx := context.Background()
+	filter := TaskFilter{AssigneeID: &userID}
+	tasks, _, err := s.repo.FindAll(ctx, filter)
+	if err != nil {
+		return TasksDashboardMetrics{}, err
+	}
+	total := len(tasks)
+	completed := 0
+	overdue := 0
+	now := time.Now()
+	for _, t := range tasks {
+		if t.Status == TaskStatusCompleted {
+			completed++
+		}
+		if t.DueDate != nil && t.DueDate.Before(now) && t.Status != TaskStatusCompleted {
+			overdue++
+		}
+	}
+	return TasksDashboardMetrics{
+		Total:     total,
+		Completed: completed,
+		Overdue:   overdue,
 	}, nil
 }

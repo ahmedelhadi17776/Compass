@@ -92,6 +92,13 @@ type MFASetupResponse struct {
 	BackupCodes  []string `json:"backup_codes,omitempty"`
 }
 
+// Define UserDashboardMetrics struct for dashboard metrics aggregation
+// UserDashboardMetrics represents summary metrics for the dashboard
+// Used by GetDashboardMetrics
+type UserDashboardMetrics struct {
+	ActivitySummary map[string]int
+}
+
 // Service interface
 type Service interface {
 	CreateUser(ctx context.Context, input CreateUserInput) (*User, error)
@@ -121,6 +128,9 @@ type Service interface {
 	ValidateMFACode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
 	DisableMFA(ctx context.Context, userID uuid.UUID, password string) error
 	IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
+
+	// New method
+	GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, error)
 }
 
 type service struct {
@@ -976,4 +986,21 @@ func (s *service) IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, err
 	}
 
 	return user.MFAEnabled, nil
+}
+
+// GetDashboardMetrics returns dashboard metrics for a user
+func (s *service) GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, error) {
+	ctx := context.Background()
+	// count logins and actions from activity logs
+	logins, err := s.repo.CountLogins(ctx, userID)
+	if err != nil {
+		return UserDashboardMetrics{}, err
+	}
+	actions, err := s.repo.CountActions(ctx, userID)
+	if err != nil {
+		return UserDashboardMetrics{}, err
+	}
+	return UserDashboardMetrics{
+		ActivitySummary: map[string]int{"logins": logins, "actions": actions},
+	}, nil
 }
