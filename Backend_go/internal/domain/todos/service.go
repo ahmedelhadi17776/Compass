@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
 )
 
@@ -86,11 +88,12 @@ type TodosDashboardMetrics struct {
 }
 
 type service struct {
-	repo TodoRepository
+	repo  TodoRepository
+	redis *cache.RedisClient // Injected for event publishing
 }
 
-func NewService(repo TodoRepository) Service {
-	return &service{repo: repo}
+func NewService(repo TodoRepository, redis *cache.RedisClient) Service {
+	return &service{repo: repo, redis: redis}
 }
 
 func (s *service) CreateTodo(ctx context.Context, input CreateTodoInput) (*Todo, error) {
@@ -291,6 +294,15 @@ func (s *service) CompleteTodo(ctx context.Context, id uuid.UUID) (*Todo, error)
 		return nil, err
 	}
 
+	event := events.DashboardEvent{
+		EventType: "todo_completed",
+		UserID:    todo.UserID,
+		EntityID:  id,
+		Timestamp: time.Now().UTC(),
+	}
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	}
 	return todo, nil
 }
 

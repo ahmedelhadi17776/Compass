@@ -8,7 +8,9 @@ import (
 
 	"encoding/json"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/mfa"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -137,13 +139,15 @@ type service struct {
 	repo         Repository
 	rolesService roles.Service
 	mfaService   mfa.Service
+	redis        *cache.RedisClient
 }
 
-func NewService(repo Repository, rolesService roles.Service) Service {
+func NewService(repo Repository, rolesService roles.Service, redis *cache.RedisClient) Service {
 	return &service{
 		repo:         repo,
 		rolesService: rolesService,
 		mfaService:   mfa.NewService("Compass"),
+		redis:        redis,
 	}
 }
 
@@ -695,7 +699,22 @@ func (s *service) RecordUserActivity(ctx context.Context, input RecordUserActivi
 		Metadata:  metadata,
 	}
 
-	return s.repo.RecordUserActivity(ctx, analytics)
+	if err := s.repo.RecordUserActivity(ctx, analytics); err != nil {
+		return err
+	}
+
+	event := events.DashboardEvent{
+		EventType: "user_activity",
+		UserID:    input.UserID,
+		EntityID:  uuid.Nil,
+		Timestamp: time.Now().UTC(),
+		Details:   map[string]interface{}{"action": input.Action},
+	}
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	}
+
+	return nil
 }
 
 func (s *service) RecordSessionActivity(ctx context.Context, input RecordSessionActivityInput) error {
