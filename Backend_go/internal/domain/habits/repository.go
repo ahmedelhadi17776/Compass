@@ -100,6 +100,11 @@ func (r *repository) FindAll(ctx context.Context, filter HabitFilter) ([]Habit, 
 		return nil, 0, err
 	}
 
+	// Set default PageSize if not set
+	if filter.PageSize == 0 {
+		filter.PageSize = 10000
+	}
+
 	err = query.Offset(filter.Page * filter.PageSize).
 		Limit(filter.PageSize).
 		Find(&habits).Error

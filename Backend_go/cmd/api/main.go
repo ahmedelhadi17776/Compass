@@ -291,6 +291,11 @@ func main() {
 	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)
 	mcpRoutes := mcp.NewRoutes(mcpHandler)
 
+	// Initialize dashboard handler and routes
+	dashboardHandler := handlers.NewDashboardHandler(habitsService, taskService, todosService, calendarService, userService)
+	dashboardRoutes := routes.NewDashboardRoutes(dashboardHandler, cfg.Auth.JWTSecret)
+	dashboardRoutes.RegisterRoutes(router)
+
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
 
