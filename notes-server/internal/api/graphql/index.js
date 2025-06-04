@@ -7,6 +7,7 @@ const canvasQueries = require('./resolvers/canvasQueries');
 const canvasMutations = require('./resolvers/canvasMutations');
 const { noteSubscriptionFields } = require('./schemas/noteTypes');
 const { journalSubscriptionFields } = require('./schemas/journalTypes');
+const { dashboardMetrics } = require('./resolvers/dashboardQueries');
 
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
@@ -14,7 +15,8 @@ const schema = new GraphQLSchema({
     fields: {
       ...notePageQueries,
       ...journalQueries,
-      ...canvasQueries
+      ...canvasQueries,
+      dashboardMetrics
     }
   }),
   mutation: new GraphQLObjectType({

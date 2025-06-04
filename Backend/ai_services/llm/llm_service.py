@@ -87,7 +87,7 @@ class LLMService:
                     quota_limit=settings.llm_quota_limit,
                     quota_reset_interval=settings.llm_quota_reset_interval
                 )
-                self._current_model_id = model.id
+                self._current_model_id = model.id if model else None
                 logger.info(
                     f"Created new model in MongoDB with ID: {self._current_model_id}")
 
@@ -99,9 +99,13 @@ class LLMService:
 
     async def _calculate_costs(self, input_tokens: int, output_tokens: int) -> Tuple[float, float, float]:
         """Calculate costs based on token counts."""
-        # Get pricing from cost manager
-        input_cost = await self.cost_manager.calculate_input_cost(self.model, input_tokens)
-        output_cost = await self.cost_manager.calculate_output_cost(self.model, output_tokens)
+        await self.ensure_model_initialized()
+        model_id = self._current_model_id if self._current_model_id is not None else ""
+        if not model_id:
+            logger.error("No valid model_id for cost calculation.")
+            return 0.0, 0.0, 0.0
+        input_cost = await self.cost_manager.calculate_input_cost(model_id, input_tokens)
+        output_cost = await self.cost_manager.calculate_output_cost(model_id, output_tokens)
         total_cost = input_cost + output_cost
         return input_cost, output_cost, total_cost
 
@@ -153,14 +157,12 @@ class LLMService:
 
         try:
             # Ensure we have a valid model ID
-            if not self._current_model_id:
-                await self.ensure_model_initialized()
-
+            await self.ensure_model_initialized()
             if not self._current_model_id:
                 logger.error("No model ID available for quota check")
                 return True, "Error: No model ID available"
 
-            # Check quota using cost manager
+            # Check quota using cost manager (use MongoDB model ID)
             return await self.cost_manager.check_quota(
                 user_id=user_id,
                 model_id=self._current_model_id,
@@ -188,17 +190,20 @@ class LLMService:
     ) -> None:
         """Update model usage statistics."""
         try:
+            await self.ensure_model_initialized()
             # Ensure user_id is a string and not None
             if user_id is None:
                 user_id = "unknown"
             else:
                 user_id = str(user_id)
-            # Calculate costs
+            # Calculate costs (use MongoDB model ID)
             input_cost, output_cost, total_cost = await self._calculate_costs(input_tokens, output_tokens)
 
             # Create tracking entry
             tracking_entry = {
-                "model_id": self._current_model_id,
+                "model_id": self._current_model_id,  # MongoDB model ID
+                # Model name (e.g., "gpt-4")
+                "model_name": self.model,
                 "user_id": user_id,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
@@ -292,7 +297,7 @@ class LLMService:
                 # Calculate token counts
                 input_tokens = sum(len(str(msg["content"]).split()) for msg in messages if isinstance(
                     msg, dict) and "content" in msg)
-                output_tokens = len(str(result["text"]).split())
+                output_tokens = len(str(result["text"].split()))
 
                 # Update stats and log training data
                 latency = time.time() - start_time
@@ -346,6 +351,9 @@ class LLMService:
         input_tokens = 0
         output_tokens = 0
 
+        # Ensure model is initialized and model_id is set
+        await self.ensure_model_initialized()
+
         try:
             # Calculate input tokens
             for message in messages:
@@ -395,19 +403,31 @@ class LLMService:
 
             # Update model stats with token counts and costs
             latency = time.time() - start_time
-            await self._update_model_stats(
-                latency=latency,
-                success=success,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                request_id=request_id or str(uuid.uuid4()),
-                user_id=user_id,
-                session_id=session_id,
-                endpoint=endpoint,
-                client_ip=client_ip,
-                user_agent=user_agent,
-                organization_id=organization_id
-            )
+            # Use the correct model_id for cost calculation
+            input_cost, output_cost, total_cost = await self._calculate_costs(input_tokens, output_tokens)
+            tracking_entry = {
+                "model_id": self._current_model_id,  # MongoDB model ID
+                # Model name (e.g., "gpt-4")
+                "model_name": self.model,
+                "user_id": user_id,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_cost": total_cost,
+                "success": success,
+                "request_id": request_id or str(uuid.uuid4()),
+                "timestamp": datetime.utcnow(),
+                "metadata": {
+                    "session_id": session_id,
+                    "endpoint": endpoint,
+                    "client_ip": client_ip,
+                    "user_agent": user_agent,
+                    "organization_id": organization_id,
+                    "latency": latency
+                }
+            }
+            await self.mongo_client.cost_tracking_repo.create_tracking_entry(tracking_entry)
 
         except Exception as e:
             success = False
@@ -416,19 +436,29 @@ class LLMService:
 
             # Update model stats with failure
             latency = time.time() - start_time
-            await self._update_model_stats(
-                latency=latency,
-                success=success,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                request_id=request_id or str(uuid.uuid4()),
-                user_id=user_id,
-                session_id=session_id,
-                endpoint=endpoint,
-                client_ip=client_ip,
-                user_agent=user_agent,
-                organization_id=organization_id
-            )
+            input_cost, output_cost, total_cost = await self._calculate_costs(input_tokens, output_tokens)
+            tracking_entry = {
+                "model_id": self._current_model_id,
+                "model_name": self.model,
+                "user_id": user_id,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_cost": total_cost,
+                "success": False,
+                "request_id": request_id or str(uuid.uuid4()),
+                "timestamp": datetime.utcnow(),
+                "metadata": {
+                    "session_id": session_id,
+                    "endpoint": endpoint,
+                    "client_ip": client_ip,
+                    "user_agent": user_agent,
+                    "organization_id": organization_id,
+                    "latency": latency
+                }
+            }
+            await self.mongo_client.cost_tracking_repo.create_tracking_entry(tracking_entry)
 
     async def _create_error_generator(self, error_message: str) -> AsyncIterator[str]:
         """Create an error response generator."""

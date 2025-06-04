@@ -8,7 +8,9 @@ import (
 
 	"encoding/json"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/mfa"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -92,6 +94,13 @@ type MFASetupResponse struct {
 	BackupCodes  []string `json:"backup_codes,omitempty"`
 }
 
+// Define UserDashboardMetrics struct for dashboard metrics aggregation
+// UserDashboardMetrics represents summary metrics for the dashboard
+// Used by GetDashboardMetrics
+type UserDashboardMetrics struct {
+	ActivitySummary map[string]int
+}
+
 // Service interface
 type Service interface {
 	CreateUser(ctx context.Context, input CreateUserInput) (*User, error)
@@ -121,19 +130,24 @@ type Service interface {
 	ValidateMFACode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
 	DisableMFA(ctx context.Context, userID uuid.UUID, password string) error
 	IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
+
+	// New method
+	GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, error)
 }
 
 type service struct {
 	repo         Repository
 	rolesService roles.Service
 	mfaService   mfa.Service
+	redis        *cache.RedisClient
 }
 
-func NewService(repo Repository, rolesService roles.Service) Service {
+func NewService(repo Repository, rolesService roles.Service, redis *cache.RedisClient) Service {
 	return &service{
 		repo:         repo,
 		rolesService: rolesService,
 		mfaService:   mfa.NewService("Compass"),
+		redis:        redis,
 	}
 }
 
@@ -685,7 +699,22 @@ func (s *service) RecordUserActivity(ctx context.Context, input RecordUserActivi
 		Metadata:  metadata,
 	}
 
-	return s.repo.RecordUserActivity(ctx, analytics)
+	if err := s.repo.RecordUserActivity(ctx, analytics); err != nil {
+		return err
+	}
+
+	event := events.DashboardEvent{
+		EventType: "user_activity",
+		UserID:    input.UserID,
+		EntityID:  uuid.Nil,
+		Timestamp: time.Now().UTC(),
+		Details:   map[string]interface{}{"action": input.Action},
+	}
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	}
+
+	return nil
 }
 
 func (s *service) RecordSessionActivity(ctx context.Context, input RecordSessionActivityInput) error {
@@ -976,4 +1005,21 @@ func (s *service) IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, err
 	}
 
 	return user.MFAEnabled, nil
+}
+
+// GetDashboardMetrics returns dashboard metrics for a user
+func (s *service) GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, error) {
+	ctx := context.Background()
+	// count logins and actions from activity logs
+	logins, err := s.repo.CountLogins(ctx, userID)
+	if err != nil {
+		return UserDashboardMetrics{}, err
+	}
+	actions, err := s.repo.CountActions(ctx, userID)
+	if err != nil {
+		return UserDashboardMetrics{}, err
+	}
+	return UserDashboardMetrics{
+		ActivitySummary: map[string]int{"logins": logins, "actions": actions},
+	}, nil
 }
