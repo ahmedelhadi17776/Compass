@@ -52,7 +52,20 @@ class CanvasService {
   }
   async getCanvas(id, selectedFields = '', currentUserId = null) {
     if (!id) throw new ValidationError('Canvas ID is required', 'id');
-    const canvas = await Canvas.findOne({ _id: id, isDeleted: false }).select(selectedFields || '').lean();
+    const canvas = await Canvas.findOne({ _id: id, isDeleted: false })
+      .populate({
+        path: 'nodes',
+        match: { isDeleted: false },
+        select: 'type data position style label'
+      })
+      .populate({
+        path: 'edges',
+        match: { isDeleted: false },
+        select: 'source target type data style label'
+      })
+      .select(selectedFields || '')
+      .lean();
+    
     if (!canvas) throw new NotFoundError('Canvas');
     // if (currentUserId && canvas.userId !== currentUserId) throw new ValidationError('No access');
     return canvas;
@@ -66,10 +79,21 @@ class CanvasService {
     if (!input.position || typeof input.position.x !== 'number' || typeof input.position.y !== 'number') {
       throw new ValidationError('Position (x, y) is required', 'position');
     }
+
+    // Create the node
     const node = new CanvasNode({ ...input, userId });
     await node.save();
+
+    // Update the canvas to include this node
+    await Canvas.findByIdAndUpdate(
+      input.canvasId,
+      { $push: { nodes: node._id } },
+      { new: true }
+    );
+
     const saved = await CanvasNode.findById(node._id).select(selectedFields || '').lean();
     await redisClient.setEntity('canvasNode', node._id.toString(), saved, [userId], userId);
+    
     // Publish event
     pubsub.publish('CANVAS_NODE_CREATED', { canvasNodeCreated: { success: true, data: saved }, userId });
     return saved;
@@ -119,8 +143,18 @@ class CanvasService {
     if (!userId) throw new ValidationError('User ID is required', 'userId');
     if (!input.canvasId) throw new ValidationError('Canvas ID is required', 'canvasId');
     if (!input.source || !input.target) throw new ValidationError('Source and target required', 'source/target');
+    
+    // Create the edge
     const edge = new CanvasEdge({ ...input, userId });
     await edge.save();
+
+    // Update the canvas to include this edge
+    await Canvas.findByIdAndUpdate(
+      input.canvasId,
+      { $push: { edges: edge._id } },
+      { new: true }
+    );
+
     const saved = await CanvasEdge.findById(edge._id).select(selectedFields || '').lean();
     await redisClient.setEntity('canvasEdge', edge._id.toString(), saved, [userId], userId);
     // Publish event

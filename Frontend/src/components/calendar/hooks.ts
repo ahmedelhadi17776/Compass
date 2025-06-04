@@ -28,7 +28,10 @@ export const useEvents = (
   return useQuery<CalendarEvent[]>({
     queryKey: ['events', user?.id, startTime, endTime, viewType],
     queryFn: () => user ? fetchEvents(startTime, endTime) : Promise.resolve([]),
-    enabled: !!user,
+    enabled: !!user,  
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnMount: true
   });
 };
 
