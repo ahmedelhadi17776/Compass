@@ -583,12 +583,3 @@ func (r *RedisClient) ExportMetrics() map[string]float64 {
 func (r *RedisClient) GetClient() *redis.Client {
 	return r.client
 }
-
-// PublishEvent publishes a JSON-encoded event to the specified Redis channel
-func (r *RedisClient) PublishEvent(ctx context.Context, channel string, payload interface{}) error {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return r.client.Publish(ctx, channel, data).Err()
-}

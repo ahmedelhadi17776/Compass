@@ -13,7 +13,6 @@ structlog==24.1.0
 httpx==0.28.1
 mcp==1.6.0
 starlette==0.46.2
-strawberry-graphql[fastapi]
 
 # AI and Machine Learning
 sentence-transformers==2.2.2
@@ -46,6 +45,3 @@ PyJWT==2.8.0
 redis==5.0.4
 
 chromadb==0.4.22
-
-aioredis
-gql[all]

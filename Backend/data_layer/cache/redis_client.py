@@ -4,7 +4,6 @@ from core.config import settings
 import logging
 import json
 from difflib import SequenceMatcher
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -96,34 +95,3 @@ async def get_cache_stats() -> Dict[str, Any]:
             "connected_clients": 0,
             "uptime_days": 0
         }
-
-
-class RedisPubSubClient:
-    def __init__(self):
-        self.redis_url = settings.redis_url
-        self._redis = None
-
-    async def get_redis(self):
-        if self._redis is None:
-            self._redis = await redis.from_url(self.redis_url, decode_responses=True, db=1)
-        return self._redis
-
-    async def subscribe(self, channel_name, callback):
-        redis_conn = await self.get_redis()
-        pubsub = redis_conn.pubsub()
-        await pubsub.subscribe(channel_name)
-        async for message in pubsub.listen():
-            if message['type'] == 'message':
-                try:
-                    event = json.loads(message['data'])
-                    await callback(event)
-                except Exception as e:
-                    print(f"Error handling dashboard event: {e}")
-
-    async def close(self):
-        if self._redis:
-            await self._redis.close()
-            self._redis = None
-
-
-redis_pubsub_client = RedisPubSubClient()

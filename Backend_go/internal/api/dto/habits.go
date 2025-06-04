@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/google/uuid"
 )
 
@@ -119,4 +120,37 @@ type HabitActivitySummaryResponse struct {
 	StartTime    time.Time      `json:"start_time"`
 	EndTime      time.Time      `json:"end_time"`
 	TotalActions int            `json:"total_actions"`
+}
+
+// Convert domain model to response DTO
+func HabitToResponse(h *habits.Habit) *HabitResponse {
+	return &HabitResponse{
+		ID:                h.ID,
+		UserID:            h.UserID,
+		Title:             h.Title,
+		Description:       h.Description,
+		StartDay:          h.StartDay,
+		EndDay:            h.EndDay,
+		CurrentStreak:     h.CurrentStreak,
+		StreakStartDate:   h.StreakStartDate,
+		LongestStreak:     h.LongestStreak,
+		IsCompleted:       h.IsCompleted,
+		LastCompletedDate: h.LastCompletedDate,
+		CreatedAt:         h.CreatedAt,
+		UpdatedAt:         h.UpdatedAt,
+		StreakQuality:     h.StreakQuality,
+	}
+}
+
+// Convert domain model to response DTO
+func StreakHistoryToResponse(h *habits.StreakHistory) *StreakHistoryResponse {
+	return &StreakHistoryResponse{
+		ID:            h.ID,
+		HabitID:       h.HabitID,
+		StartDate:     h.StartDate,
+		EndDate:       h.EndDate,
+		StreakLength:  h.StreakLength,
+		CompletedDays: h.CompletedDays,
+		CreatedAt:     h.CreatedAt,
+	}
 }

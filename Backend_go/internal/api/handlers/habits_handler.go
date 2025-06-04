@@ -86,7 +86,7 @@ func (h *HabitsHandler) CreateHabit(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": HabitToResponse(createdHabit)})
+	c.JSON(http.StatusCreated, gin.H{"data": dto.HabitToResponse(createdHabit)})
 }
 
 // GetHabit godoc
@@ -142,7 +142,7 @@ func (h *HabitsHandler) GetHabit(c *gin.Context) {
 	// Explicitly set content type (must change it in the future)
 	c.Header("Content-Type", "application/json; charset=utf-8")
 
-	c.JSON(http.StatusOK, gin.H{"data": HabitToResponse(habit)})
+	c.JSON(http.StatusOK, gin.H{"data": dto.HabitToResponse(habit)})
 }
 
 // ListHabits godoc
@@ -211,7 +211,7 @@ func (h *HabitsHandler) ListHabits(c *gin.Context) {
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {
-		response := HabitToResponse(&habit)
+		response := dto.HabitToResponse(&habit)
 		responses[i] = *response
 	}
 
@@ -285,7 +285,7 @@ func (h *HabitsHandler) UpdateHabit(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": HabitToResponse(updatedHabit)})
+	c.JSON(http.StatusOK, gin.H{"data": dto.HabitToResponse(updatedHabit)})
 }
 
 // DeleteHabit godoc
@@ -374,7 +374,7 @@ func (h *HabitsHandler) GetStreakHistory(c *gin.Context) {
 
 	responses := make([]dto.StreakHistoryResponse, len(history))
 	for i, h := range history {
-		responses[i] = *StreakHistoryToResponse(&h)
+		responses[i] = *dto.StreakHistoryToResponse(&h)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": responses})
@@ -422,7 +422,7 @@ func (h *HabitsHandler) GetHabitsDueToday(c *gin.Context) {
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {
-		responses[i] = *HabitToResponse(&habit)
+		responses[i] = *dto.HabitToResponse(&habit)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": responses})
@@ -1163,7 +1163,7 @@ func (h *HabitsHandler) GetUserHabits(c *gin.Context) {
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {
-		responses[i] = *HabitToResponse(&habit)
+		responses[i] = *dto.HabitToResponse(&habit)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": responses})

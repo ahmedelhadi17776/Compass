@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/todos"
 	"github.com/google/uuid"
 )
 
@@ -102,6 +103,62 @@ type UserTodosResponse struct {
 	TotalCount int64           `json:"total_count"`
 	Page       int             `json:"page"`
 	PageSize   int             `json:"page_size"`
+}
+
+func TodoToResponse(t *todos.Todo) *TodoResponse {
+	return &TodoResponse{
+		ID:                    t.ID,
+		Title:                 t.Title,
+		Description:           t.Description,
+		Status:                string(t.Status),
+		Priority:              string(t.Priority),
+		DueDate:               t.DueDate,
+		ReminderTime:          t.ReminderTime,
+		IsRecurring:           t.IsRecurring,
+		RecurrencePattern:     t.RecurrencePattern,
+		Tags:                  t.Tags,
+		Checklist:             t.Checklist,
+		LinkedTaskID:          t.LinkedTaskID,
+		LinkedCalendarEventID: t.LinkedCalendarEventID,
+		IsCompleted:           t.IsCompleted,
+		CompletedAt:           t.CompletionDate,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
+		UserID:                t.UserID,
+		ListID:                t.ListID,
+	}
+}
+
+func TodosToResponse(todos []todos.Todo) []*TodoResponse {
+	response := make([]*TodoResponse, len(todos))
+	for i, t := range todos {
+		response[i] = TodoToResponse(&t)
+	}
+	return response
+}
+
+func TodoListToResponse(l *todos.TodoList) *TodoListResponse {
+	return &TodoListResponse{
+		ID:          l.ID,
+		Name:        l.Name,
+		Description: l.Description,
+		IsDefault:   l.IsDefault,
+		CreatedAt:   l.CreatedAt,
+		UpdatedAt:   l.UpdatedAt,
+		UserID:      l.UserID,
+		Todos:       TodosToResponse(l.Todos),
+		TotalCount:  int64(len(l.Todos)),
+		Page:        1,
+		PageSize:    20,
+	}
+}
+
+func TodoListsToResponse(lists []todos.TodoList) []*TodoListResponse {
+	response := make([]*TodoListResponse, len(lists))
+	for i, l := range lists {
+		response[i] = TodoListToResponse(&l)
+	}
+	return response
 }
 
 type UpdateTodoStatusRequest struct {

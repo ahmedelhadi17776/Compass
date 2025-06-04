@@ -55,8 +55,6 @@ type Repository interface {
 	GetUserAnalytics(ctx context.Context, filter AnalyticsFilter) ([]UserAnalytics, int64, error)
 	GetSessionAnalytics(ctx context.Context, filter AnalyticsFilter) ([]SessionAnalytics, int64, error)
 	GetUserActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (map[string]int, error)
-	CountLogins(ctx context.Context, userID uuid.UUID) (int, error)
-	CountActions(ctx context.Context, userID uuid.UUID) (int, error)
 }
 
 type repository struct {
@@ -287,22 +285,4 @@ func (r *repository) GetUserActivitySummary(ctx context.Context, userID uuid.UUI
 	}
 
 	return summary, nil
-}
-
-func (r *repository) CountLogins(ctx context.Context, userID uuid.UUID) (int, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&UserAnalytics{}).
-		Where("user_id = ? AND action = ?", userID, "login_success").
-		Count(&count).Error
-	return int(count), err
-}
-
-func (r *repository) CountActions(ctx context.Context, userID uuid.UUID) (int, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&UserAnalytics{}).
-		Where("user_id = ?", userID).
-		Count(&count).Error
-	return int(count), err
 }

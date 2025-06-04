@@ -118,11 +118,6 @@ func (r *taskRepository) FindAll(ctx context.Context, filter TaskFilter) ([]Task
 		return nil, 0, err
 	}
 
-	// Set default PageSize if not set
-	if filter.PageSize == 0 {
-		filter.PageSize = 10000
-	}
-
 	// Apply pagination
 	query = query.Offset(filter.Page * filter.PageSize).Limit(filter.PageSize)
 

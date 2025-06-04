@@ -77,8 +77,8 @@
 }
 
 .ai-message-bubble.user {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background-color: white;
+  color: black;
   margin-left: 16px;
 }
 
@@ -98,13 +98,13 @@
 }
 
 .ai-avatar.user {
-  background-color: hsl(var(--primary-foreground));
-  color: hsl(var(--primary));
+  background-color: black;
+  color: white;
 }
 
 .ai-avatar.assistant {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background-color: white;
+  color: black;
 }
 
 .ai-message-content {
@@ -145,7 +145,7 @@
 
 .ai-message-text a {
   text-decoration: underline;
-  color: hsl(var(--primary));
+  color: black;
 }
 
 .ai-message-text a:hover {
@@ -182,7 +182,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: hsl(var(--primary));
+  background-color: white;
   opacity: 0.6;
   animation: bounce 1.4s infinite ease-in-out;
 }
@@ -224,8 +224,8 @@
 }
 
 .ai-chat-input:focus {
-  border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
+  border-color: white;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
 }
 
 .ai-chat-input:disabled {
@@ -241,15 +241,15 @@
   padding: 0 16px;
   height: 40px;
   border-radius: 8px;
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background-color: white;
+  color: black;
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .ai-send-button:hover:not(:disabled) {
-  background-color: hsl(var(--primary)/0.9);
+  background-color: white;
   transform: translateY(-1px);
 }
 
@@ -343,7 +343,7 @@
     border-right-color: transparent;
   }
   50% {
-    border-right-color: hsl(var(--primary));
+    border-right-color: black;
   }
 }
 

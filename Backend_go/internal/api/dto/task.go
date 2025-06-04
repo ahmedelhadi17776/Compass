@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/google/uuid"
 )
 
@@ -88,6 +89,39 @@ type TaskFilterRequest struct {
 	Page           int       `form:"page" example:"1"`
 	PageSize       int       `form:"page_size" example:"20"`
 }
+
+// Convert domain Task to TaskResponse
+func TaskToResponse(t *task.Task) *TaskResponse {
+	return &TaskResponse{
+		ID:             t.ID,
+		Title:          t.Title,
+		Description:    t.Description,
+		Status:         string(t.Status),
+		Priority:       string(t.Priority),
+		CreatedAt:      t.CreatedAt,
+		UpdatedAt:      t.UpdatedAt,
+		CreatorID:      t.CreatorID,
+		AssigneeID:     t.AssigneeID,
+		ReviewerID:     t.ReviewerID,
+		CategoryID:     t.CategoryID,
+		ParentTaskID:   t.ParentTaskID,
+		ProjectID:      t.ProjectID,
+		OrganizationID: t.OrganizationID,
+		EstimatedHours: t.EstimatedHours,
+		StartDate:      t.StartDate,
+		Duration:       t.Duration,
+		DueDate:        t.DueDate,
+	}
+}
+
+func TasksToResponse(tasks []task.Task) []*TaskResponse {
+	response := make([]*TaskResponse, len(tasks))
+	for i, t := range tasks {
+		response[i] = TaskToResponse(&t)
+	}
+	return response
+}
+
 
 // UpdateTaskStatusRequest represents the request body for updating a task's status
 type UpdateTaskStatusRequest struct {

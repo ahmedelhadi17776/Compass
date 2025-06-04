@@ -36,7 +36,6 @@ type Service interface {
 	ListEventsSharedWithMe(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error)
 	RespondToEventInvite(ctx context.Context, eventID, userID uuid.UUID, accept bool) error
 	GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error)
-	GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetrics, error)
 }
 
 type service struct {
@@ -47,14 +46,6 @@ type service struct {
 // NewService creates a new calendar service instance
 func NewService(repo Repository, notifier notification.DomainNotifier) Service {
 	return &service{repo: repo, notifier: notifier}
-}
-
-// Define CalendarDashboardMetrics struct for dashboard metrics aggregation
-// CalendarDashboardMetrics represents summary metrics for the dashboard
-// Used by GetDashboardMetrics
-type CalendarDashboardMetrics struct {
-	Upcoming int
-	Total    int
 }
 
 func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventRequest, userID uuid.UUID) (*CalendarEvent, error) {
@@ -1030,25 +1021,4 @@ func (s *service) RespondToEventInvite(ctx context.Context, eventID, userID uuid
 
 func (s *service) GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error) {
 	return s.repo.GetCollaborator(ctx, eventID, userID)
-}
-
-func (s *service) GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetrics, error) {
-	ctx := context.Background()
-	filter := EventFilter{UserID: userID}
-	events, _, err := s.repo.FindAll(ctx, filter)
-	if err != nil {
-		return CalendarDashboardMetrics{}, err
-	}
-	total := len(events)
-	upcoming := 0
-	now := time.Now()
-	for _, e := range events {
-		if e.StartTime.After(now) {
-			upcoming++
-		}
-	}
-	return CalendarDashboardMetrics{
-		Upcoming: upcoming,
-		Total:    total,
-	}, nil
 }

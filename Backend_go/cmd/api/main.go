@@ -220,17 +220,17 @@ func main() {
 
 	// Initialize services
 	rolesService := roles.NewService(rolesRepo)
-	userService := user.NewService(userRepo, rolesService, redisClient)
-	taskService := task.NewService(taskRepo, redisClient)
+	userService := user.NewService(userRepo, rolesService)
+	taskService := task.NewService(taskRepo)
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
-	habitsService := habits.NewService(habitsRepo, habitNotifySvc, redisClient)
+	habitsService := habits.NewService(habitsRepo, habitNotifySvc)
 	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
 		Repository: workflowRepo,
 		Logger:     workflowLogger,
 	})
-	todosService := todos.NewService(todosRepo, redisClient)
+	todosService := todos.NewService(todosRepo)
 
 	// Initialize OAuth2 service
 	oauthService := auth.NewOAuthService(cfg)
@@ -290,11 +290,6 @@ func main() {
 	// Initialize MCP handler and routes
 	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)
 	mcpRoutes := mcp.NewRoutes(mcpHandler)
-
-	// Initialize dashboard handler and routes
-	dashboardHandler := handlers.NewDashboardHandler(habitsService, taskService, todosService, calendarService, userService)
-	dashboardRoutes := routes.NewDashboardRoutes(dashboardHandler, cfg.Auth.JWTSecret)
-	dashboardRoutes.RegisterRoutes(router)
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")

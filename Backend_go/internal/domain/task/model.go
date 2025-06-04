@@ -199,10 +199,3 @@ func (t *Task) BeforeUpdate(tx *gorm.DB) error {
 	t.UpdatedAt = time.Now()
 	return t.Validate()
 }
-
-func (t *Task) DashboardUserID() uuid.UUID {
-	if t.AssigneeID != nil {
-		return *t.AssigneeID
-	}
-	return t.CreatorID
-}

@@ -5,7 +5,8 @@ const {
   GraphQLList,
   GraphQLBoolean,
   GraphQLInputObjectType,
-  GraphQLInt
+  GraphQLInt,
+  GraphQLFloat
 } = require('graphql');
 const { createResponseType } = require('./responseTypes');
 const { PermissionLevelEnum, PermissionInput, PermissionType } = require('./permissionTypes');
@@ -13,8 +14,8 @@ const { PermissionLevelEnum, PermissionInput, PermissionType } = require('./perm
 const NodePositionInput = new GraphQLInputObjectType({
   name: 'NodePositionInput',
   fields: {
-    x: { type: GraphQLInt },
-    y: { type: GraphQLInt }
+    x: { type: GraphQLFloat },
+    y: { type: GraphQLFloat }
   }
 });
 
@@ -66,8 +67,8 @@ const CanvasNodeType = new GraphQLObjectType({
       type: new GraphQLObjectType({
         name: 'NodePosition',
         fields: {
-          x: { type: GraphQLInt },
-          y: { type: GraphQLInt }
+          x: { type: GraphQLFloat },
+          y: { type: GraphQLFloat }
         }
       }),
       resolve: (parent) => parent.position

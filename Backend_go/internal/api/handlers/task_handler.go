@@ -110,7 +110,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": TaskToResponse(createdTask)})
+	c.JSON(http.StatusCreated, gin.H{"data": dto.TaskToResponse(createdTask)})
 }
 
 // GetTask godoc
@@ -144,7 +144,7 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": TaskToResponse(tsk)})
+	c.JSON(http.StatusOK, gin.H{"data": dto.TaskToResponse(tsk)})
 }
 
 // ListTasks godoc
@@ -232,7 +232,7 @@ func (h *TaskHandler) ListTasks(c *gin.Context) {
 	// Convert tasks to response DTOs
 	taskResponses := make([]dto.TaskResponse, len(tasks))
 	for i, t := range tasks {
-		response := TaskToResponse(&t)
+		response := dto.TaskToResponse(&t)
 		taskResponses[i] = *response
 	}
 
@@ -333,7 +333,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": TaskToResponse(updatedTask)})
+	c.JSON(http.StatusOK, gin.H{"data": dto.TaskToResponse(updatedTask)})
 }
 
 // DeleteTask godoc
@@ -421,7 +421,7 @@ func (h *TaskHandler) GetProjectTasks(c *gin.Context) {
 	// Convert tasks to response DTOs
 	taskResponses := make([]dto.TaskResponse, len(tasks))
 	for i, t := range tasks {
-		response := TaskToResponse(&t)
+		response := dto.TaskToResponse(&t)
 		taskResponses[i] = *response
 	}
 
@@ -496,7 +496,7 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": TaskToResponse(updatedTask)})
+	c.JSON(http.StatusOK, gin.H{"data": dto.TaskToResponse(updatedTask)})
 }
 
 // AssignTask godoc
@@ -558,7 +558,7 @@ func (h *TaskHandler) AssignTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": TaskToResponse(updatedTask)})
+	c.JSON(http.StatusOK, gin.H{"data": dto.TaskToResponse(updatedTask)})
 }
 
 // GetTaskAnalytics godoc

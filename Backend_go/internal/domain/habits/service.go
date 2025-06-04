@@ -9,8 +9,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
 )
 
@@ -46,20 +44,17 @@ type Service interface {
 	GetUserHabitAnalytics(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time, page, pageSize int) ([]HabitAnalytics, int64, error)
 	GetHabitActivitySummary(ctx context.Context, habitID uuid.UUID, startTime, endTime time.Time) (*HabitActivitySummary, error)
 	GetUserHabitActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (*UserHabitActivitySummary, error)
-	GetDashboardMetrics(userID uuid.UUID) (HabitsDashboardMetrics, error)
 }
 
 type service struct {
 	repo      Repository
 	notifySvc *HabitNotificationService
-	redis     *cache.RedisClient
 }
 
-func NewService(repo Repository, notifySvc *HabitNotificationService, redis *cache.RedisClient) Service {
+func NewService(repo Repository, notifySvc *HabitNotificationService) Service {
 	return &service{
 		repo:      repo,
 		notifySvc: notifySvc,
-		redis:     redis,
 	}
 }
 
@@ -297,17 +292,6 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 		}
 	}
 
-	// After successful completion, publish event
-	event := events.DashboardEvent{
-		EventType: "habit_completed",
-		UserID:    userID,
-		EntityID:  id,
-		Timestamp: time.Now().UTC(),
-	}
-	if s.redis != nil {
-		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
-	}
-
 	return nil
 }
 
@@ -358,6 +342,7 @@ func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid
 
 	// Store current streak before unmarking
 	currentStreak := habit.CurrentStreak
+
 
 	lastCompletedDate := time.Now()
 	if habit.LastCompletedDate != nil {
@@ -736,44 +721,5 @@ func (s *service) GetUserHabitActivitySummary(ctx context.Context, userID uuid.U
 		StartTime:    startTime,
 		EndTime:      endTime,
 		TotalActions: totalActions,
-	}, nil
-}
-
-// Define HabitsDashboardMetrics struct for dashboard metrics aggregation
-// HabitsDashboardMetrics represents summary metrics for the dashboard
-// Used by GetDashboardMetrics
-type HabitsDashboardMetrics struct {
-	Total     int
-	Active    int
-	Completed int
-	Streak    int
-}
-
-func (s *service) GetDashboardMetrics(userID uuid.UUID) (HabitsDashboardMetrics, error) {
-	ctx := context.Background()
-	filter := HabitFilter{UserID: &userID}
-	habits, _, err := s.repo.FindAll(ctx, filter)
-	if err != nil {
-		return HabitsDashboardMetrics{}, err
-	}
-	total := len(habits)
-	active := 0
-	completed := 0
-	streak := 0
-	for _, h := range habits {
-		if h.IsCompleted {
-			completed++
-		} else {
-			active++
-		}
-		if h.CurrentStreak > streak {
-			streak = h.CurrentStreak
-		}
-	}
-	return HabitsDashboardMetrics{
-		Total:     total,
-		Active:    active,
-		Completed: completed,
-		Streak:    streak,
 	}, nil
 }
