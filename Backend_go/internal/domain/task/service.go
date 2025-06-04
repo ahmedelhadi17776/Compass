@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
 )
 
@@ -113,11 +115,12 @@ type TasksDashboardMetrics struct {
 // Repository interface
 
 type service struct {
-	repo TaskRepository
+	repo  TaskRepository
+	redis *cache.RedisClient // Injected for event publishing
 }
 
-func NewService(repo TaskRepository) Service {
-	return &service{repo: repo}
+func NewService(repo TaskRepository, redis *cache.RedisClient) Service {
+	return &service{repo: repo, redis: redis}
 }
 
 func (s *service) CreateTask(ctx context.Context, input CreateTaskInput) (*Task, error) {
@@ -423,6 +426,18 @@ func (s *service) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status Tas
 			Metadata:  metadata,
 		}
 		_ = s.repo.RecordTaskActivity(ctx, analytics)
+	}
+
+	// After successful update, publish event
+	event := events.DashboardEvent{
+		EventType: "task_status_updated",
+		UserID:    task.DashboardUserID(), 
+		EntityID:  id,
+		Timestamp: time.Now().UTC(),
+		Details:   map[string]interface{}{"status": status},
+	}
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
 	}
 
 	return task, nil

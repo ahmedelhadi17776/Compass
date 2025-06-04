@@ -9,6 +9,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
 )
 
@@ -50,12 +52,14 @@ type Service interface {
 type service struct {
 	repo      Repository
 	notifySvc *HabitNotificationService
+	redis     *cache.RedisClient
 }
 
-func NewService(repo Repository, notifySvc *HabitNotificationService) Service {
+func NewService(repo Repository, notifySvc *HabitNotificationService, redis *cache.RedisClient) Service {
 	return &service{
 		repo:      repo,
 		notifySvc: notifySvc,
+		redis:     redis,
 	}
 }
 
@@ -291,6 +295,17 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 				log.Printf("failed to send habit streak notification: %v", err)
 			}
 		}
+	}
+
+	// After successful completion, publish event
+	event := events.DashboardEvent{
+		EventType: "habit_completed",
+		UserID:    userID,
+		EntityID:  id,
+		Timestamp: time.Now().UTC(),
+	}
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
 	}
 
 	return nil
