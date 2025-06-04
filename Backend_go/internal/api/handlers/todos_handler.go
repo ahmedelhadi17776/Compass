@@ -102,7 +102,7 @@ func (h *TodoHandler) CreateTodo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": dto.TodoToResponse(createdTodo)})
+	c.JSON(http.StatusCreated, gin.H{"data": TodoToResponse(createdTodo)})
 }
 
 // GetTodo godoc
@@ -136,7 +136,7 @@ func (h *TodoHandler) GetTodo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoToResponse(todo)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoToResponse(todo)})
 }
 
 // ListTodos godoc
@@ -207,7 +207,7 @@ func (h *TodoHandler) ListTodos(c *gin.Context) {
 	}
 
 	response := dto.TodoListResponse{
-		Todos:      dto.TodosToResponse(todosList),
+		Todos:      TodosToResponse(todosList),
 		TotalCount: total,
 		Page:       page,
 		PageSize:   pageSize,
@@ -299,7 +299,7 @@ func (h *TodoHandler) UpdateTodo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoToResponse(updatedTodo)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoToResponse(updatedTodo)})
 }
 
 // DeleteTodo godoc
@@ -382,7 +382,7 @@ func (h *TodoHandler) UpdateTodoStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoToResponse(updatedTodo)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoToResponse(updatedTodo)})
 }
 
 // UpdateTodoPriority godoc
@@ -431,7 +431,7 @@ func (h *TodoHandler) UpdateTodoPriority(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoToResponse(updatedTodo)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoToResponse(updatedTodo)})
 }
 
 // CompleteTodo godoc
@@ -465,7 +465,7 @@ func (h *TodoHandler) CompleteTodo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoToResponse(updatedTodo)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoToResponse(updatedTodo)})
 }
 
 // UncompleteTodo godoc
@@ -499,7 +499,7 @@ func (h *TodoHandler) UncompleteTodo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoToResponse(updatedTodo)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoToResponse(updatedTodo)})
 }
 
 // CreateTodoList godoc
@@ -546,7 +546,7 @@ func (h *TodoHandler) CreateTodoList(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": dto.TodoListToResponse(todoList)})
+	c.JSON(http.StatusCreated, gin.H{"data": TodoListToResponse(todoList)})
 }
 
 // GetTodosByUser godoc
@@ -589,7 +589,7 @@ func (h *TodoHandler) GetTodosByUser(c *gin.Context) {
 	}
 
 	response := dto.UserTodosResponse{
-		Todos:      dto.TodosToResponse(todos),
+		Todos:      TodosToResponse(todos),
 		TotalCount: int64(len(todos)),
 		Page:       1,
 		PageSize:   len(todos),
@@ -629,7 +629,7 @@ func (h *TodoHandler) GetTodoList(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoListToResponse(list)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoListToResponse(list)})
 }
 
 // GetAllTodoLists godoc
@@ -661,7 +661,7 @@ func (h *TodoHandler) GetAllTodoLists(c *gin.Context) {
 		Lists: make([]dto.TodoListResponse, len(lists)),
 	}
 	for i, list := range lists {
-		response.Lists[i] = *dto.TodoListToResponse(&list)
+		response.Lists[i] = *TodoListToResponse(&list)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})
@@ -705,7 +705,7 @@ func (h *TodoHandler) UpdateTodoList(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.TodoListToResponse(list)})
+	c.JSON(http.StatusOK, gin.H{"data": TodoListToResponse(list)})
 }
 
 // DeleteTodoList godoc

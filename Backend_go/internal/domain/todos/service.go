@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
 )
 
@@ -26,6 +28,7 @@ type Service interface {
 	DeleteTodoList(ctx context.Context, id uuid.UUID) error
 	GetTodoList(ctx context.Context, id uuid.UUID) (*TodoList, error)
 	GetAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error)
+	GetDashboardMetrics(userID uuid.UUID) (TodosDashboardMetrics, error)
 }
 
 type CreateTodoInput struct {
@@ -75,12 +78,22 @@ type UpdateTodoListInput struct {
 	IsDefault   *bool   `json:"is_default"`
 }
 
-type service struct {
-	repo TodoRepository
+// Define TodosDashboardMetrics struct for dashboard metrics aggregation
+// TodosDashboardMetrics represents summary metrics for the dashboard
+// Used by GetDashboardMetrics
+type TodosDashboardMetrics struct {
+	Total     int
+	Completed int
+	Overdue   int
 }
 
-func NewService(repo TodoRepository) Service {
-	return &service{repo: repo}
+type service struct {
+	repo  TodoRepository
+	redis *cache.RedisClient // Injected for event publishing
+}
+
+func NewService(repo TodoRepository, redis *cache.RedisClient) Service {
+	return &service{repo: repo, redis: redis}
 }
 
 func (s *service) CreateTodo(ctx context.Context, input CreateTodoInput) (*Todo, error) {
@@ -281,6 +294,15 @@ func (s *service) CompleteTodo(ctx context.Context, id uuid.UUID) (*Todo, error)
 		return nil, err
 	}
 
+	event := events.DashboardEvent{
+		EventType: "todo_completed",
+		UserID:    todo.UserID,
+		EntityID:  id,
+		Timestamp: time.Now().UTC(),
+	}
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	}
 	return todo, nil
 }
 
@@ -353,4 +375,30 @@ func (s *service) GetTodoList(ctx context.Context, id uuid.UUID) (*TodoList, err
 
 func (s *service) GetAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error) {
 	return s.repo.FindAllTodoLists(ctx, userID)
+}
+
+func (s *service) GetDashboardMetrics(userID uuid.UUID) (TodosDashboardMetrics, error) {
+	ctx := context.Background()
+	filter := TodoFilter{UserID: &userID}
+	todos, _, err := s.repo.FindAll(ctx, filter)
+	if err != nil {
+		return TodosDashboardMetrics{}, err
+	}
+	total := len(todos)
+	completed := 0
+	overdue := 0
+	now := time.Now()
+	for _, t := range todos {
+		if t.IsCompleted {
+			completed++
+		}
+		if t.DueDate != nil && t.DueDate.Before(now) && !t.IsCompleted {
+			overdue++
+		}
+	}
+	return TodosDashboardMetrics{
+		Total:     total,
+		Completed: completed,
+		Overdue:   overdue,
+	}, nil
 }
