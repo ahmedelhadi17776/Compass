@@ -3,8 +3,9 @@ from data_layer.mongodb.connection import get_mongodb_client
 from core.config import settings
 from core.mcp_state import set_mcp_client, get_mcp_client
 from api.ai_routes import router as ai_router
-from data_layer.cache.redis_client import redis_client
+from data_layer.cache.redis_client import redis_client, redis_pubsub_client
 from data_layer.cache.pubsub_manager import pubsub_manager
+from data_layer.cache.dashboard_cache import dashboard_cache
 import pathlib
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +25,7 @@ from api.focus_routes import router as focus_router
 from api.goal_routes import router as goal_router
 from api.system_metric_routes import router as system_metric_router
 from api.cost_tracking_routes import router as cost_tracking_router
+from api.dashboard_routes import router as dashboard_router
 
 # Set up proper encoding for stdout/stderr
 try:
@@ -141,6 +143,7 @@ async def lifespan(app: FastAPI):
                 await init_mcp_server()
 
             logger.info("Application started successfully")
+            await startup_event()
             yield
     finally:
         # Cleanup resources when app shuts down
@@ -156,6 +159,7 @@ async def lifespan(app: FastAPI):
             logger.error(f"Error closing Redis connection: {str(e)}")
 
         logger.info("All resources cleaned up")
+        await shutdown_event()
 
 # Create FastAPI app with lifespan
 app = FastAPI(title="COMPASS Backend", version="1.0.0", lifespan=lifespan)
@@ -175,6 +179,7 @@ app.include_router(focus_router)
 app.include_router(goal_router)
 app.include_router(system_metric_router)
 app.include_router(cost_tracking_router)
+app.include_router(dashboard_router)
 
 # Mount static files directory only if it exists
 static_dir = pathlib.Path("static")
@@ -325,6 +330,21 @@ async def health_check():
         "redis_db": 1,  # Show which Redis DB we're using
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
+
+
+@app.on_event("startup")
+async def startup_event():
+    async def handle_dashboard_event(event):
+        await dashboard_cache.update(event)
+        await pubsub_manager.notify(event)
+    # Start the Redis subscriber in the background
+    asyncio.create_task(redis_pubsub_client.subscribe(
+        "dashboard_events", handle_dashboard_event))
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await redis_pubsub_client.close()
 
 if __name__ == "__main__":
     import uvicorn
