@@ -514,11 +514,18 @@ func (s *service) recordLoginAttempt(ctx context.Context, userID uuid.UUID, succ
 		action = "login_failure"
 	}
 
+	// Create proper JSON metadata
+	metadata := marshalMetadata(map[string]interface{}{
+		"success": success,
+		"type":    "login",
+	})
+
 	analytics := &UserAnalytics{
 		ID:        uuid.New(),
 		UserID:    userID,
 		Action:    action,
 		Timestamp: time.Now(),
+		Metadata:  metadata,
 	}
 
 	if err := s.repo.RecordUserActivity(ctx, analytics); err != nil {
@@ -1010,16 +1017,38 @@ func (s *service) IsMFAEnabled(ctx context.Context, userID uuid.UUID) (bool, err
 // GetDashboardMetrics returns dashboard metrics for a user
 func (s *service) GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, error) {
 	ctx := context.Background()
-	// count logins and actions from activity logs
-	logins, err := s.repo.CountLogins(ctx, userID)
+
+	// Get analytics for the last 30 days
+	endTime := time.Now()
+	startTime := endTime.AddDate(0, 0, -30)
+
+	// Get user analytics
+	analytics, _, err := s.repo.GetUserAnalytics(ctx, AnalyticsFilter{
+		UserID:    &userID,
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		Page:      1,
+		PageSize:  1000, // Get all analytics for the period
+	})
 	if err != nil {
 		return UserDashboardMetrics{}, err
 	}
-	actions, err := s.repo.CountActions(ctx, userID)
-	if err != nil {
-		return UserDashboardMetrics{}, err
+
+	// Initialize action counts
+	actionCounts := map[string]int{
+		"actions": 0,
+		"logins":  0,
 	}
+
+	// Count logins and other actions
+	for _, a := range analytics {
+		actionCounts["actions"]++
+		if a.Action == "login_success" {
+			actionCounts["logins"]++
+		}
+	}
+
 	return UserDashboardMetrics{
-		ActivitySummary: map[string]int{"logins": logins, "actions": actions},
+		ActivitySummary: actionCounts,
 	}, nil
 }
