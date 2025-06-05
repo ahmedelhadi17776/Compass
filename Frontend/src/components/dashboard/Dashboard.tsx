@@ -320,60 +320,63 @@ export default function Dashboard({ view }: DashboardProps) {
           </div>
         </div>
 
-                  {/* Habit Heatmap */}
-        <div className="w-[190px]">
-          <HabitHeatmap 
-            data={heatmapData}
-            loading={heatmapLoading}
-            error={heatmapError}
+        {/* Habit Heatmap and Today's Meetings */}
+        <div className="flex gap-4">
+          {/* Habit Heatmap */}
+          <div className="w-[190px]">
+            <HabitHeatmap 
+              data={heatmapData}
+              loading={heatmapLoading}
+              error={heatmapError}
             />
           </div>
 
-        {/* Today's Meetings */}
-        <Card className="col-span-3">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Today's meetings</CardTitle>
-            <Button
-              variant="ghost"
-              className="text-sm text-primary hover:text-primary/90 hover:bg-primary/10 transition-colors"
-            >
-              View all
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              {meetings.map((meeting) => (
-                <div
-                  key={meeting.id}
-                  className="rounded-lg bg-[#292a2c] p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm text-zinc-500">{meeting.period}</div>
-                      <div className="text-xl font-semibold">{meeting.time}</div>
-                    </div>
-                    {meeting.hasVideo && (
-                      <Video className="h-5 w-5 text-zinc-400" />
-                    )}
-                  </div>
-                  <div className="mt-2 text-sm text-zinc-300">
-                    {meeting.title}
-                  </div>
-                </div>
-              ))}
-              <div
-                className="flex cursor-pointer items-center justify-center rounded-lg bg-primary/10 p-4 hover:bg-primary/20 transition-colors"
+          {/* Today's Meetings */}
+          <Card className="flex-1">
+            <CardHeader className="flex flex-row items-center justify-between py-2 px-4">
+              <CardTitle className="text-lg ml-2">Today's meetings</CardTitle>
+              <Button
+                variant="ghost"
+                className="text-sm text-primary hover:text-primary/90 hover:bg-primary/10 transition-colors"
               >
-                <div className="text-center">
-                  <Plus className="mx-auto h-6 w-6 text-primary" />
-                  <div className="mt-1 text-sm text-primary">
-                    Schedule meeting
+                View all
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                {meetings.map((meeting) => (
+                  <div
+                    key={meeting.id}
+                    className="rounded-lg bg-[#292a2c] p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-zinc-500">{meeting.period}</div>
+                        <div className="text-xl font-semibold">{meeting.time}</div>
+                      </div>
+                      {meeting.hasVideo && (
+                        <Video className="h-5 w-5 text-zinc-400" />
+                      )}
+                    </div>
+                    <div className="mt-2 text-sm text-zinc-300">
+                      {meeting.title}
+                    </div>
+                  </div>
+                ))}
+                <div
+                  className="flex cursor-pointer items-center justify-center rounded-lg bg-primary/10 p-4 hover:bg-primary/20 transition-colors"
+                >
+                  <div className="text-center">
+                    <Plus className="mx-auto h-6 w-6 text-primary" />
+                    <div className="mt-1 text-sm text-primary">
+                      Schedule meeting
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Main Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -412,6 +415,26 @@ export default function Dashboard({ view }: DashboardProps) {
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Weekly Goal: {focusMetrics.weeklyGoal}min</span>
                   <span>{focusMetrics.weeklyProgress}% Progress</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Productivity Score */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Productivity Score</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <span>Today's Score</span>
+                  <span className="font-medium">{systemMetrics.productivityScore}%</span>
+                </div>
+                <Progress value={systemMetrics.productivityScore} />
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Focus Sessions: {focusMetrics.todayMinutes / 25}</span>
+                  <span>Above Average</span>
                 </div>
               </div>
             </CardContent>
