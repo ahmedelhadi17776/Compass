@@ -3,13 +3,10 @@ import { GET_NOTES, CREATE_NOTE, UPDATE_NOTE, DELETE_NOTE, NOTE_CREATED_SUBSCRIP
 import { gql } from '@apollo/client';
 import { Note, UseNotesResult } from './types';
 
-const userId = '41e15c31-5dda-43d8-aea5-2d6049936c1d';
-
 export function useNotes(): UseNotesResult {
   // Query for fetching notes
   const { data, loading, error, client } = useQuery(GET_NOTES, {
     variables: { 
-      userId,
       page: 1,
       limit: 50
     },
@@ -31,7 +28,6 @@ export function useNotes(): UseNotesResult {
 
   // Subscriptions with cache updates
   const createdSubscription = useSubscription(NOTE_CREATED_SUBSCRIPTION, {
-    variables: { userId },
     onData: ({ data }) => {
       if (data?.data?.notePageCreated?.success) {
         const newNote = data.data.notePageCreated.data;
@@ -53,7 +49,6 @@ export function useNotes(): UseNotesResult {
   });
 
   const updatedSubscription = useSubscription(NOTE_UPDATED_SUBSCRIPTION, {
-    variables: { userId },
     onData: ({ data }) => {
       if (data?.data?.notePageUpdated?.success) {
         const updatedNote = data.data.notePageUpdated.data;
@@ -77,7 +72,6 @@ export function useNotes(): UseNotesResult {
   });
 
   const deletedSubscription = useSubscription(NOTE_DELETED_SUBSCRIPTION, {
-    variables: { userId },
     onData: ({ data }) => {
       if (data?.data?.notePageDeleted?.success) {
         const deletedNoteId = data.data.notePageDeleted.data.id;
@@ -104,14 +98,13 @@ export function useNotes(): UseNotesResult {
     const optimisticNote = {
       __typename: 'NotePage',
       id: optimisticId,
-      userId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...input
     };
 
     const { data } = await createNoteMutation({
-      variables: { input: { ...input, userId } },
+      variables: { input },
       optimisticResponse: {
         createNotePage: {
           success: true,
@@ -228,7 +221,7 @@ export function useNotes(): UseNotesResult {
       refetchQueries: [
         {
           query: GET_NOTES,
-          variables: { userId, page: 1 }
+          variables: { page: 1 }
         }
       ]
     });

@@ -305,7 +305,7 @@ const EventForm: React.FC<EventFormProps> = ({ task, onClose, userId }) => {
         ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
       >
         <div className={`bg-card rounded-lg shadow-xl w-full max-w-4xl p-6 relative 
-          ${isClosing ? 'animate-slide-out' : 'animate-slide-in'}`}
+          ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
         >
           <button
             onClick={handleClose}
