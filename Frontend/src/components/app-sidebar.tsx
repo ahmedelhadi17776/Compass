@@ -5,14 +5,14 @@ import {
   LayoutDashboard,
   Brain,
   Timer,
+  FolderSearch,
   ListTodo,
   AudioWaveform,
   Command,
   GalleryVerticalEnd,
   Calendar,
+  Activity,
   StickyNote,
-  Share2,
-  Eye,
 } from "lucide-react"
 
 import { NavMain } from "../components/nav-main"
@@ -85,14 +85,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         icon: Command,
       },
       {
-        title: "Canvas",
-        url: "/canvas",
-        icon: Share2,
+        title: "AI Assistant",
+        url: "/ai",
+        icon: Brain,
       },
       {
-        title: "IRIS - AI Assistant",
-        url: "/ai",
-        icon: Eye,
+        title: "Focus Mode",
+        url: "/focus",
+        icon: Timer,
+      },
+      {
+        title: "Search",
+        url: "/files",
+        icon: FolderSearch,
       },
     ],
     projects: [

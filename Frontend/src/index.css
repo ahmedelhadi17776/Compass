@@ -127,21 +127,6 @@
     --sidebar-ring: 231 100% 54%;
   }
 
-  .custom-controls {
-    background-color: hsl(var(--card));
-    border: hsl(var(--border));
-    border-radius: 2px;
-    padding: 4px;
-  }
-  
-  .custom-controls button {
-    color: hsl(var(--primary));
-  }
-  
-  .custom-controls button:hover {
-    background-color: hsl(var(--accent));
-  }
-
   * {
     @apply border-border;
   }

@@ -70,9 +70,6 @@ export const useHabits = (user: User | undefined) => {
     queryKey: ['habits', user?.id],
     queryFn: () => user ? fetchHabits() : Promise.resolve([]),
     enabled: !!user,
-    gcTime: 0,
-    staleTime: 0,
-    refetchOnMount: true
   });
 };
 

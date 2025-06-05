@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/theme-provider';
-import { Eye } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 interface ChatbotIconProps {
   toggleChat: () => void;
@@ -33,7 +33,7 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
         aria-label="Open chat"
         tabIndex={0}
       >
-        <Eye className="h-5 w-5 text-[#E7E7E7]" />
+        <Sparkles className="h-5 w-5 text-[#E7E7E7]" />
       </button>
       
       {/* Simple tooltip with fade animation */}

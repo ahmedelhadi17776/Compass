@@ -106,6 +106,12 @@ type RedisClient struct {
 	health    int32 // 0 = healthy, 1 = unhealthy, using atomic operations
 }
 
+// PubSubManager handles pub/sub functionality with listener management
+type PubSubManager struct {
+	listeners sync.Map
+	client    *RedisClient
+}
+
 // NewRedisClient creates a new Redis client with the provided configuration
 func NewRedisClient(cfg *Config) (*RedisClient, error) {
 	if cfg == nil {
@@ -591,4 +597,64 @@ func (r *RedisClient) PublishEvent(ctx context.Context, channel string, payload 
 		return err
 	}
 	return r.client.Publish(ctx, channel, data).Err()
+}
+
+// NewPubSubManager creates a new PubSubManager
+func NewPubSubManager(client *RedisClient) *PubSubManager {
+	return &PubSubManager{
+		client: client,
+	}
+}
+
+// Subscribe adds a callback function for a specific channel
+func (p *PubSubManager) Subscribe(channel string, callback func(interface{}) error) {
+	p.listeners.Store(channel, callback)
+}
+
+// Unsubscribe removes a callback function for a specific channel
+func (p *PubSubManager) Unsubscribe(channel string) {
+	p.listeners.Delete(channel)
+}
+
+// Notify sends an event to all listeners for a specific channel
+func (p *PubSubManager) Notify(channel string, event interface{}) error {
+	if callback, ok := p.listeners.Load(channel); ok {
+		if cb, ok := callback.(func(interface{}) error); ok {
+			return cb(event)
+		}
+	}
+	return nil
+}
+
+// PublishEvent publishes an event to a channel and notifies listeners
+func (p *PubSubManager) PublishEvent(ctx context.Context, channel string, payload interface{}) error {
+	// Publish to Redis
+	if err := p.client.PublishEvent(ctx, channel, payload); err != nil {
+		return err
+	}
+
+	// Notify local listeners
+	return p.Notify(channel, payload)
+}
+
+// StartListening starts listening for events on a channel
+func (p *PubSubManager) StartListening(ctx context.Context, channel string) error {
+	pubsub := p.client.GetClient().Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case msg := <-ch:
+			var event interface{}
+			if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+				return err
+			}
+			if err := p.Notify(channel, event); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }

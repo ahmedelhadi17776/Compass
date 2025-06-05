@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Brain, FileText, Users, Send, Trash, Eye } from "lucide-react"
+import { Brain, FileText, Users, Send, Trash, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState, useRef, useEffect } from "react"
@@ -126,7 +126,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
           <div className="ai-chat-container">
             <div className="ai-chat-header">
               <div className="ai-chat-title">
-                <Eye className="h-5 w-5 text-muted-foreground" />
+                <Sparkles className="h-5 w-5 text-muted-foreground" />
                 <span>AI Assistant - Iris</span>
               </div>
               <Button 
@@ -167,7 +167,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                   >
                     {message.sender === "assistant" && (
                       <div className={cn("ai-avatar", "assistant")}>
-                        <Eye className="h-4 w-4" />
+                        <Sparkles className="h-4 w-4" />
                       </div>
                     )}
                     <div className="ai-message-content">
@@ -191,7 +191,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                 <div className="ai-message-row assistant">
                   <div className="ai-message-bubble assistant">
                     <div className="ai-avatar assistant">
-                      <Eye className="h-4 w-4" />
+                      <Sparkles className="h-4 w-4" />
                     </div>
                     <div className="ai-message-content">
                       <div className="ai-message-name">AI Assistant</div>
@@ -208,7 +208,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                 <div className="ai-message-row assistant">
                   <div className="ai-message-bubble assistant">
                     <div className="ai-avatar assistant">
-                      <Eye className="h-4 w-4" />
+                      <Sparkles className="h-4 w-4" />
                     </div>
                     <div className="ai-message-content">
                       <div className="ai-message-name">AI Assistant</div>

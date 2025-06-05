@@ -45,18 +45,7 @@ module.exports = {
     type: CanvasListResponseType,
     resolve: async (parent, args, context, info) => {
       const userId = context.user?.id;
-      const canvases = await Canvas.find({ userId, isDeleted: false })
-        .populate({
-          path: 'nodes',
-          match: { isDeleted: false },
-          select: 'type data position style label'
-        })
-        .populate({
-          path: 'edges',
-          match: { isDeleted: false },
-          select: 'source target type data style label'
-        })
-        .lean();
+      const canvases = await Canvas.find({ userId, isDeleted: false }).lean();
       return { success: true, data: canvases };
     }
   }

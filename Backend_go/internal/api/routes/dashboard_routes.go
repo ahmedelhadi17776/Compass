@@ -2,21 +2,35 @@ package routes
 
 import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type DashboardRoutes struct {
-	handler   *handlers.DashboardHandler
-	jwtSecret string
+	handler         *handlers.DashboardHandler
+	authMiddleware  gin.HandlerFunc
+	cacheMiddleware gin.HandlerFunc
+	logger          *zap.Logger
 }
 
-func NewDashboardRoutes(handler *handlers.DashboardHandler, jwtSecret string) *DashboardRoutes {
-	return &DashboardRoutes{handler: handler, jwtSecret: jwtSecret}
+func NewDashboardRoutes(
+	handler *handlers.DashboardHandler,
+	authMiddleware gin.HandlerFunc,
+	cacheMiddleware gin.HandlerFunc,
+	logger *zap.Logger,
+) *DashboardRoutes {
+	return &DashboardRoutes{
+		handler:         handler,
+		authMiddleware:  authMiddleware,
+		cacheMiddleware: cacheMiddleware,
+		logger:          logger,
+	}
 }
 
-func (r *DashboardRoutes) RegisterRoutes(router *gin.Engine) {
-	dashboard := router.Group("/api/dashboard")
-	dashboard.Use(middleware.NewAuthMiddleware(r.jwtSecret))
-	dashboard.GET("/metrics", r.handler.GetDashboardMetrics)
+func (r *DashboardRoutes) Register(router *gin.RouterGroup) {
+	dashboard := router.Group("/dashboard")
+	dashboard.Use(r.authMiddleware)
+	{
+		dashboard.GET("/metrics", r.cacheMiddleware, r.handler.GetDashboardMetrics)
+	}
 }

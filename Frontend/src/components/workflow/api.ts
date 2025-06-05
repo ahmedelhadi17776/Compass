@@ -17,7 +17,7 @@ axios.defaults.headers.common['X-Organization-ID'] = '838e655c-d07e-4a2e-8d06-ea
 
 // Workflow operations
 export const fetchWorkflows = async (): Promise<WorkflowListItem[]> => {
-  const response = await axios.get(`${API_BASE_URL}`);
+  const response = await axios.get(`${API_BASE_URL}/`);
   return response.data.data.workflows;
 };
 
