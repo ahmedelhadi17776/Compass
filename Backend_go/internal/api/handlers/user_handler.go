@@ -135,15 +135,15 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	// Record successful login activity
-	err = h.userService.RecordUserActivity(c.Request.Context(), user.RecordUserActivityInput{
-		UserID:    user.ID,
-		Action:    "login_success",
-		Timestamp: time.Now(),
-		Metadata: map[string]interface{}{
+	activityInput := convertToUserActivityInput(
+		user.ID,
+		"login_success",
+		map[string]interface{}{
 			"ip_address": c.ClientIP(),
 			"user_agent": c.Request.UserAgent(),
 		},
-	})
+	)
+	err = h.userService.RecordUserActivity(c.Request.Context(), activityInput)
 	if err != nil {
 		log.Error("Failed to record login activity", zap.Error(err))
 	}
@@ -790,4 +790,14 @@ func (h *UserHandler) RecordUserActivity(c *gin.Context) {
 	}
 
 	c.Status(http.StatusCreated)
+}
+
+// convertToUserActivityInput converts the activity input to the domain type
+func convertToUserActivityInput(userID uuid.UUID, action string, metadata map[string]interface{}) user.RecordUserActivityInput {
+	return user.RecordUserActivityInput{
+		UserID:    userID,
+		Action:    action,
+		Timestamp: time.Now(),
+		Metadata:  metadata,
+	}
 }

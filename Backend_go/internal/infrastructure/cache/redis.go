@@ -13,9 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/config"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/logger"
 	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -73,7 +75,7 @@ func NewConfigFromEnv(cfg *config.Config) *Config {
 		MaxRetries:       3,
 		ConnTimeout:      5 * time.Second,
 		OperationTimeout: cfg.Server.Timeout,
-		UseCompression:   true,
+		UseCompression:   false,
 		DefaultTTL:       30 * time.Minute,
 		MaxKeyLength:     256,
 		KeyPrefix:        "compass:",
@@ -111,6 +113,9 @@ type PubSubManager struct {
 	listeners sync.Map
 	client    *RedisClient
 }
+
+// DashboardEventChannel is the Redis channel for dashboard events
+const DashboardEventChannel = "dashboard:events"
 
 // NewRedisClient creates a new Redis client with the provided configuration
 func NewRedisClient(cfg *Config) (*RedisClient, error) {
@@ -507,6 +512,9 @@ func (r *RedisClient) ClearByPattern(ctx context.Context, pattern string) error 
 
 // GenerateCacheKey creates a unique cache key for the given entity
 func GenerateCacheKey(entityType string, entityID interface{}, action string) string {
+	if entityType == "dashboard" {
+		return fmt.Sprintf("dashboard:metrics:%v", entityID)
+	}
 	if action == "" {
 		return fmt.Sprintf("%s:%v", entityType, entityID)
 	}
@@ -657,4 +665,54 @@ func (p *PubSubManager) StartListening(ctx context.Context, channel string) erro
 			return ctx.Err()
 		}
 	}
+}
+
+// PublishDashboardEvent publishes a dashboard event to Redis
+func (r *RedisClient) PublishDashboardEvent(ctx context.Context, event *events.DashboardEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	return r.client.Publish(ctx, DashboardEventChannel, data).Err()
+}
+
+// SubscribeToDashboardEvents subscribes to dashboard events
+func (r *RedisClient) SubscribeToDashboardEvents(ctx context.Context, callback func(*events.DashboardEvent) error) error {
+	pubsub := r.client.Subscribe(ctx, DashboardEventChannel)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case msg := <-ch:
+			var event events.DashboardEvent
+			if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+				return err
+			}
+			if err := callback(&event); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// InvalidateDashboardCache invalidates all dashboard cache for a user
+func (r *RedisClient) InvalidateDashboardCache(ctx context.Context, userID uuid.UUID) error {
+	pattern := fmt.Sprintf("%sdashboard:*:%v", r.config.KeyPrefix, userID)
+	log.Info("Invalidating dashboard cache", zap.String("pattern", pattern))
+
+	iter := r.client.Scan(ctx, 0, pattern, 100).Iterator()
+	var keys []string
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return err
+	}
+	if len(keys) > 0 {
+		return r.client.Del(ctx, keys...).Err()
+	}
+	return nil
 }

@@ -6,8 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // Service defines the business logic interface for calendar events
@@ -42,11 +45,12 @@ type Service interface {
 type service struct {
 	repo     Repository
 	notifier notification.DomainNotifier
+	redis    *cache.RedisClient
 }
 
 // NewService creates a new calendar service instance
-func NewService(repo Repository, notifier notification.DomainNotifier) Service {
-	return &service{repo: repo, notifier: notifier}
+func NewService(repo Repository, notifier notification.DomainNotifier, redis *cache.RedisClient) Service {
+	return &service{repo: repo, notifier: notifier, redis: redis}
 }
 
 // Define CalendarDashboardMetrics struct for dashboard metrics aggregation
@@ -142,7 +146,15 @@ func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventReques
 	}
 
 	// Fetch the complete event with all relationships
-	return s.GetEventByID(ctx, event.ID)
+	event, err := s.GetEventByID(ctx, event.ID)
+	if err != nil {
+		return nil, err
+	}
+	s.recordCalendarActivity(ctx, event, userID, "event_created", map[string]interface{}{
+		"title": event.Title,
+		"type":  event.EventType,
+	})
+	return event, nil
 }
 
 // generateOccurrences generates event occurrences based on the recurrence rule
@@ -672,11 +684,31 @@ func (s *service) UpdateEvent(ctx context.Context, id uuid.UUID, req UpdateCalen
 		return nil, err
 	}
 
-	return s.GetEventByID(ctx, event.ID)
+	event, err = s.GetEventByID(ctx, event.ID)
+	if err != nil {
+		return nil, err
+	}
+	s.recordCalendarActivity(ctx, event, event.UserID, "event_updated", map[string]interface{}{
+		"title": event.Title,
+		"type":  event.EventType,
+	})
+	return event, nil
 }
 
 func (s *service) DeleteEvent(ctx context.Context, id uuid.UUID) error {
-	return s.repo.DeleteEvent(ctx, id)
+	event, err := s.repo.GetEventByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	err = s.repo.DeleteEvent(ctx, id)
+	if err != nil {
+		return err
+	}
+	s.recordCalendarActivity(ctx, event, event.UserID, "event_deleted", map[string]interface{}{
+		"title": event.Title,
+		"type":  event.EventType,
+	})
+	return nil
 }
 
 func (s *service) GetEventByID(ctx context.Context, id uuid.UUID) (*CalendarEvent, error) {
@@ -1051,4 +1083,23 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetric
 		Upcoming: upcoming,
 		Total:    total,
 	}, nil
+}
+
+func (s *service) recordCalendarActivity(ctx context.Context, event *CalendarEvent, userID uuid.UUID, action string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["action"] = action
+
+	// Publish dashboard event for cache invalidation
+	dashboardEvent := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    userID,
+		EntityID:  event.ID,
+		Timestamp: time.Now().UTC(),
+		Details:   metadata,
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, dashboardEvent); err != nil {
+		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+	}
 }

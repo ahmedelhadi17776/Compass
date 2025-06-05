@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"context"
+
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -33,4 +35,7 @@ func (r *DashboardRoutes) Register(router *gin.RouterGroup) {
 	{
 		dashboard.GET("/metrics", r.cacheMiddleware, r.handler.GetDashboardMetrics)
 	}
+
+	// Start the dashboard event listener
+	go r.handler.StartDashboardEventListener(context.Background())
 }
