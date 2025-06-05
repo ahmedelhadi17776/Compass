@@ -188,6 +188,11 @@ func (r *repository) FindByProviderID(ctx context.Context, providerID, provider 
 
 // Analytics implementation
 func (r *repository) RecordUserActivity(ctx context.Context, analytics *UserAnalytics) error {
+	// Ensure metadata is valid JSON
+	if analytics.Metadata == "" {
+		analytics.Metadata = "{}"
+	}
+
 	return r.db.WithContext(ctx).Create(analytics).Error
 }
 

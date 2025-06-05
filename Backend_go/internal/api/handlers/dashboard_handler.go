@@ -1,16 +1,23 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/todos"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type DashboardHandler struct {
@@ -19,6 +26,8 @@ type DashboardHandler struct {
 	todosService    todos.Service
 	calendarService calendar.Service
 	userService     user.Service
+	redisClient     *cache.RedisClient
+	logger          *zap.Logger
 }
 
 func NewDashboardHandler(
@@ -27,6 +36,8 @@ func NewDashboardHandler(
 	todosService todos.Service,
 	calendarService calendar.Service,
 	userService user.Service,
+	redisClient *cache.RedisClient,
+	logger *zap.Logger,
 ) *DashboardHandler {
 	return &DashboardHandler{
 		habitsService:   habitsService,
@@ -34,6 +45,8 @@ func NewDashboardHandler(
 		todosService:    todosService,
 		calendarService: calendarService,
 		userService:     userService,
+		redisClient:     redisClient,
+		logger:          logger,
 	}
 }
 
@@ -83,18 +96,104 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 		return
 	}
 
-	habitsMetrics, _ := h.habitsService.GetDashboardMetrics(userID)
-	tasksMetrics, _ := h.tasksService.GetDashboardMetrics(userID)
-	todosMetrics, _ := h.todosService.GetDashboardMetrics(userID)
-	calendarMetrics, _ := h.calendarService.GetDashboardMetrics(userID)
-	userMetrics, _ := h.userService.GetDashboardMetrics(userID)
+	// Use the standardized cache key
+	cacheKey := fmt.Sprintf("dashboard:metrics:%v", userID)
+	cachedData, err := h.redisClient.Get(c.Request.Context(), cacheKey)
+	if err == nil && cachedData != "" {
+		var response dto.DashboardMetricsResponse
+		if unmarshalErr := json.Unmarshal([]byte(cachedData), &response); unmarshalErr == nil {
+			c.JSON(http.StatusOK, gin.H{"data": response})
+			return
+		}
+	}
+
+	// Collect metrics from all services
+	habitsMetrics, err := h.habitsService.GetDashboardMetrics(userID)
+	if err != nil {
+		h.logger.Error("Failed to get habits metrics", zap.Error(err))
+	}
+
+	tasksMetrics, err := h.tasksService.GetDashboardMetrics(userID)
+	if err != nil {
+		h.logger.Error("Failed to get tasks metrics", zap.Error(err))
+	}
+
+	todosMetrics, err := h.todosService.GetDashboardMetrics(userID)
+	if err != nil {
+		h.logger.Error("Failed to get todos metrics", zap.Error(err))
+	}
+
+	calendarMetrics, err := h.calendarService.GetDashboardMetrics(userID)
+	if err != nil {
+		h.logger.Error("Failed to get calendar metrics", zap.Error(err))
+	}
+
+	userMetrics, err := h.userService.GetDashboardMetrics(userID)
+	if err != nil {
+		h.logger.Error("Failed to get user metrics", zap.Error(err))
+	}
 
 	response := dto.DashboardMetricsResponse{
-		Habits:   HabitsDashboardMetricsToDTO(habitsMetrics),
-		Tasks:    TasksDashboardMetricsToDTO(tasksMetrics),
-		Todos:    TodosDashboardMetricsToDTO(todosMetrics),
-		Calendar: CalendarDashboardMetricsToDTO(calendarMetrics),
-		User:     UserDashboardMetricsToDTO(userMetrics),
+		Habits:    HabitsDashboardMetricsToDTO(habitsMetrics),
+		Tasks:     TasksDashboardMetricsToDTO(tasksMetrics),
+		Todos:     TodosDashboardMetricsToDTO(todosMetrics),
+		Calendar:  CalendarDashboardMetricsToDTO(calendarMetrics),
+		User:      UserDashboardMetricsToDTO(userMetrics),
+		Timestamp: time.Now().UTC(),
 	}
+
+	// Cache the response using the new key
+	if data, err := json.Marshal(response); err == nil {
+		if err := h.redisClient.Set(c.Request.Context(), cacheKey, string(data), 5*time.Minute); err != nil {
+			h.logger.Error("Failed to cache dashboard metrics", zap.Error(err))
+		}
+
+		// Publish a dashboard event to notify other services about the updated metrics
+		dashboardEvent := &events.DashboardEvent{
+			EventType: events.DashboardEventMetricsUpdate,
+			UserID:    userID,
+			Timestamp: time.Now().UTC(),
+			Details: map[string]interface{}{
+				"source": "go_backend",
+			},
+		}
+
+		if err := h.redisClient.PublishDashboardEvent(c.Request.Context(), dashboardEvent); err != nil {
+			h.logger.Error("Failed to publish dashboard metrics update event", zap.Error(err))
+		} else {
+			h.logger.Info("Published dashboard metrics update event", zap.String("user_id", userID.String()))
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+// StartDashboardEventListener starts listening for dashboard events
+func (h *DashboardHandler) StartDashboardEventListener(ctx context.Context) {
+	go func() {
+		err := h.redisClient.SubscribeToDashboardEvents(ctx, func(event *events.DashboardEvent) error {
+			h.logger.Info("Received dashboard event",
+				zap.String("event_type", event.EventType),
+				zap.String("user_id", event.UserID.String()))
+
+			// Invalidate both possible dashboard cache key patterns for the affected user
+			patterns := []string{
+				fmt.Sprintf("compass:dashboard:*:%s", event.UserID.String()),
+				fmt.Sprintf("dashboard:metrics:%s", event.UserID.String()),
+			}
+			for _, pattern := range patterns {
+				if err := h.redisClient.ClearByPattern(ctx, pattern); err != nil {
+					h.logger.Error("Failed to invalidate dashboard cache", zap.Error(err), zap.String("pattern", pattern))
+				} else {
+					h.logger.Info("Successfully invalidated dashboard cache",
+						zap.String("user_id", event.UserID.String()),
+						zap.String("pattern", pattern))
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			h.logger.Error("Dashboard event listener error", zap.Error(err))
+		}
+	}()
 }

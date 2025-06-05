@@ -9,6 +9,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 var (
@@ -163,6 +164,11 @@ func (s *service) CreateTask(ctx context.Context, input CreateTaskInput) (*Task,
 	if err != nil {
 		return nil, err
 	}
+
+	s.recordTaskActivity(ctx, task, task.CreatorID, "task_created", map[string]interface{}{
+		"title":  task.Title,
+		"status": task.Status,
+	})
 
 	// Record task creation activity with meaningful metadata
 	if callerID, ok := ctx.Value("user_id").(uuid.UUID); ok {
@@ -351,6 +357,11 @@ func (s *service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		_ = s.repo.RecordTaskActivity(ctx, analytics)
 	}
 
+	s.recordTaskActivity(ctx, task, task.CreatorID, "task_updated", map[string]interface{}{
+		"title":  task.Title,
+		"status": task.Status,
+	})
+
 	return task, nil
 }
 
@@ -431,7 +442,7 @@ func (s *service) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status Tas
 	// After successful update, publish event
 	event := events.DashboardEvent{
 		EventType: "task_status_updated",
-		UserID:    task.DashboardUserID(), 
+		UserID:    task.DashboardUserID(),
 		EntityID:  id,
 		Timestamp: time.Now().UTC(),
 		Details:   map[string]interface{}{"status": status},
@@ -439,6 +450,11 @@ func (s *service) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status Tas
 	if s.redis != nil {
 		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
 	}
+
+	s.recordTaskActivity(ctx, task, task.CreatorID, "status_changed", map[string]interface{}{
+		"old_status": string(oldStatus),
+		"new_status": string(status),
+	})
 
 	return task, nil
 }
@@ -456,6 +472,11 @@ func (s *service) DeleteTask(ctx context.Context, id uuid.UUID) error {
 	if callerID, ok := ctx.Value("user_id").(uuid.UUID); ok {
 		s.recordTaskDeletion(ctx, task.ID, callerID)
 	}
+
+	s.recordTaskActivity(ctx, task, task.CreatorID, "task_deleted", map[string]interface{}{
+		"title":  task.Title,
+		"status": task.Status,
+	})
 
 	return s.repo.Delete(ctx, id)
 }
@@ -644,6 +665,10 @@ func (s *service) AssignTask(ctx context.Context, id uuid.UUID, assigneeID uuid.
 		s.recordTaskAssignment(ctx, task.ID, callerID, metadata)
 	}
 
+	s.recordTaskActivity(ctx, task, task.CreatorID, "task_assigned", map[string]interface{}{
+		"new_assignee_id": assigneeID.String(),
+	})
+
 	return task, nil
 }
 
@@ -779,4 +804,23 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (TasksDashboardMetrics, 
 		Completed: completed,
 		Overdue:   overdue,
 	}, nil
+}
+
+func (s *service) recordTaskActivity(ctx context.Context, task *Task, userID uuid.UUID, action string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["action"] = action
+
+	// Publish dashboard event for cache invalidation
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    userID,
+		EntityID:  task.ID,
+		Timestamp: time.Now().UTC(),
+		Details:   metadata,
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+	}
 }
