@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/task"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/todos"
@@ -93,8 +96,8 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 		return
 	}
 
-	// Try to get from cache first
-	cacheKey := cache.GenerateCacheKey("dashboard", userID, "metrics")
+	// Use the standardized cache key
+	cacheKey := fmt.Sprintf("dashboard:metrics:%v", userID)
 	cachedData, err := h.redisClient.Get(c.Request.Context(), cacheKey)
 	if err == nil && cachedData != "" {
 		var response dto.DashboardMetricsResponse
@@ -139,10 +142,39 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 		Timestamp: time.Now().UTC(),
 	}
 
-	// Cache the response
+	// Cache the response using the new key
 	if data, err := json.Marshal(response); err == nil {
-		h.redisClient.Set(c.Request.Context(), cacheKey, string(data), 5*time.Minute)
+		if err := h.redisClient.Set(c.Request.Context(), cacheKey, string(data), 5*time.Minute); err != nil {
+			h.logger.Error("Failed to cache dashboard metrics", zap.Error(err))
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+// StartDashboardEventListener starts listening for dashboard events
+func (h *DashboardHandler) StartDashboardEventListener(ctx context.Context) {
+	go func() {
+		err := h.redisClient.SubscribeToDashboardEvents(ctx, func(event *events.DashboardEvent) error {
+			h.logger.Info("Received dashboard event",
+				zap.String("event_type", event.EventType),
+				zap.String("user_id", event.UserID.String()))
+
+			// Invalidate all dashboard cache keys for the affected user (handles double prefix)
+			pattern := fmt.Sprintf("compass:dashboard:*:%s", event.UserID.String())
+			if err := h.redisClient.ClearByPattern(ctx, pattern); err != nil {
+				h.logger.Error("Failed to invalidate dashboard cache",
+					zap.Error(err),
+					zap.String("event_type", event.EventType),
+					zap.String("user_id", event.UserID.String()))
+			} else {
+				h.logger.Info("Successfully invalidated dashboard cache",
+					zap.String("user_id", event.UserID.String()))
+			}
+			return nil
+		})
+		if err != nil {
+			h.logger.Error("Dashboard event listener error", zap.Error(err))
+		}
+	}()
 }

@@ -13,8 +13,12 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/pkg/security/mfa"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var log = logrus.New()
 
 // Input types
 type CreateUserInput struct {
@@ -404,6 +408,9 @@ func (s *service) UpdateUser(ctx context.Context, id uuid.UUID, input UpdateUser
 		_ = s.repo.RecordUserActivity(ctx, analytics)
 	}
 
+	s.recordUserActivity(ctx, user.ID, "profile_updated", map[string]interface{}{
+		"updated_fields": getUpdatedFields(input),
+	})
 	return user, nil
 }
 
@@ -477,34 +484,12 @@ func (s *service) AuthenticateUser(ctx context.Context, email, password string) 
 		return nil, ErrAccountLocked
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
-	if err != nil {
-		// Update failed login attempts
-		user.FailedLoginAttempts++
-
-		// Lock account if too many failed attempts
-		if user.FailedLoginAttempts >= 5 {
-			lockUntil := time.Now().Add(30 * time.Minute)
-			user.AccountLockedUntil = &lockUntil
-		}
-
-		s.repo.Update(ctx, user)
-
-		// Record failed login
-		s.recordLoginAttempt(ctx, user.ID, false)
-
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		s.recordUserActivity(ctx, user.ID, "login_failed", nil)
 		return nil, ErrInvalidCredentials
 	}
 
-	// Reset failed attempts on successful login
-	user.FailedLoginAttempts = 0
-	user.AccountLockedUntil = nil
-	user.UpdatedAt = time.Now()
-	s.repo.Update(ctx, user)
-
-	// Record successful login
-	s.recordLoginAttempt(ctx, user.ID, true)
-
+	s.recordUserActivity(ctx, user.ID, "login_success", nil)
 	return user, nil
 }
 
@@ -710,15 +695,15 @@ func (s *service) RecordUserActivity(ctx context.Context, input RecordUserActivi
 		return err
 	}
 
-	event := events.DashboardEvent{
-		EventType: "user_activity",
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.EventTypeUserActivity,
 		UserID:    input.UserID,
-		EntityID:  uuid.Nil,
 		Timestamp: time.Now().UTC(),
-		Details:   map[string]interface{}{"action": input.Action},
+		Details:   input,
 	}
-	if s.redis != nil {
-		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		log.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 
 	return nil
@@ -1022,14 +1007,8 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, e
 	endTime := time.Now()
 	startTime := endTime.AddDate(0, 0, -30)
 
-	// Get user analytics
-	analytics, _, err := s.repo.GetUserAnalytics(ctx, AnalyticsFilter{
-		UserID:    &userID,
-		StartTime: &startTime,
-		EndTime:   &endTime,
-		Page:      1,
-		PageSize:  1000, // Get all analytics for the period
-	})
+	// Get user activity summary
+	summary, err := s.repo.GetUserActivitySummary(ctx, userID, startTime, endTime)
 	if err != nil {
 		return UserDashboardMetrics{}, err
 	}
@@ -1040,15 +1019,82 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (UserDashboardMetrics, e
 		"logins":  0,
 	}
 
-	// Count logins and other actions
-	for _, a := range analytics {
-		actionCounts["actions"]++
-		if a.Action == "login_success" {
-			actionCounts["logins"]++
+	// Count total actions and logins
+	for action, count := range summary {
+		actionCounts["actions"] += count
+		if action == "login_success" {
+			actionCounts["logins"] = count
 		}
 	}
 
-	return UserDashboardMetrics{
+	metrics := UserDashboardMetrics{
 		ActivitySummary: actionCounts,
-	}, nil
+	}
+
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.EventTypeDashboardUpdate,
+		UserID:    userID,
+		Timestamp: time.Now().UTC(),
+		Details:   metrics,
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		log.Error("Failed to publish dashboard event", zap.Error(err))
+	}
+
+	return metrics, nil
+}
+
+func (s *service) recordUserActivity(ctx context.Context, userID uuid.UUID, action string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["action"] = action
+
+	// Publish dashboard event for cache invalidation
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    userID,
+		EntityID:  userID,
+		Timestamp: time.Now().UTC(),
+		Details:   metadata,
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+	}
+}
+
+func getUpdatedFields(input UpdateUserInput) []string {
+	var fields []string
+	if input.Email != nil {
+		fields = append(fields, "email")
+	}
+	if input.Username != nil {
+		fields = append(fields, "username")
+	}
+	if input.FirstName != nil {
+		fields = append(fields, "first_name")
+	}
+	if input.LastName != nil {
+		fields = append(fields, "last_name")
+	}
+	if input.PhoneNumber != nil {
+		fields = append(fields, "phone_number")
+	}
+	if input.AvatarURL != nil {
+		fields = append(fields, "avatar_url")
+	}
+	if input.Bio != nil {
+		fields = append(fields, "bio")
+	}
+	if input.Timezone != nil {
+		fields = append(fields, "timezone")
+	}
+	if input.Locale != nil {
+		fields = append(fields, "locale")
+	}
+	if input.Preferences != nil {
+		fields = append(fields, "preferences")
+	}
+	return fields
 }
