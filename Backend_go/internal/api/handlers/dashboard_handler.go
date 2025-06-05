@@ -147,6 +147,22 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 		if err := h.redisClient.Set(c.Request.Context(), cacheKey, string(data), 5*time.Minute); err != nil {
 			h.logger.Error("Failed to cache dashboard metrics", zap.Error(err))
 		}
+
+		// Publish a dashboard event to notify other services about the updated metrics
+		dashboardEvent := &events.DashboardEvent{
+			EventType: events.DashboardEventMetricsUpdate,
+			UserID:    userID,
+			Timestamp: time.Now().UTC(),
+			Details: map[string]interface{}{
+				"source": "go_backend",
+			},
+		}
+
+		if err := h.redisClient.PublishDashboardEvent(c.Request.Context(), dashboardEvent); err != nil {
+			h.logger.Error("Failed to publish dashboard metrics update event", zap.Error(err))
+		} else {
+			h.logger.Info("Published dashboard metrics update event", zap.String("user_id", userID.String()))
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})
@@ -162,8 +178,8 @@ func (h *DashboardHandler) StartDashboardEventListener(ctx context.Context) {
 
 			// Invalidate both possible dashboard cache key patterns for the affected user
 			patterns := []string{
-				fmt.Sprintf("compass:dashboard:*:%s", event.UserID.String()), 
-				fmt.Sprintf("dashboard:metrics:%s", event.UserID.String()),   
+				fmt.Sprintf("compass:dashboard:*:%s", event.UserID.String()),
+				fmt.Sprintf("dashboard:metrics:%s", event.UserID.String()),
 			}
 			for _, pattern := range patterns {
 				if err := h.redisClient.ClearByPattern(ctx, pattern); err != nil {
