@@ -12,6 +12,7 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 var (
@@ -78,8 +79,9 @@ func (s *service) CreateHabit(ctx context.Context, input CreateHabitInput) (*Hab
 		return nil, err
 	}
 
-	// Record habit creation activity
-	s.recordHabitCreation(ctx, habit)
+	s.recordHabitActivity(ctx, habit, habit.UserID, "habit_created", map[string]interface{}{
+		"title": habit.Title,
+	})
 
 	return habit, nil
 }
@@ -124,16 +126,6 @@ func (s *service) UpdateHabit(ctx context.Context, id uuid.UUID, input UpdateHab
 		return nil, ErrHabitNotFound
 	}
 
-	// Store original values for analytics
-	originalTitle := habit.Title
-	originalDesc := habit.Description
-	originalStartDay := habit.StartDay
-	var originalEndDay *time.Time
-	if habit.EndDay != nil {
-		endDayCopy := *habit.EndDay
-		originalEndDay = &endDayCopy
-	}
-
 	// Track if anything changed
 	changed := false
 
@@ -170,10 +162,9 @@ func (s *service) UpdateHabit(ctx context.Context, id uuid.UUID, input UpdateHab
 	if err != nil {
 		return nil, err
 	}
-
-	// Record habit update activity
-	s.recordHabitUpdate(ctx, habit, originalTitle, originalDesc, originalStartDay, originalEndDay)
-
+	s.recordHabitActivity(ctx, habit, habit.UserID, "habit_updated", map[string]interface{}{
+		"title": habit.Title,
+	})
 	return habit, nil
 }
 
@@ -216,8 +207,9 @@ func (s *service) DeleteHabit(ctx context.Context, id uuid.UUID) error {
 		return ErrHabitNotFound
 	}
 
-	// First record the deletion activity
-	s.recordHabitDeletion(ctx, habit)
+	s.recordHabitActivity(ctx, habit, habit.UserID, "habit_deleted", map[string]interface{}{
+		"title": habit.Title,
+	})
 
 	return s.repo.Delete(ctx, id)
 }
@@ -275,6 +267,9 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 
 	// Record habit completion activity
 	s.recordHabitCompletion(ctx, updatedHabit, completionTime)
+
+	// Invalidate dashboard cache for this user
+	s.recordHabitActivity(ctx, updatedHabit, userID, "habit_completed", nil)
 
 	// Check if this completion created a streak milestone
 	if updatedHabit.CurrentStreak > 0 && (updatedHabit.CurrentStreak == 7 ||
@@ -382,6 +377,9 @@ func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid
 
 	// Record habit uncompletion activity
 	s.recordHabitUncompletion(ctx, habit, currentStreak)
+
+	// Invalidate dashboard cache for this user
+	s.recordHabitActivity(ctx, habit, userID, "habit_uncompleted", nil)
 
 	return nil
 }
@@ -776,4 +774,23 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (HabitsDashboardMetrics,
 		Completed: completed,
 		Streak:    streak,
 	}, nil
+}
+
+func (s *service) recordHabitActivity(ctx context.Context, habit *Habit, userID uuid.UUID, action string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["action"] = action
+
+	// Publish dashboard event for cache invalidation
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    userID,
+		EntityID:  habit.ID,
+		Timestamp: time.Now().UTC(),
+		Details:   metadata,
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+	}
 }
