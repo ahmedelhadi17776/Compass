@@ -268,6 +268,9 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 	// Record habit completion activity
 	s.recordHabitCompletion(ctx, updatedHabit, completionTime)
 
+	// Invalidate dashboard cache for this user
+	s.recordHabitActivity(ctx, updatedHabit, userID, "habit_completed", nil)
+
 	// Check if this completion created a streak milestone
 	if updatedHabit.CurrentStreak > 0 && (updatedHabit.CurrentStreak == 7 ||
 		updatedHabit.CurrentStreak == 30 || updatedHabit.CurrentStreak == 100 ||
@@ -374,6 +377,9 @@ func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid
 
 	// Record habit uncompletion activity
 	s.recordHabitUncompletion(ctx, habit, currentStreak)
+
+	// Invalidate dashboard cache for this user
+	s.recordHabitActivity(ctx, habit, userID, "habit_uncompleted", nil)
 
 	return nil
 }
