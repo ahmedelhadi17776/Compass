@@ -3,7 +3,6 @@ package dto
 import (
 	"time"
 
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/user"
 	"github.com/google/uuid"
 )
 
@@ -110,22 +109,4 @@ type EventAnalyticsListResponse struct {
 	TotalCount int64                    `json:"total_count"`
 	Page       int                      `json:"page"`
 	PageSize   int                      `json:"page_size"`
-}
-
-// UserActivityInput represents the input for recording user activity
-type UserActivityInput struct {
-	UserID    uuid.UUID              `json:"user_id"`
-	Action    string                 `json:"action"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-	Timestamp time.Time              `json:"timestamp,omitempty"`
-}
-
-// ToDomain converts UserActivityInput to user.RecordUserActivityInput
-func (i UserActivityInput) ToDomain() user.RecordUserActivityInput {
-	return user.RecordUserActivityInput{
-		UserID:    i.UserID,
-		Action:    i.Action,
-		Metadata:  i.Metadata,
-		Timestamp: i.Timestamp,
-	}
 }

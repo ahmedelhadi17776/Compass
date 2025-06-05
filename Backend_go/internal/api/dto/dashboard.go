@@ -1,14 +1,11 @@
 package dto
 
-import "time"
-
 type DashboardMetricsResponse struct {
-	Habits    HabitsDashboardMetrics   `json:"habits"`
-	Tasks     TasksDashboardMetrics    `json:"tasks"`
-	Todos     TodosDashboardMetrics    `json:"todos"`
-	Calendar  CalendarDashboardMetrics `json:"calendar"`
-	User      UserDashboardMetrics     `json:"user"`
-	Timestamp time.Time                `json:"timestamp"`
+	Habits   HabitsDashboardMetrics   `json:"habits"`
+	Tasks    TasksDashboardMetrics    `json:"tasks"`
+	Todos    TodosDashboardMetrics    `json:"todos"`
+	Calendar CalendarDashboardMetrics `json:"calendar"`
+	User     UserDashboardMetrics     `json:"user"`
 }
 
 type HabitsDashboardMetrics struct {

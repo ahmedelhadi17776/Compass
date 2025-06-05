@@ -303,10 +303,6 @@ func (s *service) CompleteTodo(ctx context.Context, id uuid.UUID) (*Todo, error)
 	if s.redis != nil {
 		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
 	}
-
-	// Invalidate dashboard cache for this user
-	s.recordTodoActivity(ctx, todo, todo.UserID, "todo_completed", nil)
-
 	return todo, nil
 }
 
@@ -327,28 +323,7 @@ func (s *service) UncompleteTodo(ctx context.Context, id uuid.UUID) (*Todo, erro
 		return nil, err
 	}
 
-	// Invalidate dashboard cache for this user
-	s.recordTodoActivity(ctx, todo, todo.UserID, "todo_uncompleted", nil)
-
 	return todo, nil
-}
-
-// Helper to record todo activity and trigger dashboard cache invalidation
-func (s *service) recordTodoActivity(ctx context.Context, todo *Todo, userID uuid.UUID, action string, metadata map[string]interface{}) {
-	if metadata == nil {
-		metadata = make(map[string]interface{})
-	}
-	metadata["action"] = action
-
-	event := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    userID,
-		EntityID:  todo.ID,
-		Timestamp: time.Now().UTC(),
-		Details:   metadata,
-	}
-	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
-	}
 }
 
 func (s *service) CreateTodoList(ctx context.Context, list *TodoList) error {

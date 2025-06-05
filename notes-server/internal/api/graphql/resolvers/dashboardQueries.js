@@ -1,6 +1,6 @@
 const { DashboardMetricsType } = require('../schemas/dashboardTypes');
-const Journal = require('../../domain/journals/model');
-const Note = require('../../domain/notes/model');
+const Journal = require('../../../domain/journals/model');
+const Note = require('../../../domain/notes/model');
 
 const dashboardMetrics = {
   type: DashboardMetricsType,

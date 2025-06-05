@@ -1,23 +1,31 @@
-import { ApolloClient, InMemoryCache, split, HttpLink } from '@apollo/client';
+import { ApolloClient, InMemoryCache, split, HttpLink, ApolloLink } from '@apollo/client';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
 
-// Set your test userId here or use process.env.TEST_USER_ID
-const userId = '41e15c31-5dda-43d8-aea5-2d6049936c1d';
-
 const wsLink = new GraphQLWsLink(createClient({
   url: 'ws://localhost:5000/notes/graphql',
-  connectionParams: {
-    'X-User-Id': userId
+  connectionParams: () => {
+    const token = localStorage.getItem('token');
+    return token ? {
+      'Authorization': `Bearer ${token}`
+    } : {};
   }
 }));
 
+// Create auth middleware
+const authMiddleware = new ApolloLink((operation, forward) => {
+  const token = localStorage.getItem('token');
+  operation.setContext({
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
+  return forward(operation);
+});
+
 const httpLink = new HttpLink({
-  uri: 'http://localhost:5000/notes/graphql',
-  headers: {
-    'X-User-Id': userId
-  }
+  uri: 'http://localhost:5000/notes/graphql'
 });
 
 const splitLink = split(
@@ -33,7 +41,7 @@ const splitLink = split(
 );
 
 export const client = new ApolloClient({
-  link: splitLink,
+  link: ApolloLink.from([authMiddleware, splitLink]),
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: { fetchPolicy: 'no-cache' },
