@@ -8,10 +8,11 @@ import Workflow from './components/workflow/components/Workflow';
 import WorkflowDetailPage from './components/workflow/components/WorkflowDetail';
 import {Tasks} from './components/todo/Components/TodoParentPage';
 import Calendar from './components/calendar/components/Calendar';
-import AIAssistant from './components/ai/AIAssistant';
+import AIAssistant from '@/components/Chatbot/AIAssistant';
 import FocusMode from './components/productivity/FocusMode';
 import FileManager from './components/files/FileManager';
 import Notes from './components/notes/components/Notes';
+import Canvas from './components/Canvas/components/Canvas';
 import { ThemeProvider } from './contexts/theme-provider';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
@@ -62,6 +63,7 @@ function App() {
                             <Route path="workflow" element={<Workflow />} />
                             <Route path="workflow/:id" element={<WorkflowDetailPage />} />
                             <Route path="notes" element={<Notes />} />
+                            <Route path="canvas" element={<Canvas />} />
                           </Routes>
                         </main>
                         <Chatbot />
