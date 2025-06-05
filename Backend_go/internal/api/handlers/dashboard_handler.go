@@ -101,7 +101,7 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 	cachedData, err := h.redisClient.Get(c.Request.Context(), cacheKey)
 	if err == nil && cachedData != "" {
 		var response dto.DashboardMetricsResponse
-		if err := json.Unmarshal([]byte(cachedData), &response); err == nil {
+		if unmarshalErr := json.Unmarshal([]byte(cachedData), &response); unmarshalErr == nil {
 			c.JSON(http.StatusOK, gin.H{"data": response})
 			return
 		}
