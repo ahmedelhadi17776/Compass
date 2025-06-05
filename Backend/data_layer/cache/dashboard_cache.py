@@ -15,9 +15,12 @@ from data_layer.cache.redis_client import redis_client, redis_pubsub_client
 import logging
 
 # Define Go backend dashboard event types
+
+
 class events:
     DashboardEventMetricsUpdate = "metrics_update"
     DashboardEventCacheInvalidate = "cache_invalidate"
+
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +259,9 @@ class DashboardCache:
 
                 # If this is a metrics update event, we could potentially fetch new metrics immediately
                 if event_type == events.DashboardEventMetricsUpdate:
-                    logger.info(f"Metrics update event received for user {user_id}")
-                    
+                    logger.info(
+                        f"Metrics update event received for user {user_id}")
+
                 # Create a Python-style dashboard event and notify subscribers
                 dashboard_event = DashboardEvent(
                     event_type="dashboard_update",
