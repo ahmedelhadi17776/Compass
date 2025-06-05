@@ -88,7 +88,7 @@ func (r *repository) FindAll(ctx context.Context, filter HabitFilter) ([]Habit, 
 	query := r.db.WithContext(ctx).Model(&Habit{})
 
 	if filter.UserID != nil {
-		query = query.Where("user_id = ?", filter.UserID)
+		query = query.Where("user_id = ?", *filter.UserID)
 	}
 
 	if filter.Title != nil {
@@ -98,6 +98,11 @@ func (r *repository) FindAll(ctx context.Context, filter HabitFilter) ([]Habit, 
 	err := query.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Set default PageSize if not set
+	if filter.PageSize == 0 {
+		filter.PageSize = 10000
 	}
 
 	err = query.Offset(filter.Page * filter.PageSize).

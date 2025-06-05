@@ -1,56 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios, { AxiosError } from 'axios';
+import { AxiosError } from 'axios';
 import React from 'react';
+import authApi, { User, LoginCredentials, AuthResponse, MFASetupResponse, MFAStatusResponse } from '@/api/auth';
 
-export interface User {
-  id: string;
-  email: string;
-  username: string;
-  is_active: boolean;
-  is_superuser: boolean;
-  created_at: string;
-  updated_at: string;
-  first_name: string;
-  last_name: string;
-  phone_number: string;
-  timezone: string;
-  locale: string;
-  mfa_enabled: boolean;
-  failed_login_attempts: number;
-  force_password_change: boolean;
-  max_sessions: number;
-  avatar?: string;
-}
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  token: string;
-}
-
-const API_URL = 'http://localhost:8000/api';
-
-const authApi = {
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await axios.post(`${API_URL}/users/login`, credentials);
-    return response.data;
-  },
-  logout: async () => {
-    await axios.post(`${API_URL}/users/logout`);
-  },
-  getMe: async (): Promise<User> => {
-    const response = await axios.get(`${API_URL}/users/profile`);
-    return response.data.user;
-  },
-  updateUser: async (userData: Partial<User>): Promise<User> => {
-    const response = await axios.put(`${API_URL}/users/profile`, userData);
-    return response.data.user;
-  },
-};
+// Re-export types for convenience
+export type { User, LoginCredentials, AuthResponse, MFASetupResponse, MFAStatusResponse };
 
 // This is a custom hook that combines React Query with auth functionality
 export function useAuth() {
@@ -62,9 +16,9 @@ export function useAuth() {
     queryKey: ['user'],
     queryFn: authApi.getMe,
     enabled: !!token,
-    retry: false,
-    staleTime: 0,
-    gcTime: 0,
+    retry: 1,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    gcTime: 1000 * 60 * 60, // Keep in garbage collection for 1 hour
   });
 
   // Handle unauthorized errors
@@ -87,9 +41,11 @@ export function useAuth() {
   const login = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: async (data) => {
-      localStorage.setItem('token', data.token);
-      setToken(data.token);
-      await queryClient.invalidateQueries({ queryKey: ['user'] });
+      if ('token' in data) {
+        localStorage.setItem('token', data.token);
+        setToken(data.token);
+        await queryClient.invalidateQueries({ queryKey: ['user'] });
+      }
     },
   });
 
@@ -104,9 +60,37 @@ export function useAuth() {
   });
 
   const updateUser = useMutation({
-    mutationFn: (userData: Partial<User>) => authApi.updateUser(userData),
+    mutationFn: authApi.updateUser,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user'] });
+    },
+  });
+
+  // MFA Queries and Mutations
+  const mfaStatus = useQuery({
+    queryKey: ['mfa-status'],
+    queryFn: authApi.getMFAStatus,
+    enabled: !!token,
+  });
+
+  const setupMFA = useMutation({
+    mutationFn: authApi.setupMFA,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mfa-status'] });
+    },
+  });
+
+  const verifyMFA = useMutation({
+    mutationFn: authApi.verifyMFA,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mfa-status'] });
+    },
+  });
+
+  const disableMFA = useMutation({
+    mutationFn: authApi.disableMFA,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mfa-status'] });
     },
   });
 
@@ -118,5 +102,9 @@ export function useAuth() {
     isAuthenticated: !!token,
     isLoadingUser,
     queryClient,
+    mfaStatus,
+    setupMFA,
+    verifyMFA,
+    disableMFA,
   };
 } 

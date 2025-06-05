@@ -12,8 +12,8 @@ import {
   Globe,
   Sparkles,
   Command,
-  Compass,
 } from "lucide-react";
+import vectorCompass from "@/components/vector-compass.svg";
 import { Button } from "@/components/ui/button";
 import Checkbox from "../ui/checkbox";
 import {
@@ -30,9 +30,9 @@ import { useToast } from "@/components/ui/use-toast";
 import InfiniteScroll from "@/components/ui/infinitescrolling";
 import TitleBar from "@/components/layout/AuthTitleBar";
 import { useTheme } from "@/contexts/theme-provider";
-import { useAuth } from "@/hooks/useAuth";
 import { useMutation } from "@tanstack/react-query";
-import authApi, { LoginCredentials } from "@/api/auth";
+import authApi, { LoginCredentials, MFALoginResponse } from "@/api/auth";
+import MFAVerificationModal from "./MFAVerificationModal";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   onLogin?: () => void;
@@ -61,7 +61,6 @@ const FeatureCard = ({
 );
 
 export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
-  const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { theme } = useTheme();
@@ -73,6 +72,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
     email: "",
     password: "",
   });
+  const [mfaData, setMfaData] = React.useState<MFALoginResponse | null>(null);
 
   const items = [
     {
@@ -143,12 +143,18 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: (data) => {
-      navigate("/dashboard", { replace: true });
-      toast({
-        title: "Success",
-        description: "You have successfully logged in.",
-        duration: 1200,
-      });
+      if ('mfa_required' in data) {
+        // Handle MFA required
+        setMfaData(data as MFALoginResponse);
+      } else {
+        // Normal login success
+        navigate("/dashboard", { replace: true });
+        toast({
+          title: "Success",
+          description: "You have successfully logged in.",
+          duration: 1200,
+        });
+      }
     },
     onError: (error: any) => {
       toast({
@@ -160,11 +166,41 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
     },
   });
 
+  const verifyMFAMutation = useMutation({
+    mutationFn: (code: string) => {
+      if (!mfaData) throw new Error("MFA data not found");
+      return authApi.validateMFA({
+        user_id: mfaData.user_id,
+        code
+      });
+    },
+    onSuccess: (data) => {
+      setMfaData(null);
+      navigate("/dashboard", { replace: true });
+      toast({
+        title: "Success",
+        description: "You have successfully logged in.",
+        duration: 1200,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Invalid verification code",
+        variant: "destructive",
+        duration: 1200,
+      });
+    },
+  });
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-
     loginMutation.mutate(formData);
   }
+
+  const handleMFAVerify = async (code: string) => {
+    verifyMFAMutation.mutate(code);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
@@ -193,7 +229,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
             <CardHeader className="space-y-1">
               <div className="flex items-center justify-center mb-4">
                 <div className="p-2 rounded-xl bg-background/20">
-                  <Compass className="h-8 w-8" />
+                  <img src={vectorCompass} alt="Logo" className="h-8 w-8" />
                 </div>
                 <span className="text-2xl font-bold">Compass</span>
               </div>
@@ -220,7 +256,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                       }))
                     }
                     disabled={loginMutation.isPending}
-                    className="focus:border-transparent"
+                    className="focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -238,7 +274,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                         }))
                       }
                       disabled={loginMutation.isPending}
-                      className="focus:border-transparent"
+                      className="focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                     <Button
                       type="button"
@@ -280,12 +316,12 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
               </CardContent>
               <CardFooter className="flex flex-col gap-4">
                 <Button
-                  className="w-full bg-foreground text-background hover:bg-foreground/90"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                   type="submit"
                   disabled={loginMutation.isPending}
                 >
                   {loginMutation.isPending ? (
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                   ) : null}
                   Sign in
                 </Button>
@@ -294,6 +330,14 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
           </Card>
         </div>
       </div>
+
+      {mfaData && (
+        <MFAVerificationModal
+          onVerify={handleMFAVerify}
+          onClose={() => setMfaData(null)}
+          isLoading={verifyMFAMutation.isPending}
+        />
+      )}
     </div>
   );
 }

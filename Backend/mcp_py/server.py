@@ -636,6 +636,231 @@ async def create_habit(
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
+@mcp.tool("calendar.getEvents")
+async def get_calendar_events(
+    ctx: Context,
+    start_date: str,
+    end_date: Optional[str] = None,
+    authorization: Optional[str] = None,
+    user_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Get calendar events for a specific date or date range.
+
+    Args:
+        start_date: Start date to fetch events from (format: YYYY-MM-DD)
+        end_date: Optional end date to fetch events to (format: YYYY-MM-DD)
+        authorization: Optional authorization token (Bearer token)
+        user_id: Optional user ID (will be extracted from token if not provided)
+
+    Returns:
+        List of calendar events in the specified date range
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # Format dates as RFC3339/ISO format with timezone
+        # If only a date is provided (YYYY-MM-DD), convert to start/end of day with UTC timezone
+        start_time = start_date
+        if len(start_date) <= 10:  # It's just a date without time
+            start_time = f"{start_date}T00:00:00Z"  # Beginning of the day in UTC
+        
+        end_time = end_date
+        if end_date:
+            if len(end_date) <= 10:  # It's just a date without time
+                end_time = f"{end_date}T23:59:59Z"  # End of the day in UTC
+        elif start_date:
+            # If no end_date is provided, default to end of the start_date
+            end_date_val = start_date
+            end_time = f"{end_date_val}T23:59:59Z"  # End of the start day
+        
+        # Build query parameters with correct names: start_time/end_time
+        params = {"start_time": start_time}
+        if end_time:
+            params["end_time"] = end_time
+        if user_id:
+            params["user_id"] = user_id
+
+        async def get_func(client, url, **kwargs):
+            return await client.get(url, **kwargs)
+
+        return await try_backend_urls(
+            get_func,
+            "/api/calendar/events",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            },
+            params=params
+        )
+    except Exception as e:
+        error_msg = f"Error getting calendar events: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+@mcp.tool("calendar.createEvent")
+async def create_calendar_event(
+    ctx: Context,
+    title: str,
+    start_time: str,
+    end_time: str,
+    description: Optional[str] = None,
+    location: Optional[str] = None,
+    is_all_day: Optional[bool] = False,
+    event_type: Optional[str] = "Meeting",
+    color: Optional[str] = "#3b82f6",
+    transparency: Optional[str] = "opaque",
+    authorization: Optional[str] = None,
+    user_id: Optional[str] = None,
+    check_conflicts: Optional[bool] = True
+) -> Dict[str, Any]:
+    """Create a new calendar event with conflict checking.
+
+    Args:
+        title: Title of the event
+        start_time: Start time of the event (ISO format)
+        end_time: End time of the event (ISO format)
+        description: Optional description
+        location: Optional location of the event
+        is_all_day: Whether the event is an all-day event
+        event_type: Optional event type (None, Task, Meeting, Todo, Holiday, Reminder)
+        color: Optional event color (hex format)
+        transparency: Optional transparency ('opaque' or 'transparent')
+        authorization: Optional authorization token (Bearer token)
+        user_id: Optional user ID (will be extracted from token if not provided)
+        check_conflicts: Whether to check for scheduling conflicts
+
+    Returns:
+        The created calendar event with insights about conflicts
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # Ensure start_time and end_time have RFC3339 format
+        if not any(s in start_time for s in ["Z", "+", "-"]) or "-" not in      start_time[10:]:start_time = f"{start_time}+03:00"
+
+        if not any(s in end_time for s in ["Z", "+", "-"]) or "-" not in end_time[10:]:end_time = f"{end_time}+03:00"
+
+        # Extract date from start_time for conflict checking
+        event_date = start_time.split("T")[0] if "T" in start_time else start_time
+
+        # Normalize event_type to a valid value (must match the Go backend's EventType enum)
+        valid_event_types = ["None", "Task", "Meeting", "Todo", "Holiday", "Reminder"]
+        if not event_type or event_type not in valid_event_types:
+            event_type = "Meeting"  # Default to Meeting
+
+        # Check for conflicts if requested
+        insights = {}
+        if check_conflicts:
+            await ctx.info(f"Checking for conflicts on {event_date}")
+            
+            # Get events for the same day
+            async def get_func(client, url, **kwargs):
+                return await client.get(url, **kwargs)
+            
+            # Format dates as RFC3339/ISO format
+            conflict_start = f"{event_date}T00:00:00Z"  # Beginning of the day in UTC
+            conflict_end = f"{event_date}T23:59:59Z"    # End of the day in UTC
+            
+            events_result = await try_backend_urls(
+                get_func,
+                "/api/calendar/events",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": auth_token
+                },
+                params={"start_time": conflict_start, "end_time": conflict_end}
+            )
+            
+            # Process events to check for conflicts
+            conflicts = []
+            if events_result.get("status") != "error" and isinstance(events_result, dict):
+                events = events_result.get("events", [])
+                if not isinstance(events, list):
+                    events = []
+                
+                for event in events:
+                    event_start = event.get("start_time", "")
+                    event_end = event.get("end_time", "")
+                    event_title = event.get("title", "Untitled Event")
+                    
+                    # Check if there's an overlap
+                    if ((event_start <= start_time <= event_end) or 
+                        (event_start <= end_time <= event_end) or
+                        (start_time <= event_start and end_time >= event_end)):
+                        conflicts.append({
+                            "title": event_title,
+                            "start_time": event_start,
+                            "end_time": event_end
+                        })
+            
+            # Add insights about the schedule
+            insights = {
+                "total_events_on_day": len(events) if "events" in events_result and isinstance(events_result["events"], list) else 0,
+                "conflicts": conflicts,
+                "has_conflicts": len(conflicts) > 0,
+                "conflict_count": len(conflicts)
+            }
+            
+            if insights["has_conflicts"]:
+                await ctx.warning(f"Found {len(conflicts)} scheduling conflicts for the requested time")
+            else:
+                await ctx.info("No scheduling conflicts found")
+
+        # Prepare event data matching the exact expected format by the Go backend
+        event_data = {
+            "title": title,
+            "description": description or "",
+            "event_type": event_type,
+            "start_time": start_time,
+            "end_time": end_time,
+            "is_all_day": is_all_day,
+            "location": location or "",
+            "color": color,
+            "transparency": transparency
+        }
+        
+        await ctx.info(f"Creating calendar event with data: {json.dumps(event_data, default=str)[:200]}...")
+
+        async def post_func(client, url, **kwargs):
+            return await client.post(url, **kwargs)
+
+        # Create the event
+        result = await try_backend_urls(
+            post_func,
+            "/api/calendar/events",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            },
+            json=event_data
+        )
+        
+        # Add insights to the result
+        if isinstance(result, dict):
+            result["insights"] = insights
+            
+        return result
+    except Exception as e:
+        error_msg = f"Error creating calendar event: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
 @mcp.tool("todos.smartUpdate")
 async def smart_update_todo_handler(
     ctx: Context,

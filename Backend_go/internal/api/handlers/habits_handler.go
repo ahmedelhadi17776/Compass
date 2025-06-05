@@ -86,7 +86,7 @@ func (h *HabitsHandler) CreateHabit(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": dto.HabitToResponse(createdHabit)})
+	c.JSON(http.StatusCreated, gin.H{"data": HabitToResponse(createdHabit)})
 }
 
 // GetHabit godoc
@@ -142,7 +142,7 @@ func (h *HabitsHandler) GetHabit(c *gin.Context) {
 	// Explicitly set content type (must change it in the future)
 	c.Header("Content-Type", "application/json; charset=utf-8")
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.HabitToResponse(habit)})
+	c.JSON(http.StatusOK, gin.H{"data": HabitToResponse(habit)})
 }
 
 // ListHabits godoc
@@ -159,6 +159,11 @@ func (h *HabitsHandler) GetHabit(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /api/habits [get]
 func (h *HabitsHandler) ListHabits(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 	pageStr := c.DefaultQuery("page", "0")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 
@@ -176,6 +181,7 @@ func (h *HabitsHandler) ListHabits(c *gin.Context) {
 	filter := habits.HabitFilter{
 		Page:     page,
 		PageSize: pageSize,
+		UserID:   &userID,
 	}
 
 	habitsData, total, err := h.service.ListHabits(c.Request.Context(), filter)
@@ -185,30 +191,27 @@ func (h *HabitsHandler) ListHabits(c *gin.Context) {
 	}
 
 	// Record habit list view analytics
-	userID, exists := middleware.GetUserID(c)
-	if exists {
-		go func() {
-			ctx := context.Background()
-			h.service.RecordHabitActivity(ctx, habits.RecordHabitActivityInput{
-				HabitID: uuid.Nil, // No specific habit ID for list view
-				UserID:  userID,
-				Action:  habits.ActionHabitListView,
-				Metadata: map[string]interface{}{
-					"page":      page,
-					"page_size": pageSize,
-					"total":     total,
-					"count":     len(habitsData),
-					"via":       "api",
-					"path":      c.Request.URL.Path,
-					"method":    c.Request.Method,
-				},
-			})
-		}()
-	}
+	go func() {
+		ctx := context.Background()
+		h.service.RecordHabitActivity(ctx, habits.RecordHabitActivityInput{
+			HabitID: uuid.Nil, // No specific habit ID for list view
+			UserID:  userID,
+			Action:  habits.ActionHabitListView,
+			Metadata: map[string]interface{}{
+				"page":      page,
+				"page_size": pageSize,
+				"total":     total,
+				"count":     len(habitsData),
+				"via":       "api",
+				"path":      c.Request.URL.Path,
+				"method":    c.Request.Method,
+			},
+		})
+	}()
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {
-		response := dto.HabitToResponse(&habit)
+		response := HabitToResponse(&habit)
 		responses[i] = *response
 	}
 
@@ -282,7 +285,7 @@ func (h *HabitsHandler) UpdateHabit(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": dto.HabitToResponse(updatedHabit)})
+	c.JSON(http.StatusOK, gin.H{"data": HabitToResponse(updatedHabit)})
 }
 
 // DeleteHabit godoc
@@ -371,7 +374,7 @@ func (h *HabitsHandler) GetStreakHistory(c *gin.Context) {
 
 	responses := make([]dto.StreakHistoryResponse, len(history))
 	for i, h := range history {
-		responses[i] = *dto.StreakHistoryToResponse(&h)
+		responses[i] = *StreakHistoryToResponse(&h)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": responses})
@@ -419,7 +422,7 @@ func (h *HabitsHandler) GetHabitsDueToday(c *gin.Context) {
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {
-		responses[i] = *dto.HabitToResponse(&habit)
+		responses[i] = *HabitToResponse(&habit)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": responses})
@@ -1160,7 +1163,7 @@ func (h *HabitsHandler) GetUserHabits(c *gin.Context) {
 
 	responses := make([]dto.HabitResponse, len(habitsData))
 	for i, habit := range habitsData {
-		responses[i] = *dto.HabitToResponse(&habit)
+		responses[i] = *HabitToResponse(&habit)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": responses})

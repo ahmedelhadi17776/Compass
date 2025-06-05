@@ -1,8 +1,6 @@
 .week-view {
   height: 100%;
-  background: #1a1a1a;
-  padding: 1rem;
-  padding-bottom: 2rem;
+  padding-bottom: 1rem;
   color: #e5e5e5;
   display: flex;
   flex-direction: column;
@@ -24,7 +22,7 @@
 .week-view .days-header {
   display: grid;
   grid-template-columns: 70px repeat(7, 1fr);
-  background: #1a1a1a;
+  background: #18191b;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -33,7 +31,7 @@
 .week-view .time-label-header {
   width: 70px;
   border-right: 1px solid #333;
-  background: #1a1a1a;
+  background: #18191b;
 }
 
 .week-view .day-header {
@@ -43,7 +41,7 @@
   color: #e5e5e5;
   border-right: 1px solid #333;
   border-bottom: 1px solid #333;
-  background: #1a1a1a;
+  background: #18191b;
   position: relative;
 }
 
@@ -74,7 +72,7 @@
 .week-view .time-slots {
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
+  background: #18191b;
   overflow-y: auto;
   flex: 1;
   position: relative;
@@ -102,7 +100,7 @@
   font-size: 0.75rem;
   text-align: right;
   border-right: 1px solid #333;
-  background: #1a1a1a;
+  background: #18191b;
 }
 
 .week-view .days-content {
@@ -150,7 +148,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background: #1a1a1a;
+  background: #18191b;
   color: #e5e5e5;
 }
 

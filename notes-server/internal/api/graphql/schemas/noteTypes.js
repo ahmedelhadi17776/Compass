@@ -10,6 +10,7 @@ const {
 } = require('graphql');
 const NotePage = require('../../../domain/notes/model');
 const { createResponseType } = require('./responseTypes');
+const { PermissionLevelEnum, PermissionInput, PermissionType } = require('./permissionTypes');
 
 // Input types for better mutation handling
 const NotePageInput = new GraphQLInputObjectType({
@@ -17,7 +18,7 @@ const NotePageInput = new GraphQLInputObjectType({
   fields: {
     userId: { 
       type: GraphQLID,
-      description: 'ID of the user who owns the note'
+      description: '[IGNORED] ID of the user who owns the note. Always set from backend.'
     },
     title: { 
       type: GraphQLString,
@@ -42,6 +43,14 @@ const NotePageInput = new GraphQLInputObjectType({
     linksOut: { 
       type: new GraphQLList(GraphQLID),
       description: 'List of note IDs this note links to'
+    },
+    sharedWith: {
+      type: new GraphQLList(GraphQLID),
+      description: 'List of user IDs the note is shared with'
+    },
+    permissions: {
+      type: new GraphQLList(PermissionInput),
+      description: 'List of permissions for users'
     }
   }
 });
@@ -147,6 +156,14 @@ const NotePageType = new GraphQLObjectType({
     linkedNotesCount: {
       type: GraphQLInt,
       resolve: (parent) => (parent.linksOut?.length || 0) + (parent.linksIn?.length || 0)
+    },
+    sharedWith: {
+      type: new GraphQLList(GraphQLID),
+      description: 'List of user IDs the note is shared with'
+    },
+    permissions: {
+      type: new GraphQLList(PermissionType),
+      description: 'List of permissions for users'
     }
   })
 });
@@ -154,6 +171,25 @@ const NotePageType = new GraphQLObjectType({
 // Create response types for single and list responses
 const NotePageResponseType = createResponseType(NotePageType, 'NotePage');
 const NotePageListResponseType = createResponseType(new GraphQLList(NotePageType), 'NotePageList');
+
+// --- Subscription Fields for Notes ---
+const noteSubscriptionFields = {
+  notePageCreated: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is created.'
+  },
+  notePageUpdated: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is updated.'
+  },
+  notePageDeleted: {
+    type: NotePageResponseType,
+    args: { userId: { type: GraphQLID } },
+    description: 'Triggered when a note page is deleted.'
+  }
+};
 
 module.exports = { 
   NotePageType,
@@ -164,5 +200,6 @@ module.exports = {
   NoteFilterInput,
   NotePageInput,
   PaginationInput,
-  getSelectedFields
+  getSelectedFields,
+  noteSubscriptionFields
 }; 

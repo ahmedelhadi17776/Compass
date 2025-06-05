@@ -1,4 +1,4 @@
-const { GraphQLID, GraphQLBoolean } = require('graphql');
+const { GraphQLID, GraphQLBoolean, GraphQLString } = require('graphql');
 const { 
   NotePageResponseType, 
   NotePageInput,
@@ -7,6 +7,7 @@ const {
 const noteService = require('../../../domain/notes/noteService');
 const { ValidationError, NotFoundError, DatabaseError, BaseError } = require('../../../../pkg/utils/errorHandler');
 const { logger } = require('../../../../pkg/utils/logger');
+const { pubsub } = require('../../../infrastructure/cache/pubsub');
 
 const notePageMutations = {
   createNotePage: {
@@ -18,8 +19,12 @@ const notePageMutations = {
       try {
         const { input } = args;
         const selectedFields = getSelectedFields(info);
+        const currentUserId = context.user && context.user.id;
+        const inputWithUser = { ...input, userId: currentUserId };
+        const savedNote = await noteService.createNote(inputWithUser, selectedFields, currentUserId);
         
-        const savedNote = await noteService.createNote(input, selectedFields);
+        // Publish subscription event
+        pubsub.publish('NOTE_PAGE_CREATED', { notePageCreated: { success: true, message: 'Note created', data: savedNote, errors: null } });
         
         return {
           success: true,
@@ -57,8 +62,12 @@ const notePageMutations = {
       try {
         const { id, input } = args;
         const selectedFields = getSelectedFields(info);
+        const currentUserId = context.user && context.user.id;
+        const inputWithUser = { ...input, userId: currentUserId };
+        const updatedNote = await noteService.updateNote(id, inputWithUser, selectedFields, currentUserId);
         
-        const updatedNote = await noteService.updateNote(id, input, selectedFields);
+        // Publish subscription event
+        pubsub.publish('NOTE_PAGE_UPDATED', { notePageUpdated: { success: true, message: 'Note updated', data: updatedNote, errors: null } });
         
         return {
           success: true,
@@ -95,8 +104,11 @@ const notePageMutations = {
       try {
         const { id } = args;
         const selectedFields = getSelectedFields(info);
+        const currentUserId = context.user && context.user.id;
+        const deletedNote = await noteService.deleteNote(id, selectedFields, currentUserId);
         
-        const deletedNote = await noteService.deleteNote(id, selectedFields);
+        // Publish subscription event
+        pubsub.publish('NOTE_PAGE_DELETED', { notePageDeleted: { success: true, message: 'Note deleted', data: deletedNote, errors: null } });
         
         return {
           success: true,
@@ -134,8 +146,8 @@ const notePageMutations = {
       try {
         const { id, favorited } = args;
         const selectedFields = getSelectedFields(info);
-        
-        const updatedNote = await noteService.toggleFavorite(id, favorited, selectedFields);
+        const currentUserId = context.user && context.user.id;
+        const updatedNote = await noteService.toggleFavorite(id, favorited, selectedFields, currentUserId);
         
         return {
           success: true,
@@ -155,6 +167,84 @@ const notePageMutations = {
           throw error;
         }
         throw new DatabaseError(`Failed to toggle favorite status: ${error.message}`);
+      }
+    }
+  },
+  shareNotePage: {
+    type: NotePageResponseType,
+    args: {
+      noteId: { type: GraphQLID },
+      userId: { type: GraphQLID },
+      level: { type: GraphQLString } // 'view', 'edit', 'comment'
+    },
+    async resolve(parent, args, context, info) {
+      try {
+        const currentUserId = context.user.id;
+        const selectedFields = getSelectedFields(info);
+        const result = await noteService.shareNote(args.noteId, args.userId, args.level, currentUserId, selectedFields);
+        return {
+          success: true,
+          message: 'Note shared successfully',
+          data: result,
+          errors: null
+        };
+      } catch (error) {
+        logger.error('Error in shareNotePage', {
+          error: error.message,
+          stack: error.stack,
+          noteId: args.noteId,
+          userId: args.userId,
+          level: args.level
+        });
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
+          }]
+        };
+      }
+    }
+  },
+  unshareNotePage: {
+    type: NotePageResponseType,
+    args: {
+      noteId: { type: GraphQLID },
+      userId: { type: GraphQLID }
+    },
+    async resolve(parent, args, context, info) {
+      try {
+        const currentUserId = context.user.id;
+        const selectedFields = getSelectedFields(info);
+        const result = await noteService.unshareNote(args.noteId, args.userId, currentUserId, selectedFields);
+        return {
+          success: true,
+          message: 'Note unshared successfully',
+          data: result,
+          errors: null
+        };
+      } catch (error) {
+        logger.error('Error in unshareNotePage', {
+          error: error.message,
+          stack: error.stack,
+          noteId: args.noteId,
+          userId: args.userId
+        });
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+          errors: [{
+            message: error.message,
+            field: error.field,
+            code: error instanceof ValidationError ? 'VALIDATION_ERROR' : 
+                  error instanceof NotFoundError ? 'NOT_FOUND' : 'INTERNAL_ERROR'
+          }]
+        };
       }
     }
   }

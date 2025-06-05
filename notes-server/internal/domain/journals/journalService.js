@@ -1,6 +1,10 @@
 const Journal = require('./model');
 const { ValidationError, NotFoundError, DatabaseError } = require('../../../pkg/utils/errorHandler');
 const { logger } = require('../../../pkg/utils/logger');
+const RedisService = require('../../infrastructure/cache/redisService');
+const redisConfig = require('../../infrastructure/cache/config');
+
+const redisClient = new RedisService(redisConfig);
 
 class JournalService {
   /**
@@ -10,23 +14,20 @@ class JournalService {
    */
   async createJournal(input, selectedFields = '') {
     logger.debug('Creating journal entry', { input });
-    
-    if (!input.userId) {
+    // Always set userId from input.userId (which is set by resolver from context)
+    const userId = input.userId;
+    if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }
-
     if (!input.title?.trim()) {
       throw new ValidationError('Title is required', 'title');
     }
-
     if (!input.date) {
       throw new ValidationError('Date is required', 'date');
     }
-
-    const journal = new Journal(input);
+    const journal = new Journal({ ...input, userId });
     await journal.save();
     logger.info('Journal entry created', { journalId: journal._id });
-
     const savedJournal = await Journal.findById(journal._id)
       .select(`${selectedFields} userId tags`)
       .lean();
@@ -35,20 +36,20 @@ class JournalService {
     }
 
     // Cache the new journal using unified API
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'journal',
       journal._id.toString(),
       savedJournal,
-      [input.userId, ...(Array.isArray(input.tags) ? input.tags : [])],
-      input.userId
+      [userId, ...(Array.isArray(input.tags) ? input.tags : [])],
+      userId
     );
 
     // Invalidate user's journal list cache
-    await global.redisClient.invalidateByPattern(`user:${input.userId}:journals:*`);
+    await redisClient.invalidateByPattern(`user:${userId}:journals:*`);
 
     logger.info('Journal entry creation completed', { 
       journalId: journal._id,
-      userId: input.userId
+      userId: userId
     });
 
     return savedJournal;
@@ -62,69 +63,48 @@ class JournalService {
    */
   async updateJournal(id, input, selectedFields = '') {
     logger.debug('Updating journal entry', { journalId: id, input });
-
     if (!id) {
       throw new ValidationError('Journal ID is required', 'id');
     }
-
     // Fetch the old journal before updating
     const oldJournal = await Journal.findById(id);
     if (!oldJournal) {
       throw new NotFoundError('Journal');
     }
-
-    // Invalidate by tags for old journal before update
-    await global.redisClient.invalidateByTags([
+    await redisClient.invalidateByTags([
       oldJournal.userId.toString(),
       ...(Array.isArray(oldJournal.tags) ? oldJournal.tags : [])
     ]);
-    // Invalidate old cache key and remove from tag sets
-    await global.redisClient.invalidateByPattern(global.redisClient.generateKey('journal', id));
-
-    // Add validation for required fields if they're included in the update
+    await redisClient.invalidateByPattern(redisClient.generateKey('journal', id));
     if (input.title !== undefined && !input.title?.trim()) {
       throw new ValidationError('Title is required', 'title');
     }
-
     if (input.date !== undefined && !input.date) {
       throw new ValidationError('Date is required', 'date');
     }
-
-    // Update journal
-    Object.assign(oldJournal, input);
+    // Always set userId from input.userId (which is set by resolver from context)
+    Object.assign(oldJournal, { ...input, userId: input.userId });
     await oldJournal.save();
     logger.info('Journal entry updated', { journalId: id });
-
     const updatedJournal = await Journal.findById(id)
       .select(`${selectedFields} userId tags`)
       .lean();
     if (!updatedJournal || !updatedJournal.userId) {
       throw new Error('Updated journal is missing userId or does not exist');
     }
-
-    // Invalidate by tags for updated journal after update
-    await global.redisClient.invalidateByTags([
+    await redisClient.invalidateByTags([
       updatedJournal.userId.toString(),
       ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])
     ]);
-
-    // Cache the updated journal
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'journal',
       id.toString(),
       updatedJournal,
       [updatedJournal.userId, ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])],
       updatedJournal.userId
     );
-    
-    // Invalidate user's journal list cache
-    await global.redisClient.invalidateByPattern(`user:${updatedJournal.userId}:journals:*`);
-
-    logger.info('Journal entry update completed', { 
-      journalId: id,
-      userId: updatedJournal.userId
-    });
-
+    await redisClient.invalidateByPattern(`user:${updatedJournal.userId}:journals:*`);
+    logger.info('Journal entry update completed', { journalId: id, userId: updatedJournal.userId });
     return updatedJournal;
   }
   
@@ -151,11 +131,11 @@ class JournalService {
     await journal.save();
 
     // Invalidate by tags for journal before delete
-    await global.redisClient.invalidateByTags([
+    await redisClient.invalidateByTags([
       journal.userId.toString(),
       ...(Array.isArray(journal.tags) ? journal.tags : [])
     ]);
-    await global.redisClient.invalidateByPattern(global.redisClient.generateKey('journal', id));
+    await redisClient.invalidateByPattern(redisClient.generateKey('journal', id));
 
     const deletedJournal = await Journal.findById(id)
       .select(`${selectedFields} userId tags`)
@@ -165,7 +145,7 @@ class JournalService {
     }
 
     // Invalidate user's journal list cache
-    await global.redisClient.invalidateByPattern(`user:${journal.userId}:journals:*`);
+    await redisClient.invalidateByPattern(`user:${journal.userId}:journals:*`);
 
     logger.info('Journal entry deletion completed', { 
       journalId: id,
@@ -204,7 +184,7 @@ class JournalService {
     }
 
     // Update the journal cache instead of invalidating it
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'journal',
       id.toString(),
       archivedJournal,
@@ -213,7 +193,7 @@ class JournalService {
     );
     
     // Only invalidate the user's journal list caches
-    await global.redisClient.invalidateByPattern(`user:${journal.userId}:journals:*`);
+    await redisClient.invalidateByPattern(`user:${journal.userId}:journals:*`);
 
     logger.info('Journal entry archival completed', { 
       journalId: id,
@@ -232,9 +212,13 @@ class JournalService {
    */
   async getJournalsByDateRange(startDate, endDate, userId, selectedFields = '') {
     logger.debug('Getting journals by date range', { startDate, endDate, userId });
+    // Always require userId from argument, never from input
+    if (!userId) {
+      throw new ValidationError('User ID is required', 'userId');
+    }
 
-    const cacheKey = global.redisClient.generateListKey(userId, 'journals:dateRange', { startDate, endDate, selectedFields });
-    const cachedResult = await global.redisClient.getList(cacheKey);
+    const cacheKey = redisClient.generateListKey(userId, 'journals:dateRange', { startDate, endDate, selectedFields });
+    const cachedResult = await redisClient.getList(cacheKey);
     if (cachedResult) {
       logger.debug('Journals by date range retrieved from cache', { userId, startDate, endDate });
       return cachedResult;
@@ -261,7 +245,7 @@ class JournalService {
 
     // Cache the result
     const allTags = Array.from(new Set(journals.flatMap(j => j.tags || [])));
-    await global.redisClient.setList(cacheKey, journals, [userId, ...allTags], userId);
+    await redisClient.setList(cacheKey, journals, [userId, ...allTags], userId);
 
     return journals;
   }
@@ -281,7 +265,7 @@ class JournalService {
     }
 
     // Try to get from cache first
-    const cachedJournal = await global.redisClient.getEntity('journal', id);
+    const cachedJournal = await redisClient.getEntity('journal', id);
     if (cachedJournal) {
       logger.debug('Journal retrieved from cache', { journalId: id });
       // If we don't want archived journals and this one is archived, return not found
@@ -310,7 +294,7 @@ class JournalService {
 
     // Cache the result
     const tags = [journal.userId.toString(), ...(Array.isArray(journal.tags) ? journal.tags : [])];
-    await global.redisClient.setEntity(
+    await redisClient.setEntity(
       'journal',
       id.toString(),
       journal,
@@ -331,7 +315,7 @@ class JournalService {
    */
   async getJournals({ userId, page = 1, limit = 10, sortField = 'date', sortOrder = -1, filter = {} }, selectedFields = '') {
     logger.debug('Getting journals', { userId, page, limit, sortField, sortOrder, filter });
-
+    // Always require userId from argument, never from input
     if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }
@@ -343,10 +327,10 @@ class JournalService {
     }
 
     // Generate cache key based on query parameters
-    const cacheKey = global.redisClient.generateListKey(userId, 'journals', { page, limit, sortField, sortOrder, filter });
+    const cacheKey = redisClient.generateListKey(userId, 'journals', { page, limit, sortField, sortOrder, filter });
 
     // Try to get from cache first
-    const cachedResult = await global.redisClient.getList(cacheKey);
+    const cachedResult = await redisClient.getList(cacheKey);
     if (cachedResult) {
       logger.debug('Journals retrieved from cache', { userId, page, limit });
       return cachedResult;
@@ -403,7 +387,7 @@ class JournalService {
     // Cache the result
     // Collect all tags from the result set for robust invalidation
     const allTags = Array.from(new Set(journals.flatMap(j => j.tags || [])));
-    await global.redisClient.setList(cacheKey, result, [userId, ...allTags], userId);
+    await redisClient.setList(cacheKey, result, [userId, ...allTags], userId);
     logger.debug('Journals cached', { userId, page, limit, totalItems });
 
     logger.info('Journals retrieved successfully', { userId, page, limit, totalItems });

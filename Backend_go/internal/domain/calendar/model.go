@@ -81,6 +81,20 @@ func (a *Int64Array) Scan(src interface{}) error {
 	return (*pq.Int64Array)(a).Scan(src)
 }
 
+// EventCollaborator represents a user collaborating on a calendar event (sharing, invitation, permissions)
+type EventCollaborator struct {
+	ID          uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	EventID     uuid.UUID  `json:"event_id" gorm:"type:uuid;not null;index:idx_event_collab_event"`
+	UserID      uuid.UUID  `json:"user_id" gorm:"type:uuid;not null;index:idx_event_collab_user"`
+	Role        string     `json:"role" gorm:"type:varchar(50);not null;default:'viewer'"`    // owner, editor, viewer, invitee
+	Status      string     `json:"status" gorm:"type:varchar(20);not null;default:'pending'"` // accepted, declined, pending
+	InvitedBy   uuid.UUID  `json:"invited_by" gorm:"type:uuid;not null"`
+	InvitedAt   time.Time  `json:"invited_at" gorm:"not null;default:current_timestamp"`
+	RespondedAt *time.Time `json:"responded_at"`
+	CreatedAt   time.Time  `json:"created_at" gorm:"not null;default:current_timestamp"`
+	UpdatedAt   time.Time  `json:"updated_at" gorm:"not null;default:current_timestamp"`
+}
+
 // CalendarEvent represents a calendar event or series
 type CalendarEvent struct {
 	ID           uuid.UUID    `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
@@ -102,6 +116,7 @@ type CalendarEvent struct {
 	Occurrences     []OccurrenceResponse `json:"occurrences,omitempty" gorm:"-"` // Use - to exclude from DB operations
 	Exceptions      []EventException     `json:"exceptions,omitempty" gorm:"foreignKey:EventID"`
 	Reminders       []EventReminder      `json:"reminders,omitempty" gorm:"foreignKey:EventID"`
+	Collaborators   []EventCollaborator  `json:"collaborators,omitempty" gorm:"foreignKey:EventID"`
 }
 
 // RecurrenceRule represents the recurrence pattern for a calendar event
@@ -169,11 +184,12 @@ type EventReminder struct {
 }
 
 // TableName specifies the table names for each model
-func (CalendarEvent) TableName() string   { return "calendar_events" }
-func (RecurrenceRule) TableName() string  { return "recurrence_rules" }
-func (EventOccurrence) TableName() string { return "event_occurrences" }
-func (EventException) TableName() string  { return "event_exceptions" }
-func (EventReminder) TableName() string   { return "event_reminders" }
+func (CalendarEvent) TableName() string     { return "calendar_events" }
+func (RecurrenceRule) TableName() string    { return "recurrence_rules" }
+func (EventOccurrence) TableName() string   { return "event_occurrences" }
+func (EventException) TableName() string    { return "event_exceptions" }
+func (EventReminder) TableName() string     { return "event_reminders" }
+func (EventCollaborator) TableName() string { return "event_collaborators" }
 
 // BeforeCreate hooks for UUID generation
 func (e *CalendarEvent) BeforeCreate(tx *gorm.DB) error {
@@ -208,6 +224,19 @@ func (r *EventReminder) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == uuid.Nil {
 		r.ID = uuid.New()
 	}
+	return nil
+}
+
+// BeforeCreate hook for EventCollaborator
+func (c *EventCollaborator) BeforeCreate(tx *gorm.DB) error {
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
+	}
+	if c.InvitedAt.IsZero() {
+		c.InvitedAt = time.Now()
+	}
+	c.CreatedAt = time.Now()
+	c.UpdatedAt = time.Now()
 	return nil
 }
 

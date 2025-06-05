@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import ChatbotIcon from './ChatbotIcon';
-import ChatWindow from './ChatWindow';
-import { Position } from './types';
-import { useChat } from '@/contexts/chat-context';
+import ChatbotIcon from '@/components/Chatbot/ChatbotIcon';
+import ChatWindow from '@/components/Chatbot/ChatWindow';
+import { Position } from '@/components/Chatbot/types';
+import { useChat } from '@/components/Chatbot/chat-context';
 
 const Chatbot: React.FC = () => {
   const { messages } = useChat();

@@ -65,6 +65,9 @@ func (r *todoRepository) FindAll(ctx context.Context, filter TodoFilter) ([]Todo
 	query := r.db.WithContext(ctx)
 
 	// Apply filters
+	if filter.UserID != nil {
+		query = query.Where("user_id = ?", *filter.UserID)
+	}
 	if filter.Status != nil {
 		query = query.Where("status = ?", filter.Status)
 	}
@@ -100,6 +103,11 @@ func (r *todoRepository) FindAll(ctx context.Context, filter TodoFilter) ([]Todo
 	err := query.Model(&Todo{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Set default PageSize if not set
+	if filter.PageSize == 0 {
+		filter.PageSize = 10000
 	}
 
 	// Apply pagination

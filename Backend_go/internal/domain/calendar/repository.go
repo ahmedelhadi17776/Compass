@@ -17,6 +17,7 @@ type Repository interface {
 	UpdateEvent(ctx context.Context, event *CalendarEvent) error
 	DeleteEvent(ctx context.Context, id uuid.UUID) error
 	ListEvents(ctx context.Context, filter EventFilter) ([]CalendarEvent, int64, error)
+	FindAll(ctx context.Context, filter EventFilter) ([]CalendarEvent, int64, error)
 
 	// Recurrence rule operations
 	AddRecurrenceRule(ctx context.Context, rule *RecurrenceRule) error
@@ -42,6 +43,14 @@ type Repository interface {
 	UpdateReminder(ctx context.Context, reminder *EventReminder) error
 	DeleteReminder(ctx context.Context, id uuid.UUID) error
 	GetUpcomingReminders(ctx context.Context, startTime, endTime time.Time) ([]EventReminder, error)
+
+	// Collaborator operations
+	AddCollaborator(ctx context.Context, collaborator *EventCollaborator) error
+	RemoveCollaborator(ctx context.Context, eventID, userID uuid.UUID) error
+	ListCollaboratorsByEventID(ctx context.Context, eventID uuid.UUID) ([]EventCollaborator, error)
+	ListEventsSharedWithUser(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error)
+	UpdateCollaboratorStatus(ctx context.Context, eventID, userID uuid.UUID, status string, respondedAt *time.Time) error
+	GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error)
 }
 
 // Transaction represents a database transaction
@@ -357,4 +366,108 @@ func (t *transaction) GetOccurrences(eventID uuid.UUID, startTime, endTime time.
 	err := t.tx.Where("event_id = ? AND occurrence_time BETWEEN ? AND ?", eventID, startTime, endTime).
 		Find(&occurrences).Error
 	return occurrences, err
+}
+
+func (r *repository) AddCollaborator(ctx context.Context, collaborator *EventCollaborator) error {
+	return r.db.WithContext(ctx).Create(collaborator).Error
+}
+
+func (r *repository) RemoveCollaborator(ctx context.Context, eventID, userID uuid.UUID) error {
+	return r.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).Delete(&EventCollaborator{}).Error
+}
+
+func (r *repository) ListCollaboratorsByEventID(ctx context.Context, eventID uuid.UUID) ([]EventCollaborator, error) {
+	var collaborators []EventCollaborator
+	err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Find(&collaborators).Error
+	return collaborators, err
+}
+
+func (r *repository) ListEventsSharedWithUser(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error) {
+	var events []CalendarEvent
+	err := r.db.WithContext(ctx).
+		Joins("JOIN event_collaborators ON event_collaborators.event_id = calendar_events.id").
+		Where("event_collaborators.user_id = ? AND event_collaborators.status = ?", userID, "accepted").
+		Preload("RecurrenceRules").
+		Preload("Reminders").
+		Find(&events).Error
+	return events, err
+}
+
+func (r *repository) UpdateCollaboratorStatus(ctx context.Context, eventID, userID uuid.UUID, status string, respondedAt *time.Time) error {
+	updates := map[string]interface{}{"status": status}
+	if respondedAt != nil {
+		updates["responded_at"] = *respondedAt
+	}
+	return r.db.WithContext(ctx).
+		Model(&EventCollaborator{}).
+		Where("event_id = ? AND user_id = ?", eventID, userID).
+		Updates(updates).Error
+}
+
+func (r *repository) GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error) {
+	var collaborator EventCollaborator
+	err := r.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).First(&collaborator).Error
+	if err != nil {
+		return nil, err
+	}
+	return &collaborator, nil
+}
+
+func (r *repository) FindAll(ctx context.Context, filter EventFilter) ([]CalendarEvent, int64, error) {
+	var events []CalendarEvent
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&CalendarEvent{})
+
+	// Apply filters
+	query = query.Where("user_id = ?", filter.UserID)
+
+	// Handle date range filtering for both single and recurring events
+	if filter.StartTime != nil && filter.EndTime != nil {
+		// Create a subquery to find events with occurrences in the range
+		occurrenceSubquery := r.db.Model(&EventOccurrence{}).
+			Select("event_id").
+			Where("occurrence_time BETWEEN ? AND ?", filter.StartTime, filter.EndTime)
+
+		// Events that either:
+		// 1. Overlap with the date range directly (non-recurring events)
+		// 2. Have occurrences within the date range (recurring events)
+		query = query.Where(
+			r.db.Where(
+				"(start_time BETWEEN ? AND ?) OR "+
+					"(end_time BETWEEN ? AND ?) OR "+
+					"(start_time <= ? AND end_time >= ?)",
+				filter.StartTime, filter.EndTime,
+				filter.StartTime, filter.EndTime,
+				filter.StartTime, filter.EndTime,
+			).Or("id IN (?)", occurrenceSubquery),
+		)
+	}
+
+	if filter.EventType != nil {
+		query = query.Where("event_type = ?", filter.EventType)
+	}
+	if filter.Search != "" {
+		query = query.Where("title ILIKE ? OR description ILIKE ?",
+			"%"+filter.Search+"%", "%"+filter.Search+"%")
+	}
+
+	// Get total count
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Apply pagination
+	if filter.Page > 0 && filter.PageSize > 0 {
+		offset := (filter.Page - 1) * filter.PageSize
+		query = query.Offset(offset).Limit(filter.PageSize)
+	}
+
+	// Execute query with preloads
+	err := query.
+		Preload("RecurrenceRules").
+		Preload("Reminders").
+		Find(&events).Error
+
+	return events, total, err
 }

@@ -6,7 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // Service defines the business logic interface for calendar events
@@ -27,15 +31,34 @@ type Service interface {
 	AddReminder(ctx context.Context, eventID uuid.UUID, req CreateEventReminderRequest) error
 	UpdateReminder(ctx context.Context, id uuid.UUID, req CreateEventReminderRequest) error
 	DeleteReminder(ctx context.Context, id uuid.UUID) error
+
+	// Collaborator operations
+	ShareEvent(ctx context.Context, eventID, invitedUserID, invitedBy uuid.UUID, role string) error
+	RemoveCollaborator(ctx context.Context, eventID, userID uuid.UUID) error
+	ListCollaborators(ctx context.Context, eventID uuid.UUID) ([]EventCollaborator, error)
+	ListEventsSharedWithMe(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error)
+	RespondToEventInvite(ctx context.Context, eventID, userID uuid.UUID, accept bool) error
+	GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error)
+	GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetrics, error)
 }
 
 type service struct {
-	repo Repository
+	repo     Repository
+	notifier notification.DomainNotifier
+	redis    *cache.RedisClient
 }
 
 // NewService creates a new calendar service instance
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, notifier notification.DomainNotifier, redis *cache.RedisClient) Service {
+	return &service{repo: repo, notifier: notifier, redis: redis}
+}
+
+// Define CalendarDashboardMetrics struct for dashboard metrics aggregation
+// CalendarDashboardMetrics represents summary metrics for the dashboard
+// Used by GetDashboardMetrics
+type CalendarDashboardMetrics struct {
+	Upcoming int
+	Total    int
 }
 
 func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventRequest, userID uuid.UUID) (*CalendarEvent, error) {
@@ -123,7 +146,15 @@ func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventReques
 	}
 
 	// Fetch the complete event with all relationships
-	return s.GetEventByID(ctx, event.ID)
+	event, err := s.GetEventByID(ctx, event.ID)
+	if err != nil {
+		return nil, err
+	}
+	s.recordCalendarActivity(ctx, event, userID, "event_created", map[string]interface{}{
+		"title": event.Title,
+		"type":  event.EventType,
+	})
+	return event, nil
 }
 
 // generateOccurrences generates event occurrences based on the recurrence rule
@@ -653,11 +684,31 @@ func (s *service) UpdateEvent(ctx context.Context, id uuid.UUID, req UpdateCalen
 		return nil, err
 	}
 
-	return s.GetEventByID(ctx, event.ID)
+	event, err = s.GetEventByID(ctx, event.ID)
+	if err != nil {
+		return nil, err
+	}
+	s.recordCalendarActivity(ctx, event, event.UserID, "event_updated", map[string]interface{}{
+		"title": event.Title,
+		"type":  event.EventType,
+	})
+	return event, nil
 }
 
 func (s *service) DeleteEvent(ctx context.Context, id uuid.UUID) error {
-	return s.repo.DeleteEvent(ctx, id)
+	event, err := s.repo.GetEventByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	err = s.repo.DeleteEvent(ctx, id)
+	if err != nil {
+		return err
+	}
+	s.recordCalendarActivity(ctx, event, event.UserID, "event_deleted", map[string]interface{}{
+		"title": event.Title,
+		"type":  event.EventType,
+	})
+	return nil
 }
 
 func (s *service) GetEventByID(ctx context.Context, id uuid.UUID) (*CalendarEvent, error) {
@@ -943,4 +994,112 @@ func (s *service) UpdateOccurrenceById(ctx context.Context, occurrenceId uuid.UU
 	}
 
 	return tx.Commit()
+}
+
+func (s *service) ShareEvent(ctx context.Context, eventID, invitedUserID, invitedBy uuid.UUID, role string) error {
+	collaborator := &EventCollaborator{
+		EventID:   eventID,
+		UserID:    invitedUserID,
+		Role:      role,
+		Status:    "pending",
+		InvitedBy: invitedBy,
+	}
+	err := s.repo.AddCollaborator(ctx, collaborator)
+	if err == nil && s.notifier != nil {
+		event, _ := s.repo.GetEventByID(ctx, eventID)
+		title := "You have been invited to collaborate on an event"
+		content := "Event: " + event.Title
+		_ = s.notifier.NotifyUser(ctx, invitedUserID, notification.EventInvite, title, content, nil, "calendar_event", eventID)
+	}
+	return err
+}
+
+func (s *service) RemoveCollaborator(ctx context.Context, eventID, userID uuid.UUID) error {
+	err := s.repo.RemoveCollaborator(ctx, eventID, userID)
+	if err == nil && s.notifier != nil {
+		event, _ := s.repo.GetEventByID(ctx, eventID)
+		title := "You have been removed from an event"
+		content := "Event: " + event.Title
+		_ = s.notifier.NotifyUser(ctx, userID, notification.EventRemovedFromCollab, title, content, nil, "calendar_event", eventID)
+	}
+	return err
+}
+
+func (s *service) ListCollaborators(ctx context.Context, eventID uuid.UUID) ([]EventCollaborator, error) {
+	return s.repo.ListCollaboratorsByEventID(ctx, eventID)
+}
+
+func (s *service) ListEventsSharedWithMe(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error) {
+	return s.repo.ListEventsSharedWithUser(ctx, userID)
+}
+
+func (s *service) RespondToEventInvite(ctx context.Context, eventID, userID uuid.UUID, accept bool) error {
+	status := "declined"
+	if accept {
+		status = "accepted"
+	}
+	respondedAt := time.Now()
+	err := s.repo.UpdateCollaboratorStatus(ctx, eventID, userID, status, &respondedAt)
+	if err == nil && s.notifier != nil {
+		collab, _ := s.repo.GetCollaborator(ctx, eventID, userID)
+		event, _ := s.repo.GetEventByID(ctx, eventID)
+		inviterID := collab.InvitedBy
+		var nType notification.Type
+		var title, content string
+		if accept {
+			nType = notification.EventInviteAccepted
+			title = "Your event invitation was accepted"
+			content = "User accepted your invitation to event: " + event.Title
+		} else {
+			nType = notification.EventInviteDeclined
+			title = "Your event invitation was declined"
+			content = "User declined your invitation to event: " + event.Title
+		}
+		_ = s.notifier.NotifyUser(ctx, inviterID, nType, title, content, nil, "calendar_event", eventID)
+	}
+	return err
+}
+
+func (s *service) GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error) {
+	return s.repo.GetCollaborator(ctx, eventID, userID)
+}
+
+func (s *service) GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetrics, error) {
+	ctx := context.Background()
+	filter := EventFilter{UserID: userID}
+	events, _, err := s.repo.FindAll(ctx, filter)
+	if err != nil {
+		return CalendarDashboardMetrics{}, err
+	}
+	total := len(events)
+	upcoming := 0
+	now := time.Now()
+	for _, e := range events {
+		if e.StartTime.After(now) {
+			upcoming++
+		}
+	}
+	return CalendarDashboardMetrics{
+		Upcoming: upcoming,
+		Total:    total,
+	}, nil
+}
+
+func (s *service) recordCalendarActivity(ctx context.Context, event *CalendarEvent, userID uuid.UUID, action string, metadata map[string]interface{}) {
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["action"] = action
+
+	// Publish dashboard event for cache invalidation
+	dashboardEvent := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    userID,
+		EntityID:  event.ID,
+		Timestamp: time.Now().UTC(),
+		Details:   metadata,
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, dashboardEvent); err != nil {
+		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+	}
 }

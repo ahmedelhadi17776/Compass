@@ -9,14 +9,15 @@ import {
   WorkflowExecutionResponse,
   WorkflowAnalysisResponse
 } from '@/components/workflow/types';
+import { GO_API_URL } from '@/config';
 
-export const API_BASE_URL = '/api/workflows';
+export const API_BASE_URL = `${GO_API_URL}/workflows`;
 
 axios.defaults.headers.common['X-Organization-ID'] = '838e655c-d07e-4a2e-8d06-ea6fef7e7b50';
 
 // Workflow operations
 export const fetchWorkflows = async (): Promise<WorkflowListItem[]> => {
-  const response = await axios.get(`${API_BASE_URL}/`);
+  const response = await axios.get(`${API_BASE_URL}`);
   return response.data.data.workflows;
 };
 

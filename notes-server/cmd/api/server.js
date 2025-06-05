@@ -8,10 +8,16 @@ const graphqlRoutes = require('../../internal/api/routes/graphql');
 const configureServer = require('../../internal/config/server');
 const setupShutdownHandlers = require('../../internal/config/shutdown');
 const initializeDatabases = require('../../internal/config/database');
+const { useServer } = require('graphql-ws/lib/use/ws');
+const { createServer } = require('http');
+const { WebSocketServer } = require('ws');
+const schema = require('../../internal/api/graphql');
 
 const app = express();
 let server;
 let redisClient;
+let wsServer;
+let wsCleanup;
 
 // Configure server middleware and error handling
 configureServer(app);
@@ -34,7 +40,7 @@ const initializeServer = async () => {
 
     // Routes
     app.use('/health', healthRoutes);
-    app.use('/graphql', graphqlRoutes);
+    app.use('/notes/graphql', graphqlRoutes);
 
     // Add rate limit info endpoint
     app.get('/rate-limit-info', async (req, res) => {
@@ -59,8 +65,31 @@ const initializeServer = async () => {
       logger.info(`Server running on port ${PORT}`);
     });
 
+    // Set up WebSocket server for GraphQL subscriptions
+    const httpServer = server;
+    wsServer = new WebSocketServer({
+      server: httpServer,
+      path: '/notes/graphql',
+    });
+    wsCleanup = useServer({
+      schema,
+      context: async (ctx, msg, args) => {
+        // Reuse context from Express if needed, e.g., for auth
+        return { user: ctx.extra.request.user };
+      },
+      onConnect: async (ctx) => {
+        logger.info('WebSocket client connected');
+      },
+      onDisconnect: async (ctx, code, reason) => {
+        logger.info('WebSocket client disconnected');
+      }
+    }, wsServer);
+
     // Setup shutdown handlers
     setupShutdownHandlers(server, redisClient);
+    // Add WebSocket server cleanup on shutdown
+    process.on('SIGTERM', async () => { if (wsCleanup) await wsCleanup.dispose(); });
+    process.on('SIGINT', async () => { if (wsCleanup) await wsCleanup.dispose(); });
 
   } catch (error) {
     logger.error('Failed to initialize server', { 

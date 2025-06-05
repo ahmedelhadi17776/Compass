@@ -12,10 +12,8 @@ import (
 
 	_ "github.com/ahmedelhadi17776/Compass/Backend_go/docs" // swagger docs
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/handlers"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/mcp"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/routes"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/ai"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/calendar"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/organization"
@@ -199,8 +197,12 @@ func main() {
 	// Initialize rate limiter with Redis client
 	rateLimiter := auth.NewRedisRateLimiter(redisClient.GetClient(), 1*time.Minute, 100)
 
-	// Create cache middleware
+	// Create cache middleware instances
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
+	cacheHandler := cacheMiddleware.CacheResponse()
+
+	// Initialize routes
+	authMiddleware := middleware.NewAuthMiddleware(cfg.Auth.JWTSecret)
 
 	// Initialize notification system
 	notificationSystem, err := SetupNotificationSystem(
@@ -220,17 +222,17 @@ func main() {
 
 	// Initialize services
 	rolesService := roles.NewService(rolesRepo)
-	userService := user.NewService(userRepo, rolesService)
-	taskService := task.NewService(taskRepo)
+	userService := user.NewService(userRepo, rolesService, redisClient)
+	taskService := task.NewService(taskRepo, redisClient)
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
-	habitsService := habits.NewService(habitsRepo, habitNotifySvc)
-	calendarService := calendar.NewService(calendarRepo)
+	habitsService := habits.NewService(habitsRepo, habitNotifySvc, redisClient)
+	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier, redisClient)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
 		Repository: workflowRepo,
 		Logger:     workflowLogger,
 	})
-	todosService := todos.NewService(todosRepo)
+	todosService := todos.NewService(todosRepo, redisClient)
 
 	// Initialize OAuth2 service
 	oauthService := auth.NewOAuthService(cfg)
@@ -263,23 +265,27 @@ func main() {
 	workflowHandler := handlers.NewWorkflowHandler(workflowService)
 	todosHandler := handlers.NewTodoHandler(todosService)
 
-	// Initialize OAuth2 handler with logger
 	oauthHandler := handlers.NewOAuthHandler(oauthService, userService, cfg.Auth.JWTSecret, log.Logger)
 
-	// Initialize AI repository and service
-	aiLogger := logrus.New()
-	aiLogger.SetFormatter(&logrus.JSONFormatter{})
-	if cfg.Server.Mode == "production" {
-		aiLogger.SetLevel(logrus.InfoLevel)
-	} else {
-		aiLogger.SetLevel(logrus.DebugLevel)
-	}
+	// Initialize dashboard handler
+	dashboardHandler := handlers.NewDashboardHandler(
+		habitsService,
+		taskService,
+		todosService,
+		calendarService,
+		userService,
+		redisClient,
+		log.Logger,
+	)
 
-	aiRepo := ai.NewRepository(db, aiLogger)
-	aiService := ai.NewService(ai.ServiceConfig{
-		Repository: aiRepo,
-		Logger:     aiLogger,
-	})
+	// Initialize dashboard routes
+	dashboardRoutes := routes.NewDashboardRoutes(
+		dashboardHandler,
+		authMiddleware,
+		cacheHandler,
+		log.Logger,
+	)
+	dashboardRoutes.Register(router.Group("/api"))
 
 	// Initialize notification handler
 	notificationHandler := handlers.NewNotificationHandler(notificationSystem.Service, log)
@@ -287,9 +293,16 @@ func main() {
 	// Initialize habit notification handler
 	habitNotificationHandler := handlers.NewHabitNotificationHandler(habitsService, notificationSystem.Service, habitNotifySvc)
 
-	// Initialize MCP handler and routes
-	mcpHandler := mcp.NewHandler(aiService, userService, aiLogger)
-	mcpRoutes := mcp.NewRoutes(mcpHandler)
+	// Initialize PubSub manager
+	pubsubManager := cache.NewPubSubManager(redisClient)
+
+	// Start listening for dashboard events
+	go func() {
+		ctx := context.Background()
+		if err := pubsubManager.StartListening(ctx, "dashboard_updates:*"); err != nil {
+			log.Error("Failed to start listening for dashboard events", zap.Error(err))
+		}
+	}()
 
 	// Debug: Print all registered routes
 	log.Info("Registering routes...")
@@ -390,11 +403,6 @@ func main() {
 	// Initialize and register habit notification routes
 	habitNotificationRoutes := routes.NewHabitNotificationRoutes(habitNotificationHandler, cfg.Auth.JWTSecret)
 	habitNotificationRoutes.RegisterRoutes(router, cacheMiddleware)
-
-	// Register MCP routes right before the "Debug: Print all registered routes" comment
-	// Register MCP routes (not protected by auth middleware)
-	mcpRoutes.RegisterRoutes(router.Group("/api"))
-	log.Info("Registered MCP routes at /api/mcp/*")
 
 	// OAuth2 routes
 	if cfg.Auth.OAuth2.Enabled {
