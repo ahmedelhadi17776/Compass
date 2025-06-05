@@ -134,6 +134,20 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Record successful login activity
+	err = h.userService.RecordUserActivity(c.Request.Context(), user.RecordUserActivityInput{
+		UserID:    user.ID,
+		Action:    "login_success",
+		Timestamp: time.Now(),
+		Metadata: map[string]interface{}{
+			"ip_address": c.ClientIP(),
+			"user_agent": c.Request.UserAgent(),
+		},
+	})
+	if err != nil {
+		log.Error("Failed to record login activity", zap.Error(err))
+	}
+
 	// Check if MFA is enabled for the user
 	if user.MFAEnabled {
 		// Create a temporary auth token for MFA validation - not used now but might be used later

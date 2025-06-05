@@ -131,11 +131,12 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 	}
 
 	response := dto.DashboardMetricsResponse{
-		Habits:   HabitsDashboardMetricsToDTO(habitsMetrics),
-		Tasks:    TasksDashboardMetricsToDTO(tasksMetrics),
-		Todos:    TodosDashboardMetricsToDTO(todosMetrics),
-		Calendar: CalendarDashboardMetricsToDTO(calendarMetrics),
-		User:     UserDashboardMetricsToDTO(userMetrics),
+		Habits:    HabitsDashboardMetricsToDTO(habitsMetrics),
+		Tasks:     TasksDashboardMetricsToDTO(tasksMetrics),
+		Todos:     TodosDashboardMetricsToDTO(todosMetrics),
+		Calendar:  CalendarDashboardMetricsToDTO(calendarMetrics),
+		User:      UserDashboardMetricsToDTO(userMetrics),
+		Timestamp: time.Now().UTC(),
 	}
 
 	// Cache the response
