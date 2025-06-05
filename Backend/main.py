@@ -337,14 +337,18 @@ async def startup_event():
     async def handle_dashboard_event(event):
         await dashboard_cache.update(event)
         await pubsub_manager.notify(event)
-    # Start the Redis subscriber in the background
+    # Start the Redis subscriber in the background for Python backend events
     asyncio.create_task(redis_pubsub_client.subscribe(
         "dashboard_events", handle_dashboard_event))
+
+    # Start the Go backend metrics subscriber
+    asyncio.create_task(dashboard_cache.start_go_metrics_subscriber())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await redis_pubsub_client.close()
+    await dashboard_cache.close()
 
 if __name__ == "__main__":
     import uvicorn
