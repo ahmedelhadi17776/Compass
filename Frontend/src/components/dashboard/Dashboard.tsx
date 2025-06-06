@@ -17,6 +17,8 @@ import { TodoFormData, TodoStatus } from '@/components/todo/types-todo'
 import { useCreateTodo, useTodoLists } from '@/components/todo/hooks'
 import authApi, { User } from '@/api/auth'
 import { useQuery } from "@tanstack/react-query"
+import { ChartRadialStacked } from "./ProductivityChart"
+import PieChart from "./PieChart"
 
 interface TaskMetrics {
   completed: number
@@ -380,25 +382,8 @@ export default function Dashboard({ view }: DashboardProps) {
 
         {/* Main Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {/* Task Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Task Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Completed Tasks</span>
-                  <span className="font-medium">{taskMetrics.completed}/{taskMetrics.total}</span>
-                </div>
-                <Progress value={(taskMetrics.completed / taskMetrics.total) * 100} />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Upcoming: {taskMetrics.upcoming}</span>
-                  <span>{((taskMetrics.completed / taskMetrics.total) * 100).toFixed(0)}% Complete</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Piechart Overview */}
+          <PieChart />
 
           {/* Focus Time */}
           <Card>
@@ -421,24 +406,7 @@ export default function Dashboard({ view }: DashboardProps) {
           </Card>
 
           {/* Productivity Score */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Productivity Score</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Today's Score</span>
-                  <span className="font-medium">{systemMetrics.productivityScore}%</span>
-                </div>
-                <Progress value={systemMetrics.productivityScore} />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Focus Sessions: {focusMetrics.todayMinutes / 25}</span>
-                  <span>Above Average</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ChartRadialStacked />
         </div>
 
         {/* System Monitoring Grid */}
