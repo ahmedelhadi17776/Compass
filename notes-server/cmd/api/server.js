@@ -5,9 +5,11 @@ const { logger } = require('../../pkg/utils/logger');
 const { createRateLimiter } = require('../../internal/api/middleware');
 const healthRoutes = require('../../internal/api/routes/health');
 const graphqlRoutes = require('../../internal/api/routes/graphql');
+const dashboardRoutes = require('../../internal/api/routes/dashboard');
 const configureServer = require('../../internal/config/server');
 const setupShutdownHandlers = require('../../internal/config/shutdown');
 const initializeDatabases = require('../../internal/config/database');
+const dashboardSubscriber = require('../../internal/infrastructure/cache/dashboardSubscriber');
 const { useServer } = require('graphql-ws/lib/use/ws');
 const { createServer } = require('http');
 const { WebSocketServer } = require('ws');
@@ -26,14 +28,14 @@ configureServer(app);
 const initializeServer = async () => {
   try {
     logger.info('Initializing server...');
-    
+
     // Initialize databases
     redisClient = await initializeDatabases();
-    
+
     // Initialize rate limiter with Redis client
     const { limiter, rateLimitHeaders, getRateLimitInfo } = createRateLimiter(redisClient);
     logger.info('Rate limiter initialized');
-    
+
     // Apply rate limiting middleware globally
     app.use(limiter);
     app.use(rateLimitHeaders);
@@ -41,6 +43,11 @@ const initializeServer = async () => {
     // Routes
     app.use('/health', healthRoutes);
     app.use('/notes/graphql', graphqlRoutes);
+    app.use('/api/dashboard', dashboardRoutes);
+
+    // Initialize dashboard subscriber
+    await dashboardSubscriber.subscribe();
+    logger.info('Dashboard subscriber initialized');
 
     // Add rate limit info endpoint
     app.get('/rate-limit-info', async (req, res) => {
@@ -92,7 +99,7 @@ const initializeServer = async () => {
     process.on('SIGINT', async () => { if (wsCleanup) await wsCleanup.dispose(); });
 
   } catch (error) {
-    logger.error('Failed to initialize server', { 
+    logger.error('Failed to initialize server', {
       error: error.stack,
       message: error.message
     });
