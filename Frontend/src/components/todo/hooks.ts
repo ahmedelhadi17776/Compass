@@ -76,16 +76,10 @@ export const useHabits = (user: User | undefined) => {
   });
 };
 
-interface CreateHabitData {
-  title: string;
-  description: string;
-  start_day: string;
-}
-
 export const useCreateHabit = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateHabitData) => createHabit(data),
+    mutationFn: createHabit,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
     },

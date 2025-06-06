@@ -16,24 +16,38 @@ export function useAuth() {
     queryKey: ['user'],
     queryFn: authApi.getMe,
     enabled: !!token,
-    retry: 1,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    gcTime: 1000 * 60 * 60, // Keep in garbage collection for 1 hour
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * (2 ** attemptIndex), 30000),
+    staleTime: 1000 * 60 * 60 * 24,
+    gcTime: 1000 * 60 * 60 * 24 * 7,
   });
 
-  // Handle unauthorized errors
+  // Clear token and queries when component unmounts or token becomes invalid
   React.useEffect(() => {
+    const cleanup = () => {
+      localStorage.removeItem('token');
+      setToken(null);
+      queryClient.clear();
+    };
+
     const subscription = queryClient.getQueryCache().subscribe((event) => {
-      const error = event?.query?.state?.error as AxiosError;
-      if (error?.response?.status === 401) {
-        localStorage.removeItem('token');
-        setToken(null);
-        queryClient.clear();
+      const error = event?.query?.state?.error as AxiosError<{ message: string }>;
+      if (error?.response?.status === 401 && error?.response?.data?.message !== 'Network Error') {
+        cleanup();
       }
     });
 
+    // Also watch for token removal
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token' && !e.newValue) {
+        cleanup();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
     return () => {
       subscription();
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [queryClient]);
 
@@ -41,7 +55,7 @@ export function useAuth() {
   const login = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: async (data) => {
-      if ('token' in data) {
+      if ('token' in data && data.token) {
         localStorage.setItem('token', data.token);
         setToken(data.token);
         await queryClient.invalidateQueries({ queryKey: ['user'] });
@@ -71,6 +85,10 @@ export function useAuth() {
     queryKey: ['mfa-status'],
     queryFn: authApi.getMFAStatus,
     enabled: !!token,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * (2 ** attemptIndex), 30000),
+    staleTime: 1000 * 60 * 60 * 24,
+    gcTime: 1000 * 60 * 60 * 24 * 7,
   });
 
   const setupMFA = useMutation({
