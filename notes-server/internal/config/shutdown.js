@@ -1,4 +1,5 @@
 const { logger } = require('../../pkg/utils/logger');
+const dashboardSubscriber = require('../infrastructure/cache/dashboardSubscriber');
 
 const setupShutdownHandlers = (server, redisClient) => {
   const gracefulShutdown = async () => {
@@ -8,6 +9,10 @@ const setupShutdownHandlers = (server, redisClient) => {
       process.exit(1);
     }, 5000); // 5 seconds fallback
     try {
+      // Unsubscribe from dashboard events
+      await dashboardSubscriber.unsubscribe();
+      logger.info('Dashboard subscriber unsubscribed');
+
       // Close Redis connection
       if (redisClient) {
         await redisClient.close();
@@ -32,18 +37,18 @@ const setupShutdownHandlers = (server, redisClient) => {
   // Handle various shutdown signals
   process.on('SIGTERM', gracefulShutdown);
   process.on('SIGINT', gracefulShutdown);
-  
+
   // Handle uncaught errors
   process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception', { 
+    logger.error('Uncaught Exception', {
       error: error.stack,
       message: error.message
     });
     gracefulShutdown();
   });
-  
+
   process.on('unhandledRejection', (error) => {
-    logger.error('Unhandled Rejection', { 
+    logger.error('Unhandled Rejection', {
       error: error.stack,
       message: error.message
     });
@@ -51,4 +56,4 @@ const setupShutdownHandlers = (server, redisClient) => {
   });
 };
 
-module.exports = setupShutdownHandlers; 
+module.exports = setupShutdownHandlers;
