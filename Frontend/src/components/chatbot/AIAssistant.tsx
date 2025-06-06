@@ -14,7 +14,7 @@ interface AIAssistantProps {
 
 export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
   const [input, setInput] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContentRef = useRef<HTMLDivElement>(null);
   const [isClearingMessages, setIsClearingMessages] = useState(false);
   
   // Use the shared chat context
@@ -27,7 +27,10 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
   } = useChat();
   
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatContentRef.current) {
+      const container = chatContentRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -110,8 +113,12 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
   
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 h-[calc(100vh-32px)] overflow-hidden">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">AI Chat Assistant</h2>
+      <p className="text-xs uppercase text-muted-foreground tracking-wider">Chatbot</p>
+      <div className="flex justify-start">
+        <div>
+        <h1 className="text-2xl font-bold tracking-tight leading-none">IRIS - Your personal assistant</h1>
+        </div>
+        <div className="ml-auto -mt-2">
         <Tabs defaultValue={view}>
           <TabsList>
             <TabsTrigger value="chat">Chat</TabsTrigger>
@@ -119,6 +126,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
             <TabsTrigger value="agents">Agent Management</TabsTrigger>
           </TabsList>
         </Tabs>
+        </div>
       </div>
 
       <Tabs defaultValue={view} className="flex-1 flex flex-col min-h-0">
@@ -149,7 +157,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
               </Button>
             </div>
             
-            <div className="ai-chat-content">
+            <div className="ai-chat-content" ref={chatContentRef}>
               {messages.map((message) => (
                 <div 
                   key={message.id} 
@@ -221,8 +229,6 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
                   </div>
                 </div>
               )}
-              
-              <div ref={messagesEndRef} />
             </div>
             
             <div className="ai-chat-footer">

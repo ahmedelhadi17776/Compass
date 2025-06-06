@@ -1,9 +1,9 @@
 {
-  "name": "corsys",
+  "name": "compass",
   "version": "1.0.0",
   "main": "./dist-electron/main.js",
-  "description": "Corsys - Course Management System",
-  "author": "Adham Ehab",
+  "description": "COMPASS",
+  "author": "COMPASS Team",
   "private": true,
   "scripts": {
     "dev": "vite",

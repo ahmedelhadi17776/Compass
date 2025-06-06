@@ -49,6 +49,7 @@ export interface TodoFormData {
   reminder_time?: Date;
   is_recurring: boolean;
   tags?: string[];
+  checklist?: Checklist;
 }
 
 export interface TodosResponse {

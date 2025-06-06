@@ -3,7 +3,6 @@ const { ValidationError, NotFoundError, DatabaseError } = require('../../../pkg/
 const { logger } = require('../../../pkg/utils/logger');
 const RedisService = require('../../infrastructure/cache/redisService');
 const redisConfig = require('../../infrastructure/cache/config');
-const { dashboardEvents } = require('../../infrastructure/cache/dashboardEvents');
 
 const redisClient = new RedisService(redisConfig);
 
@@ -48,13 +47,7 @@ class JournalService {
     // Invalidate user's journal list cache
     await redisClient.invalidateByPattern(`user:${userId}:journals:*`);
 
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(userId, journal._id.toString(), null, {
-      action: 'create',
-      entityType: 'journal'
-    });
-
-    logger.info('Journal entry creation completed', {
+    logger.info('Journal entry creation completed', { 
       journalId: journal._id,
       userId: userId
     });
@@ -111,17 +104,10 @@ class JournalService {
       updatedJournal.userId
     );
     await redisClient.invalidateByPattern(`user:${updatedJournal.userId}:journals:*`);
-
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(updatedJournal.userId.toString(), id, null, {
-      action: 'update',
-      entityType: 'journal'
-    });
-
     logger.info('Journal entry update completed', { journalId: id, userId: updatedJournal.userId });
     return updatedJournal;
   }
-
+  
   /**
    * Permanently delete a journal entry
    * @param {string} id - Journal ID
@@ -161,13 +147,7 @@ class JournalService {
     // Invalidate user's journal list cache
     await redisClient.invalidateByPattern(`user:${journal.userId}:journals:*`);
 
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(journal.userId.toString(), id, null, {
-      action: 'delete',
-      entityType: 'journal'
-    });
-
-    logger.info('Journal entry deletion completed', {
+    logger.info('Journal entry deletion completed', { 
       journalId: id,
       userId: journal.userId
     });
@@ -211,11 +191,11 @@ class JournalService {
       [journal.userId.toString(), ...(Array.isArray(journal.tags) ? journal.tags : [])],
       journal.userId
     );
-
+    
     // Only invalidate the user's journal list caches
     await redisClient.invalidateByPattern(`user:${journal.userId}:journals:*`);
 
-    logger.info('Journal entry archival completed', {
+    logger.info('Journal entry archival completed', { 
       journalId: id,
       userId: journal.userId
     });
@@ -253,8 +233,8 @@ class JournalService {
       archived: false,
       isDeleted: false
     })
-      .select(selectedFields)
-      .lean();
+    .select(selectedFields)
+    .lean();
 
     logger.info('Retrieved journals by date range', {
       userId,
@@ -307,7 +287,7 @@ class JournalService {
     const journal = await Journal.findOne(query)
       .select(`${selectedFields} userId tags`)
       .lean();
-
+    
     if (!journal || !journal.userId) {
       throw new NotFoundError('Journal');
     }
@@ -358,7 +338,7 @@ class JournalService {
 
     const skip = (page - 1) * limit;
     const query = { userId, isDeleted: false };
-
+    
     // Only apply archived: false if filter.archived is not explicitly set
     if (filter.archived !== undefined) {
       query.archived = filter.archived;
@@ -415,4 +395,4 @@ class JournalService {
   }
 }
 
-module.exports = new JournalService();
+module.exports = new JournalService(); 

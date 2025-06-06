@@ -4,7 +4,6 @@ const { ValidationError, NotFoundError, DatabaseError } = require('../../../pkg/
 const { logger } = require('../../../pkg/utils/logger');
 const RedisService = require('../../infrastructure/cache/redisService');
 const redisConfig = require('../../infrastructure/cache/config');
-const { dashboardEvents } = require('../../infrastructure/cache/dashboardEvents');
 
 const redisClient = new RedisService(redisConfig);
 
@@ -57,13 +56,7 @@ class NoteService {
     // Invalidate user's note list cache
     await redisClient.invalidateByPattern(`user:${userId}:notes:*`);
 
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(userId, note._id.toString(), null, {
-      action: 'create',
-      entityType: 'note'
-    });
-
-    logger.info('Note page creation completed', {
+    logger.info('Note page creation completed', { 
       noteId: note._id,
       userId: userId
     });
@@ -106,12 +99,6 @@ class NoteService {
     Object.assign(note, { ...input, userId: currentUserId });
     await note.save();
     logger.info('Note page updated', { noteId: id });
-
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(note.userId.toString(), id, null, {
-      action: 'update',
-      entityType: 'note'
-    });
     const updatedNote = await NotePage.findById(id)
       .select(`${selectedFields} userId tags`)
       .lean();
@@ -178,13 +165,7 @@ class NoteService {
     // Invalidate user's note list cache
     await redisClient.invalidateByPattern(`user:${note.userId}:notes:*`);
 
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(note.userId.toString(), id, null, {
-      action: 'delete',
-      entityType: 'note'
-    });
-
-    logger.info('Note page deletion completed', {
+    logger.info('Note page deletion completed', { 
       noteId: id,
       userId: note.userId
     });
@@ -234,9 +215,9 @@ class NoteService {
       );
       await redisClient.invalidateByPattern(`user:${note.userId}:notes:*`);
     } catch (cacheError) {
-      logger.warn('Failed to update note cache', {
+      logger.warn('Failed to update note cache', { 
         error: cacheError.message,
-        noteId: id
+        noteId: id 
       });
     }
 
@@ -374,7 +355,7 @@ class NoteService {
 }
 
 // Collaboration methods
-NoteService.prototype.shareNote = async function (noteId, userId, level = 'view', currentUserId, selectedFields = '') {
+NoteService.prototype.shareNote = async function(noteId, userId, level = 'view', currentUserId, selectedFields = '') {
   const note = await NotePage.findById(noteId);
   if (!note) throw new NotFoundError('Note');
   if (note.userId.toString() !== currentUserId) throw new ValidationError('Only the owner can share this note');
@@ -389,7 +370,7 @@ NoteService.prototype.shareNote = async function (noteId, userId, level = 'view'
   return await NotePage.findById(noteId).select(selectedFields).lean();
 };
 
-NoteService.prototype.unshareNote = async function (noteId, userId, currentUserId, selectedFields = '') {
+NoteService.prototype.unshareNote = async function(noteId, userId, currentUserId, selectedFields = '') {
   const note = await NotePage.findById(noteId);
   if (!note) throw new NotFoundError('Note');
   if (note.userId.toString() !== currentUserId) throw new ValidationError('Only the owner can unshare this note');
@@ -399,7 +380,7 @@ NoteService.prototype.unshareNote = async function (noteId, userId, currentUserI
   return await NotePage.findById(noteId).select(selectedFields).lean();
 };
 
-NoteService.prototype.getNotesSharedWithUser = async function (userId, { page = 1, limit = 10, filter = {} } = {}, selectedFields = '') {
+NoteService.prototype.getNotesSharedWithUser = async function(userId, { page = 1, limit = 10, filter = {} } = {}, selectedFields = '') {
   const skip = (page - 1) * limit;
   const query = { sharedWith: userId, isDeleted: false };
   if (filter.tags && filter.tags.length > 0) query.tags = { $in: filter.tags };
@@ -427,4 +408,4 @@ NoteService.prototype.getNotesSharedWithUser = async function (userId, { page = 
   };
 };
 
-module.exports = new NoteService();
+module.exports = new NoteService(); 

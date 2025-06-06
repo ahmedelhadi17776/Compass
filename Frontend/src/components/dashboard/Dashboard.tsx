@@ -223,7 +223,7 @@ export default function Dashboard({ view }: DashboardProps) {
             </h1>
             <p className="text-sm text-muted-foreground mt-2 tracking-wide">{currentDate} · {currentTime}</p>
           </div>
-          <div className="col-span-4 mb-4 flex items-center ml-auto">
+          <div className="col-span-4 flex items-center ml-auto">
                       {/* Quick Actions */}
           <div className="flex gap-2">
             <Button 

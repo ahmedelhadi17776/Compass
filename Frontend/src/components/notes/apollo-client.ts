@@ -2,6 +2,7 @@ import { ApolloClient, InMemoryCache, split, HttpLink, ApolloLink } from '@apoll
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
+import { Observable } from 'rxjs';
 
 const wsLink = new GraphQLWsLink(createClient({
   url: 'ws://localhost:5000/notes/graphql',
@@ -16,9 +17,16 @@ const wsLink = new GraphQLWsLink(createClient({
 // Create auth middleware
 const authMiddleware = new ApolloLink((operation, forward) => {
   const token = localStorage.getItem('token');
+  if (!token) {
+    // If no token, reject the operation immediately
+    return new Observable(observer => {
+      observer.error(new Error('No authentication token available'));
+    });
+  }
+  
   operation.setContext({
     headers: {
-      'Authorization': token ? `Bearer ${token}` : ''
+      'Authorization': `Bearer ${token}`
     }
   });
   return forward(operation);

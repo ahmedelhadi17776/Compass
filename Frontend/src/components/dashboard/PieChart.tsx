@@ -40,7 +40,7 @@ export default function Component() {
   ];
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="flex flex-col">
       <CardContent className="p-0">
         <div className="flex flex-col">
           <div className="flex flex-col items-center space-y-1.5 p-6 pb-2">

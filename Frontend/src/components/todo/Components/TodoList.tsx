@@ -653,7 +653,6 @@ const TodoList: React.FC = () => {
               ))}
               <DropdownMenuItem 
                 className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
-                className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
                 onClick={() => {
                   setShowNewListInput(true);
                   setTimeout(() => {
@@ -697,7 +696,7 @@ const TodoList: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="col-span-4 mb-4 flex items-center ml-auto"> 
+          <div className="col-span-4 mb-4 flex items-center ml-auto -mt-1"> 
               <Button 
               variant="outline" 
               size="sm" 
