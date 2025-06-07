@@ -128,24 +128,24 @@ export default function HabitHeatmap({
 
   
   return (
-    <CustomHeatmapCard className={cn("w-[230px] rounded-3xl p-5 shadow-lg", className)}>
+    <CustomHeatmapCard className={cn("w-full max-w-md", className)}>
       <div className="flex flex-col">
         <div className="flex flex-col mb-4">
           <span className="text-xs text-zinc-500 mt-1">This month</span>
-          <span className="text-xl font-medium text-zinc-200">Habit's Activity</span>
+          <span className="text-lg font-medium text-zinc-200">Habit's Activity</span>
           {loading && <span className="ml-2 text-sm text-zinc-500">(Loading...)</span>}
           {error && <span className="ml-2 text-sm text-red-500">Error loading data</span>}
         </div>
         <div className="flex items-center justify-center">
-          <div className="w-full">
+          <div className="min-w-fit">
             <div className="grid grid-cols-7" style={{ columnGap: X_GAP }}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                <div key={index} className="w-5 text-center text-xs text-zinc-500">{day}</div>
+                <div key={index} className="w-4 text-center text-xs text-zinc-500">{day}</div>
               ))}
             </div>
-            <div className="mt-2">
+            <div className="mt-1">
               {weeks.map((week, weekIndex) => (
-                <div key={weekIndex} className="grid grid-cols-7" style={{ columnGap: X_GAP, marginBottom: "6px" }}>
+                <div key={weekIndex} className="grid grid-cols-7" style={{ columnGap: X_GAP, marginBottom: "4px" }}>
                   {week.map((date, dateIndex) => {
                     const completions = date ? activeData[date] || 0 : 0;
                     
@@ -155,7 +155,7 @@ export default function HabitHeatmap({
                           <TooltipTrigger asChild>
                             <div 
                               className={cn(
-                                "h-5 w-5 rounded-md flex items-center justify-center transition-colors cursor-pointer",
+                                "h-4 w-4 rounded-md flex items-center justify-center transition-colors cursor-pointer",
                                 date ? getColorClass(completions) : "bg-transparent"
                               )}
                             />
@@ -180,7 +180,7 @@ export default function HabitHeatmap({
                 </div>
               ))}
             </div>
-            <div className="mt-6 flex justify-center">
+            <div className="mt-4 flex justify-center">
               <div className="flex items-center gap-1.5 text-xs text-zinc-500">
                 <span>Less</span>
                 <div className="h-3 w-3 rounded-sm bg-zinc-800"/>

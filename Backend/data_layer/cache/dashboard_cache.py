@@ -16,6 +16,14 @@ import logging
 import os
 from data_layer.cache.pubsub_manager import PubSubManager
 
+# Import WebSocket manager
+try:
+    from api.websocket.dashboard_ws import dashboard_ws_manager
+except ImportError:
+    dashboard_ws_manager = None
+    logging.getLogger(__name__).warning(
+        "WebSocket manager not available, real-time updates will be disabled")
+
 # Define Go backend dashboard event types
 
 
@@ -69,6 +77,8 @@ class DashboardCache:
         self.notes_server_url = f"http://localhost:5000"
         self.session = None
         self.subscriber_task = None
+        # Store reference to WebSocket manager if available
+        self.ws_manager = dashboard_ws_manager
 
     async def _get_session(self):
         if self.session is None:
@@ -135,9 +145,9 @@ class DashboardCache:
 
         # Fetch metrics from Notes server
         notes_metrics = await self._get_notes_server_metrics(user_id, headers)
-        mood = notes_metrics.get("mood")
-        notes = notes_metrics.get("notes")
-        journals = notes_metrics.get("journals")
+        mood = notes_metrics.get("mood") if notes_metrics else None
+        notes = notes_metrics.get("notes") if notes_metrics else None
+        journals = notes_metrics.get("journals") if notes_metrics else None
 
         # Compose the metrics dict
         metrics = {
@@ -236,6 +246,21 @@ class DashboardCache:
         await redis_client.set(cache_key, json.dumps(metrics), ex=300)
         logger.debug(f"Cached dashboard metrics for user {user_id}")
 
+    async def invalidate_cache(self, user_id: str):
+        """Invalidate the cache for a specific user"""
+        cache_key = f"dashboard:metrics:{user_id}"
+        await redis_client.delete(cache_key)
+        logger.info(f"Invalidated dashboard cache for user {user_id}")
+
+        # Create an event to notify subscribers
+        event = DashboardEvent(
+            event_type="cache_invalidate",
+            user_id=user_id,
+            entity_id="",
+            details={"timestamp": datetime.utcnow().isoformat()}
+        )
+        await self._notify_subscribers(event)
+
     async def update(self, event: DashboardEvent):
         # Handle real-time updates
         if event.event_type == "dashboard_update":
@@ -249,8 +274,20 @@ class DashboardCache:
             await self._notify_subscribers(event)
 
     async def _notify_subscribers(self, event: DashboardEvent):
+        # Publish to Redis channel for other services
         channel = f"dashboard_updates:{event.user_id}"
         await redis_client.publish(channel, json.dumps(event.to_dict()))
+
+        # Broadcast to WebSocket clients if WebSocket manager is available
+        if self.ws_manager:
+            message = {
+                "type": event.event_type,
+                "timestamp": datetime.utcnow().isoformat(),
+                "data": event.details
+            }
+            await self.ws_manager.broadcast_to_user(event.user_id, message)
+            logger.debug(
+                f"Broadcasted event to WebSocket clients for user {event.user_id}")
 
     async def start_go_metrics_subscriber(self):
         """Start listening for dashboard events from Go backend"""
@@ -295,7 +332,7 @@ class DashboardCache:
 
                 # Create a Python-style dashboard event and notify subscribers
                 dashboard_event = DashboardEvent(
-                    event_type="dashboard_update",
+                    event_type=event_type,
                     user_id=user_id,
                     entity_id=event.get("entity_id", ""),
                     details=event.get("details", {})
@@ -338,7 +375,7 @@ class DashboardCache:
 
                 # Create a Python-style dashboard event and notify subscribers
                 dashboard_event = DashboardEvent(
-                    event_type="dashboard_update",
+                    event_type=event_type,
                     user_id=user_id,
                     entity_id=event.get("entity_id", ""),
                     details=details

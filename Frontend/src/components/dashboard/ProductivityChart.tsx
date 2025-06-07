@@ -36,7 +36,7 @@ const chartConfig = {
 
 export function ChartRadialStacked() {
   return (
-    <Card className="flex flex-col rounded-3xl">
+    <Card className="flex flex-col">
       <CardHeader className="items-center pb-0">
         <CardTitle>Productivity Score</CardTitle>
         <CardDescription>Today's Performance</CardDescription>
