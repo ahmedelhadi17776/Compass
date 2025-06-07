@@ -13,6 +13,8 @@ from data_layer.repos.cost_tracking_repo import CostTrackingRepository
 from core.config import settings
 from data_layer.cache.redis_client import redis_client, redis_pubsub_client
 import logging
+import os
+from data_layer.cache.pubsub_manager import PubSubManager
 
 # Define Go backend dashboard event types
 
@@ -61,11 +63,12 @@ class DashboardEvent:
 class DashboardCache:
     def __init__(self):
         self.go_backend_url = f"http://localhost:8000"
-        # Update with actual Notes server URL
-        self.notes_server_url = "http://localhost:5000"
+        self.redis_client = redis_client
+        self.pubsub_manager = PubSubManager()
+        self.is_subscribed = False
+        self.notes_server_url = f"http://localhost:5000"
         self.session = None
         self.subscriber_task = None
-        self.is_subscribed = False
 
     async def _get_session(self):
         if self.session is None:
@@ -85,7 +88,7 @@ class DashboardCache:
             logger.error(f"Error making request to {url}: {e}")
             return None
 
-    async def get_metrics(self, user_id: str, token: str = None):
+    async def get_metrics(self, user_id: str, token: str = ""):
         # Check if metrics are cached
         cache_key = f"dashboard:metrics:{user_id}"
         cached_metrics = await redis_client.get(cache_key)
@@ -185,13 +188,41 @@ class DashboardCache:
         return result
 
     async def _get_notes_server_metrics(self, user_id: str, headers: dict):
-        url = f"{self.notes_server_url}/api/dashboard/metrics"
-        result = await self._make_request(url, "GET", headers)
-        if not result:
+        """Fetch metrics from Notes server"""
+        try:
+            url = f"{self.notes_server_url}/api/dashboard/metrics"
+            response = await self._make_request(url, "GET", headers)
+            if response and response.get("success"):
+                data = response.get("data", {})
+                logger.info(
+                    f"Successfully fetched Notes server metrics for user {user_id}")
+                return {
+                    "mood": data.get("moodSummary"),
+                    "notes": {
+                        "count": data.get("notesCount", 0),
+                        "recent": data.get("recentNotes", []),
+                        "tags": data.get("tagCounts", [])
+                    },
+                    "journals": {
+                        "count": data.get("journalsCount", 0),
+                        "recent": data.get("recentJournals", []),
+                        "mood_distribution": data.get("moodDistribution", {})
+                    }
+                }
             logger.warning(
                 f"Failed to fetch metrics from Notes server for user {user_id}")
-            return {}
-        return result
+            return {
+                "mood": None,
+                "notes": None,
+                "journals": None
+            }
+        except Exception as e:
+            logger.error(f"Error fetching Notes server metrics: {str(e)}")
+            return {
+                "mood": None,
+                "notes": None,
+                "journals": None
+            }
 
     def _get_goal_metrics(self, user_id: str):
         goals = goal_repo.find_by_user(user_id)
@@ -276,7 +307,71 @@ class DashboardCache:
             logger.error(
                 f"Error handling Go backend event: {e}", exc_info=True)
 
+    async def _handle_notes_event(self, event):
+        """Handle events from Notes server"""
+        try:
+            logger.debug(f"Received Notes server event: {event}")
+
+            if isinstance(event, dict) and "user_id" in event:
+                user_id = str(event["user_id"])
+                event_type = event.get("event_type", "unknown")
+                details = event.get("details", {})
+
+                logger.info(
+                    f"Processing Notes server event: {event_type} for user {user_id}")
+
+                # Invalidate cache for this user
+                cache_key = f"dashboard:metrics:{user_id}"
+                await self.redis_client.delete(cache_key)
+                logger.info(
+                    f"Invalidated dashboard cache for user {user_id} due to Notes server event: {event_type}")
+
+                # If this is a metrics update event, we could potentially fetch new metrics immediately
+                if event_type == events.DashboardEventMetricsUpdate:
+                    logger.info(
+                        f"Metrics update event received for user {user_id}")
+                    # Fetch fresh metrics
+                    headers = {"X-User-ID": user_id}
+                    metrics = await self._get_notes_server_metrics(user_id, headers)
+                    if metrics:
+                        await self._cache_metrics(user_id, metrics)
+
+                # Create a Python-style dashboard event and notify subscribers
+                dashboard_event = DashboardEvent(
+                    event_type="dashboard_update",
+                    user_id=user_id,
+                    entity_id=event.get("entity_id", ""),
+                    details=details
+                )
+                await self._notify_subscribers(dashboard_event)
+            else:
+                logger.warning(
+                    f"Received malformed Notes server event: {event}")
+        except Exception as e:
+            logger.error(
+                f"Error handling Notes server event: {e}", exc_info=True)
+
+    async def start_notes_metrics_subscriber(self):
+        """Start subscriber for Notes server events"""
+        if self.is_subscribed:
+            return
+
+        self.is_subscribed = True
+        logger.info("Starting Notes server dashboard metrics subscriber")
+
+        # Subscribe to the dashboard events channel
+        self.subscriber_task = asyncio.create_task(
+            redis_pubsub_client.subscribe(
+                "dashboard:events", self._handle_notes_event)
+        )
+
     async def close(self):
+        """Cleanup resources"""
+        if self.is_subscribed:
+            await self.pubsub_manager.unsubscribe()
+            self.is_subscribed = False
+            logger.info("Unsubscribed from Notes server dashboard events")
+
         if self.subscriber_task:
             self.subscriber_task.cancel()
             try:
@@ -284,7 +379,6 @@ class DashboardCache:
             except asyncio.CancelledError:
                 pass
             self.subscriber_task = None
-            self.is_subscribed = False
 
         if self.session:
             await self.session.close()

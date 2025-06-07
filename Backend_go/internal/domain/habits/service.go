@@ -54,13 +54,15 @@ type service struct {
 	repo      Repository
 	notifySvc *HabitNotificationService
 	redis     *cache.RedisClient
+	logger    *zap.Logger
 }
 
-func NewService(repo Repository, notifySvc *HabitNotificationService, redis *cache.RedisClient) Service {
+func NewService(repo Repository, notifySvc *HabitNotificationService, redis *cache.RedisClient, logger *zap.Logger) Service {
 	return &service{
 		repo:      repo,
 		notifySvc: notifySvc,
 		redis:     redis,
+		logger:    logger,
 	}
 }
 
@@ -82,6 +84,22 @@ func (s *service) CreateHabit(ctx context.Context, input CreateHabitInput) (*Hab
 	s.recordHabitActivity(ctx, habit, habit.UserID, "habit_created", map[string]interface{}{
 		"title": habit.Title,
 	})
+
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    input.UserID,
+		Timestamp: time.Now().UTC(),
+		Details: map[string]interface{}{
+			"action":    "habit_created",
+			"habit_id":  habit.ID,
+			"title":     habit.Title,
+			"start_day": habit.StartDay.Format(time.RFC3339),
+		},
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
+	}
 
 	return habit, nil
 }
@@ -293,14 +311,18 @@ func (s *service) MarkCompleted(ctx context.Context, id uuid.UUID, userID uuid.U
 	}
 
 	// After successful completion, publish event
-	event := events.DashboardEvent{
-		EventType: "habit_completed",
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
 		UserID:    userID,
-		EntityID:  id,
 		Timestamp: time.Now().UTC(),
+		Details: map[string]interface{}{
+			"action":          "habit_completed",
+			"habit_id":        id,
+			"completion_time": completionTime.Format(time.RFC3339),
+		},
 	}
-	if s.redis != nil {
-		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 
 	return nil
@@ -380,6 +402,20 @@ func (s *service) UnmarkCompleted(ctx context.Context, id uuid.UUID, userID uuid
 
 	// Invalidate dashboard cache for this user
 	s.recordHabitActivity(ctx, habit, userID, "habit_uncompleted", nil)
+
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    userID,
+		Timestamp: time.Now().UTC(),
+		Details: map[string]interface{}{
+			"action":   "habit_uncompleted",
+			"habit_id": id,
+		},
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
+	}
 
 	return nil
 }
@@ -791,6 +827,6 @@ func (s *service) recordHabitActivity(ctx context.Context, habit *Habit, userID 
 		Details:   metadata,
 	}
 	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
-		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 }

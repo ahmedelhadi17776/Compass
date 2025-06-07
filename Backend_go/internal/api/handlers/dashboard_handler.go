@@ -174,7 +174,8 @@ func (h *DashboardHandler) StartDashboardEventListener(ctx context.Context) {
 		err := h.redisClient.SubscribeToDashboardEvents(ctx, func(event *events.DashboardEvent) error {
 			h.logger.Info("Received dashboard event",
 				zap.String("event_type", event.EventType),
-				zap.String("user_id", event.UserID.String()))
+				zap.String("user_id", event.UserID.String()),
+				zap.Any("details", event.Details))
 
 			// Invalidate both possible dashboard cache key patterns for the affected user
 			patterns := []string{
@@ -183,7 +184,9 @@ func (h *DashboardHandler) StartDashboardEventListener(ctx context.Context) {
 			}
 			for _, pattern := range patterns {
 				if err := h.redisClient.ClearByPattern(ctx, pattern); err != nil {
-					h.logger.Error("Failed to invalidate dashboard cache", zap.Error(err), zap.String("pattern", pattern))
+					h.logger.Error("Failed to invalidate dashboard cache",
+						zap.Error(err),
+						zap.String("pattern", pattern))
 				} else {
 					h.logger.Info("Successfully invalidated dashboard cache",
 						zap.String("user_id", event.UserID.String()),

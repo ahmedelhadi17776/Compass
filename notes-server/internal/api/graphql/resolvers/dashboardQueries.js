@@ -21,7 +21,10 @@ const dashboardMetrics = {
 
       if (cachedMetrics) {
         logger.debug('Returning cached dashboard metrics', { userId });
-        return JSON.parse(cachedMetrics);
+        return {
+          success: true,
+          data: JSON.parse(cachedMetrics)
+        };
       }
 
       logger.info('Generating dashboard metrics', { userId });
@@ -83,7 +86,10 @@ const dashboardMetrics = {
       // Publish metrics update event
       await dashboardEvents.publishMetricsUpdate(userId, null, metrics);
 
-      return metrics;
+      return {
+        success: true,
+        data: metrics
+      };
     } catch (error) {
       logger.error('Error fetching dashboard metrics', { error: error.message, userId: args.userId });
       throw new Error('Failed to fetch dashboard metrics');
