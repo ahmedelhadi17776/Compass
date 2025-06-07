@@ -223,16 +223,16 @@ func main() {
 	// Initialize services
 	rolesService := roles.NewService(rolesRepo)
 	userService := user.NewService(userRepo, rolesService, redisClient)
-	taskService := task.NewService(taskRepo, redisClient)
+	taskService := task.NewService(taskRepo, redisClient, log.Logger)
 	projectService := project.NewService(projectRepo)
 	organizationService := organization.NewService(organizationRepo)
-	habitsService := habits.NewService(habitsRepo, habitNotifySvc, redisClient)
-	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier, redisClient)
+	habitsService := habits.NewService(habitsRepo, habitNotifySvc, redisClient, log.Logger)
+	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier, redisClient, log.Logger)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
 		Repository: workflowRepo,
 		Logger:     workflowLogger,
 	})
-	todosService := todos.NewService(todosRepo, redisClient)
+	todosService := todos.NewService(todosRepo, redisClient, log.Logger)
 
 	// Initialize OAuth2 service
 	oauthService := auth.NewOAuthService(cfg)
