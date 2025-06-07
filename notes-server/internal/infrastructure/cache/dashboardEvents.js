@@ -12,10 +12,6 @@ const DASHBOARD_EVENT_TYPES = {
 };
 
 class DashboardEventPublisher {
-  constructor() {
-    this.redisClient = new RedisService(redisConfig);
-  }
-
   /**
    * Publish a metrics update event
    * @param {string} userId - The user ID
@@ -31,22 +27,27 @@ class DashboardEventPublisher {
     }
 
     const event = {
-      event_type: 'metrics_update',
+      event_type: DASHBOARD_EVENT_TYPES.METRICS_UPDATE,
       user_id: userId,
       entity_id: entityId || userId,
       timestamp: new Date().toISOString(),
       details: {
-        ...details,
-        metrics: metrics || {}
+        source: 'notes_server',
+        ...details
       }
     };
 
+    // Add metrics if provided
+    if (metrics) {
+      event.details.metrics = metrics;
+    }
+
     try {
       // Publish to Redis for Python and Go backends to consume
-      await this.redisClient.client.publish(DASHBOARD_EVENT_CHANNEL, JSON.stringify(event));
+      await redisClient.client.publish(DASHBOARD_EVENT_CHANNEL, JSON.stringify(event));
 
       // Also invalidate local cache
-      await this.redisClient.del(`compass:notes:dashboard:metrics:${userId}`);
+      await redisClient.del(`compass:notes:dashboard:metrics:${userId}`);
 
       logger.info('Published dashboard metrics update event', { userId, entityId });
       return event;
@@ -70,16 +71,19 @@ class DashboardEventPublisher {
     }
 
     const event = {
-      event_type: 'cache_invalidate',
+      event_type: DASHBOARD_EVENT_TYPES.CACHE_INVALIDATE,
       user_id: userId,
       entity_id: entityId || userId,
       timestamp: new Date().toISOString(),
-      details
+      details: {
+        source: 'notes_server',
+        ...details
+      }
     };
 
     try {
       // Publish to Redis for Python and Go backends to consume
-      await this.redisClient.client.publish(DASHBOARD_EVENT_CHANNEL, JSON.stringify(event));
+      await redisClient.client.publish(DASHBOARD_EVENT_CHANNEL, JSON.stringify(event));
 
       logger.info('Published dashboard cache invalidation event', { userId, entityId });
       return event;

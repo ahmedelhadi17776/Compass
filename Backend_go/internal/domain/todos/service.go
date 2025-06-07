@@ -7,7 +7,6 @@ import (
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 type Service interface {
@@ -89,13 +88,12 @@ type TodosDashboardMetrics struct {
 }
 
 type service struct {
-	repo   TodoRepository
-	redis  *cache.RedisClient
-	logger *zap.Logger
+	repo  TodoRepository
+	redis *cache.RedisClient // Injected for event publishing
 }
 
-func NewService(repo TodoRepository, redis *cache.RedisClient, logger *zap.Logger) Service {
-	return &service{repo: repo, redis: redis, logger: logger}
+func NewService(repo TodoRepository, redis *cache.RedisClient) Service {
+	return &service{repo: repo, redis: redis}
 }
 
 func (s *service) CreateTodo(ctx context.Context, input CreateTodoInput) (*Todo, error) {
@@ -134,20 +132,6 @@ func (s *service) CreateTodo(ctx context.Context, input CreateTodoInput) (*Todo,
 	err := s.repo.Create(ctx, todo)
 	if err != nil {
 		return nil, err
-	}
-
-	// Publish dashboard event
-	event := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    input.UserID,
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":  "todo_created",
-			"todo_id": todo.ID,
-		},
-	}
-	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 
 	return todo, nil
@@ -310,18 +294,14 @@ func (s *service) CompleteTodo(ctx context.Context, id uuid.UUID) (*Todo, error)
 		return nil, err
 	}
 
-	// Publish dashboard event
-	event := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
+	event := events.DashboardEvent{
+		EventType: "todo_completed",
 		UserID:    todo.UserID,
+		EntityID:  id,
 		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":  "todo_completed",
-			"todo_id": id,
-		},
 	}
-	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
+	if s.redis != nil {
+		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
 	}
 
 	// Invalidate dashboard cache for this user
@@ -345,20 +325,6 @@ func (s *service) UncompleteTodo(ctx context.Context, id uuid.UUID) (*Todo, erro
 	err = s.repo.Update(ctx, todo)
 	if err != nil {
 		return nil, err
-	}
-
-	// Publish dashboard event
-	event := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    todo.UserID,
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":  "todo_uncompleted",
-			"todo_id": id,
-		},
-	}
-	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 
 	// Invalidate dashboard cache for this user

@@ -16,65 +16,115 @@ const redisClient = new RedisService(redisConfig);
 
 class DashboardEventSubscriber {
   constructor() {
-    this.redisClient = new RedisService(redisConfig);
-    this.subscriber = null;
+    this.subscriber = new Redis({
+      host: redisConfig.host || 'localhost',
+      port: redisConfig.port || 6380,
+      password: redisConfig.password || '',
+      db: redisConfig.db || 2
+    });
+
+    this.subscriber.on('error', (error) => {
+      logger.error('Redis subscriber error:', { error: error.message });
+    });
+
+    this.subscriber.on('connect', () => {
+      logger.info('Redis subscriber connected');
+    });
+
     this.isSubscribed = false;
   }
 
   async subscribe() {
     if (this.isSubscribed) {
+      logger.info('Already subscribed to dashboard events');
       return;
     }
 
-    this.subscriber = this.redisClient.client.duplicate();
-    await this.subscriber.subscribe('dashboard:events');
-
-    this.subscriber.on('message', async (channel, message) => {
-      try {
-        const event = JSON.parse(message);
-        
-        // Handle events from Python and Go backends
-        if (event.event_type === 'metrics_update') {
-          await this.handleMetricsUpdate(event.user_id, event.details);
-        } else if (event.event_type === 'cache_invalidate') {
-          await this.handleCacheInvalidate(event.user_id);
-        }
-      } catch (error) {
-        logger.error('Error handling dashboard event', { error: error.message });
-      }
-    });
-
-    this.isSubscribed = true;
-    logger.info('Subscribed to dashboard events');
-  }
-
-  async handleMetricsUpdate(userId, details) {
     try {
-      // Invalidate local cache when metrics are updated
-      await this.redisClient.del(`compass:notes:dashboard:metrics:${userId}`);
-      logger.info('Invalidated dashboard metrics cache', { userId });
+      await this.subscriber.subscribe(DASHBOARD_EVENT_CHANNEL);
+      this.isSubscribed = true;
+
+      this.subscriber.on('message', async (channel, message) => {
+        if (channel === DASHBOARD_EVENT_CHANNEL) {
+          try {
+            const event = JSON.parse(message);
+            logger.info('Received dashboard event', {
+              eventType: event.event_type,
+              userId: event.user_id
+            });
+
+            // Handle different event types
+            if (!event.user_id) {
+              logger.warn('Dashboard event missing user_id', { event });
+              return;
+            }
+
+            switch (event.event_type) {
+              case EVENT_TYPES.METRICS_UPDATE:
+                await this.handleMetricsUpdate(event.user_id);
+                break;
+              case EVENT_TYPES.CACHE_INVALIDATE:
+                await this.handleCacheInvalidate(event.user_id);
+                break;
+              default:
+                logger.warn('Unknown dashboard event type', { eventType: event.event_type });
+                // Default behavior: invalidate metrics cache
+                await this.handleMetricsUpdate(event.user_id);
+            }
+          } catch (error) {
+            logger.error('Error processing dashboard event', { error: error.message });
+          }
+        }
+      });
+
+      logger.info('Subscribed to dashboard events');
     } catch (error) {
-      logger.error('Error handling metrics update', { error: error.message });
+      logger.error('Failed to subscribe to dashboard events', { error: error.message });
+      this.isSubscribed = false;
+      throw error;
     }
   }
 
+  async close() {
+    if (this.isSubscribed) {
+      try {
+        await this.subscriber.unsubscribe(DASHBOARD_EVENT_CHANNEL);
+        await this.subscriber.quit();
+        this.isSubscribed = false;
+        logger.info('Unsubscribed from dashboard events');
+      } catch (error) {
+        logger.error('Error closing dashboard subscriber', { error: error.message });
+      }
+    }
+  }
+
+  /**
+   * Handle metrics update event
+   * @param {string} userId - The user ID
+   */
+  async handleMetricsUpdate(userId) {
+    try {
+      // Invalidate dashboard metrics cache for this user
+      const cacheKey = `compass:notes:dashboard:metrics:${userId}`;
+      await redisClient.del(cacheKey);
+      logger.info('Invalidated dashboard metrics cache', { userId, cacheKey });
+    } catch (error) {
+      logger.error('Error handling metrics update event', { error: error.message });
+    }
+  }
+
+  /**
+   * Handle cache invalidate event
+   * @param {string} userId - The user ID
+   */
   async handleCacheInvalidate(userId) {
     try {
-      // Invalidate all user-related caches
-      await this.redisClient.clearByPattern(`compass:notes:dashboard:metrics:${userId}`);
-      logger.info('Invalidated dashboard caches', { userId });
+      // Invalidate all dashboard-related caches for this user
+      const pattern = `compass:notes:dashboard:*:${userId}`;
+      await redisClient.invalidateByPattern(pattern);
+      logger.info('Invalidated all dashboard caches', { userId, pattern });
     } catch (error) {
-      logger.error('Error handling cache invalidation', { error: error.message });
-    }
-  }
-
-  async unsubscribe() {
-    if (this.subscriber) {
-      await this.subscriber.unsubscribe('dashboard:events');
-      await this.subscriber.quit();
-      this.subscriber = null;
-      this.isSubscribed = false;
-      logger.info('Unsubscribed from dashboard events');
+      logger.error('Error handling cache invalidate event', { error: error.message });
     }
   }
 }

@@ -1,4 +1,3 @@
-from data_layer.cache.dashboard_cache import DashboardCache
 from data_layer.mongodb.lifecycle import mongodb_lifespan
 from data_layer.mongodb.connection import get_mongodb_client
 from core.config import settings
@@ -6,7 +5,7 @@ from core.mcp_state import set_mcp_client, get_mcp_client
 from api.ai_routes import router as ai_router
 from data_layer.cache.redis_client import redis_client, redis_pubsub_client
 from data_layer.cache.pubsub_manager import pubsub_manager
-from data_layer.cache.dashboard_cache import DashboardCache
+from data_layer.cache.dashboard_cache import dashboard_cache
 import pathlib
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -197,9 +196,6 @@ else:
     except Exception as e:
         logger.warning(f"Could not create static directory: {str(e)}")
 
-# Create global instance
-dashboard_cache = DashboardCache()
-
 
 async def init_mcp_server():
     """Initialize MCP server integration."""
@@ -339,20 +335,14 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     async def handle_dashboard_event(event):
-        try:
-            await dashboard_cache.update(event)
-        except Exception as e:
-            logger.error(f"Error handling dashboard event: {str(e)}")
-
+        await dashboard_cache.update(event)
+        await pubsub_manager.notify(event)
     # Start the Redis subscriber in the background for Python backend events
     asyncio.create_task(redis_pubsub_client.subscribe(
         "dashboard_events", handle_dashboard_event))
 
-    # Start subscribers for both Go backend and Notes server
-    await dashboard_cache.start_go_metrics_subscriber()
-    await dashboard_cache.start_notes_metrics_subscriber()
-    logger.info(
-        "Started dashboard metrics subscribers for Go backend and Notes server")
+    # Start the Go backend metrics subscriber
+    asyncio.create_task(dashboard_cache.start_go_metrics_subscriber())
 
 
 @app.on_event("shutdown")

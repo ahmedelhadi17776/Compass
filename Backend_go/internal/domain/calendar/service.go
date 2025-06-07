@@ -46,12 +46,11 @@ type service struct {
 	repo     Repository
 	notifier notification.DomainNotifier
 	redis    *cache.RedisClient
-	logger   *zap.Logger
 }
 
 // NewService creates a new calendar service instance
-func NewService(repo Repository, notifier notification.DomainNotifier, redis *cache.RedisClient, logger *zap.Logger) Service {
-	return &service{repo: repo, notifier: notifier, redis: redis, logger: logger}
+func NewService(repo Repository, notifier notification.DomainNotifier, redis *cache.RedisClient) Service {
+	return &service{repo: repo, notifier: notifier, redis: redis}
 }
 
 // Define CalendarDashboardMetrics struct for dashboard metrics aggregation
@@ -155,21 +154,6 @@ func (s *service) CreateEvent(ctx context.Context, req CreateCalendarEventReques
 		"title": event.Title,
 		"type":  event.EventType,
 	})
-
-	// Publish dashboard event
-	eventDashboard := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    userID,
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":   "event_created",
-			"event_id": event.ID,
-		},
-	}
-	if err := s.redis.PublishDashboardEvent(ctx, eventDashboard); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
-	}
-
 	return event, nil
 }
 
@@ -708,21 +692,6 @@ func (s *service) UpdateEvent(ctx context.Context, id uuid.UUID, req UpdateCalen
 		"title": event.Title,
 		"type":  event.EventType,
 	})
-
-	// Publish dashboard event
-	eventDashboard := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    event.UserID,
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":   "event_updated",
-			"event_id": event.ID,
-		},
-	}
-	if err := s.redis.PublishDashboardEvent(ctx, eventDashboard); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
-	}
-
 	return event, nil
 }
 
@@ -739,21 +708,6 @@ func (s *service) DeleteEvent(ctx context.Context, id uuid.UUID) error {
 		"title": event.Title,
 		"type":  event.EventType,
 	})
-
-	// Publish dashboard event
-	eventDashboard := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    event.UserID,
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":   "event_deleted",
-			"event_id": id,
-		},
-	}
-	if err := s.redis.PublishDashboardEvent(ctx, eventDashboard); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
-	}
-
 	return nil
 }
 
@@ -1146,6 +1100,6 @@ func (s *service) recordCalendarActivity(ctx context.Context, event *CalendarEve
 		Details:   metadata,
 	}
 	if err := s.redis.PublishDashboardEvent(ctx, dashboardEvent); err != nil {
-		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
+		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
 	}
 }

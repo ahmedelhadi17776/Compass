@@ -1,6 +1,6 @@
 import asyncio
 import json
-from data_layer.cache.redis_client import redis_client, redis_pubsub_client
+from data_layer.cache.redis_client import redis_client
 from fastapi.encoders import jsonable_encoder
 
 
@@ -10,12 +10,6 @@ class PubSubManager:
 
     async def subscribe(self, callback):
         self.listeners.append(callback)
-        await redis_pubsub_client.subscribe(
-            "dashboard_events", callback)
-
-    async def unsubscribe(self):
-        self.listeners = []
-        await redis_pubsub_client.close()
 
     async def notify(self, event):
         for cb in self.listeners:
