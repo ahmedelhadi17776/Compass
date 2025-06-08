@@ -72,16 +72,23 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
 
       const data = await response.json()
       
-      // Parse the nested response structure
+      // Extract rewritten text from the response
       let rewrittenText = null
       
-      if (data.status === 'success' && data.content?.content?.[0]?.text) {
-        try {
-          // Parse the inner JSON string
-          const innerData = JSON.parse(data.content.content[0].text)
-          rewrittenText = innerData.content?.rewritten_text
-        } catch (e) {
-          console.error('Error parsing inner response:', e)
+      if (data.status === 'success' && data.content) {
+        // Handle both possible response structures
+        if (typeof data.content === 'string') {
+          rewrittenText = data.content
+        } else if (data.content.rewritten_text) {
+          rewrittenText = data.content.rewritten_text
+        } else if (data.content.content?.[0]?.text) {
+          try {
+            const parsedContent = JSON.parse(data.content.content[0].text)
+            rewrittenText = parsedContent.content?.rewritten_text
+          } catch (e) {
+            console.error('Error parsing nested content:', e)
+            rewrittenText = data.content.content[0].text
+          }
         }
       }
 
@@ -95,6 +102,8 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           })
           .insertContent(rewrittenText)
           .run()
+      } else {
+        console.error('No rewritten text found in response:', data)
       }
     } catch (error) {
       console.error('Error rewriting text:', error)

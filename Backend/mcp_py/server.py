@@ -1178,12 +1178,14 @@ async def rewrite_in_style(
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
             logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
-        # GraphQL query to fetch user's notes for style analysis
+        # Enhanced GraphQL query to fetch user's notes for style analysis
         graphql_query = """
         query GetUserNotes($page: Int!) {
           notePages(page: $page) {
             data {
               content
+              updatedAt
+              title
             }
           }
         }
@@ -1216,29 +1218,79 @@ async def rewrite_in_style(
                     if not notes_data:
                         break
                         
-                    user_notes.extend([note["content"] for note in notes_data])
+                    # Filter out empty or very short notes
+                    valid_notes = [
+                        {
+                            "content": note["content"],
+                            "updatedAt": note["updatedAt"],
+                            "title": note["title"]
+                        }
+                        for note in notes_data
+                        if note["content"] and len(note["content"]) > 50  # Only use notes with substantial content
+                    ]
+                    user_notes.extend(valid_notes)
                     page += 1
+                    
+                    # Stop after collecting enough notes for analysis
+                    if len(user_notes) >= 10:  # We only need 10 notes for style analysis
+                        break
                 else:
                     break
 
-        # Combine notes content for style analysis
-        style_context = "\n\n".join(user_notes[:5])  # Use last 5 notes for context
+        if not user_notes:
+            await ctx.warning("No valid notes found for style analysis. Using default style.")
+            return {
+                "status": "success",
+                "content": {
+                    "original_text": text,
+                    "rewritten_text": text,  # Return original text if no style samples
+                    "style_samples_used": 0
+                }
+            }
 
-        # Call LLM to rewrite the text
+        # Sort notes by recency
+        user_notes.sort(key=lambda x: x["updatedAt"], reverse=True)
+
+        # Take the most recent notes with substantial content
+        selected_notes = user_notes[:10]
+
+        # Combine notes content for style analysis, including titles for better context
+        style_samples = []
+        for note in selected_notes:
+            # Add title as a heading
+            if note["title"]:
+                style_samples.append(f"# {note['title']}")
+            # Add content
+            if note["content"]:
+                style_samples.append(note["content"])
+
+        style_context = "\n\n".join(style_samples)
+
+        # Enhanced prompt for better style matching
         llm_service = LLMService()
-        prompt = f"""You are tasked with rewriting text in the user's personal writing style.
-        
-Here are some examples of the user's writing style:
+        prompt = f"""You are tasked to only list the style context
 
 {style_context}
 
-Please rewrite the following text in the same style, maintaining the same meaning but adapting the tone, word choice, and sentence structure to match the user's style. Return ONLY the rewritten text, without any additional formatting or metadata:
+Based on these examples, please rewrite the following text to match the user's:
+1. Writing tone and voice
+2. Typical sentence structure and length
+3. Word choice and vocabulary preferences
+4. Formatting patterns and emphasis styles
+5. Any unique expressions or phrases they commonly use
 
-{text}"""
+Text to rewrite:
+{text}
+
+Return ONLY the rewritten text, without any additional formatting or metadata."""
 
         response = await llm_service.generate_response(
             prompt=prompt,
-            context={"task": "style_rewrite", "original_text": text},
+            context={
+                "task": "style_rewrite",
+                "original_text": text,
+                "style_samples_count": len(selected_notes)
+            },
             user_id=user_id
         )
 
@@ -1273,7 +1325,8 @@ Please rewrite the following text in the same style, maintaining the same meanin
             "content": {
                 "original_text": text,
                 "rewritten_text": rewritten_text,
-                "style_samples_used": len(user_notes)
+                "style_samples_used": len(selected_notes),
+                "total_notes_analyzed": len(user_notes)
             }
         }
 
