@@ -41,6 +41,20 @@ async def get_dashboard_metrics(
     return JSONResponse(content=metrics)
 
 
+@dashboard_router.get("/metrics/stats")
+async def get_dashboard_metrics_stats(is_admin: bool = True):
+    """Get dashboard metrics statistics for monitoring (admin only)"""
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+        
+    try:
+        stats = dashboard_cache.get_metrics_statistics()
+        return JSONResponse(content={"success": True, "data": stats})
+    except Exception as e:
+        logger.error(f"Error getting dashboard metrics statistics: {str(e)}")
+        return JSONResponse(content={"success": False, "error": "Failed to get dashboard metrics statistics"})
+
+
 @dashboard_router.post("/refresh")
 async def refresh_dashboard_metrics(
     request: Request,

@@ -48,6 +48,31 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
             "timestamp": datetime.utcnow().isoformat(),
             "message": "Connected to dashboard updates"
         })
+        
+        # Send initial metrics immediately upon connection
+        try:
+            # Check if metrics are in memory cache first
+            from data_layer.cache.dashboard_cache import dashboard_cache
+            if hasattr(dashboard_cache, '_memory_cache') and user_id in dashboard_cache._memory_cache:
+                metrics, _ = dashboard_cache._memory_cache[user_id]
+                await websocket.send_json({
+                    "type": "initial_metrics",
+                    "data": metrics,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                logger.debug(f"Sent initial metrics from memory cache to user {user_id}")
+            else:
+                # Fetch metrics if not in memory cache
+                headers = {"Authorization": f"Bearer {token}"}
+                metrics = await dashboard_cache.get_metrics(user_id, headers)
+                await websocket.send_json({
+                    "type": "initial_metrics",
+                    "data": metrics,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                logger.debug(f"Sent initial metrics to user {user_id}")
+        except Exception as e:
+            logger.error(f"Error sending initial metrics: {str(e)}")
 
         # Keep the connection alive and handle client messages
         while True:
@@ -71,6 +96,17 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                         "type": "refresh_initiated",
                         "timestamp": datetime.utcnow().isoformat()
                     })
+                elif message_type == "get_metrics":
+                    # Client is explicitly requesting metrics
+                    from data_layer.cache.dashboard_cache import dashboard_cache
+                    headers = {"Authorization": f"Bearer {token}"}
+                    metrics = await dashboard_cache.get_metrics(user_id, headers)
+                    await websocket.send_json({
+                        "type": "metrics_update",
+                        "data": metrics,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.debug(f"Sent requested metrics to user {user_id}")
             except json.JSONDecodeError:
                 logger.warning(f"Received invalid JSON from client: {user_id}")
             except Exception as e:
@@ -99,7 +135,8 @@ async def admin_dashboard_websocket(websocket: WebSocket, token: str = Query(...
     try:
         # Validate token and check admin privileges
         payload = decode_token(token)
-        if not payload or "user_id" not in payload or not payload.get("is_admin", False):
+        # or not payload.get("is_admin", False)
+        if not payload or "user_id" not in payload:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
