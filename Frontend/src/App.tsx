@@ -16,6 +16,7 @@ import FileManager from './components/files/FileManager';
 import Notes from './components/notes/components/Notes';
 import Canvas from './components/Canvas/components/Canvas';
 import { ThemeProvider } from './contexts/theme-provider';
+import { WebSocketProvider } from './contexts/websocket-provider';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarInset } from '@/components/ui/sidebar';
@@ -54,44 +55,46 @@ function App() {
     <ApolloProvider client={client}>
       <ThemeProvider defaultTheme="dark" storageKey="aiwa-theme">
         <QueryClientProvider client={queryClient}>
-          <div className="h-screen flex flex-col overflow-hidden">
-            <AnimatePresence mode="wait">
-              <Routes location={location} key={location.pathname}>
-                <Route path="/login" element={<Login />} />
-                <Route
-                  path="/*"
-                  element={
-                    <ProtectedRoute>
-                      <SidebarProvider>
-                        <AppSidebar />
-                        <SidebarInset className="flex flex-col">
-                          <TitleBar darkMode={false} />
-                          <main className="flex-1 h-full main-content">
-                            <Routes>
-                              <Route index element={<Navigate to="/dashboard" replace />} />
-                              <Route path="dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
-                              <Route path="Todos&Habits" element={<PageTransition><Tasks /></PageTransition>} />
-                              <Route path="calendar" element={<PageTransition><Calendar /></PageTransition>} />
-                              <Route path="ai" element={<PageTransition><AIAssistant /></PageTransition>} />
-                              <Route path="focus" element={<PageTransition><FocusMode /></PageTransition>} />
-                              <Route path="files" element={<PageTransition><FileManager /></PageTransition>} />
-                              <Route path="health" element={<PageTransition><HealthDashboard /></PageTransition>} />
-                              <Route path="workflow" element={<PageTransition><Workflow /></PageTransition>} />
-                              <Route path="workflow/:id" element={<PageTransition><WorkflowDetailPage /></PageTransition>} />
-                              <Route path="notes" element={<PageTransition><Notes /></PageTransition>} />
-                              <Route path="canvas" element={<PageTransition><Canvas /></PageTransition>} />
-                            </Routes>
-                          </main>
-                          <Chatbot />
-                        </SidebarInset>
-                      </SidebarProvider>
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
-            </AnimatePresence>
-            <Toaster />
-          </div>
+          <WebSocketProvider>
+            <div className="h-screen flex flex-col overflow-hidden">
+              <AnimatePresence mode="wait">
+                <Routes location={location} key={location.pathname}>
+                  <Route path="/login" element={<Login />} />
+                  <Route
+                    path="/*"
+                    element={
+                      <ProtectedRoute>
+                        <SidebarProvider>
+                          <AppSidebar />
+                          <SidebarInset className="flex flex-col">
+                            <TitleBar darkMode={false} />
+                            <main className="flex-1 h-full main-content">
+                              <Routes>
+                                <Route index element={<Navigate to="/dashboard" replace />} />
+                                <Route path="dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
+                                <Route path="Todos&Habits" element={<PageTransition><Tasks /></PageTransition>} />
+                                <Route path="calendar" element={<PageTransition><Calendar /></PageTransition>} />
+                                <Route path="ai" element={<PageTransition><AIAssistant /></PageTransition>} />
+                                <Route path="focus" element={<PageTransition><FocusMode /></PageTransition>} />
+                                <Route path="files" element={<PageTransition><FileManager /></PageTransition>} />
+                                <Route path="health" element={<PageTransition><HealthDashboard /></PageTransition>} />
+                                <Route path="workflow" element={<PageTransition><Workflow /></PageTransition>} />
+                                <Route path="workflow/:id" element={<PageTransition><WorkflowDetailPage /></PageTransition>} />
+                                <Route path="notes" element={<PageTransition><Notes /></PageTransition>} />
+                                <Route path="canvas" element={<PageTransition><Canvas /></PageTransition>} />
+                              </Routes>
+                            </main>
+                            <Chatbot />
+                          </SidebarInset>
+                        </SidebarProvider>
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </AnimatePresence>
+              <Toaster />
+            </div>
+          </WebSocketProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ApolloProvider>
