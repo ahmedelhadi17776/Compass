@@ -3,9 +3,10 @@
 import { PolarAngleAxis, RadialBar, RadialBarChart, Tooltip as RechartsTooltip } from "recharts"
 import { Card, CardContent } from "@/components//ui/card"
 import { ChartContainer } from "@/components//ui/chart"
-import { useDashboardMetrics } from "./useDashboardMetrics"
 import { useWebSocket } from "@/contexts/websocket-provider"
-import { useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { QUERY_KEYS, DashboardMetrics } from "@/contexts/websocket-provider"
 
 interface MetricData {
   activity: string
@@ -28,40 +29,75 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function PieChart() {
-  // Get WebSocket context if needed
+  // Get WebSocket context
   const { requestRefresh } = useWebSocket();
+  const queryClient = useQueryClient();
   
-  // Fetch metrics data using our custom hook
-  const { data: metricsData, isLoading, error } = useDashboardMetrics();
+  // State to store metrics data
+  const [metricsData, setMetricsData] = useState<DashboardMetrics | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Get metrics data directly from React Query cache
+  useEffect(() => {
+    // Initial data fetch
+    const cachedData = queryClient.getQueryData<DashboardMetrics>(QUERY_KEYS.DASHBOARD_METRICS);
+    if (cachedData) {
+      setMetricsData(cachedData);
+      setIsLoading(false);
+    } else {
+      // Request data if not available
+      requestRefresh();
+    }
+
+    // Subscribe to cache changes
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      const updatedData = queryClient.getQueryData<DashboardMetrics>(QUERY_KEYS.DASHBOARD_METRICS);
+      if (updatedData) {
+        console.log("PieChart received updated metrics:", updatedData);
+        setMetricsData(updatedData);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [queryClient, requestRefresh]);
 
   // Process the metrics data for the chart
   const chartData = useMemo<MetricData[]>(() => {
-    if (!metricsData) return [];
+    if (!metricsData) {
+      return [];
+    }
+
+    const todos = metricsData.todos || { total: 0, completed: 0 };
+    const habits = metricsData.habits || { total: 0, completed: 0 };
+    const tasks = metricsData.tasks || { total: 0, completed: 0 };
 
     return [
       {
         activity: "todos",
-        value: metricsData.todos.total > 0 
-          ? (metricsData.todos.completed / metricsData.todos.total) * 100 
+        value: todos.total > 0 
+          ? (todos.completed / todos.total) * 100 
           : 0,
         fill: "#3b82f6",
-        completed: `${metricsData.todos.completed}/${metricsData.todos.total}`
+        completed: `${todos.completed || 0}/${todos.total || 0}`
       },
       {
         activity: "habits",
-        value: metricsData.habits.total > 0 
-          ? (metricsData.habits.completed / metricsData.habits.total) * 100 
+        value: habits.total > 0 
+          ? (habits.completed / habits.total) * 100 
           : 0,
         fill: "#1d4ed8",
-        completed: `${metricsData.habits.completed}/${metricsData.habits.total}`
+        completed: `${habits.completed || 0}/${habits.total || 0}`
       },
       {
         activity: "tasks",
-        value: metricsData.tasks.total > 0 
-          ? (metricsData.tasks.completed / metricsData.tasks.total) * 100 
+        value: tasks.total > 0 
+          ? (tasks.completed / tasks.total) * 100 
           : 0,
         fill: "#1e40af",
-        completed: `${metricsData.tasks.completed}/${metricsData.tasks.total}`
+        completed: `${tasks.completed || 0}/${tasks.total || 0}`
       },
     ];
   }, [metricsData]);
@@ -72,17 +108,6 @@ export default function PieChart() {
       <Card className="flex flex-col rounded-3xl">
         <CardContent className="p-6 flex justify-center items-center h-[280px]">
           <p className="text-sm text-muted-foreground">Loading metrics...</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Handle error state
-  if (error) {
-    return (
-      <Card className="flex flex-col rounded-3xl">
-        <CardContent className="p-6 flex justify-center items-center h-[280px]">
-          <p className="text-sm text-muted-foreground">Failed to load metrics</p>
         </CardContent>
       </Card>
     );

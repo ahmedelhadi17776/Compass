@@ -103,52 +103,10 @@ export default function Dashboard({ view }: DashboardProps) {
       linked_calendar_event_id: null,
       recurrence_pattern: {}
     };
-    
+
+    createTodoMutation.mutate(newTodo);
     setShowTodoForm(false);
   };
-
-  const [taskMetrics, setTaskMetrics] = useState<TaskMetrics>({
-    completed: 0,
-    total: 0,
-    upcoming: 0,
-  })
-
-  const [focusMetrics, setFocusMetrics] = useState<FocusMetrics>({
-    todayMinutes: 0,
-    weeklyGoal: 1500,
-    weeklyProgress: 0,
-  })
-
-  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics>({
-    keyboardUsage: 0,
-    screenTime: 0,
-    focusScore: 0,
-    productivityScore: 0,
-  })
-
-  const [meetings, setMeetings] = useState<Meeting[]>([
-    {
-      id: '1',
-      time: '10:00',
-      period: 'AM',
-      title: 'Present the project and gather feedback',
-      type: 'presentation'
-    },
-    {
-      id: '2',
-      time: '01:00',
-      period: 'PM',
-      title: 'Meeting with UX team',
-      hasVideo: true
-    },
-    {
-      id: '3',
-      time: '03:00',
-      period: 'PM',
-      title: 'Onboarding of the project',
-      type: 'onboarding'
-    }
-  ])
   
   // Use the habit heatmap hook with proper userId
   const { data: heatmapData, loading: heatmapLoading, error: heatmapError } = useHabitHeatmap(user?.id || '')
