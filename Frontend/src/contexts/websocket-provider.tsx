@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import ReconnectingWebSocket from 'reconnecting-websocket';
-import { DASHBOARD_METRICS_QUERY_KEY } from '@/components/dashboard/useDashboardMetrics';
+
+// Define query keys for different features
+export const QUERY_KEYS = {
+  DASHBOARD_METRICS: ['dashboard_metrics'] as const,
+} as const;
+
+type QueryKey = typeof QUERY_KEYS[keyof typeof QUERY_KEYS];
 
 interface WebSocketContextType {
   requestRefresh: () => void;
@@ -29,11 +35,18 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const wsRef = useRef<ReconnectingWebSocket | null>(null);
 
-  const forceRefetch = async () => {
-    await queryClient.fetchQuery({ 
-      queryKey: DASHBOARD_METRICS_QUERY_KEY,
-      staleTime: 0
-    });
+  const handleDashboardEvent = async (eventType: string) => {
+    switch (eventType) {
+      case 'dashboard_update':
+      case 'metrics_update':
+      case 'cache_invalidate':
+      case 'user_activity':
+        console.log('Received dashboard event:', eventType);
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DASHBOARD_METRICS });
+        break;
+      default:
+        console.warn('Unknown event type:', eventType);
+    }
   };
 
   useEffect(() => {
@@ -50,7 +63,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('Dashboard WebSocket connected');
+      console.log('WebSocket connected');
       ws.send(JSON.stringify({ type: 'ping' }));
     };
 
@@ -58,7 +71,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       console.error('WebSocket error occurred:', error);
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
         
@@ -68,22 +81,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         else if (data.type === 'pong') {
           console.log('Received pong from server');
         }
-        else if (data.type === 'refresh_initiated' || data.type === 'metrics_update') {
-          console.log(`${data.type} received`);
-          forceRefetch();
+        else if (data.type) {
+          await handleDashboardEvent(data.type);
         }
         else if (data.event) {
-          switch (data.event) {
-            case 'dashboard_update':
-            case 'metrics_update':
-            case 'cache_invalidate':
-            case 'user_activity':
-              console.log('Received dashboard update event:', data.event);
-              forceRefetch();
-              break;
-            default:
-              console.warn('Unknown event from WS:', data.event);
-          }
+          await handleDashboardEvent(data.event);
         }
       } catch (err) {
         console.error('Failed to parse WS message:', event.data);
@@ -91,7 +93,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
 
     ws.onclose = () => {
-      console.log('Dashboard WebSocket disconnected');
+      console.log('WebSocket disconnected');
     };
 
     // Set up ping interval
