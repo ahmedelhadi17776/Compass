@@ -22,6 +22,7 @@ from orchestration.ai_orchestrator import AIOrchestrator
 from orchestration.todo_operations import smart_update_todo
 import uuid
 from data_layer.cache.ai_cache_manager import AICacheManager
+from ai_services.llm.llm_service import LLMService
 
 # Hardcoded JWT token for development - only used as fallback
 DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjUwNDg1NiwibmJmIjoxNzQ2NDE4NDU2LCJpYXQiOjE3NDY0MTg0NTZ9.nUky6q0vPRnVYP9gTPIPaibNezB-7Sn-EgDZvlxU0_8"
@@ -1146,6 +1147,138 @@ async def create_note(
 
     except Exception as e:
         error_msg = f"Error creating note via GraphQL: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+@mcp.tool("notes.rewriteInStyle")
+async def rewrite_in_style(
+    ctx: Context,
+    text: str,
+    user_id: Optional[str] = None,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Rewrite text in user's personal style based on their notes and journals.
+
+    Args:
+        text: The text to rewrite
+        user_id: Optional user ID to fetch their writing style
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        Dictionary containing the rewritten text
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # GraphQL query to fetch user's notes for style analysis
+        graphql_query = """
+        query GetUserNotes($page: Int!) {
+          notePages(page: $page) {
+            data {
+              content
+            }
+          }
+        }
+        """
+
+        # Fetch user's notes for style analysis
+        user_notes = []
+        page = 1
+        
+        while True:
+            graphql_payload = {
+                "query": graphql_query,
+                "variables": {"page": page}
+            }
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://localhost:5000/notes/graphql",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": auth_token
+                    },
+                    json=graphql_payload
+                )
+                
+                result = response.json()
+                
+                if "data" in result and "notePages" in result["data"]:
+                    notes_data = result["data"]["notePages"]["data"]
+                    if not notes_data:
+                        break
+                        
+                    user_notes.extend([note["content"] for note in notes_data])
+                    page += 1
+                else:
+                    break
+
+        # Combine notes content for style analysis
+        style_context = "\n\n".join(user_notes[:5])  # Use last 5 notes for context
+
+        # Call LLM to rewrite the text
+        llm_service = LLMService()
+        prompt = f"""You are tasked with rewriting text in the user's personal writing style.
+        
+Here are some examples of the user's writing style:
+
+{style_context}
+
+Please rewrite the following text in the same style, maintaining the same meaning but adapting the tone, word choice, and sentence structure to match the user's style. Return ONLY the rewritten text, without any additional formatting or metadata:
+
+{text}"""
+
+        response = await llm_service.generate_response(
+            prompt=prompt,
+            context={"task": "style_rewrite", "original_text": text},
+            user_id=user_id
+        )
+
+        # Parse the response
+        if isinstance(response, dict):
+            if "text" in response:
+                rewritten_text = response["text"]
+            elif "content" in response:
+                rewritten_text = response["content"]
+            else:
+                rewritten_text = str(response)
+        else:
+            rewritten_text = str(response)
+
+        # Clean up the response if it's a string representation of a dict
+        if isinstance(rewritten_text, str):
+            try:
+                # Try to parse if it looks like a dict string
+                if rewritten_text.startswith("{") and rewritten_text.endswith("}"):
+                    parsed = json.loads(rewritten_text.replace("'", '"'))
+                    if isinstance(parsed, dict) and "text" in parsed:
+                        rewritten_text = parsed["text"]
+            except:
+                # If parsing fails, use the string as is
+                pass
+
+        # Remove any HTML tags if present
+        rewritten_text = rewritten_text.replace("<p>", "").replace("</p>", "")
+
+        return {
+            "status": "success",
+            "content": {
+                "original_text": text,
+                "rewritten_text": rewritten_text,
+                "style_samples_used": len(user_notes)
+            }
+        }
+
+    except Exception as e:
+        error_msg = f"Error rewriting text in style: {str(e)}"
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
