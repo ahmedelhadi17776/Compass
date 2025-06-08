@@ -20,9 +20,12 @@ import {
   Subscript,
   Superscript,
   Underline,
-  LucideIcon
+  LucideIcon,
+  Wand2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCallback } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface EditorBubbleMenuProps {
   editor: Editor
@@ -38,6 +41,66 @@ type MenuItem = {
 }
 
 export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
+  const { user, isAuthenticated } = useAuth()
+  const token = localStorage.getItem('token')
+
+  const handleRewriteInStyle = useCallback(async () => {
+    if (!editor || !isAuthenticated || !token) return
+
+    const selectedText = editor.state.doc.textBetween(
+      editor.state.selection.from,
+      editor.state.selection.to,
+      ' '
+    )
+
+    if (!selectedText) return
+
+    try {
+      const response = await fetch('http://localhost:8001/ai/rewrite-in-style', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: selectedText,
+          user_id: user?.id
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to rewrite text')
+
+      const data = await response.json()
+      
+      // Parse the nested response structure
+      let rewrittenText = null
+      
+      if (data.status === 'success' && data.content?.content?.[0]?.text) {
+        try {
+          // Parse the inner JSON string
+          const innerData = JSON.parse(data.content.content[0].text)
+          rewrittenText = innerData.content?.rewritten_text
+        } catch (e) {
+          console.error('Error parsing inner response:', e)
+        }
+      }
+
+      if (rewrittenText) {
+        editor
+          .chain()
+          .focus()
+          .setTextSelection({
+            from: editor.state.selection.from,
+            to: editor.state.selection.to
+          })
+          .insertContent(rewrittenText)
+          .run()
+      }
+    } catch (error) {
+      console.error('Error rewriting text:', error)
+    }
+  }, [editor, user, token, isAuthenticated])
+
   if (!editor) {
     return null
   }
@@ -171,6 +234,15 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       title: 'Quote',
       action: () => editor.chain().focus().toggleBlockquote().run(),
       isActive: () => editor.isActive('blockquote'),
+    },
+    {
+      type: 'divider',
+    },
+    {
+      icon: Wand2,
+      title: 'Rewrite in your style',
+      action: handleRewriteInStyle,
+      isActive: () => false,
     },
   ]
 
