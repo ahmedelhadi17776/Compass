@@ -1,8 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { useEffect, useState } from "react"
-import { Plus, Calendar, Brain, Video, Activity, Clock, Focus, Keyboard, ActivityIcon, ArrowRight } from "lucide-react"
+import { Plus, Brain, ActivityIcon, ArrowRight, Eye } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -22,6 +20,8 @@ import PieChart from "./PieChart"
 import CalendarWidget from "./CalendarWidget"
 import { FocusTime } from "./FocusTime"
 import { MiddleBanner } from "./MiddleBanner"
+import { useNavigate } from "react-router-dom"
+
 interface TaskMetrics {
   completed: number
   total: number
@@ -55,6 +55,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ view }: DashboardProps) {
+  const navigate = useNavigate()
   const [greeting, setGreeting] = useState<string>("Good day")
   const [currentTime, setCurrentTime] = useState<string>("")
   const [currentDate, setCurrentDate] = useState<string>("")
@@ -103,7 +104,6 @@ export default function Dashboard({ view }: DashboardProps) {
       recurrence_pattern: {}
     };
     
-    createTodoMutation.mutate(newTodo);
     setShowTodoForm(false);
   };
 
@@ -152,26 +152,6 @@ export default function Dashboard({ view }: DashboardProps) {
   
   // Use the habit heatmap hook with proper userId
   const { data: heatmapData, loading: heatmapLoading, error: heatmapError } = useHabitHeatmap(user?.id || '')
-
-  // Simulated data - replace with actual API calls
-  useEffect(() => {
-    setTaskMetrics({
-      completed: 12,
-      total: 20,
-      upcoming: 5,
-    })
-    setFocusMetrics({
-      todayMinutes: 120,
-      weeklyGoal: 1500,
-      weeklyProgress: 65,
-    })
-    setSystemMetrics({
-      keyboardUsage: 85,
-      screenTime: 320,
-      focusScore: 78,
-      productivityScore: 82,
-    })
-  }, [])
 
   // Update greeting based on time of day
   useEffect(() => {
@@ -241,9 +221,10 @@ export default function Dashboard({ view }: DashboardProps) {
               variant="outline"
               size="sm"
               className="gap-2"
+              onClick={() => navigate('/Ai')}
             >
-              <Brain className="h-4 w-4" />
-              AI Assistant
+              <Eye className="h-4 w-4" />
+              IRIS
             </Button>
             <Dialog>
               <DialogTrigger asChild>
@@ -325,7 +306,11 @@ export default function Dashboard({ view }: DashboardProps) {
               loading={heatmapLoading}
               error={heatmapError}
             />
-            <Button variant="outline" className="mt-2 bg-[#18191b] rounded-2xl gap-2 w-[230px] h-[52px]">
+            <Button 
+              variant="outline" 
+              className="mt-2 bg-[#18191b] rounded-2xl gap-2 w-[230px] h-[52px]"
+              onClick={() => navigate('/Todos&Habits')}
+            >
               Navigate to Daily Habits <ArrowRight className="h-4 w-4" />
             </Button>
           </div>

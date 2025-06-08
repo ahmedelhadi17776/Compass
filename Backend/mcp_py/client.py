@@ -351,7 +351,7 @@ class MCPClient:
                 # Log successful response
                 if isinstance(result, dict):
                     result_preview = str(
-                        result)[:100] + "..." if len(str(result)) > 100 else str(result)
+                        result)[:1000] + "..." if len(str(result)) > 100 else str(result)
                     self.logger.info(
                         f"[TOOL_CALL] Tool '{tool_name}' returned dict: {result_preview}")
 
@@ -361,7 +361,7 @@ class MCPClient:
                             f"[TOOL_CALL] Response status: {result.get('status')}")
                 else:
                     result_preview = str(
-                        result)[:100] + "..." if len(str(result)) > 100 else str(result)
+                        result)[:1000] + "..." if len(str(result)) > 100 else str(result)
                     self.logger.info(
                         f"[TOOL_CALL] Tool '{tool_name}' returned: {result_preview}")
 

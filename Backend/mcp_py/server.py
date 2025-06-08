@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, Header
 from mcp.server.fastmcp import FastMCP, Context
 from starlette.routing import Mount
-from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator, List
 from fastapi.responses import StreamingResponse
 import logging
 import httpx
@@ -53,8 +53,6 @@ mcp = FastMCP(
 )
 
 # Add a diagnostic endpoint to check registered tools
-
-
 @app.get("/mcp-diagnostic")
 async def mcp_diagnostic():
     """Diagnostic endpoint to verify MCP server configuration and tool registration."""
@@ -641,8 +639,7 @@ async def get_calendar_events(
     ctx: Context,
     start_date: str,
     end_date: Optional[str] = None,
-    authorization: Optional[str] = None,
-    user_id: Optional[str] = None
+    authorization: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get calendar events for a specific date or date range.
 
@@ -650,7 +647,6 @@ async def get_calendar_events(
         start_date: Start date to fetch events from (format: YYYY-MM-DD)
         end_date: Optional end date to fetch events to (format: YYYY-MM-DD)
         authorization: Optional authorization token (Bearer token)
-        user_id: Optional user ID (will be extracted from token if not provided)
 
     Returns:
         List of calendar events in the specified date range
@@ -684,8 +680,6 @@ async def get_calendar_events(
         params = {"start_time": start_time}
         if end_time:
             params["end_time"] = end_time
-        if user_id:
-            params["user_id"] = user_id
 
         async def get_func(client, url, **kwargs):
             return await client.get(url, **kwargs)
@@ -718,7 +712,6 @@ async def create_calendar_event(
     color: Optional[str] = "#3b82f6",
     transparency: Optional[str] = "opaque",
     authorization: Optional[str] = None,
-    user_id: Optional[str] = None,
     check_conflicts: Optional[bool] = True
 ) -> Dict[str, Any]:
     """Create a new calendar event with conflict checking.
@@ -734,7 +727,6 @@ async def create_calendar_event(
         color: Optional event color (hex format)
         transparency: Optional transparency ('opaque' or 'transparent')
         authorization: Optional authorization token (Bearer token)
-        user_id: Optional user ID (will be extracted from token if not provided)
         check_conflicts: Whether to check for scheduling conflicts
 
     Returns:
@@ -964,6 +956,199 @@ async def refresh_tools():
     except Exception as e:
         logger.error(f"Error refreshing tools cache: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@mcp.tool("notes.get")
+async def get_notes(
+    ctx: Context,
+    page: int = 1,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Get notes using GraphQL matching frontend query structure.
+
+    Args:
+        page: Page number for pagination (starts at 1)
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        Dictionary containing notes and pagination info matching frontend types
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # GraphQL query matching frontend GET_NOTES query exactly
+        graphql_query = """
+        query GetNotes($page: Int!) {
+          notePages(page: $page) {
+            success
+            message
+            data {
+              id
+              title
+              content
+              tags
+              favorited
+              createdAt
+              updatedAt
+            }
+            pageInfo {
+              totalPages
+              totalItems
+              currentPage
+            }
+          }
+        }
+        """
+
+        # Prepare GraphQL request payload
+        graphql_payload = {
+            "query": graphql_query,
+            "variables": {
+                "page": page
+            }
+        }
+
+        # Log the request
+        await ctx.info(f"Sending GraphQL request with variables: {json.dumps(graphql_payload['variables'])}")
+
+        # Execute GraphQL query
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:5000/notes/graphql",
+                headers={
+                    "Content-Type": "application/json", 
+                    "Authorization": auth_token
+                },
+                json=graphql_payload
+            )
+            
+            result = response.json()
+
+        # Check for GraphQL errors
+        if "errors" in result:
+            error_msg = f"GraphQL errors: {json.dumps(result['errors'])}"
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return {"status": "error", "error": error_msg, "type": "graphql_error", "details": result["errors"]}
+
+        # Extract and return just the notePages data matching frontend types
+        if "data" in result and "notePages" in result["data"]:
+            return result["data"]["notePages"]
+        else:
+            return result
+
+    except Exception as e:
+        error_msg = f"Error retrieving notes via GraphQL: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+@mcp.tool("notes.create")
+async def create_note(
+    ctx: Context,
+    title: str,
+    content: str,
+    tags: Optional[List[str]] = None,
+    favorited: Optional[bool] = False,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new note using GraphQL matching frontend mutation structure.
+
+    Args:
+        title: Title of the note
+        content: Content of the note (markdown supported)
+        tags: Optional list of tags to associate with the note
+        favorited: Optional boolean indicating if the note should be favorited
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        Dictionary containing the created note data
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # GraphQL mutation matching frontend CREATE_NOTE mutation exactly
+        graphql_mutation = """
+        mutation CreateNote($input: NotePageInput!) {
+          createNotePage(input: $input) {
+            success
+            message
+            data {
+              id
+              title
+              content
+              tags
+              favorited
+              createdAt
+              updatedAt
+            }
+          }
+        }
+        """
+
+        # Prepare input data matching the frontend types
+        note_input = {
+            "title": title,
+            "content": content,
+            "tags": tags or [],
+            "favorited": favorited
+        }
+
+        # Prepare GraphQL request payload
+        graphql_payload = {
+            "query": graphql_mutation,
+            "variables": {
+                "input": note_input
+            }
+        }
+
+        # Log the request
+        await ctx.info(f"Sending GraphQL create note request: {title}")
+
+        # Execute GraphQL mutation
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:5000/notes/graphql",
+                headers={
+                    "Content-Type": "application/json", 
+                    "Authorization": auth_token
+                },
+                json=graphql_payload
+            )
+            
+            result = response.json()
+
+        # Check for GraphQL errors
+        if "errors" in result:
+            error_msg = f"GraphQL errors: {json.dumps(result['errors'])}"
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return {"status": "error", "error": error_msg, "type": "graphql_error", "details": result["errors"]}
+
+        # Extract and return just the createNotePage data
+        if "data" in result and "createNotePage" in result["data"]:
+            return result["data"]["createNotePage"]
+        else:
+            return result
+
+    except Exception as e:
+        error_msg = f"Error creating note via GraphQL: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
 
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""

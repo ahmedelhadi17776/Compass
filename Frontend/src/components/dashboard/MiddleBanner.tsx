@@ -3,7 +3,7 @@ import React from "react"
 import {
   Card
 } from "@/components/ui/card"
-import { CheckCircle, Clock, Calendar, ListTodo, Repeat, Sun, Moon, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
+import { ListTodo, Repeat, Sun, Moon, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
 import { useEffect, useState, useRef } from "react"
 
 type ItemType = "todo" | "task" | "event" | "habit"
