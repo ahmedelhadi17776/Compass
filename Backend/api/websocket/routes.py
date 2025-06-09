@@ -48,7 +48,7 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
             "timestamp": datetime.utcnow().isoformat(),
             "message": "Connected to dashboard updates"
         })
-        
+
         # Send initial metrics immediately upon connection
         try:
             # Check if metrics are in memory cache first
@@ -60,19 +60,55 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                     "data": metrics,
                     "timestamp": datetime.utcnow().isoformat()
                 })
-                logger.debug(f"Sent initial metrics from memory cache to user {user_id}")
+                logger.debug(
+                    f"Sent initial metrics from memory cache to user {user_id}")
             else:
                 # Fetch metrics if not in memory cache
-                headers = {"Authorization": f"Bearer {token}"}
-                metrics = await dashboard_cache.get_metrics(user_id, headers)
-                await websocket.send_json({
-                    "type": "initial_metrics",
-                    "data": metrics,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                logger.debug(f"Sent initial metrics to user {user_id}")
+                try:
+                    metrics = await dashboard_cache.get_metrics(user_id, token)
+                    if metrics:
+                        await websocket.send_json({
+                            "type": "initial_metrics",
+                            "data": metrics,
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        logger.debug(f"Sent initial metrics to user {user_id}")
+                    else:
+                        # Send empty metrics structure if fetch fails
+                        await websocket.send_json({
+                            "type": "initial_metrics",
+                            "data": {
+                                "habits": None,
+                                "calendar": None,
+                                "focus": None,
+                                "mood": None,
+                                "ai_usage": None,
+                                "system_metrics": None,
+                                "goals": None,
+                                "tasks": None,
+                                "todos": None,
+                                "user": None,
+                                "notes": None,
+                                "journals": None,
+                                "cost": None
+                            },
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "error": "Failed to fetch metrics from services"
+                        })
+                        logger.warning(
+                            f"Sent empty metrics structure to user {user_id} due to fetch failure")
+                except Exception as fetch_error:
+                    logger.error(
+                        f"Error fetching initial metrics: {str(fetch_error)}")
+                    # Send error notification to client
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Failed to fetch dashboard metrics",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
         except Exception as e:
             logger.error(f"Error sending initial metrics: {str(e)}")
+            # Don't disconnect on metrics error, just log it
 
         # Keep the connection alive and handle client messages
         while True:
@@ -99,14 +135,62 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                 elif message_type == "get_metrics":
                     # Client is explicitly requesting metrics
                     from data_layer.cache.dashboard_cache import dashboard_cache
-                    headers = {"Authorization": f"Bearer {token}"}
-                    metrics = await dashboard_cache.get_metrics(user_id, headers)
+                    metrics = await dashboard_cache.get_metrics(user_id, token)
                     await websocket.send_json({
                         "type": "metrics_update",
                         "data": metrics,
                         "timestamp": datetime.utcnow().isoformat()
                     })
                     logger.debug(f"Sent requested metrics to user {user_id}")
+                elif message_type == "cache_invalidated_ack":
+                    # Client acknowledged cache invalidation and is requesting fresh data
+                    logger.info(
+                        f"Client acknowledged cache invalidation, fetching fresh metrics for user {user_id}")
+                    from data_layer.cache.dashboard_cache import dashboard_cache
+                    try:
+                        # Force cache refresh and fetch fresh metrics
+                        await dashboard_cache.invalidate_cache(user_id)
+                        metrics = await dashboard_cache.get_metrics(user_id, token)
+                        await websocket.send_json({
+                            "type": "fresh_metrics",
+                            "data": metrics,
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        logger.info(
+                            f"Sent fresh metrics to user {user_id} after cache invalidation")
+                    except Exception as e:
+                        logger.error(
+                            f"Error fetching fresh metrics after cache invalidation: {e}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Failed to fetch fresh metrics",
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                elif message_type == "dashboard_update_ack":
+                    # Client acknowledged dashboard update and is requesting fresh data
+                    logger.info(
+                        f"Client requesting fresh data after dashboard update for user {user_id}")
+                    from data_layer.cache.dashboard_cache import dashboard_cache
+                    try:
+                        # Force cache refresh to ensure we get the latest data
+                        await dashboard_cache.invalidate_cache(user_id)
+                        # Fetch fresh metrics
+                        metrics = await dashboard_cache.get_metrics(user_id, token)
+                        await websocket.send_json({
+                            "type": "fresh_metrics",
+                            "data": metrics,
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        logger.info(
+                            f"Sent fresh metrics after dashboard update to user {user_id}")
+                    except Exception as e:
+                        logger.error(
+                            f"Error fetching fresh metrics after dashboard update: {e}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Failed to fetch fresh metrics",
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
             except json.JSONDecodeError:
                 logger.warning(f"Received invalid JSON from client: {user_id}")
             except Exception as e:
