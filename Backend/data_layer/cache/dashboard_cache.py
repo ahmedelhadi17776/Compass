@@ -7,9 +7,9 @@ from uuid import UUID
 from typing import Optional, Dict, Any, List, Tuple
 from app.schemas.dashboard_metrics import DashboardMetrics
 from data_layer.repos.focus_repo import FocusSessionRepository
-from data_layer.repos.goal_repo import GoalRepository
+from data_layer.repos.goal_repo import GoalRepository, Goal
 from data_layer.repos.system_metric_repo import SystemMetricRepository
-from data_layer.repos.ai_model_repo import ModelUsageRepository
+from data_layer.repos.ai_model_repo import ModelUsageRepository, ModelUsage
 from data_layer.repos.cost_tracking_repo import CostTrackingRepository
 from core.config import settings
 from data_layer.cache.redis_client import redis_client, redis_pubsub_client
@@ -26,23 +26,30 @@ except ImportError:
         "WebSocket manager not available, real-time updates will be disabled")
 
 # Define Go backend dashboard event types
+
+
 class events:
     DashboardEventMetricsUpdate = "metrics_update"
     DashboardEventCacheInvalidate = "cache_invalidate"
 
 # Custom error classes for better error handling
+
+
 class DashboardError(Exception):
-    def __init__(self, message, error_type, details=None):
-        super().__init__(message)
+    def __init__(self, message: str, error_type: str, details: Optional[Dict] = None):
+        self.message = message
         self.error_type = error_type
         self.details = details or {}
+        super().__init__(self.message)
+
 
 class DashboardMetricsError(DashboardError):
     pass
 
+
 class CircuitBreaker:
     """Circuit breaker pattern implementation to prevent cascading failures"""
-    
+
     def __init__(self, failure_threshold=5, reset_timeout=60, name="default"):
         self._failure_count = 0
         self._failure_threshold = failure_threshold
@@ -50,33 +57,34 @@ class CircuitBreaker:
         self._last_failure_time = 0
         self._is_open = False
         self.name = name
-    
+
     @property
     def is_open(self):
         """Check if circuit is open"""
         return self._is_open
-    
+
     @property
     def failure_count(self):
         """Get current failure count"""
         return self._failure_count
-    
+
     @property
     def last_failure_time(self):
         """Get last failure timestamp"""
         return self._last_failure_time
-        
+
     async def execute(self, func, *args, **kwargs):
         if self._is_open:
             if time.time() - self._last_failure_time > self._reset_timeout:
                 self._is_open = False
             else:
                 raise DashboardError(
-                    "Circuit breaker is open", 
-                    "circuit_open", 
-                    {"reset_in": self._reset_timeout - (time.time() - self._last_failure_time)}
+                    "Circuit breaker is open",
+                    "circuit_open",
+                    {"reset_in": self._reset_timeout -
+                        (time.time() - self._last_failure_time)}
                 )
-                
+
         try:
             result = await func(*args, **kwargs)
             self._failure_count = 0
@@ -141,8 +149,10 @@ class DashboardCache:
         # Cache lock to prevent race conditions
         self._cache_lock = asyncio.Lock()
         # Circuit breakers for external services
-        self._go_backend_circuit = CircuitBreaker(failure_threshold=3, reset_timeout=30)
-        self._notes_server_circuit = CircuitBreaker(failure_threshold=3, reset_timeout=30)
+        self._go_backend_circuit = CircuitBreaker(
+            failure_threshold=3, reset_timeout=30)
+        self._notes_server_circuit = CircuitBreaker(
+            failure_threshold=3, reset_timeout=30)
         # Metrics collection
         self._metrics = {
             "cache_hits": 0,
@@ -153,6 +163,35 @@ class DashboardCache:
             "errors": 0
         }
 
+        # Real-time update configuration
+        self.config = {
+            "enable_realtime_updates": os.getenv("ENABLE_REALTIME_UPDATES", "true").lower() == "true",
+            # Minimum time between updates
+            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "5")),
+            "batch_updates": os.getenv("BATCH_UPDATES", "true").lower() == "true",
+            "quiet_mode": os.getenv("DASHBOARD_QUIET_MODE", "false").lower() == "true"
+        }
+
+        # Track last update times to throttle frequent updates
+        self._last_update_times = {}
+        self._pending_updates = {}
+
+        # Message deduplication - track recent events to prevent duplicates
+        self._recent_events = {}  # {user_id: {event_key: timestamp}}
+        # Configurable deduplication window
+        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "2.0"))
+
+        # Log configuration on startup
+        if not self.config["quiet_mode"]:
+            logger.info(
+                f"Dashboard cache configuration: "
+                f"realtime={self.config['enable_realtime_updates']}, "
+                f"throttle={self.config['update_throttle_seconds']}s, "
+                f"batch={self.config['batch_updates']}, "
+                f"quiet={self.config['quiet_mode']}, "
+                f"dedup_window={self._dedup_window}s"
+            )
+
     async def _get_session(self):
         if self.session is None:
             self.session = aiohttp.ClientSession()
@@ -162,74 +201,118 @@ class DashboardCache:
         """Make HTTP request to external service with timeout"""
         session = await self._get_session()
         try:
+            logger.debug(
+                f"Making {method} request to {url} with headers: {headers}")
             async with session.request(method, url, headers=headers, json=data, timeout=timeout) as response:
+                logger.debug(f"Response status: {response.status} for {url}")
+
                 if response.status == 200:
                     return await response.json()
+                elif response.status == 401:
+                    logger.error(
+                        f"Authentication failed for {url}. Status: {response.status}")
+                    error_text = await response.text()
+                    logger.error(f"Response body: {error_text}")
+                    raise DashboardError(
+                        f"Authentication failed for {url}: {error_text}",
+                        "auth_error",
+                        {"status_code": response.status, "url": url}
+                    )
                 else:
-                    logger.warning(f"Request to {url} failed with status {response.status}")
-                    return None
+                    error_text = await response.text()
+                    logger.warning(
+                        f"Request to {url} failed with status {response.status}: {error_text}")
+                    raise DashboardError(
+                        f"Request failed with status {response.status}: {error_text}",
+                        "http_error",
+                        {"status_code": response.status, "url": url}
+                    )
         except asyncio.TimeoutError:
-            logger.warning(f"Request to {url} timed out after {timeout} seconds")
-            raise DashboardError(f"Request to {url} timed out")
+            logger.warning(
+                f"Request to {url} timed out after {timeout} seconds")
+            raise DashboardError(
+                f"Request to {url} timed out", "timeout_error")
         except Exception as e:
             logger.error(f"Error making request to {url}: {str(e)}")
-            raise DashboardError(f"Error making request to {url}: {str(e)}")
-            
+            raise DashboardError(
+                f"Error making request to {url}: {str(e)}", "request_error")
+
     async def _get_focus_metrics(self, user_id: str):
         """Fetch focus metrics asynchronously"""
         try:
             focus_repo = FocusSessionRepository()
-            return await focus_repo.get_focus_statistics(user_id, days=30)
+            stats = focus_repo.get_stats(user_id, days=30)  # This is sync
+            return stats
         except Exception as e:
             logger.error(f"Error fetching focus metrics: {str(e)}")
             return {}
-            
+
     async def _get_goal_metrics_async(self, user_id: str):
         """Fetch goal metrics asynchronously"""
         try:
             goal_repo = GoalRepository()
-            goals = await goal_repo.find_by_user(user_id)
-            return await self._calculate_goal_metrics(goals)
+            goals = goal_repo.find_by_user(user_id)  # This is sync
+            return self._calculate_goal_metrics(goals)
         except Exception as e:
             logger.error(f"Error fetching goal metrics: {str(e)}")
             return {}
-            
+
+    def _calculate_goal_metrics(self, goals: List[Goal]) -> Dict[str, Any]:
+        """Calculate goal metrics from goals list"""
+        if not goals:
+            return {"total": 0, "completed": 0}
+
+        total = len(goals)
+        completed = sum(1 for goal in goals if getattr(
+            goal, 'completed', False))
+
+        return {
+            "total": total,
+            "completed": completed
+        }
+
     async def _get_system_metrics(self, user_id: str):
         """Fetch system metrics asynchronously"""
         try:
-            system_metrics_repo = SystemMetricsRepository()
-            return await system_metrics_repo.get_system_metrics(user_id)
+            system_metrics_repo = SystemMetricRepository()
+            metrics = system_metrics_repo.aggregate_metrics(
+                user_id, period="daily")  # This is sync
+            return metrics
         except Exception as e:
             logger.error(f"Error fetching system metrics: {str(e)}")
             return {}
-            
+
     async def _get_ai_usage_metrics(self, user_id: str):
         """Fetch AI usage metrics asynchronously"""
         try:
-            ai_usage_repo = AIUsageRepository()
-            return await ai_usage_repo.get_usage_statistics(user_id, days=30)
+            model_usage_repo = ModelUsageRepository()
+            usage = model_usage_repo.get_usage_by_user(
+                user_id, limit=100)  # This is sync
+            return usage
         except Exception as e:
             logger.error(f"Error fetching AI usage metrics: {str(e)}")
             return {}
 
     async def get_metrics(self, user_id: str, token: str = ""):
         start_time = time.time()
-        
+
         try:
             # Check memory cache first (1-second threshold)
             if user_id in self._memory_cache:
                 metrics, timestamp = self._memory_cache[user_id]
                 if time.time() - timestamp < 1:  # 1 second threshold
-                    logger.debug(f"Memory cache hit for dashboard metrics: {user_id}")
+                    logger.debug(
+                        f"Memory cache hit for dashboard metrics: {user_id}")
                     self._metrics["cache_hits"] += 1
                     return metrics
-            
+
             # Check Redis cache
             cache_key = f"dashboard:metrics:{user_id}"
             cached_metrics = await redis_client.get(cache_key)
 
             if cached_metrics:
-                logger.debug(f"Redis cache hit for dashboard metrics: {user_id}")
+                logger.debug(
+                    f"Redis cache hit for dashboard metrics: {user_id}")
                 self._metrics["cache_hits"] += 1
                 try:
                     metrics = json.loads(cached_metrics)
@@ -237,31 +320,34 @@ class DashboardCache:
                     self._memory_cache[user_id] = (metrics, time.time())
                     return metrics
                 except json.JSONDecodeError:
-                    logger.warning(f"Failed to decode cached metrics for user {user_id}")
+                    logger.warning(
+                        f"Failed to decode cached metrics for user {user_id}")
                     # Continue to fetch fresh metrics
-            
+
             # Cache miss, fetch fresh metrics
             self._metrics["cache_misses"] += 1
             logger.debug(f"Cache miss for dashboard metrics: {user_id}")
-            
+
             metrics = await self._fetch_all_metrics(user_id, token)
-            
+
             # Cache the results
-            await self._cache_metrics(user_id, metrics)
-            
-            # Update memory cache
-            self._memory_cache[user_id] = (metrics, time.time())
-            
+            if metrics is not None:
+                await self._cache_metrics(user_id, metrics)
+                # Update memory cache
+                self._memory_cache[user_id] = (metrics, time.time())
+            else:
+                logger.error(f"Cannot cache null metrics for user {user_id}")
+
             # Ensure we're subscribed to Go backend events
             if not self.is_subscribed:
                 await self.start_go_metrics_subscriber()
-            
+
             # Record fetch time
             fetch_time = (time.time() - start_time) * 1000  # Convert to ms
             self._metrics["fetch_times"].append(fetch_time)
-            
+
             return metrics
-            
+
         except Exception as e:
             self._metrics["errors"] += 1
             logger.error(f"Error getting dashboard metrics: {str(e)}")
@@ -272,233 +358,212 @@ class DashboardCache:
             )
 
     async def _fetch_all_metrics(self, user_id: str, token: str = ""):
-        now = datetime.utcnow()
-        last_30 = now - timedelta(days=30)
-
-        # Headers for cross-backend communication
-        headers = {
-            "Content-Type": "application/json",
-            "X-User-ID": user_id
-        }
-
-        # Add authorization token if provided
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-
-        # Create tasks for concurrent fetching
-        # Local database metrics
-        focus_task = asyncio.create_task(self._get_focus_metrics(user_id))
-        goals_task = asyncio.create_task(self._get_goal_metrics_async(user_id))
-        system_task = asyncio.create_task(self._get_system_metrics(user_id))
-        ai_usage_task = asyncio.create_task(self._get_ai_usage_metrics(user_id))
-        cost_task = asyncio.create_task(cost_repo.get_user_cost_summary(user_id, last_30, now))
-        
-        # External services metrics
-        go_metrics_task = asyncio.create_task(self._get_go_backend_metrics(user_id, headers))
-        notes_metrics_task = asyncio.create_task(self._get_notes_server_metrics(user_id, headers))
-        
-        # Wait for all tasks to complete with timeout
+        """Fetch all metrics from different services"""
         try:
-            # First, wait for local metrics (these should be fast)
-            focus, goals, system, ai_usage, cost = await asyncio.gather(
-                focus_task, goals_task, system_task, ai_usage_task, cost_task,
+            # Initialize headers with token if provided
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
+            logger.debug(f"Fetching all metrics for user {user_id}")
+
+            # Fetch metrics from different services concurrently
+            go_metrics, notes_metrics, focus, goals, system, ai_usage, cost = await asyncio.gather(
+                self._get_go_backend_metrics(user_id, headers),
+                self._get_notes_server_metrics(user_id, headers),
+                self._get_focus_metrics(user_id),
+                self._get_goal_metrics_async(user_id),
+                self._get_system_metrics(user_id),
+                self._get_ai_usage_metrics(user_id),
+                self._get_cost_metrics(user_id),
                 return_exceptions=True
             )
-            
-            # Then, wait for external metrics with timeout
-            go_metrics, notes_metrics = await asyncio.wait_for(
-                asyncio.gather(go_metrics_task, notes_metrics_task, return_exceptions=True),
-                timeout=5.0
-            )
-            
+
             # Extract Go backend metrics
-            if isinstance(go_metrics, Exception):
-                logger.error(f"Error fetching Go backend metrics: {str(go_metrics)}")
-                habits, tasks, todos, calendar, user_metrics = None, None, None, None, None
+            habits = None
+            tasks = None
+            todos = None
+            calendar = None
+            user_metrics = None
+
+            if not isinstance(go_metrics, Exception) and isinstance(go_metrics, dict):
+                data = go_metrics.get("data", {})
+                if isinstance(data, dict):
+                    habits = data.get("habits")
+                    tasks = data.get("tasks")
+                    todos = data.get("todos")
+                    calendar = data.get("calendar")
+                    user_metrics = data.get("user")
+                    logger.info(
+                        f"Successfully extracted Go backend metrics for user {user_id}: habits={habits is not None}, tasks={tasks is not None}, todos={todos is not None}, calendar={calendar is not None}, user={user_metrics is not None}")
+                    logger.debug(
+                        f"Go backend response data: {json.dumps(data, indent=2)}")
+                else:
+                    logger.error(
+                        f"Invalid data structure in Go backend response: {data}")
             else:
-                habits = go_metrics.get("data", {}).get("habits") if go_metrics else None
-                tasks = go_metrics.get("data", {}).get("tasks") if go_metrics else None
-                todos = go_metrics.get("data", {}).get("todos") if go_metrics else None
-                calendar = go_metrics.get("data", {}).get("calendar") if go_metrics else None
-                user_metrics = go_metrics.get("data", {}).get("user") if go_metrics else None
-            
+                logger.error(
+                    f"Failed to get Go backend metrics for user {user_id}: {go_metrics}")
+                logger.error(f"   Exception type: {type(go_metrics)}")
+                if isinstance(go_metrics, Exception):
+                    logger.error(f"   Exception details: {str(go_metrics)}")
+
             # Extract Notes server metrics
-            if isinstance(notes_metrics, Exception):
-                logger.error(f"Error fetching Notes server metrics: {str(notes_metrics)}")
-                mood, notes, journals = None, None, None
+            mood = None
+            notes = None
+            journals = None
+
+            if not isinstance(notes_metrics, Exception) and isinstance(notes_metrics, dict):
+                # Handle both old and new response formats
+                if "data" in notes_metrics and notes_metrics.get("success", True):
+                    data = notes_metrics["data"]
+                    mood = data.get("mood")
+                    notes = data.get("notes")
+                    journals = data.get("journals")
+                else:
+                    # Fallback to old format
+                    mood = notes_metrics.get("mood")
+                    notes = notes_metrics.get("notes")
+                    journals = notes_metrics.get("journals")
+
+                logger.debug(
+                    f"Extracted Notes server metrics: mood={mood is not None}, notes={notes is not None}, journals={journals is not None}")
             else:
-                mood = notes_metrics.get("mood") if notes_metrics else None
-                notes = notes_metrics.get("notes") if notes_metrics else None
-                journals = notes_metrics.get("journals") if notes_metrics else None
-            
+                logger.error(
+                    f"Failed to get Notes server metrics: {notes_metrics}")
+
             # Handle exceptions in local metrics
             focus = None if isinstance(focus, Exception) else focus
             goals = None if isinstance(goals, Exception) else goals
             system = None if isinstance(system, Exception) else system
             ai_usage = None if isinstance(ai_usage, Exception) else ai_usage
             cost = None if isinstance(cost, Exception) else cost
-            
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout fetching external metrics for user {user_id}")
-            # Use None for external metrics that timed out
-            habits, tasks, todos, calendar, user_metrics = None, None, None, None, None
-            mood, notes, journals = None, None, None
-            
-            # Try to get results from tasks that might have completed
-            if go_metrics_task.done() and not go_metrics_task.exception():
-                go_metrics = go_metrics_task.result()
-                habits = go_metrics.get("data", {}).get("habits") if go_metrics else None
-                tasks = go_metrics.get("data", {}).get("tasks") if go_metrics else None
-                todos = go_metrics.get("data", {}).get("todos") if go_metrics else None
-                calendar = go_metrics.get("data", {}).get("calendar") if go_metrics else None
-                user_metrics = go_metrics.get("data", {}).get("user") if go_metrics else None
-                
-            if notes_metrics_task.done() and not notes_metrics_task.exception():
-                notes_metrics = notes_metrics_task.result()
-                mood = notes_metrics.get("mood") if notes_metrics else None
-                notes = notes_metrics.get("notes") if notes_metrics else None
-                journals = notes_metrics.get("journals") if notes_metrics else None
-        
-        # Compose the metrics dict
-        metrics = {
-            "habits": habits,
-            "calendar": calendar,
-            "focus": focus,
-            "mood": mood,
-            "ai_usage": ai_usage,
-            "system_metrics": system,
-            "goals": goals,
-            "tasks": tasks,
-            "todos": todos,
-            "user": user_metrics,
-            "notes": notes,
-            "journals": journals,
-            "cost": cost
-        }
-        
-        return metrics
-        
-    async def _get_focus_metrics(self, user_id: str):
-        """Get focus metrics from local database"""
-        return focus_repo.get_stats(user_id)
-        
-    async def _get_goal_metrics_async(self, user_id: str):
-        """Async wrapper for goal metrics"""
-        return self._get_goal_metrics(user_id)
-        
-    async def _get_system_metrics(self, user_id: str):
-        """Get system metrics from local database"""
-        return system_repo.aggregate_metrics(user_id, period="daily")
-        
-    async def _get_ai_usage_metrics(self, user_id: str):
-        """Get AI usage metrics from local database"""
-        return ai_usage_repo.get_usage_by_user(user_id, limit=30)
+
+            # Combine all metrics
+            metrics = {
+                "habits": habits,
+                "calendar": calendar,
+                "focus": focus,
+                "mood": mood,
+                "ai_usage": ai_usage,
+                "system_metrics": system,
+                "goals": goals,
+                "tasks": tasks,
+                "todos": todos,
+                "user": user_metrics,
+                "notes": notes,
+                "journals": journals,
+                "cost": cost
+            }
+
+            # Validate metrics before returning
+            if all(v is None for v in metrics.values()):
+                logger.error(f"All metrics are null for user {user_id}")
+                return None
+
+            logger.debug(
+                f"Combined metrics for user {user_id}: {json.dumps(metrics, indent=2)}")
+            return metrics
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching all metrics: {str(e)}", exc_info=True)
+            raise DashboardError(
+                f"Error fetching metrics: {str(e)}", "fetch_error")
 
     async def _get_go_backend_metrics(self, user_id: str, headers: dict):
-        """Fetch metrics from Go backend with circuit breaker"""
-        url = f"{self.go_backend_url}/api/dashboard/metrics"
-        logger.debug(f"Fetching metrics from Go backend for user {user_id}")
-        
+        """Fetch metrics from Go backend"""
         try:
-            # Use circuit breaker to prevent cascading failures
-            result = await self._go_backend_circuit.execute(
-                self._make_request,
-                url, "GET", headers, None, 3.0  # 3 second timeout
+            url = f"{settings.GO_BACKEND_URL}/api/dashboard/metrics"
+
+            # Add service-to-service headers for Go backend authentication bypass
+            service_headers = headers.copy() if headers else {}
+            service_headers.update({
+                "X-Service-Call": "true",
+                "X-Internal-Service": "python-backend",
+                "User-Agent": "python-backend-aiohttp/dashboard-service"
+            })
+
+            logger.info(
+                f"🚀 Fetching Go backend metrics from {url} for user {user_id}")
+            logger.debug(f"Service headers: {service_headers}")
+
+            # Use circuit breaker for resilience
+            response = await self._go_backend_circuit.execute(
+                self._make_request, url, "GET", headers=service_headers
             )
-            
-            if not result:
-                logger.warning(f"Failed to fetch metrics from Go backend for user {user_id}")
-                # Return empty placeholders for Go backend metrics
-                return {
-                    "data": {
-                        "habits": None,
-                        "tasks": None,
-                        "todos": None,
-                        "calendar": None,
-                        "user": None
-                    }
-                }
-            else:
-                logger.debug(f"Successfully fetched metrics from Go backend for user {user_id}")
-            return result
-            
-        except DashboardError as e:
-            # Circuit breaker is open
-            logger.error(f"Circuit breaker open for Go backend: {e}")
-            return {
-                "data": {
-                    "habits": None,
-                    "tasks": None,
-                    "todos": None,
-                    "calendar": None,
-                    "user": None
-                }
-            }
+
+            logger.info(
+                f"📥 Go backend response received for user {user_id}: {type(response)}")
+
+            if not response:
+                logger.error(
+                    f"Empty response from Go backend for user {user_id}")
+                return None
+
+            if not isinstance(response, dict):
+                logger.error(
+                    f"Invalid response type from Go backend: {type(response)}")
+                return None
+
+            if "data" not in response:
+                logger.error(
+                    f"Missing 'data' field in Go backend response: {response}")
+                return None
+
+            logger.debug(
+                f"Successfully fetched Go backend metrics for user {user_id}")
+            return response
         except Exception as e:
-            logger.error(f"Unexpected error fetching Go backend metrics: {e}")
-            return {
-                "data": {
-                    "habits": None,
-                    "tasks": None,
-                    "todos": None,
-                    "calendar": None,
-                    "user": None
-                }
-            }
+            logger.error(
+                f"Error fetching Go backend metrics: {str(e)}", exc_info=True)
+            # If it's an authentication error, log it specifically
+            if "401" in str(e) or "unauthorized" in str(e).lower():
+                logger.error(
+                    f"Authentication error when calling Go backend. Token may be invalid or expired.")
+            return None
 
     async def _get_notes_server_metrics(self, user_id: str, headers: dict):
-        """Fetch metrics from Notes server with circuit breaker"""
+        """Fetch metrics from Notes server"""
         try:
-            # Use circuit breaker to prevent cascading failures
-            url = f"{self.notes_server_url}/api/dashboard/metrics"
-            response = await self._notes_server_circuit.execute(
-                self._make_request,
-                url, "GET", headers, None, 3.0  # 3 second timeout
-            )
-            
-            if response and response.get("success"):
-                data = response.get("data", {})
-                logger.info(f"Successfully fetched Notes server metrics for user {user_id}")
-                return {
-                    "mood": data.get("moodSummary"),
-                    "notes": {
-                        "count": data.get("notesCount", 0),
-                        "recent": data.get("recentNotes", []),
-                        "tags": data.get("tagCounts", [])
-                    },
-                    "journals": {
-                        "count": data.get("journalsCount", 0),
-                        "recent": data.get("recentJournals", []),
-                        "mood_distribution": data.get("moodDistribution", {})
-                    }
-                }
-            logger.warning(f"Failed to fetch metrics from Notes server for user {user_id}")
-            return {
-                "mood": None,
-                "notes": None,
-                "journals": None
-            }
-        except DashboardError as e:
-            # Circuit breaker is open
-            logger.error(f"Circuit breaker open for Notes server: {e}")
-            return {
-                "mood": None,
-                "notes": None,
-                "journals": None
-            }
-        except Exception as e:
-            logger.error(f"Error fetching Notes server metrics: {str(e)}")
-            return {
-                "mood": None,
-                "notes": None,
-                "journals": None
-            }
+            url = f"{settings.NOTES_SERVER_URL}/api/dashboard/metrics"
+            logger.debug(
+                f"Fetching Notes server metrics from {url} with headers: {headers}")
 
-    def _get_goal_metrics(self, user_id: str):
-        goals = goal_repo.find_by_user(user_id)
-        total = len(goals)
-        completed = sum(1 for g in goals if getattr(g, 'completed', False))
-        return {"total": total, "completed": completed}
+            # Use circuit breaker for resilience
+            response = await self._notes_server_circuit.execute(
+                self._make_request, url, "GET", headers=headers
+            )
+
+            if not response:
+                logger.error(
+                    f"Empty response from Notes server for user {user_id}")
+                return None
+
+            if not isinstance(response, dict):
+                logger.error(
+                    f"Invalid response type from Notes server: {type(response)}")
+                return None
+
+            logger.debug(
+                f"Successfully fetched Notes server metrics for user {user_id}")
+            return response
+        except Exception as e:
+            logger.error(
+                f"Error fetching Notes server metrics: {str(e)}", exc_info=True)
+            # If it's an authentication error, log it specifically
+            if "401" in str(e) or "unauthorized" in str(e).lower():
+                logger.error(
+                    f"Authentication error when calling Notes server. Token may be invalid or expired.")
+            return None
+
+    async def _get_cost_metrics(self, user_id: str):
+        """Fetch cost metrics"""
+        try:
+            now = datetime.utcnow()
+            last_30 = now - timedelta(days=30)
+            cost_repo = CostTrackingRepository()
+            return await cost_repo.get_user_cost_summary(user_id, last_30, now)
+        except Exception as e:
+            logger.error(f"Error fetching cost metrics: {str(e)}")
+            return None
 
     async def _cache_metrics(self, user_id: str, metrics: dict):
         """Cache metrics with TTL and update memory cache"""
@@ -508,30 +573,32 @@ class DashboardCache:
         # Update memory cache
         self._memory_cache[user_id] = (metrics, time.time())
         logger.debug(f"Cached dashboard metrics for user {user_id}")
-        
+
     async def update_metric(self, user_id: str, metric_type: str, value: Any):
         """Update a specific metric in the cache without invalidating the entire cache"""
         async with self._cache_lock:
             # Get current metrics
             cache_key = f"dashboard:metrics:{user_id}"
             cached_metrics = await redis_client.get(cache_key)
-            
+
             if not cached_metrics:
-                logger.warning(f"Cannot update metric {metric_type} for user {user_id}: cache miss")
+                logger.warning(
+                    f"Cannot update metric {metric_type} for user {user_id}: cache miss")
                 return False
-                
+
             try:
                 current_metrics = json.loads(cached_metrics)
                 # Update specific metric
                 current_metrics[metric_type] = value
-                
+
                 # Update Redis cache
                 await redis_client.set(cache_key, json.dumps(current_metrics), ex=300)
-                
+
                 # Update memory cache
                 self._memory_cache[user_id] = (current_metrics, time.time())
-                
-                logger.debug(f"Updated metric {metric_type} for user {user_id}")
+
+                logger.debug(
+                    f"Updated metric {metric_type} for user {user_id}")
                 return True
             except (json.JSONDecodeError, KeyError) as e:
                 logger.error(f"Error updating metric {metric_type}: {str(e)}")
@@ -568,37 +635,159 @@ class DashboardCache:
             # Notify subscribers
             await self._notify_subscribers(event)
 
+    async def _should_throttle_update(self, event: DashboardEvent) -> bool:
+        """Check if we should throttle this update based on frequency"""
+        if not self.config["batch_updates"]:
+            return False
+
+        user_id = event.user_id
+        current_time = time.time()
+
+        # Check last update time for this user
+        last_update = self._last_update_times.get(user_id, 0)
+        time_since_last = current_time - last_update
+
+        # Use shorter throttle time for cache_invalidate events (immediate actions)
+        throttle_time = 1.0 if event.event_type == "cache_invalidate" else self.config[
+            "update_throttle_seconds"]
+
+        if time_since_last < throttle_time:
+            # Store pending update only if it's been less than throttle time
+            self._pending_updates[user_id] = event
+            if not self.config["quiet_mode"]:
+                logger.debug(
+                    f"Throttling update for user {user_id}: {event.event_type} (last update {time_since_last:.1f}s ago, throttle: {throttle_time}s)")
+            return True
+
+        # Update last update time
+        self._last_update_times[user_id] = current_time
+
+        # Process any pending updates
+        if user_id in self._pending_updates:
+            if not self.config["quiet_mode"]:
+                logger.debug(f"Processing pending update for user {user_id}")
+            del self._pending_updates[user_id]
+
+        return False
+
+    def _is_duplicate_event(self, event: DashboardEvent) -> bool:
+        """Check if this event is a duplicate within the deduplication window"""
+        current_time = time.time()
+        user_id = event.user_id
+
+        # Create a more specific unique key for this event
+        action = event.details.get('action', '')
+        entity_id = (event.details.get('todo_id') or
+                     event.details.get('task_id') or
+                     event.details.get('habit_id') or
+                     event.details.get('calendar_event_id', ''))
+
+        # For events without specific entity IDs, use action-based deduplication
+        if entity_id:
+            event_key = f"{event.event_type}:{action}:{entity_id}"
+        else:
+            # For action-only events (like user activity), use action + very short time window
+            # Round to 200ms to catch rapid duplicates but allow legitimate quick actions
+            rounded_time = round(current_time * 5) / 5  # 200ms windows
+            event_key = f"{event.event_type}:{action}:{rounded_time}"
+
+        # Clean up old events (older than dedup window)
+        if user_id in self._recent_events:
+            self._recent_events[user_id] = {
+                key: timestamp for key, timestamp in self._recent_events[user_id].items()
+                if current_time - timestamp < self._dedup_window
+            }
+
+        # Check if this event is a duplicate
+        if user_id in self._recent_events and event_key in self._recent_events[user_id]:
+            last_time = self._recent_events[user_id][event_key]
+            if current_time - last_time < self._dedup_window:
+                if not self.config["quiet_mode"]:
+                    logger.info(
+                        f"Blocked duplicate event for user {user_id}: {event_key} (within {current_time - last_time:.2f}s)")
+                return True
+
+        # Record this event
+        if user_id not in self._recent_events:
+            self._recent_events[user_id] = {}
+        self._recent_events[user_id][event_key] = current_time
+
+        if not self.config["quiet_mode"]:
+            logger.info(
+                f"Allowed event for user {user_id}: {event_key} | Details: {event.details}")
+        return False
+
     async def _notify_subscribers(self, event: DashboardEvent):
+        # Check if real-time updates are disabled
+        if not self.config["enable_realtime_updates"]:
+            return
+
+        # Check for duplicate events
+        if self._is_duplicate_event(event):
+            if not self.config["quiet_mode"]:
+                logger.debug(
+                    f"Skipping duplicate event for user {event.user_id}: {event.event_type}")
+            return
+
+        # Check if we should throttle this update
+        if await self._should_throttle_update(event):
+            if not self.config["quiet_mode"]:
+                logger.debug(
+                    f"Throttling update for user {event.user_id}, event: {event.event_type}")
+            return
+
         # Publish to Redis channel for other services
         channel = f"dashboard_updates:{event.user_id}"
         await redis_client.publish(channel, json.dumps(event.to_dict()))
 
         # Broadcast to WebSocket clients if WebSocket manager is available
         if self.ws_manager:
-            # Add metrics to the event if it's a cache invalidation
+            # For cache invalidation events, send a consolidated update message
             if event.event_type == "cache_invalidate":
-                # Check if we have metrics in memory cache to avoid loading delay
-                if event.user_id in self._memory_cache:
-                    metrics, _ = self._memory_cache[event.user_id]
-                    # Include metrics in the WebSocket message to avoid client having to fetch them
+                try:
+                    # Send a single consolidated message that tells client to refresh
                     message = {
-                        "type": event.event_type,
+                        "type": "dashboard_update",
                         "timestamp": datetime.utcnow().isoformat(),
-                        "data": event.details,
-                        "metrics": metrics
+                        "data": {
+                            "action": event.details.get("action", "data_changed"),
+                            "entity_type": self._extract_entity_type(event.details),
+                            "user_id": event.user_id
+                        },
+                        "requires_refresh": True
                     }
                     await self.ws_manager.broadcast_to_user(event.user_id, message)
-                    logger.debug(f"Sent dashboard update with metrics to WebSocket for user {event.user_id}")
+                    if not self.config["quiet_mode"]:
+                        logger.info(
+                            f"Sent consolidated dashboard update to user {event.user_id}")
                     return
-            
-            # Default case without metrics
+                except Exception as e:
+                    logger.error(
+                        f"Error sending consolidated update: {e}")
+
+            # Default case for other event types
             message = {
                 "type": event.event_type,
                 "timestamp": datetime.utcnow().isoformat(),
                 "data": event.details
             }
             await self.ws_manager.broadcast_to_user(event.user_id, message)
-            logger.debug(f"Broadcasted event to WebSocket clients for user {event.user_id}")
+            if not self.config["quiet_mode"]:
+                logger.debug(
+                    f"Broadcasted event to WebSocket clients for user {event.user_id}")
+
+    def _extract_entity_type(self, details: dict) -> str:
+        """Extract entity type from event details"""
+        if "todo_id" in details:
+            return "todo"
+        elif "task_id" in details:
+            return "task"
+        elif "habit_id" in details:
+            return "habit"
+        elif "calendar_event_id" in details:
+            return "calendar"
+        else:
+            return "unknown"
 
     async def start_go_metrics_subscriber(self):
         """Start listening for dashboard events from Go backend"""
@@ -630,9 +819,15 @@ class DashboardCache:
                 logger.info(
                     f"Processing Go backend event: {event_type} for user {user_id}")
 
-                # Invalidate cache for this user
+                # Invalidate cache for this user (both Redis and memory)
                 cache_key = f"dashboard:metrics:{user_id}"
                 await redis_client.delete(cache_key)
+
+                # Also clear memory cache to prevent stale data
+                if user_id in self._memory_cache:
+                    del self._memory_cache[user_id]
+                    logger.debug(f"Cleared memory cache for user {user_id}")
+
                 logger.info(
                     f"Invalidated dashboard cache for user {user_id} due to Go backend event: {event_type}")
 
@@ -678,11 +873,6 @@ class DashboardCache:
                 if event_type == events.DashboardEventMetricsUpdate:
                     logger.info(
                         f"Metrics update event received for user {user_id}")
-                    # Fetch fresh metrics
-                    headers = {"X-User-ID": user_id}
-                    metrics = await self._get_notes_server_metrics(user_id, headers)
-                    if metrics:
-                        await self._cache_metrics(user_id, metrics)
 
                 # Create a Python-style dashboard event and notify subscribers
                 dashboard_event = DashboardEvent(
@@ -734,25 +924,31 @@ class DashboardCache:
                 }
             }
         }
-        
+
         # Calculate cache hit rates
-        total_redis_requests = self._metrics["cache_hits"] + self._metrics["cache_misses"]
+        total_redis_requests = self._metrics["cache_hits"] + \
+            self._metrics["cache_misses"]
         if total_redis_requests > 0:
-            stats["cache_hit_rate"] = self._metrics["cache_hits"] / total_redis_requests
-            
-        total_memory_requests = self._metrics["memory_cache_hits"] + self._metrics["memory_cache_misses"]
+            stats["cache_hit_rate"] = self._metrics["cache_hits"] / \
+                total_redis_requests
+
+        total_memory_requests = self._metrics["memory_cache_hits"] + \
+            self._metrics["memory_cache_misses"]
         if total_memory_requests > 0:
-            stats["memory_cache_hit_rate"] = self._metrics["memory_cache_hits"] / total_memory_requests
-        
+            stats["memory_cache_hit_rate"] = self._metrics["memory_cache_hits"] / \
+                total_memory_requests
+
         # Calculate average fetch time
         if self._metrics["fetch_times"]:
-            stats["avg_fetch_time_ms"] = sum(self._metrics["fetch_times"]) / len(self._metrics["fetch_times"])
-        
+            stats["avg_fetch_time_ms"] = sum(
+                self._metrics["fetch_times"]) / len(self._metrics["fetch_times"])
+
         # Calculate error rate (errors per 100 requests)
         total_requests = total_redis_requests
         if total_requests > 0:
-            stats["error_rate"] = (self._metrics["errors"] / total_requests) * 100
-            
+            stats["error_rate"] = (
+                self._metrics["errors"] / total_requests) * 100
+
         return stats
 
     async def close(self):

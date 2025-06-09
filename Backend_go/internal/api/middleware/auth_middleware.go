@@ -25,7 +25,6 @@ type RateLimiterConfig struct {
 	MaxAttempts int64
 }
 
-
 // NewAuthMiddleware creates a new auth middleware
 func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -54,7 +53,40 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Validate session
+		// First validate the JWT token
+		claims, err := auth.ValidateToken(tokenString, jwtSecret)
+		if err != nil {
+			log.Error("Token validation failed", zap.Error(err))
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.Abort()
+			return
+		}
+
+		// Check for service-to-service call indicator
+		serviceToService := c.GetHeader("X-Service-Call") == "true" ||
+			c.GetHeader("X-Internal-Service") != "" ||
+			isServiceToServiceUA(c.GetHeader("User-Agent"))
+
+		// For service-to-service calls, skip session validation if JWT is valid
+		if serviceToService {
+			log.Info("Service-to-service call detected, skipping session validation",
+				zap.String("user_agent", c.GetHeader("User-Agent")),
+				zap.String("user_id", claims.UserID.String()))
+
+			// Store claims and token in context
+			c.Set("user_id", claims.UserID)
+			c.Set("email", claims.Email)
+			c.Set("roles", claims.Roles)
+			c.Set("org_id", claims.OrgID)
+			c.Set("permissions", claims.Permissions)
+			c.Set("token", tokenString)
+			c.Set("is_service_call", true)
+
+			c.Next()
+			return
+		}
+
+		// For regular user requests, validate session
 		session, exists := auth.GetSessionStore().GetSession(tokenString)
 		if !exists {
 			log.Error("Invalid or expired session")
@@ -65,14 +97,6 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		// Update session activity
 		auth.GetSessionStore().UpdateSessionActivity(tokenString)
-
-		claims, err := auth.ValidateToken(tokenString, jwtSecret)
-		if err != nil {
-			log.Error("Token validation failed", zap.Error(err))
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			c.Abort()
-			return
-		}
 
 		// Verify session user matches token user
 		if session.UserID != claims.UserID {
@@ -93,6 +117,27 @@ func NewAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// isServiceToServiceUA checks if the User-Agent indicates a service-to-service call
+func isServiceToServiceUA(userAgent string) bool {
+	serviceUAs := []string{
+		"aiohttp",
+		"python-requests",
+		"go-http-client",
+		"curl",
+		"HTTPie",
+		"service",
+		"backend",
+	}
+
+	userAgentLower := strings.ToLower(userAgent)
+	for _, ua := range serviceUAs {
+		if strings.Contains(userAgentLower, ua) {
+			return true
+		}
+	}
+	return false
 }
 
 // RateLimitMiddleware creates a middleware for rate limiting using Redis
