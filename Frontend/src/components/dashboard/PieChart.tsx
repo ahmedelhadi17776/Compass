@@ -1,26 +1,38 @@
-"use client"
+"use client";
 
-import { PolarAngleAxis, RadialBar, RadialBarChart, Tooltip as RechartsTooltip } from "recharts"
-import { Card, CardContent } from "@/components//ui/card"
-import { ChartContainer } from "@/components//ui/chart"
-import { useWebSocket } from "@/contexts/websocket-provider"
-import { useState, useEffect, useMemo } from "react"
-import { useQueryClient } from "@tanstack/react-query"
-import { QUERY_KEYS, DashboardMetrics } from "@/contexts/websocket-provider"
+import {
+  PolarAngleAxis,
+  RadialBar,
+  RadialBarChart,
+  Tooltip as RechartsTooltip,
+} from "recharts";
+import { Card, CardContent } from "@/components//ui/card";
+import { ChartContainer } from "@/components//ui/chart";
+import { useMemo } from "react";
+import { useDashboardMetrics } from "./useDashboardMetrics";
 
 interface MetricData {
-  activity: string
-  value: number
-  fill: string
-  completed: string
+  activity: string;
+  value: number;
+  fill: string;
+  completed: string;
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    payload: MetricData;
+  }>;
+}
+
+const CustomTooltip = ({ active, payload }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
       <div className="bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700">
-        <p className="text-xs font-medium text-zinc-200 capitalize">{data.activity}</p>
+        <p className="text-xs font-medium text-zinc-200 capitalize">
+          {data.activity}
+        </p>
         <p className="text-xs text-zinc-400">{data.completed} completed</p>
       </div>
     );
@@ -29,40 +41,8 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function PieChart() {
-  // Get WebSocket context
-  const { requestRefresh } = useWebSocket();
-  const queryClient = useQueryClient();
-  
-  // State to store metrics data
-  const [metricsData, setMetricsData] = useState<DashboardMetrics | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Get metrics data directly from React Query cache
-  useEffect(() => {
-    // Initial data fetch
-    const cachedData = queryClient.getQueryData<DashboardMetrics>(QUERY_KEYS.DASHBOARD_METRICS);
-    if (cachedData) {
-      setMetricsData(cachedData);
-      setIsLoading(false);
-    } else {
-      // Request data if not available
-      requestRefresh();
-    }
-
-    // Subscribe to cache changes
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
-      const updatedData = queryClient.getQueryData<DashboardMetrics>(QUERY_KEYS.DASHBOARD_METRICS);
-      if (updatedData) {
-        console.log("PieChart received updated metrics:", updatedData);
-        setMetricsData(updatedData);
-        setIsLoading(false);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [queryClient, requestRefresh]);
+  // Use the custom hook for dashboard metrics
+  const { data: metricsData, isLoading } = useDashboardMetrics();
 
   // Process the metrics data for the chart
   const chartData = useMemo<MetricData[]>(() => {
@@ -77,27 +57,21 @@ export default function PieChart() {
     return [
       {
         activity: "todos",
-        value: todos.total > 0 
-          ? (todos.completed / todos.total) * 100 
-          : 0,
+        value: todos.total > 0 ? (todos.completed / todos.total) * 100 : 0,
         fill: "#3b82f6",
-        completed: `${todos.completed || 0}/${todos.total || 0}`
+        completed: `${todos.completed || 0}/${todos.total || 0}`,
       },
       {
         activity: "habits",
-        value: habits.total > 0 
-          ? (habits.completed / habits.total) * 100 
-          : 0,
+        value: habits.total > 0 ? (habits.completed / habits.total) * 100 : 0,
         fill: "#1d4ed8",
-        completed: `${habits.completed || 0}/${habits.total || 0}`
+        completed: `${habits.completed || 0}/${habits.total || 0}`,
       },
       {
         activity: "tasks",
-        value: tasks.total > 0 
-          ? (tasks.completed / tasks.total) * 100 
-          : 0,
+        value: tasks.total > 0 ? (tasks.completed / tasks.total) * 100 : 0,
         fill: "#1e40af",
-        completed: `${tasks.completed || 0}/${tasks.total || 0}`
+        completed: `${tasks.completed || 0}/${tasks.total || 0}`,
       },
     ];
   }, [metricsData]);
@@ -118,8 +92,12 @@ export default function PieChart() {
       <CardContent className="p-0">
         <div className="flex flex-col">
           <div className="flex flex-col items-center space-y-1.5 p-6 pb-2">
-            <span className="text-xl font-semibold leading-none tracking-tight">Completion Status</span>
-            <span className="text-sm text-muted-foreground">Progress overview</span>
+            <span className="text-xl font-semibold leading-none tracking-tight">
+              Completion Status
+            </span>
+            <span className="text-sm text-muted-foreground">
+              Progress overview
+            </span>
           </div>
           <div className="flex items-center justify-between px-6 pb-6">
             <div className="flex flex-col space-y-4">
@@ -187,9 +165,9 @@ export default function PieChart() {
                   dataKey="value"
                   tick={false}
                 />
-                <RadialBar 
-                  dataKey="value" 
-                  background 
+                <RadialBar
+                  dataKey="value"
+                  background
                   cornerRadius={6}
                   animationDuration={1500}
                 />
@@ -200,5 +178,5 @@ export default function PieChart() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
