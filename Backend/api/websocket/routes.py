@@ -90,7 +90,9 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                                 "user": None,
                                 "notes": None,
                                 "journals": None,
-                                "cost": None
+                                "cost": None,
+                                "daily_timeline": None,
+                                "timestamp": datetime.utcnow().isoformat()
                             },
                             "timestamp": datetime.utcnow().isoformat(),
                             "error": "Failed to fetch metrics from services"
@@ -132,6 +134,25 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                         "type": "refresh_initiated",
                         "timestamp": datetime.utcnow().isoformat()
                     })
+                elif message_type == "refresh_heatmap":
+                    # Client is requesting a refresh of the habit heatmap specifically
+                    logger.info(
+                        f"Client requested habit heatmap refresh: {user_id}")
+                    # Invalidate cache to force refresh on next API call
+                    from data_layer.cache.dashboard_cache import dashboard_cache
+                    await dashboard_cache.invalidate_cache(user_id)
+                    await websocket.send_json({
+                        "type": "heatmap_refresh_initiated",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    # Fetch fresh metrics after invalidation
+                    metrics = await dashboard_cache.get_metrics(user_id, token)
+                    if metrics and metrics.get("habit_heatmap"):
+                        await websocket.send_json({
+                            "type": "heatmap_data",
+                            "data": {"habit_heatmap": metrics["habit_heatmap"]},
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
                 elif message_type == "get_metrics":
                     # Client is explicitly requesting metrics
                     from data_layer.cache.dashboard_cache import dashboard_cache

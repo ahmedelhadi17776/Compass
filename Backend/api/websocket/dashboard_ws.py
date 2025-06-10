@@ -30,7 +30,12 @@ class ConnectionManager:
         # Message deduplication at WebSocket level
         # {user_id: {message_hash: timestamp}}
         self._recent_messages: Dict[str, Dict[str, float]] = {}
-        self._message_dedup_window = 0.3
+        # Increase deduplication window to 1.0 second
+        self._message_dedup_window = 1.0
+
+        # Throttling mechanism
+        self._last_send_time: Dict[str, float] = {}
+        self._min_send_interval = 0.2  # 200ms minimum interval between messages
 
     async def connect(self, websocket: WebSocket, user_id: str):
         try:
@@ -80,6 +85,11 @@ class ConnectionManager:
                         del self.active_connections[user_id]
                         if user_id in self.connection_health:
                             del self.connection_health[user_id]
+                        # Also clean up deduplication data
+                        if user_id in self._recent_messages:
+                            del self._recent_messages[user_id]
+                        if user_id in self._last_send_time:
+                            del self._last_send_time[user_id]
 
             self.stats["active_connections"] = self._count_active_connections()
             logger.info(
@@ -93,64 +103,91 @@ class ConnectionManager:
         return sum(len(connections) for connections in self.active_connections.values())
 
     async def broadcast_to_user(self, user_id: str, message: dict):
-        if user_id in self.active_connections:
-            # Add timestamp if not present
-            if "timestamp" not in message:
-                message["timestamp"] = datetime.utcnow().isoformat()
+        if user_id not in self.active_connections:
+            return
 
-            # For rapid user actions, reduce deduplication strictness
-            message_type = message.get("type", "")
-            if message_type in ["dashboard_update", "fresh_metrics"]:
-                # Allow rapid updates for immediate user feedback
-                should_dedupe = self._is_duplicate_message(
-                    user_id, message, use_relaxed_dedup=True)
-            else:
-                should_dedupe = self._is_duplicate_message(user_id, message)
+        # Check if we need to throttle messages
+        current_time = time.time()
+        last_send_time = self._last_send_time.get(user_id, 0)
 
-            if should_dedupe:
-                return  # Skip this duplicate message
+        # Skip too frequent updates (except for important messages)
+        if (current_time - last_send_time < self._min_send_interval and
+                message.get("type") not in ["connected", "error", "dashboard_update"]):
+            logger.debug(f"Throttling message to user {user_id}: too frequent")
+            return
 
-            # Store last message for reconnection support (except certain types)
-            if message.get("type") not in ["cache_invalidate", "dashboard_update"]:
-                self.last_messages[user_id] = message
+        # Update last send time
+        self._last_send_time[user_id] = current_time
 
-            disconnected = []
-            for i, connection in enumerate(self.active_connections[user_id]):
-                try:
-                    await connection.send_json(message)
-                    self.stats["messages_sent"] += 1
-                    # Update last ping time
-                    if user_id in self.connection_health:
-                        self.connection_health[user_id]["last_ping"] = datetime.utcnow(
-                        ).isoformat()
-                except Exception as e:
-                    logger.error(
-                        f"Error broadcasting to user {user_id}: {str(e)}", exc_info=True)
-                    self.stats["errors"] += 1
-                    if user_id in self.connection_health:
-                        self.connection_health[user_id]["errors"] += 1
-                    disconnected.append(i)
+        # Add timestamp if not present
+        if "timestamp" not in message:
+            message["timestamp"] = datetime.utcnow().isoformat()
 
-            # Remove disconnected connections
-            for i in sorted(disconnected, reverse=True):
-                try:
-                    await self.active_connections[user_id][i].close()
-                except:
-                    pass
+        # For rapid user actions, reduce deduplication strictness
+        message_type = message.get("type", "")
+        if message_type in ["dashboard_update", "fresh_metrics"]:
+            # Allow rapid updates for immediate user feedback
+            should_dedupe = self._is_duplicate_message(
+                user_id, message, use_relaxed_dedup=True)
+        else:
+            should_dedupe = self._is_duplicate_message(user_id, message)
+
+        if should_dedupe:
+            return  # Skip this duplicate message
+
+        # Store last message for reconnection support (except certain types)
+        if message.get("type") not in ["cache_invalidate", "dashboard_update", "ping", "pong"]:
+            self.last_messages[user_id] = message
+
+        disconnected = []
+        for i, connection in enumerate(self.active_connections[user_id]):
+            try:
+                await connection.send_json(message)
+                self.stats["messages_sent"] += 1
+                # Update last ping time
+                if user_id in self.connection_health:
+                    self.connection_health[user_id]["last_ping"] = datetime.utcnow(
+                    ).isoformat()
+            except Exception as e:
+                logger.error(
+                    f"Error broadcasting to user {user_id}: {str(e)}", exc_info=True)
+                self.stats["errors"] += 1
+                if user_id in self.connection_health:
+                    self.connection_health[user_id]["errors"] += 1
+                disconnected.append(i)
+
+        # Remove disconnected connections
+        for i in sorted(disconnected, reverse=True):
+            try:
+                await self.active_connections[user_id][i].close()
+            except:
+                pass
+
+            # Handle out of range case
+            if i < len(self.active_connections[user_id]):
                 del self.active_connections[user_id][i]
 
-            # Clean up if no connections left
-            if not self.active_connections[user_id]:
-                del self.active_connections[user_id]
-                if user_id in self.connection_health:
-                    del self.connection_health[user_id]
+        # Clean up if no connections left
+        if user_id in self.active_connections and not self.active_connections[user_id]:
+            del self.active_connections[user_id]
+            if user_id in self.connection_health:
+                del self.connection_health[user_id]
+            # Also clean up deduplication data
+            if user_id in self._recent_messages:
+                del self._recent_messages[user_id]
+            if user_id in self._last_send_time:
+                del self._last_send_time[user_id]
 
-            logger.debug(
-                f"Broadcast message to {len(self.active_connections.get(user_id, []))} connections for user {user_id}")
+        logger.debug(
+            f"Broadcast message to {len(self.active_connections.get(user_id, []))} connections for user {user_id}")
 
     def _is_duplicate_message(self, user_id: str, message: dict, use_relaxed_dedup: bool = False) -> bool:
         """Check if this message is a duplicate within the deduplication window"""
         current_time = time.time()
+
+        # Skip deduplication for certain message types
+        if message.get("type") in ["ping", "pong", "connected", "error"]:
+            return False
 
         # Create a hash of the message content (excluding timestamp)
         message_copy = message.copy()
@@ -167,21 +204,22 @@ class ConnectionManager:
         message_hash = hashlib.md5(message_str.encode()).hexdigest()
 
         # Use relaxed deduplication for user actions (shorter window)
-        dedup_window = 0.1 if use_relaxed_dedup else self._message_dedup_window
+        dedup_window = 0.2 if use_relaxed_dedup else self._message_dedup_window
 
         # Clean up old messages
         if user_id in self._recent_messages:
             self._recent_messages[user_id] = {
                 msg_hash: timestamp for msg_hash, timestamp in self._recent_messages[user_id].items()
-                if current_time - timestamp < dedup_window
+                # Always use full window for cleanup
+                if current_time - timestamp < self._message_dedup_window
             }
 
         # Check if this message is a duplicate
         if user_id in self._recent_messages and message_hash in self._recent_messages[user_id]:
             last_time = self._recent_messages[user_id][message_hash]
             if current_time - last_time < dedup_window:
-                logger.info(
-                    f"🚫 Blocked duplicate WebSocket message for user {user_id}: {message.get('type')} (within {current_time - last_time:.3f}s)")
+                logger.debug(
+                    f"Blocked duplicate WebSocket message for user {user_id}: {message.get('type')} (within {current_time - last_time:.3f}s)")
                 return True
 
         # Record this message

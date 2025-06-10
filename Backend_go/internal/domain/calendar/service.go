@@ -40,6 +40,7 @@ type Service interface {
 	RespondToEventInvite(ctx context.Context, eventID, userID uuid.UUID, accept bool) error
 	GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error)
 	GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetrics, error)
+	GetTodayEvents(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error)
 }
 
 type service struct {
@@ -1129,6 +1130,24 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetric
 		Upcoming: upcoming,
 		Total:    total,
 	}, nil
+}
+
+func (s *service) GetTodayEvents(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error) {
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	filter := EventFilter{
+		UserID:    userID,
+		StartTime: &startOfDay,
+		EndTime:   &endOfDay,
+	}
+
+	events, _, err := s.repo.ListEvents(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return events, nil
 }
 
 func (s *service) recordCalendarActivity(ctx context.Context, event *CalendarEvent, userID uuid.UUID, action string, metadata map[string]interface{}) {

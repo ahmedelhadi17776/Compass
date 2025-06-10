@@ -16,6 +16,7 @@ export const QUERY_KEYS = {
 interface WebSocketContextType {
   requestRefresh: () => void;
   isConnected: boolean;
+  sendMessage?: (message: Record<string, unknown>) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -72,6 +73,15 @@ export interface DashboardMetrics {
     total: number;
     completed: number;
   };
+  daily_timeline?: Array<{
+    id: string;
+    title: string;
+    start_time: string;
+    end_time?: string;
+    type: string;
+    is_completed: boolean;
+  }>;
+  habit_heatmap?: Record<string, number>;
   mood?: string;
   notes?: {
     count: number;
@@ -108,16 +118,44 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const wsRef = useRef<ReconnectingWebSocket | null>(null);
   const isConnectedRef = useRef<boolean>(false);
   const pendingAckRef = useRef<boolean>(false);
+  // Add debounce tracking
+  const lastUpdateRef = useRef<number>(0);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleMetricsUpdate = useCallback(
     (metrics: DashboardMetrics) => {
-      console.log("Updating dashboard metrics from WebSocket:", metrics);
+      // Implement debouncing - only update if not too frequent (100ms minimum gap)
+      const now = Date.now();
+      if (now - lastUpdateRef.current < 100) {
+        // If updates are coming too quickly, debounce them
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+
+        updateTimeoutRef.current = setTimeout(() => {
+          lastUpdateRef.current = Date.now();
+          queryClient.setQueryData(QUERY_KEYS.DASHBOARD_METRICS, {
+            ...metrics,
+            _timestamp: Date.now(),
+            _wsUpdate: true,
+          });
+
+          // Only invalidate if needed to avoid unnecessary fetches
+          queryClient.invalidateQueries({
+            queryKey: QUERY_KEYS.DASHBOARD_METRICS,
+          });
+        }, 100);
+        return;
+      }
+
+      // Update timestamp to track the latest update
+      lastUpdateRef.current = now;
 
       // Force React Query to recognize this as a new object to ensure subscribers detect the update
       const metricsWithTimestamp = {
         ...metrics,
-        _timestamp: Date.now(), // Add timestamp to ensure object reference changes
-        _wsUpdate: true, // Mark as WebSocket update
+        _timestamp: now,
+        _wsUpdate: true,
       };
 
       queryClient.setQueryData(
@@ -129,14 +167,15 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.DASHBOARD_METRICS,
       });
-
-      console.log("Dashboard metrics updated via WebSocket");
     },
     [queryClient]
   );
 
   const handleWebSocketMessage = useCallback(
     (data: WebSocketMessage) => {
+      // Only log important messages to reduce console noise
+      const logMessage = data.type !== "ping" && data.type !== "pong";
+
       switch (data.type) {
         case "connected":
           console.log("WebSocket connection confirmed");
@@ -144,19 +183,13 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           break;
 
         case "initial_metrics":
-          console.log("Received initial metrics from WebSocket");
           if (data.data) {
-            console.log("Initial metrics data:", data.data);
             handleMetricsUpdate(data.data as unknown as DashboardMetrics);
-          } else {
-            console.warn("Initial metrics message missing data field");
           }
           break;
 
         case "dashboard_update":
           // New consolidated update message - acknowledge immediately for rapid response
-          console.log("Dashboard updated - acknowledging", data.data);
-
           // Prevent duplicate acknowledgments
           if (
             !pendingAckRef.current &&
@@ -175,19 +208,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           break;
 
         case "fresh_metrics":
-          console.log("Received fresh metrics from WebSocket");
           if (data.data) {
-            console.log("Fresh metrics data:", data.data);
             handleMetricsUpdate(data.data as unknown as DashboardMetrics);
-          } else {
-            console.warn("Fresh metrics message missing data field");
           }
           break;
 
         case "metrics_update":
-          console.log(
-            "Received partial metrics update from WebSocket (Notes server)"
-          );
           if (data.data && data.data.metrics) {
             // This is partial data from Notes server - merge with existing cache
             const currentData = queryClient.getQueryData<DashboardMetrics>(
@@ -212,15 +238,17 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
                 QUERY_KEYS.DASHBOARD_METRICS,
                 updatedData
               );
-
-              console.log("Merged partial metrics update with existing data");
-            } else {
-              console.warn(
+            } else if (logMessage) {
+              // Less noisy approach
+              console.debug(
                 "No existing metrics data to merge with - ignoring partial update"
               );
             }
-          } else {
-            console.warn("Metrics update message missing data field");
+          } else if (logMessage) {
+            // Reduce console noise for expected behavior
+            console.debug(
+              "Metrics update without data field - normal for some updates"
+            );
           }
           break;
 
@@ -229,21 +257,21 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           break;
 
         case "pong":
-          // Connection health check response
-          console.debug("WebSocket pong received");
+          // Connection health check response - don't log
           break;
 
         case "ping":
-          // Server ping - respond with pong
-          console.debug("WebSocket ping received");
+          // Server ping - respond with pong, don't log
           if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: "pong" }));
           }
           break;
 
         default:
-          // Log unhandled message types for debugging
-          console.debug("Unhandled WebSocket message type:", data.type, data);
+          // Only log non-regular messages for debugging
+          if (logMessage) {
+            console.debug("Unhandled WebSocket message type:", data.type);
+          }
           break;
       }
     },
@@ -261,7 +289,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const url = `ws://localhost:8001/ws/dashboard?token=${encodeURIComponent(
       token
     )}`;
-    console.log("🔌 Attempting to connect to WebSocket:", url);
 
     const ws = new ReconnectingWebSocket(url, [], {
       connectionTimeout: 3000,
@@ -286,7 +313,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = (event) => {
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
-        console.log("WebSocket message received:", data.type);
+
+        // Don't log ping/pong messages to reduce noise
+        if (data.type !== "ping" && data.type !== "pong") {
+          console.log("WebSocket message received:", data.type);
+        }
+
         handleWebSocketMessage(data);
       } catch (error) {
         console.error("Failed to parse WS message:", event.data, error);
@@ -308,6 +340,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearInterval(pingInterval);
       isConnectedRef.current = false;
+      // Clear any pending updates
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
       ws.close();
     };
   }, [handleWebSocketMessage]);
@@ -321,11 +357,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const sendMessage = useCallback((message: Record<string, unknown>) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+    } else {
+      console.warn("Cannot send message - WebSocket not connected");
+    }
+  }, []);
+
   return (
     <WebSocketContext.Provider
       value={{
         requestRefresh,
         isConnected: isConnectedRef.current,
+        sendMessage,
       }}
     >
       {children}
