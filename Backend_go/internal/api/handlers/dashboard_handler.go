@@ -133,13 +133,126 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 		h.logger.Error("Failed to get user metrics", zap.Error(err))
 	}
 
+	// Get habit heatmap data (default to month period)
+	habitHeatmap, err := h.habitsService.GetHeatmapData(c.Request.Context(), userID, "month")
+	if err != nil {
+		h.logger.Error("Failed to get habit heatmap data", zap.Error(err))
+		// Initialize with empty map if there's an error
+		habitHeatmap = make(map[string]int)
+	}
+
+	// Collect today's items for the timeline
+	var timeline []dto.TimelineItem
+
+	// Track counts for each type
+	habitCount := 0
+	taskCount := 0
+	todoCount := 0
+	eventCount := 0
+
+	todayHabits, err := h.habitsService.GetHabitsDueToday(c.Request.Context(), userID)
+	if err == nil {
+		for _, habit := range todayHabits {
+			startTime := habit.StartDay
+			// Use current time for habits without specific time
+			if startTime.IsZero() {
+				startTime = time.Now()
+			}
+			timeline = append(timeline, dto.TimelineItem{
+				ID:          habit.ID,
+				Title:       habit.Title,
+				StartTime:   startTime,
+				Type:        "habit",
+				IsCompleted: habit.IsCompleted,
+			})
+			habitCount++
+		}
+	} else {
+		h.logger.Error("Failed to get habits due today", zap.Error(err))
+	}
+
+	todayTasks, err := h.tasksService.GetTodayTasks(c.Request.Context(), userID)
+	if err == nil {
+		for _, t := range todayTasks {
+			startTime := t.StartDate
+			endTime := t.DueDate
+
+			// If due date is nil, create a reasonable default end time
+			if endTime == nil {
+				defaultEndTime := startTime.Add(1 * time.Hour)
+				endTime = &defaultEndTime
+			}
+
+			timeline = append(timeline, dto.TimelineItem{
+				ID:          t.ID,
+				Title:       t.Title,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				Type:        "task",
+				IsCompleted: t.Status == "Completed",
+			})
+			taskCount++
+		}
+	} else {
+		h.logger.Error("Failed to get tasks due today", zap.Error(err))
+	}
+
+	todayTodos, err := h.todosService.GetTodayTodos(c.Request.Context(), userID)
+	if err == nil {
+		for _, todo := range todayTodos {
+			// If todo doesn't have a due date, use current time as default
+			startTime := time.Now()
+			if todo.DueDate != nil {
+				startTime = *todo.DueDate
+			}
+
+			timeline = append(timeline, dto.TimelineItem{
+				ID:          todo.ID,
+				Title:       todo.Title,
+				StartTime:   startTime,
+				Type:        "todo",
+				IsCompleted: todo.IsCompleted,
+			})
+			todoCount++
+		}
+	} else {
+		h.logger.Error("Failed to get todos due today", zap.Error(err))
+	}
+
+	todayEvents, err := h.calendarService.GetTodayEvents(c.Request.Context(), userID)
+	if err == nil {
+		for _, event := range todayEvents {
+			timeline = append(timeline, dto.TimelineItem{
+				ID:        event.ID,
+				Title:     event.Title,
+				StartTime: event.StartTime,
+				EndTime:   &event.EndTime,
+				Type:      "event",
+			})
+			eventCount++
+		}
+	} else {
+		h.logger.Error("Failed to get events due today", zap.Error(err))
+	}
+
+	h.logger.Info("Timeline items collected",
+		zap.String("user_id", userID.String()),
+		zap.Int("habit_count", habitCount),
+		zap.Int("task_count", taskCount),
+		zap.Int("todo_count", todoCount),
+		zap.Int("event_count", eventCount),
+		zap.Int("total_timeline_items", len(timeline)),
+		zap.Bool("timeline", len(timeline) > 0))
+
 	response := dto.DashboardMetricsResponse{
-		Habits:    HabitsDashboardMetricsToDTO(habitsMetrics),
-		Tasks:     TasksDashboardMetricsToDTO(tasksMetrics),
-		Todos:     TodosDashboardMetricsToDTO(todosMetrics),
-		Calendar:  CalendarDashboardMetricsToDTO(calendarMetrics),
-		User:      UserDashboardMetricsToDTO(userMetrics),
-		Timestamp: time.Now().UTC(),
+		Habits:        HabitsDashboardMetricsToDTO(habitsMetrics),
+		Tasks:         TasksDashboardMetricsToDTO(tasksMetrics),
+		Todos:         TodosDashboardMetricsToDTO(todosMetrics),
+		Calendar:      CalendarDashboardMetricsToDTO(calendarMetrics),
+		User:          UserDashboardMetricsToDTO(userMetrics),
+		DailyTimeline: timeline,
+		HabitHeatmap:  habitHeatmap,
+		Timestamp:     time.Now().UTC(),
 	}
 
 	// Cache the response using the new key

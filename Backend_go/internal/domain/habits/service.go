@@ -609,7 +609,25 @@ func (s *service) GetStreakHistory(ctx context.Context, id uuid.UUID) ([]StreakH
 }
 
 func (s *service) GetHabitsDueToday(ctx context.Context, userID uuid.UUID) ([]Habit, error) {
-	return s.repo.GetHabitsDueToday(ctx, userID)
+	// Modified to return all active habits for the user
+	habits, _, err := s.repo.FindAll(ctx, HabitFilter{UserID: &userID})
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to only include active (non-completed) habits
+	var activeHabits []Habit
+	for _, habit := range habits {
+		if !habit.IsCompleted {
+			activeHabits = append(activeHabits, habit)
+		}
+	}
+
+	s.logger.Info("GetHabitsDueToday results",
+		zap.String("user_id", userID.String()),
+		zap.Int("total_found", len(activeHabits)))
+
+	return activeHabits, nil
 }
 
 // LogHabitCompletion records a habit completion for the heatmap

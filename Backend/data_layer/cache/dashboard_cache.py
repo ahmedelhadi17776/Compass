@@ -166,10 +166,10 @@ class DashboardCache:
         # Real-time update configuration
         self.config = {
             "enable_realtime_updates": os.getenv("ENABLE_REALTIME_UPDATES", "true").lower() == "true",
-            # Reduce throttle for faster responses (0.1s = 100ms)
-            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "0.1")),
-            # Disable batching for immediate response
-            "batch_updates": os.getenv("BATCH_UPDATES", "false").lower() == "true",
+            # Increase throttle to reduce message frequency (0.3s = 300ms)
+            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "0.3")),
+            # Enable batching to reduce message frequency
+            "batch_updates": os.getenv("BATCH_UPDATES", "true").lower() == "true",
             "quiet_mode": os.getenv("DASHBOARD_QUIET_MODE", "false").lower() == "true"
         }
 
@@ -179,8 +179,8 @@ class DashboardCache:
 
         # Message deduplication - track recent events to prevent duplicates
         self._recent_events = {}  # {user_id: {event_key: timestamp}}
-        # Reduced deduplication window for faster responses (0.5s instead of 2s)
-        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "0.5"))
+        # Increased deduplication window to avoid duplicate messages (1.0s instead of 0.5s)
+        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "1.0"))
 
         # Log configuration on startup
         if not self.config["quiet_mode"]:
@@ -393,6 +393,9 @@ class DashboardCache:
             todos = None
             calendar = None
             user_metrics = None
+            daily_timeline = None
+            habit_heatmap = None
+            timestamp = datetime.utcnow()
 
             if not isinstance(go_metrics, Exception) and isinstance(go_metrics, dict):
                 data = go_metrics.get("data", {})
@@ -402,8 +405,11 @@ class DashboardCache:
                     todos = data.get("todos")
                     calendar = data.get("calendar")
                     user_metrics = data.get("user")
+                    daily_timeline = data.get("daily_timeline")
+                    habit_heatmap = data.get("habit_heatmap")
+                    timestamp = data.get("timestamp", timestamp)
                     logger.info(
-                        f"Successfully extracted Go backend metrics for user {user_id}: habits={habits is not None}, tasks={tasks is not None}, todos={todos is not None}, calendar={calendar is not None}, user={user_metrics is not None}")
+                        f"Successfully extracted Go backend metrics for user {user_id}: habits={habits is not None}, tasks={tasks is not None}, todos={todos is not None}, calendar={calendar is not None}, user={user_metrics is not None}, timeline={daily_timeline is not None}, heatmap={habit_heatmap is not None}")
                     logger.debug(
                         f"Go backend response data: {json.dumps(data, indent=2)}")
                 else:
@@ -461,7 +467,10 @@ class DashboardCache:
                 "user": user_metrics,
                 "notes": notes,
                 "journals": journals,
-                "cost": cost
+                "cost": cost,
+                "daily_timeline": daily_timeline,
+                "habit_heatmap": habit_heatmap,
+                "timestamp": timestamp
             }
 
             # Validate metrics before returning
@@ -668,12 +677,16 @@ class DashboardCache:
         last_update = self._last_update_times.get(user_id, 0)
         time_since_last = current_time - last_update
 
-        # Use very short throttle time for immediate actions
-        throttle_time = 0.05 if event.event_type == "cache_invalidate" else self.config[
-            "update_throttle_seconds"]
+        # Use different throttle times based on event type
+        if event.event_type == "cache_invalidate":
+            # Use shorter throttle for user actions (200ms)
+            throttle_time = 0.2
+        else:
+            # Use longer throttle for background updates (300ms default)
+            throttle_time = self.config["update_throttle_seconds"]
 
         if time_since_last < throttle_time:
-            # For rapid user actions, only store the latest update
+            # Store the most recent update to batch process later
             self._pending_updates[user_id] = event
             if not self.config["quiet_mode"]:
                 logger.debug(
@@ -703,12 +716,13 @@ class DashboardCache:
                      event.details.get('habit_id') or
                      event.details.get('calendar_event_id', ''))
 
-        # For rapid user actions, use entity-specific deduplication
+        # More specific event key with event_type, action and entity_id
         if entity_id:
             event_key = f"{event.event_type}:{action}:{entity_id}"
         else:
-            # For action-only events, use shorter time windows (100ms for rapid actions)
-            rounded_time = round(current_time * 10) / 10  # 100ms windows
+            # For system updates (no entity), use coarser time buckets to avoid duplicates
+            # Round to 1-second buckets for non-entity events
+            rounded_time = int(current_time)
             event_key = f"{event.event_type}:{action}:{rounded_time}"
 
         # Clean up old events (older than dedup window)
@@ -723,7 +737,7 @@ class DashboardCache:
             last_time = self._recent_events[user_id][event_key]
             if current_time - last_time < self._dedup_window:
                 if not self.config["quiet_mode"]:
-                    logger.info(
+                    logger.debug(
                         f"Blocked duplicate event for user {user_id}: {event_key} (within {current_time - last_time:.3f}s)")
                 return True
 
@@ -733,8 +747,8 @@ class DashboardCache:
         self._recent_events[user_id][event_key] = current_time
 
         if not self.config["quiet_mode"]:
-            logger.info(
-                f"Allowed event for user {user_id}: {event_key} | Details: {event.details}")
+            logger.debug(
+                f"Allowed event for user {user_id}: {event_key}")
         return False
 
     async def _notify_subscribers(self, event: DashboardEvent):
@@ -776,10 +790,13 @@ class DashboardCache:
                         },
                         "requires_refresh": True
                     }
-                    await self.ws_manager.broadcast_to_user(event.user_id, message)
-                    if not self.config["quiet_mode"]:
-                        logger.info(
-                            f"Sent consolidated dashboard update to user {event.user_id}")
+
+                    # Ensure we have WebSocket connections before trying to broadcast
+                    if hasattr(self.ws_manager, 'active_connections') and event.user_id in self.ws_manager.active_connections:
+                        await self.ws_manager.broadcast_to_user(event.user_id, message)
+                        if not self.config["quiet_mode"]:
+                            logger.info(
+                                f"Sent consolidated dashboard update to user {event.user_id}")
                     return
                 except Exception as e:
                     logger.error(
@@ -791,10 +808,13 @@ class DashboardCache:
                 "timestamp": datetime.utcnow().isoformat(),
                 "data": event.details
             }
-            await self.ws_manager.broadcast_to_user(event.user_id, message)
-            if not self.config["quiet_mode"]:
-                logger.debug(
-                    f"Broadcasted event to WebSocket clients for user {event.user_id}")
+
+            # Ensure we have WebSocket connections before trying to broadcast
+            if hasattr(self.ws_manager, 'active_connections') and event.user_id in self.ws_manager.active_connections:
+                await self.ws_manager.broadcast_to_user(event.user_id, message)
+                if not self.config["quiet_mode"]:
+                    logger.debug(
+                        f"Broadcasted event to WebSocket clients for user {event.user_id}")
 
     def _extract_entity_type(self, details: dict) -> str:
         """Extract entity type from event details"""
@@ -824,10 +844,28 @@ class DashboardCache:
                 "dashboard:events", self._handle_go_event)
         )
 
+        # for currently connected users to avoid excessive subscriptions
+        logger.info(
+            "Starting individual user dashboard update channels subscriber")
+        # Create task but don't await it - it will run in the background
+        asyncio.create_task(
+            self._subscribe_to_user_updates()
+        )
+
+    async def _subscribe_to_user_updates(self):
+        """Helper method to subscribe to user-specific update channels"""
+        try:
+            await redis_pubsub_client.subscribe(
+                "dashboard_updates:*", self._handle_go_event
+            )
+        except Exception as e:
+            logger.error(f"Error subscribing to user update channels: {e}")
+
     async def _handle_go_event(self, event):
         """Handle dashboard events from Go backend"""
         try:
-            logger.debug(f"Received Go backend event: {event}")
+            if not self.config["quiet_mode"]:
+                logger.debug(f"Received Go backend event: {event}")
 
             # Extract user ID from the event
             # Go backend sends a DashboardEvent with user_id as UUID
@@ -851,11 +889,6 @@ class DashboardCache:
                 logger.info(
                     f"Invalidated dashboard cache for user {user_id} due to Go backend event: {event_type}")
 
-                # If this is a metrics update event, we could potentially fetch new metrics immediately
-                if event_type == events.DashboardEventMetricsUpdate:
-                    logger.info(
-                        f"Metrics update event received for user {user_id}")
-
                 # Create a Python-style dashboard event and notify subscribers
                 dashboard_event = DashboardEvent(
                     event_type=event_type,
@@ -863,6 +896,24 @@ class DashboardCache:
                     entity_id=event.get("entity_id", ""),
                     details=event.get("details", {})
                 )
+
+                # Add deduplication by event type
+                # Skip sending metrics_update events too frequently
+                if event_type == "metrics_update":
+                    # Check if we've sent a similar event recently
+                    current_time = time.time()
+                    last_update = self._last_update_times.get(
+                        f"metrics:{user_id}", 0)
+
+                    # Only allow metrics updates every 2 seconds to avoid spam
+                    if current_time - last_update < 2.0:
+                        logger.debug(
+                            f"Skipping frequent metrics_update for user {user_id}")
+                        return
+
+                    # Update timestamp for this metrics update
+                    self._last_update_times[f"metrics:{user_id}"] = current_time
+
                 await self._notify_subscribers(dashboard_event)
             else:
                 logger.warning(f"Received malformed Go backend event: {event}")
