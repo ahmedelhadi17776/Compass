@@ -26,26 +26,34 @@ const fetchDashboardMetrics = async (): Promise<DashboardMetrics> => {
 };
 
 export const useDashboardMetrics = () => {
-  const { requestRefresh } = useWebSocket();
+  const { requestRefresh, isConnected } = useWebSocket();
 
   const query = useQuery<DashboardMetrics, Error>({
     queryKey: QUERY_KEYS.DASHBOARD_METRICS,
     queryFn: fetchDashboardMetrics,
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    gcTime: 300000, // Keep in cache for 5 minutes
+    staleTime: 5000, 
+    gcTime: 300000, 
     refetchOnWindowFocus: false, // Disable refetch on window focus since we have WebSocket
     refetchOnMount: true,
+    refetchInterval: false, 
+    refetchIntervalInBackground: false,
+    // Reduce network delay for better perceived performance
+    networkMode: "always",
     retry: (failureCount, error) => {
       // Retry up to 3 times, but not for auth errors
       if (error.message.includes("401") || error.message.includes("403")) {
         return false;
       }
-      return failureCount < 3;
+      return failureCount < 2; // Reduced retry count for faster error handling
     },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000), // Faster retry with cap at 3s
+    // Enable background updates when WebSocket is connected
+    refetchOnReconnect: !isConnected, // Only refetch on reconnect if WebSocket isn't connected
   });
 
   return {
     ...query,
     requestRefresh, // Expose WebSocket refresh function
+    isConnected, // Expose connection status
   };
 };
