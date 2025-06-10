@@ -63,7 +63,6 @@ export function NavUser({ defaultUser, onLogout }: NavUserProps) {
         navigate('/login', { replace: true })
       }
     })
-    onLogout?.()
   }
 
   const getInitials = () => {

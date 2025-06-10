@@ -64,6 +64,11 @@ class ProcessPDFResponse(BaseModel):
     error: Optional[str] = None
 
 
+class RewriteRequest(BaseModel):
+    text: str
+    user_id: Optional[str] = None
+
+
 router = APIRouter(prefix="/ai", tags=["AI Services"])
 
 # Initialize services
@@ -519,3 +524,47 @@ async def process_ai_request_stream(
                 "Content-Type": "text/event-stream"
             }
         )
+
+
+@router.post("/rewrite-in-style")
+async def rewrite_in_style(
+    request: RewriteRequest,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """Endpoint to rewrite text in user's personal style."""
+    try:
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            raise HTTPException(status_code=503, detail="MCP client not initialized")
+
+        result = await mcp_client.call_tool("notes.rewriteInStyle", {
+            "text": request.text,
+            "user_id": request.user_id,
+            "authorization": authorization
+        })
+
+        # Handle the MCP tool response which comes as a list of TextContent
+        if hasattr(result, 'content') and isinstance(result.content, list):
+            # Extract the text content from the first item
+            text_content = result.content[0].text if result.content else None
+            if text_content:
+                try:
+                    # Parse the JSON string into a dictionary
+                    parsed_result = json.loads(text_content)
+                    return parsed_result
+                except json.JSONDecodeError:
+                    # If parsing fails, return the raw text
+                    return {"status": "success", "content": {"rewritten_text": text_content}}
+        
+        # If result is already a dictionary
+        if isinstance(result, dict):
+            return result
+            
+        # Fallback for unexpected response format
+        return {"status": "error", "error": "Unexpected response format"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in rewrite-in-style endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -116,12 +116,13 @@ type TasksDashboardMetrics struct {
 // Repository interface
 
 type service struct {
-	repo  TaskRepository
-	redis *cache.RedisClient // Injected for event publishing
+	repo   TaskRepository
+	redis  *cache.RedisClient // Injected for event publishing
+	logger *zap.Logger
 }
 
-func NewService(repo TaskRepository, redis *cache.RedisClient) Service {
-	return &service{repo: repo, redis: redis}
+func NewService(repo TaskRepository, redis *cache.RedisClient, logger *zap.Logger) Service {
+	return &service{repo: repo, redis: redis, logger: logger}
 }
 
 func (s *service) CreateTask(ctx context.Context, input CreateTaskInput) (*Task, error) {
@@ -203,6 +204,20 @@ func (s *service) CreateTask(ctx context.Context, input CreateTaskInput) (*Task,
 			}),
 		}
 		_ = s.repo.RecordTaskActivity(ctx, analytics)
+	}
+
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    input.CreatorID,
+		Timestamp: time.Now().UTC(),
+		Details: map[string]interface{}{
+			"action":  "task_created",
+			"task_id": task.ID,
+		},
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 
 	return task, nil
@@ -439,16 +454,19 @@ func (s *service) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status Tas
 		_ = s.repo.RecordTaskActivity(ctx, analytics)
 	}
 
-	// After successful update, publish event
-	event := events.DashboardEvent{
-		EventType: "task_status_updated",
-		UserID:    task.DashboardUserID(),
-		EntityID:  id,
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    task.CreatorID,
 		Timestamp: time.Now().UTC(),
-		Details:   map[string]interface{}{"status": status},
+		Details: map[string]interface{}{
+			"action":  "task_status_updated",
+			"task_id": id,
+			"status":  status,
+		},
 	}
-	if s.redis != nil {
-		_ = s.redis.PublishEvent(ctx, "dashboard_events", event)
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 
 	s.recordTaskActivity(ctx, task, task.CreatorID, "status_changed", map[string]interface{}{
@@ -477,6 +495,20 @@ func (s *service) DeleteTask(ctx context.Context, id uuid.UUID) error {
 		"title":  task.Title,
 		"status": task.Status,
 	})
+
+	// Publish dashboard event
+	event := &events.DashboardEvent{
+		EventType: events.DashboardEventCacheInvalidate,
+		UserID:    task.CreatorID,
+		Timestamp: time.Now().UTC(),
+		Details: map[string]interface{}{
+			"action":  "task_deleted",
+			"task_id": id,
+		},
+	}
+	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
+	}
 
 	return s.repo.Delete(ctx, id)
 }
@@ -821,6 +853,6 @@ func (s *service) recordTaskActivity(ctx context.Context, task *Task, userID uui
 		Details:   metadata,
 	}
 	if err := s.redis.PublishDashboardEvent(ctx, event); err != nil {
-		zap.L().Error("Failed to publish dashboard event", zap.Error(err))
+		s.logger.Error("Failed to publish dashboard event", zap.Error(err))
 	}
 }

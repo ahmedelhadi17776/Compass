@@ -1,3 +1,4 @@
+from data_layer.cache.dashboard_cache import DashboardCache
 from data_layer.mongodb.lifecycle import mongodb_lifespan
 from data_layer.mongodb.connection import get_mongodb_client
 from core.config import settings
@@ -5,14 +6,14 @@ from core.mcp_state import set_mcp_client, get_mcp_client
 from api.ai_routes import router as ai_router
 from data_layer.cache.redis_client import redis_client, redis_pubsub_client
 from data_layer.cache.pubsub_manager import pubsub_manager
-from data_layer.cache.dashboard_cache import dashboard_cache
+from data_layer.cache.dashboard_cache import DashboardCache
 import pathlib
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi import FastAPI, Request, Depends, Cookie, HTTPException
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, AsyncGenerator
 import logging
 import json
 import asyncio
@@ -25,7 +26,17 @@ from api.focus_routes import router as focus_router
 from api.goal_routes import router as goal_router
 from api.system_metric_routes import router as system_metric_router
 from api.cost_tracking_routes import router as cost_tracking_router
-from api.dashboard_routes import router as dashboard_router
+from api.dashboard_routes import dashboard_router
+
+# Import WebSocket manager if available
+try:
+    from api.websocket.dashboard_ws import dashboard_ws_manager, start_background_tasks, stop_background_tasks
+except ImportError:
+    dashboard_ws_manager = None
+    start_background_tasks = None
+    stop_background_tasks = None
+    logging.getLogger(__name__).warning(
+        "WebSocket manager not available, real-time updates will be disabled")
 
 # Set up proper encoding for stdout/stderr
 try:
@@ -96,7 +107,6 @@ for handler in root_logger.handlers[:]:
 # Add new safe handlers
 console_handler = EncodingSafeHandler(sys.stdout)
 console_handler.setFormatter(formatter)
-
 file_handler = logging.FileHandler('compass.log', encoding='utf-8')
 file_handler.setFormatter(formatter)
 
@@ -108,17 +118,74 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("Logging initialized with emoji-safe configuration")
 
-# Combine multiple lifecycle managers using nested context managers
+# Forward declarations
+startup_event = None
+shutdown_event = None
+
+
+class ApplicationLifecycle:
+    def __init__(self):
+        self.app = None
+
+    async def startup(self):
+        """Initialize application resources on startup"""
+        try:
+            async def handle_dashboard_event(event):
+                try:
+                    await dashboard_cache.update(event)
+                except Exception as e:
+                    logger.error(f"Error handling dashboard event: {str(e)}")
+
+            # Start the Redis subscriber in the background for Python backend events
+            asyncio.create_task(redis_pubsub_client.subscribe(
+                "dashboard_events", handle_dashboard_event))
+
+            # Start subscribers for both Go backend and Notes server
+            await dashboard_cache.start_go_metrics_subscriber()
+            await dashboard_cache.start_notes_metrics_subscriber()
+            logger.info(
+                "Started dashboard metrics subscribers for Go backend and Notes server")
+
+            # Initialize WebSocket manager if available
+            if dashboard_ws_manager and start_background_tasks:
+                # Start the WebSocket ping task to keep connections alive
+                await start_background_tasks()
+                logger.info(
+                    "WebSocket manager initialized and ping task started")
+        except Exception as e:
+            logger.error(f"Error during startup: {str(e)}")
+            raise
+
+    async def shutdown(self):
+        """Cleanup application resources on shutdown"""
+        try:
+            # Close Redis pub/sub client
+            await redis_pubsub_client.close()
+
+            # Close dashboard cache
+            if dashboard_cache:
+                await dashboard_cache.close()
+
+            # Cleanup WebSocket resources if available
+            if dashboard_ws_manager and stop_background_tasks:
+                await stop_background_tasks()
+                logger.info("WebSocket manager resources cleaned up")
+        except Exception as e:
+            logger.error(f"Error during shutdown: {str(e)}")
+            raise
+
+
+# Create lifecycle manager
+lifecycle = ApplicationLifecycle()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
     """Initialize and manage resources using multiple lifecycle managers."""
     try:
         # Initialize Redis
         logger.info("Testing Redis connection...")
         try:
-            # Ping Redis on database 1
             await redis_client.ping()
             logger.info("✅ Redis connection successful on database 1")
         except Exception as e:
@@ -138,20 +205,17 @@ async def lifespan(app: FastAPI):
 
         # Initialize MongoDB
         async with mongodb_lifespan(app):
-            # Initialize the MCP server if enabled
             if settings.mcp_enabled:
                 await init_mcp_server()
 
             logger.info("Application started successfully")
-            await startup_event()
+            await lifecycle.startup()
             yield
     finally:
-        # Cleanup resources when app shuts down
         logger.info("Shutting down application...")
         if settings.mcp_enabled:
-            result = await cleanup_mcp()
+            await cleanup_mcp()
 
-        # Close Redis connection
         try:
             await redis_client.close()
             logger.info("Redis connection closed")
@@ -159,7 +223,7 @@ async def lifespan(app: FastAPI):
             logger.error(f"Error closing Redis connection: {str(e)}")
 
         logger.info("All resources cleaned up")
-        await shutdown_event()
+        await lifecycle.shutdown()
 
 # Create FastAPI app with lifespan
 app = FastAPI(title="COMPASS Backend", version="1.0.0", lifespan=lifespan)
@@ -171,6 +235,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Include API routes
@@ -180,6 +245,14 @@ app.include_router(goal_router)
 app.include_router(system_metric_router)
 app.include_router(cost_tracking_router)
 app.include_router(dashboard_router)
+
+# Include WebSocket routes if available
+try:
+    from api.websocket.routes import router as websocket_router
+    app.include_router(websocket_router)
+    logger.info("WebSocket routes included successfully")
+except ImportError as e:
+    logger.warning(f"Failed to include WebSocket routes: {str(e)}")
 
 # Mount static files directory only if it exists
 static_dir = pathlib.Path("static")
@@ -195,6 +268,9 @@ else:
         logger.info(f"Created static directory: {static_dir}")
     except Exception as e:
         logger.warning(f"Could not create static directory: {str(e)}")
+
+# Create global instance
+dashboard_cache = DashboardCache()
 
 
 async def init_mcp_server():
@@ -323,28 +399,20 @@ async def health_check():
         logger.error(f"Redis health check error: {str(e)}")
         redis_ok = False
 
+    # Check WebSocket server status if available
+    websocket_ok = False
+    if dashboard_ws_manager:
+        websocket_ok = True
+        logger.info("WebSocket server health check passed")
+
     return {
         "status": "healthy" if (mongodb_ok and redis_ok) else "degraded",
         "mongodb": mongodb_ok,
         "redis": redis_ok,
         "redis_db": 1,  # Show which Redis DB we're using
+        "websocket": websocket_ok,
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
-
-
-@app.on_event("startup")
-async def startup_event():
-    async def handle_dashboard_event(event):
-        await dashboard_cache.update(event)
-        await pubsub_manager.notify(event)
-    # Start the Redis subscriber in the background
-    asyncio.create_task(redis_pubsub_client.subscribe(
-        "dashboard_events", handle_dashboard_event))
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    await redis_pubsub_client.close()
 
 if __name__ == "__main__":
     import uvicorn

@@ -277,6 +277,26 @@
   .animate-fade-out {
     animation: fade-out 0.15s ease-in forwards;
   }
+
+  /* View selector animations */
+  .view-selector-container {
+    position: relative;
+  }
+
+  .view-selector-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    transition: all 0.2s ease;
+    z-index: 0;
+  }
+
+  .view-selector-text {
+    position: relative;
+    z-index: 1;
+    transition: all 0.2s ease;
+  }
 }
 
 /* Markdown Editor Dark Mode */

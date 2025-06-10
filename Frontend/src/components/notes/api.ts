@@ -1,45 +1,44 @@
 import { gql } from '@apollo/client';
 
 export const NOTE_CREATED_SUBSCRIPTION = gql`
-  subscription($userId: ID!) {
-    notePageCreated(userId: $userId) {
+  subscription {
+    notePageCreated {
       success
       message
-      data { id title userId createdAt }
+      data { id title createdAt }
     }
   }
 `;
 
 export const NOTE_UPDATED_SUBSCRIPTION = gql`
-  subscription($userId: ID!) {
-    notePageUpdated(userId: $userId) {
+  subscription {
+    notePageUpdated {
       success
       message
-      data { id title userId updatedAt }
+      data { id title updatedAt }
     }
   }
 `;
 
 export const NOTE_DELETED_SUBSCRIPTION = gql`
-  subscription($userId: ID!) {
-    notePageDeleted(userId: $userId) {
+  subscription {
+    notePageDeleted {
       success
       message
-      data { id title userId updatedAt }
+      data { id title updatedAt }
     }
   }
 `;
 
 export const GET_NOTES = gql`
-  query GetNotes($userId: ID!, $page: Int!) {
-    notePages(userId: $userId, page: $page) {
+  query GetNotes($page: Int!) {
+    notePages(page: $page) {
       success
       message
       data {
         id
         title
         content
-        userId
         tags
         favorited
         createdAt
@@ -63,7 +62,6 @@ export const CREATE_NOTE = gql`
         id
         title
         content
-        userId
         tags
         favorited
         createdAt
@@ -82,7 +80,6 @@ export const UPDATE_NOTE = gql`
         id
         title
         content
-        userId
         tags
         favorited
         updatedAt

@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { useMutation } from '@tanstack/react-query';
 import { PYTHON_API_URL } from '@/config';
 
 // Types
@@ -78,37 +77,6 @@ export const llmService = {
       console.error('Failed to clear session:', error);
       throw error;
     }
-  },
-
-  // Generate a response from the LLM
-  generateResponse: async (request: LLMRequest): Promise<LLMResponse> => {
-    const token = localStorage.getItem('token');
-    if (!token) throw new Error('Authentication required');
-
-    // Ensure we have a session ID
-    const sessionId = request.session_id || getOrCreateSessionId();
-    const requestWithSession = {
-      ...request,
-      session_id: sessionId
-    };
-
-    const response = await axios.post<LLMResponse>(
-      `${PYTHON_API_URL}/process`, 
-      requestWithSession,
-      { 
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          Cookie: `session_id=${sessionId}`
-        }
-      }
-    );
-    
-    // If we got a new session ID back, update our storage
-    if (response.data.session_id && response.data.session_id !== sessionId) {
-      localStorage.setItem(SESSION_ID_KEY, response.data.session_id);
-    }
-    
-    return response.data;
   },
 
   // Stream response from the LLM
@@ -242,13 +210,6 @@ export const llmService = {
       yield JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
-};
-
-// React Query Hooks
-export const useGenerateLLMResponse = () => {
-  return useMutation({
-    mutationFn: (request: LLMRequest) => llmService.generateResponse(request),
-  });
 };
 
 // Custom hook for streaming responses

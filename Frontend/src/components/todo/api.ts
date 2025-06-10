@@ -18,7 +18,6 @@ export const fetchTodos = async (userId: string, listId?: string): Promise<Todo[
 };
 
 export const createTodo = async (newTodo: Omit<Todo, 'id' | 'created_at' | 'updated_at' | 'completed_at'>): Promise<Todo> => {
-  // Remove list_id if it's undefined to let backend handle default list
   const todoData = { ...newTodo };
   if (!todoData.list_id) {
     delete todoData.list_id;
@@ -61,13 +60,7 @@ export const fetchHabits = async (): Promise<Habit[]> => {
   return response.data.data.habits;
 };
 
-interface CreateHabitData {
-  title: string;
-  description: string;
-  start_day: string;
-}
-
-export const createHabit = async (data: CreateHabitData) => {
+export const createHabit = async (data: Omit<Habit, 'id' | 'created_at' | 'updated_at' | 'current_streak' | 'longest_streak' | 'is_completed' | 'last_completed_date'>) => {
   return axios.post(`${API_BASE_URL}/habits`, data);
 };
 

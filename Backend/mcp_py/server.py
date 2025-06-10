@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, Header
 from mcp.server.fastmcp import FastMCP, Context
 from starlette.routing import Mount
-from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncIterator, Union, AsyncGenerator, List
 from fastapi.responses import StreamingResponse
 import logging
 import httpx
@@ -22,6 +22,7 @@ from orchestration.ai_orchestrator import AIOrchestrator
 from orchestration.todo_operations import smart_update_todo
 import uuid
 from data_layer.cache.ai_cache_manager import AICacheManager
+from ai_services.llm.llm_service import LLMService
 
 # Hardcoded JWT token for development - only used as fallback
 DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjUwNDg1NiwibmJmIjoxNzQ2NDE4NDU2LCJpYXQiOjE3NDY0MTg0NTZ9.nUky6q0vPRnVYP9gTPIPaibNezB-7Sn-EgDZvlxU0_8"
@@ -53,8 +54,6 @@ mcp = FastMCP(
 )
 
 # Add a diagnostic endpoint to check registered tools
-
-
 @app.get("/mcp-diagnostic")
 async def mcp_diagnostic():
     """Diagnostic endpoint to verify MCP server configuration and tool registration."""
@@ -641,8 +640,7 @@ async def get_calendar_events(
     ctx: Context,
     start_date: str,
     end_date: Optional[str] = None,
-    authorization: Optional[str] = None,
-    user_id: Optional[str] = None
+    authorization: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get calendar events for a specific date or date range.
 
@@ -650,7 +648,6 @@ async def get_calendar_events(
         start_date: Start date to fetch events from (format: YYYY-MM-DD)
         end_date: Optional end date to fetch events to (format: YYYY-MM-DD)
         authorization: Optional authorization token (Bearer token)
-        user_id: Optional user ID (will be extracted from token if not provided)
 
     Returns:
         List of calendar events in the specified date range
@@ -684,8 +681,6 @@ async def get_calendar_events(
         params = {"start_time": start_time}
         if end_time:
             params["end_time"] = end_time
-        if user_id:
-            params["user_id"] = user_id
 
         async def get_func(client, url, **kwargs):
             return await client.get(url, **kwargs)
@@ -718,7 +713,6 @@ async def create_calendar_event(
     color: Optional[str] = "#3b82f6",
     transparency: Optional[str] = "opaque",
     authorization: Optional[str] = None,
-    user_id: Optional[str] = None,
     check_conflicts: Optional[bool] = True
 ) -> Dict[str, Any]:
     """Create a new calendar event with conflict checking.
@@ -734,7 +728,6 @@ async def create_calendar_event(
         color: Optional event color (hex format)
         transparency: Optional transparency ('opaque' or 'transparent')
         authorization: Optional authorization token (Bearer token)
-        user_id: Optional user ID (will be extracted from token if not provided)
         check_conflicts: Whether to check for scheduling conflicts
 
     Returns:
@@ -964,6 +957,384 @@ async def refresh_tools():
     except Exception as e:
         logger.error(f"Error refreshing tools cache: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@mcp.tool("notes.get")
+async def get_notes(
+    ctx: Context,
+    page: int = 1,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Get notes using GraphQL matching frontend query structure.
+
+    Args:
+        page: Page number for pagination (starts at 1)
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        Dictionary containing notes and pagination info matching frontend types
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # GraphQL query matching frontend GET_NOTES query exactly
+        graphql_query = """
+        query GetNotes($page: Int!) {
+          notePages(page: $page) {
+            success
+            message
+            data {
+              id
+              title
+              content
+              tags
+              favorited
+              createdAt
+              updatedAt
+            }
+            pageInfo {
+              totalPages
+              totalItems
+              currentPage
+            }
+          }
+        }
+        """
+
+        # Prepare GraphQL request payload
+        graphql_payload = {
+            "query": graphql_query,
+            "variables": {
+                "page": page
+            }
+        }
+
+        # Log the request
+        await ctx.info(f"Sending GraphQL request with variables: {json.dumps(graphql_payload['variables'])}")
+
+        # Execute GraphQL query
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:5000/notes/graphql",
+                headers={
+                    "Content-Type": "application/json", 
+                    "Authorization": auth_token
+                },
+                json=graphql_payload
+            )
+            
+            result = response.json()
+
+        # Check for GraphQL errors
+        if "errors" in result:
+            error_msg = f"GraphQL errors: {json.dumps(result['errors'])}"
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return {"status": "error", "error": error_msg, "type": "graphql_error", "details": result["errors"]}
+
+        # Extract and return just the notePages data matching frontend types
+        if "data" in result and "notePages" in result["data"]:
+            return result["data"]["notePages"]
+        else:
+            return result
+
+    except Exception as e:
+        error_msg = f"Error retrieving notes via GraphQL: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+@mcp.tool("notes.create")
+async def create_note(
+    ctx: Context,
+    title: str,
+    content: str,
+    tags: Optional[List[str]] = None,
+    favorited: Optional[bool] = False,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new note using GraphQL matching frontend mutation structure.
+
+    Args:
+        title: Title of the note
+        content: Content of the note (markdown supported)
+        tags: Optional list of tags to associate with the note
+        favorited: Optional boolean indicating if the note should be favorited
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        Dictionary containing the created note data
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # GraphQL mutation matching frontend CREATE_NOTE mutation exactly
+        graphql_mutation = """
+        mutation CreateNote($input: NotePageInput!) {
+          createNotePage(input: $input) {
+            success
+            message
+            data {
+              id
+              title
+              content
+              tags
+              favorited
+              createdAt
+              updatedAt
+            }
+          }
+        }
+        """
+
+        # Prepare input data matching the frontend types
+        note_input = {
+            "title": title,
+            "content": content,
+            "tags": tags or [],
+            "favorited": favorited
+        }
+
+        # Prepare GraphQL request payload
+        graphql_payload = {
+            "query": graphql_mutation,
+            "variables": {
+                "input": note_input
+            }
+        }
+
+        # Log the request
+        await ctx.info(f"Sending GraphQL create note request: {title}")
+
+        # Execute GraphQL mutation
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:5000/notes/graphql",
+                headers={
+                    "Content-Type": "application/json", 
+                    "Authorization": auth_token
+                },
+                json=graphql_payload
+            )
+            
+            result = response.json()
+
+        # Check for GraphQL errors
+        if "errors" in result:
+            error_msg = f"GraphQL errors: {json.dumps(result['errors'])}"
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return {"status": "error", "error": error_msg, "type": "graphql_error", "details": result["errors"]}
+
+        # Extract and return just the createNotePage data
+        if "data" in result and "createNotePage" in result["data"]:
+            return result["data"]["createNotePage"]
+        else:
+            return result
+
+    except Exception as e:
+        error_msg = f"Error creating note via GraphQL: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+@mcp.tool("notes.rewriteInStyle")
+async def rewrite_in_style(
+    ctx: Context,
+    text: str,
+    user_id: Optional[str] = None,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Rewrite text in user's personal style based on their notes and journals.
+
+    Args:
+        text: The text to rewrite
+        user_id: Optional user ID to fetch their writing style
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        Dictionary containing the rewritten text
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # Enhanced GraphQL query to fetch user's notes for style analysis
+        graphql_query = """
+        query GetUserNotes($page: Int!) {
+          notePages(page: $page) {
+            data {
+              content
+              updatedAt
+              title
+            }
+          }
+        }
+        """
+
+        # Fetch user's notes for style analysis
+        user_notes = []
+        page = 1
+        
+        while True:
+            graphql_payload = {
+                "query": graphql_query,
+                "variables": {"page": page}
+            }
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://localhost:5000/notes/graphql",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": auth_token
+                    },
+                    json=graphql_payload
+                )
+                
+                result = response.json()
+                
+                if "data" in result and "notePages" in result["data"]:
+                    notes_data = result["data"]["notePages"]["data"]
+                    if not notes_data:
+                        break
+                        
+                    # Filter out empty or very short notes
+                    valid_notes = [
+                        {
+                            "content": note["content"],
+                            "updatedAt": note["updatedAt"],
+                            "title": note["title"]
+                        }
+                        for note in notes_data
+                        if note["content"] and len(note["content"]) > 50  # Only use notes with substantial content
+                    ]
+                    user_notes.extend(valid_notes)
+                    page += 1
+                    
+                    # Stop after collecting enough notes for analysis
+                    if len(user_notes) >= 10:  # We only need 10 notes for style analysis
+                        break
+                else:
+                    break
+
+        if not user_notes:
+            await ctx.warning("No valid notes found for style analysis. Using default style.")
+            return {
+                "status": "success",
+                "content": {
+                    "original_text": text,
+                    "rewritten_text": text,  # Return original text if no style samples
+                    "style_samples_used": 0
+                }
+            }
+
+        # Sort notes by recency
+        user_notes.sort(key=lambda x: x["updatedAt"], reverse=True)
+
+        # Take the most recent notes with substantial content
+        selected_notes = user_notes[:10]
+
+        # Combine notes content for style analysis, including titles for better context
+        style_samples = []
+        for note in selected_notes:
+            # Add title as a heading
+            if note["title"]:
+                style_samples.append(f"# {note['title']}")
+            # Add content
+            if note["content"]:
+                style_samples.append(note["content"])
+
+        style_context = "\n\n".join(style_samples)
+
+        # Enhanced prompt for better style matching
+        llm_service = LLMService()
+        prompt = f"""You are tasked to only list the style context
+
+{style_context}
+
+Based on these examples, please rewrite the following text to match the user's:
+1. Writing tone and voice
+2. Typical sentence structure and length
+3. Word choice and vocabulary preferences
+4. Formatting patterns and emphasis styles
+5. Any unique expressions or phrases they commonly use
+
+Text to rewrite:
+{text}
+
+Return ONLY the rewritten text, without any additional formatting or metadata."""
+
+        response = await llm_service.generate_response(
+            prompt=prompt,
+            context={
+                "task": "style_rewrite",
+                "original_text": text,
+                "style_samples_count": len(selected_notes)
+            },
+            user_id=user_id
+        )
+
+        # Parse the response
+        if isinstance(response, dict):
+            if "text" in response:
+                rewritten_text = response["text"]
+            elif "content" in response:
+                rewritten_text = response["content"]
+            else:
+                rewritten_text = str(response)
+        else:
+            rewritten_text = str(response)
+
+        # Clean up the response if it's a string representation of a dict
+        if isinstance(rewritten_text, str):
+            try:
+                # Try to parse if it looks like a dict string
+                if rewritten_text.startswith("{") and rewritten_text.endswith("}"):
+                    parsed = json.loads(rewritten_text.replace("'", '"'))
+                    if isinstance(parsed, dict) and "text" in parsed:
+                        rewritten_text = parsed["text"]
+            except:
+                # If parsing fails, use the string as is
+                pass
+
+        # Remove any HTML tags if present
+        rewritten_text = rewritten_text.replace("<p>", "").replace("</p>", "")
+
+        return {
+            "status": "success",
+            "content": {
+                "original_text": text,
+                "rewritten_text": rewritten_text,
+                "style_samples_used": len(selected_notes),
+                "total_notes_analyzed": len(user_notes)
+            }
+        }
+
+    except Exception as e:
+        error_msg = f"Error rewriting text in style: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
 
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""

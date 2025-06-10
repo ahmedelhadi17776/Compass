@@ -115,7 +115,7 @@ const Calendar: React.FC<CalendarProps> = ({ darkMode = false, userId = '1' }) =
           </button>
         </div>
         {/* Header for view selector and New Event button */}
-        <div className="ml-auto">
+        <div className="ml-auto -mt-1">
           <div className="flex items-center gap-2">
             <ViewSelector
               currentView={currentView}

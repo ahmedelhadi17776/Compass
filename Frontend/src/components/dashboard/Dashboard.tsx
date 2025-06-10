@@ -1,8 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { useEffect, useState } from "react"
-import { Plus, Calendar, Brain, Video, Activity, Clock, Focus, Keyboard, ActivityIcon } from "lucide-react"
+import { Plus, Brain, ActivityIcon, ArrowRight, Eye } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -17,6 +15,12 @@ import { TodoFormData, TodoStatus } from '@/components/todo/types-todo'
 import { useCreateTodo, useTodoLists } from '@/components/todo/hooks'
 import authApi, { User } from '@/api/auth'
 import { useQuery } from "@tanstack/react-query"
+import { ChartRadialStacked } from "./ProductivityChart"
+import PieChart from "./PieChart"
+import CalendarWidget from "./CalendarWidget"
+import { FocusTime } from "./FocusTime"
+import { MiddleBanner } from "./MiddleBanner"
+import { useNavigate } from "react-router-dom"
 
 interface TaskMetrics {
   completed: number
@@ -51,6 +55,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ view }: DashboardProps) {
+  const navigate = useNavigate()
   const [greeting, setGreeting] = useState<string>("Good day")
   const [currentTime, setCurrentTime] = useState<string>("")
   const [currentDate, setCurrentDate] = useState<string>("")
@@ -98,76 +103,13 @@ export default function Dashboard({ view }: DashboardProps) {
       linked_calendar_event_id: null,
       recurrence_pattern: {}
     };
-    
+
     createTodoMutation.mutate(newTodo);
     setShowTodoForm(false);
   };
-
-  const [taskMetrics, setTaskMetrics] = useState<TaskMetrics>({
-    completed: 0,
-    total: 0,
-    upcoming: 0,
-  })
-
-  const [focusMetrics, setFocusMetrics] = useState<FocusMetrics>({
-    todayMinutes: 0,
-    weeklyGoal: 1500,
-    weeklyProgress: 0,
-  })
-
-  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics>({
-    keyboardUsage: 0,
-    screenTime: 0,
-    focusScore: 0,
-    productivityScore: 0,
-  })
-
-  const [meetings, setMeetings] = useState<Meeting[]>([
-    {
-      id: '1',
-      time: '10:00',
-      period: 'AM',
-      title: 'Present the project and gather feedback',
-      type: 'presentation'
-    },
-    {
-      id: '2',
-      time: '01:00',
-      period: 'PM',
-      title: 'Meeting with UX team',
-      hasVideo: true
-    },
-    {
-      id: '3',
-      time: '03:00',
-      period: 'PM',
-      title: 'Onboarding of the project',
-      type: 'onboarding'
-    }
-  ])
   
   // Use the habit heatmap hook with proper userId
   const { data: heatmapData, loading: heatmapLoading, error: heatmapError } = useHabitHeatmap(user?.id || '')
-
-  // Simulated data - replace with actual API calls
-  useEffect(() => {
-    setTaskMetrics({
-      completed: 12,
-      total: 20,
-      upcoming: 5,
-    })
-    setFocusMetrics({
-      todayMinutes: 120,
-      weeklyGoal: 1500,
-      weeklyProgress: 65,
-    })
-    setSystemMetrics({
-      keyboardUsage: 85,
-      screenTime: 320,
-      focusScore: 78,
-      productivityScore: 82,
-    })
-  }, [])
 
   // Update greeting based on time of day
   useEffect(() => {
@@ -221,7 +163,7 @@ export default function Dashboard({ view }: DashboardProps) {
             </h1>
             <p className="text-sm text-muted-foreground mt-2 tracking-wide">{currentDate} · {currentTime}</p>
           </div>
-          <div className="col-span-4 mb-4 flex items-center ml-auto">
+          <div className="col-span-4 flex items-center ml-auto">
                       {/* Quick Actions */}
           <div className="flex gap-2">
             <Button 
@@ -237,17 +179,10 @@ export default function Dashboard({ view }: DashboardProps) {
               variant="outline"
               size="sm"
               className="gap-2"
+              onClick={() => navigate('/Ai')}
             >
-              <Calendar className="h-4 w-4" />
-              Schedule Meeting
-            </Button>
-            <Button 
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Brain className="h-4 w-4" />
-              AI Assistant
+              <Eye className="h-4 w-4" />
+              IRIS
             </Button>
             <Dialog>
               <DialogTrigger asChild>
@@ -321,172 +256,48 @@ export default function Dashboard({ view }: DashboardProps) {
         </div>
 
         {/* Habit Heatmap and Today's Meetings */}
-        <div className="flex gap-4">
+        <div className="flex justify-between items-start gap-4">
           {/* Habit Heatmap */}
-          <div className="w-[190px]">
+          <div>
             <HabitHeatmap 
               data={heatmapData}
               loading={heatmapLoading}
               error={heatmapError}
             />
+            <Button 
+              variant="outline" 
+              className="mt-2 bg-[#18191b] rounded-2xl gap-2 w-[230px] h-[52px]"
+              onClick={() => navigate('/Todos&Habits')}
+            >
+              Navigate to Daily Habits <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
 
-          {/* Today's Meetings */}
-          <Card className="flex-1">
-            <CardHeader className="flex flex-row items-center justify-between py-2 px-4">
-              <CardTitle className="text-lg ml-2">Today's meetings</CardTitle>
-              <Button
-                variant="ghost"
-                className="text-sm text-primary hover:text-primary/90 hover:bg-primary/10 transition-colors"
-              >
-                View all
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
-                {meetings.map((meeting) => (
-                  <div
-                    key={meeting.id}
-                    className="rounded-lg bg-[#292a2c] p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm text-zinc-500">{meeting.period}</div>
-                        <div className="text-xl font-semibold">{meeting.time}</div>
-                      </div>
-                      {meeting.hasVideo && (
-                        <Video className="h-5 w-5 text-zinc-400" />
-                      )}
-                    </div>
-                    <div className="mt-2 text-sm text-zinc-300">
-                      {meeting.title}
-                    </div>
-                  </div>
-                ))}
-                <div
-                  className="flex cursor-pointer items-center justify-center rounded-lg bg-primary/10 p-4 hover:bg-primary/20 transition-colors"
-                >
-                  <div className="text-center">
-                    <Plus className="mx-auto h-6 w-6 text-primary" />
-                    <div className="mt-1 text-sm text-primary">
-                      Schedule meeting
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+
+          {/* Middle Banner */}
+          <div className="flex-1 w-[700px]">
+            <MiddleBanner />
+          </div>
+
+
+          {/* Calendar Widget */}
+          <div className="">
+            <CalendarWidget />
+          </div>
+
         </div>
 
         {/* Main Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {/* Task Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Task Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Completed Tasks</span>
-                  <span className="font-medium">{taskMetrics.completed}/{taskMetrics.total}</span>
-                </div>
-                <Progress value={(taskMetrics.completed / taskMetrics.total) * 100} />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Upcoming: {taskMetrics.upcoming}</span>
-                  <span>{((taskMetrics.completed / taskMetrics.total) * 100).toFixed(0)}% Complete</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Focus Time */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Focus Time</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Today's Focus</span>
-                  <span className="font-medium">{focusMetrics.todayMinutes} minutes</span>
-                </div>
-                <Progress value={focusMetrics.weeklyProgress} />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Weekly Goal: {focusMetrics.weeklyGoal}min</span>
-                  <span>{focusMetrics.weeklyProgress}% Progress</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Focus Time/Score */}
+          <FocusTime />
+
+          {/* Piechart Overview */}
+          <PieChart />
 
           {/* Productivity Score */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Productivity Score</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Today's Score</span>
-                  <span className="font-medium">{systemMetrics.productivityScore}%</span>
-                </div>
-                <Progress value={systemMetrics.productivityScore} />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Focus Sessions: {focusMetrics.todayMinutes / 25}</span>
-                  <span>Above Average</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* System Monitoring Grid */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Keyboard Usage</CardTitle>
-              <Keyboard className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{systemMetrics.keyboardUsage}%</div>
-              <p className="text-xs text-muted-foreground">
-                Optimal typing patterns
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Screen Time</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{Math.floor(systemMetrics.screenTime / 60)}h {systemMetrics.screenTime % 60}m</div>
-              <p className="text-xs text-muted-foreground">
-                Today's active time
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Focus Score</CardTitle>
-              <Focus className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{systemMetrics.focusScore}</div>
-              <Progress value={systemMetrics.focusScore} className="mt-2" />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Productivity</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{systemMetrics.productivityScore}%</div>
-              <Progress value={systemMetrics.productivityScore} className="mt-2" />
-            </CardContent>
-          </Card>
+          <ChartRadialStacked />
         </div>
 
         {showTodoForm && user && (
