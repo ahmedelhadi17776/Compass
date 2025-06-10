@@ -71,7 +71,32 @@ export function MiddleBanner() {
       ];
     }
 
-    return metricsData.daily_timeline.map((item) => {
+    // Get today's date at start of day for filtering
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Filter the timeline to only include today's items
+    const todayItems = metricsData.daily_timeline.filter((item) => {
+      const itemDate = new Date(item.start_time);
+      return itemDate >= today && itemDate < tomorrow;
+    });
+
+    if (todayItems.length === 0) {
+      return [
+        {
+          id: "1",
+          title: "Nothing scheduled for today",
+          time: "00:00",
+          type: "event",
+          completed: false,
+          icon: <Calendar className="h-4 w-4 text-white" />,
+        },
+      ];
+    }
+
+    return todayItems.map((item) => {
       // Convert ISO date to time string (HH:MM)
       const startTime = new Date(item.start_time);
       const hours = startTime.getHours().toString().padStart(2, "0");

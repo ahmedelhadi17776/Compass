@@ -20,7 +20,12 @@ type Day = {
 };
 
 const CalendarWidget: React.FC = () => {
-  const { data: metricsData, isLoading, isConnected } = useDashboardMetrics();
+  const {
+    data: metricsData,
+    isLoading,
+    isConnected,
+    requestRefresh,
+  } = useDashboardMetrics();
 
   // Get current month name
   const currentMonth = new Date().toLocaleString("default", {
@@ -62,10 +67,28 @@ const CalendarWidget: React.FC = () => {
       (item) => item.type === "event"
     );
 
+    // Only include upcoming events (today and future)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Set to start of day for proper comparison
+
+    const upcomingEvents = calendarEvents.filter((item) => {
+      const eventDate = new Date(item.start_time);
+      return eventDate >= now;
+    });
+
+    // Sort by date (soonest first) and limit to 4 events
+    upcomingEvents.sort((a, b) => {
+      return (
+        new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+      );
+    });
+
+    const limitedEvents = upcomingEvents.slice(0, 4);
+
     // Group events by day
     const eventsByDay = new Map<string, Event[]>();
 
-    calendarEvents.forEach((item) => {
+    limitedEvents.forEach((item) => {
       const startTime = new Date(item.start_time);
       const endTime = item.end_time
         ? new Date(item.end_time)
@@ -105,13 +128,12 @@ const CalendarWidget: React.FC = () => {
     // Sort days chronologically
     daysWithEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    // If today isn't in the list with events, make sure it's included
-    const todayKey = today.toDateString();
-    if (!eventsByDay.has(todayKey)) {
-      return [result[0], ...daysWithEvents].slice(0, 5); // Show max 5 days
+    // If no days with events, just return today
+    if (daysWithEvents.length === 0) {
+      return result;
     }
 
-    return daysWithEvents.slice(0, 5); // Show max 5 days
+    return daysWithEvents; // Show all days with events (max 4 events total)
   }, [metricsData?.daily_timeline]);
 
   const handleAddEvent = () => {
@@ -130,6 +152,11 @@ const CalendarWidget: React.FC = () => {
     }
   };
 
+  // Handle refresh button click
+  const handleRefresh = () => {
+    requestRefresh();
+  };
+
   return (
     <div className="bg-[#18191b] border rounded-3xl p-5 w-[350px] text-white shadow-lg">
       <div className="flex justify-between items-center mb-4">
@@ -146,15 +173,24 @@ const CalendarWidget: React.FC = () => {
             <span className="ml-2 text-sm text-zinc-500">(Loading...)</span>
           )}
         </div>
-        <button
-          aria-label="Add event"
-          className="bg-[#303030] w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#404040] transition-colors"
-          onClick={handleAddEvent}
-          onKeyDown={(e) => handleKeyDown(e, handleAddEvent)}
-          tabIndex={0}
-        >
-          <span className="text-xl relative top-[-3px]">+</span>
-        </button>
+        <div className="flex items-center">
+          <button
+            onClick={handleRefresh}
+            className="mr-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            aria-label="Refresh calendar data"
+          >
+            Refresh
+          </button>
+          <button
+            aria-label="Add event"
+            className="bg-[#303030] w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#404040] transition-colors"
+            onClick={handleAddEvent}
+            onKeyDown={(e) => handleKeyDown(e, handleAddEvent)}
+            tabIndex={0}
+          >
+            <span className="text-xl relative top-[-3px]">+</span>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -175,7 +211,7 @@ const CalendarWidget: React.FC = () => {
                 </div>
               ) : day.events.length === 0 ? (
                 <div className="bg-[#252525] rounded-lg p-3 text-gray-400 text-sm">
-                  Nothing Scheduled for Today
+                  Nothing Scheduled
                 </div>
               ) : (
                 <div className="space-y-2">
