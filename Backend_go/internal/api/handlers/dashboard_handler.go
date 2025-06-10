@@ -235,6 +235,34 @@ func (h *DashboardHandler) GetDashboardMetrics(c *gin.Context) {
 		h.logger.Error("Failed to get events due today", zap.Error(err))
 	}
 
+	// Get upcoming events for the calendar widget (max 4)
+	upcomingEvents, err := h.calendarService.GetUpcomingEvents(c.Request.Context(), userID, 4)
+	if err == nil {
+		// Add a special field to differentiate from today's events
+		for _, event := range upcomingEvents {
+			// Skip events that are already in the timeline (from today)
+			alreadyInTimeline := false
+			for _, item := range timeline {
+				if item.ID == event.ID && item.Type == "event" {
+					alreadyInTimeline = true
+					break
+				}
+			}
+
+			if !alreadyInTimeline {
+				timeline = append(timeline, dto.TimelineItem{
+					ID:        event.ID,
+					Title:     event.Title,
+					StartTime: event.StartTime,
+					EndTime:   &event.EndTime,
+					Type:      "event",
+				})
+			}
+		}
+	} else {
+		h.logger.Error("Failed to get upcoming events", zap.Error(err))
+	}
+
 	h.logger.Info("Timeline items collected",
 		zap.String("user_id", userID.String()),
 		zap.Int("habit_count", habitCount),

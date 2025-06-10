@@ -3,6 +3,7 @@ package calendar
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ type Service interface {
 	GetCollaborator(ctx context.Context, eventID, userID uuid.UUID) (*EventCollaborator, error)
 	GetDashboardMetrics(userID uuid.UUID) (CalendarDashboardMetrics, error)
 	GetTodayEvents(ctx context.Context, userID uuid.UUID) ([]CalendarEvent, error)
+	GetUpcomingEvents(ctx context.Context, userID uuid.UUID, limit int) ([]CalendarEvent, error)
 }
 
 type service struct {
@@ -1147,6 +1149,36 @@ func (s *service) GetTodayEvents(ctx context.Context, userID uuid.UUID) ([]Calen
 	if err != nil {
 		return nil, err
 	}
+	return events, nil
+}
+
+// GetUpcomingEvents gets events for the next 30 days, with an optional limit
+func (s *service) GetUpcomingEvents(ctx context.Context, userID uuid.UUID, limit int) ([]CalendarEvent, error) {
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endOfPeriod := startOfDay.AddDate(0, 0, 30) // 30 days from now
+
+	filter := EventFilter{
+		UserID:    userID,
+		StartTime: &startOfDay,
+		EndTime:   &endOfPeriod,
+	}
+
+	events, _, err := s.repo.ListEvents(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort events by start time
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].StartTime.Before(events[j].StartTime)
+	})
+
+	// Apply limit if specified and if we have more events than the limit
+	if limit > 0 && len(events) > limit {
+		events = events[:limit]
+	}
+
 	return events, nil
 }
 

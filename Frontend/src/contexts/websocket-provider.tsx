@@ -213,6 +213,118 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           }
           break;
 
+        case "focus_data":
+          if (data.data && data.data.focus) {
+            // This is partial data for focus - merge with existing cache
+            const currentData = queryClient.getQueryData<DashboardMetrics>(
+              QUERY_KEYS.DASHBOARD_METRICS
+            );
+
+            if (currentData) {
+              const updatedData = {
+                ...currentData,
+                focus: data.data.focus,
+                _timestamp: Date.now(),
+                _wsUpdate: true,
+              };
+
+              queryClient.setQueryData(
+                QUERY_KEYS.DASHBOARD_METRICS,
+                updatedData
+              );
+
+              // Dispatch a custom event for focus hooks to listen to
+              window.dispatchEvent(
+                new CustomEvent("websocket_focus_event", {
+                  detail: data,
+                })
+              );
+            } else if (logMessage) {
+              console.debug(
+                "No existing metrics data to merge with - ignoring partial focus update"
+              );
+            }
+          }
+          break;
+
+        case "focus_session_started":
+        case "focus_session_stopped":
+        case "focus_stats":
+          // Focus session or stats update - trigger a focused refresh and also update cache directly
+          if (data.data) {
+            console.log(`Received focus update: ${data.type}`);
+
+            // Get current metrics data from cache
+            const currentMetrics = queryClient.getQueryData<DashboardMetrics>(
+              QUERY_KEYS.DASHBOARD_METRICS
+            );
+
+            // If we have the current metrics, directly update focus data
+            if (currentMetrics) {
+              // Immediately refresh from server for most up-to-date data
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: "refresh_focus" }));
+              }
+
+              // If this is a focus_stats message, we can update the metrics directly
+              if (data.type === "focus_stats" && data.data) {
+                const updatedMetrics = {
+                  ...currentMetrics,
+                  focus: {
+                    ...currentMetrics.focus,
+                    ...data.data,
+                  },
+                  _timestamp: Date.now(),
+                  _wsUpdate: true,
+                };
+
+                queryClient.setQueryData(
+                  QUERY_KEYS.DASHBOARD_METRICS,
+                  updatedMetrics
+                );
+              }
+            } else {
+              // No cached data, just request a full refresh
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: "refresh" }));
+              }
+            }
+
+            // Dispatch a custom event for focus hooks to listen to
+            window.dispatchEvent(
+              new CustomEvent("websocket_focus_event", {
+                detail: data,
+              })
+            );
+          }
+          break;
+
+        case "focus_settings_updated":
+          // Focus settings were updated - update dashboard metrics
+          if (data.data && data.data.stats) {
+            const currentData = queryClient.getQueryData<DashboardMetrics>(
+              QUERY_KEYS.DASHBOARD_METRICS
+            );
+
+            if (currentData) {
+              const updatedData = {
+                ...currentData,
+                focus: {
+                  ...currentData.focus,
+                  ...data.data.stats,
+                },
+                _timestamp: Date.now(),
+                _wsUpdate: true,
+              };
+
+              queryClient.setQueryData(
+                QUERY_KEYS.DASHBOARD_METRICS,
+                updatedData
+              );
+            }
+          }
+          break;
+
         case "metrics_update":
           if (data.data && data.data.metrics) {
             // This is partial data from Notes server - merge with existing cache

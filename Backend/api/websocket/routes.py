@@ -153,6 +153,60 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                             "data": {"habit_heatmap": metrics["habit_heatmap"]},
                             "timestamp": datetime.utcnow().isoformat()
                         })
+                elif message_type == "refresh_focus":
+                    # Client is requesting a refresh of the focus data specifically
+                    logger.info(
+                        f"Client requested focus data refresh: {user_id}")
+                    # Invalidate cache to force refresh on next API call
+                    from data_layer.cache.dashboard_cache import dashboard_cache
+                    await dashboard_cache.invalidate_cache(user_id)
+                    await websocket.send_json({
+                        "type": "focus_refresh_initiated",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    # Fetch fresh metrics after invalidation - with high priority
+                    try:
+                        # Get focus metrics directly for faster response
+                        from data_layer.repos.focus_repo import FocusSessionRepository, FocusSettingsRepository
+                        focus_repo = FocusSessionRepository()
+                        settings_repo = FocusSettingsRepository()
+
+                        # Get focus stats with minimal latency
+                        stats = focus_repo.get_stats(user_id)
+                        user_settings = settings_repo.get_user_settings(
+                            user_id)
+                        stats["daily_target_seconds"] = user_settings.daily_target_seconds
+
+                        # Add daily breakdown for visualization
+                        daily_breakdown = dashboard_cache._generate_daily_focus_breakdown(
+                            user_id)
+                        stats["daily_breakdown"] = daily_breakdown
+
+                        # Send immediate response for better UX
+                        await websocket.send_json({
+                            "type": "focus_stats",
+                            "data": stats,
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+
+                        # Then fetch complete metrics for cache update
+                        metrics = await dashboard_cache.get_metrics(user_id, token)
+                        if metrics and metrics.get("focus"):
+                            await websocket.send_json({
+                                "type": "focus_data",
+                                "data": {"focus": metrics["focus"]},
+                                "timestamp": datetime.utcnow().isoformat()
+                            })
+                    except Exception as e:
+                        logger.error(f"Error fetching focus data: {e}")
+                        # Fall back to getting all metrics
+                        metrics = await dashboard_cache.get_metrics(user_id, token)
+                        if metrics and metrics.get("focus"):
+                            await websocket.send_json({
+                                "type": "focus_data",
+                                "data": {"focus": metrics["focus"]},
+                                "timestamp": datetime.utcnow().isoformat()
+                            })
                 elif message_type == "get_metrics":
                     # Client is explicitly requesting metrics
                     from data_layer.cache.dashboard_cache import dashboard_cache

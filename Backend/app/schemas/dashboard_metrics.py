@@ -12,12 +12,25 @@ class TimelineItem(BaseModel):
     is_completed: bool = False
 
 
+class DailyFocusItem(BaseModel):
+    day: str
+    minutes: int
+
+
+class FocusMetrics(BaseModel):
+    total_focus_seconds: int = 0
+    streak: int = 0
+    longest_streak: int = 0
+    sessions: int = 0
+    daily_breakdown: List[DailyFocusItem] = []
+
+
 class DashboardMetrics(BaseModel):
     habits: Optional[Dict[str, Any]] = None
     tasks: Optional[Dict[str, Any]] = None
     todos: Optional[Dict[str, Any]] = None
     calendar: Optional[Dict[str, Any]] = None
-    focus: Optional[Dict[str, Any]] = None
+    focus: Optional[FocusMetrics] = None
     mood: Optional[Dict[str, Any]] = None
     ai_usage: Optional[Dict[str, Any]] = None
     system_metrics: Optional[Dict[str, Any]] = None
