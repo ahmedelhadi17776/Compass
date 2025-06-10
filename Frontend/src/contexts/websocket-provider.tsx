@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import ReconnectingWebSocket from "reconnecting-websocket";
 
@@ -9,6 +15,7 @@ export const QUERY_KEYS = {
 
 interface WebSocketContextType {
   requestRefresh: () => void;
+  isConnected: boolean;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -99,104 +106,149 @@ export interface DashboardMetrics {
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const wsRef = useRef<ReconnectingWebSocket | null>(null);
+  const isConnectedRef = useRef<boolean>(false);
+  const pendingAckRef = useRef<boolean>(false);
 
-  const handleMetricsUpdate = (metrics: DashboardMetrics) => {
-    console.log("Updating dashboard metrics from WebSocket:", metrics);
+  const handleMetricsUpdate = useCallback(
+    (metrics: DashboardMetrics) => {
+      console.log("Updating dashboard metrics from WebSocket:", metrics);
 
-    // Force React Query to recognize this as a new object to ensure subscribers detect the update
-    const metricsWithTimestamp = {
-      ...metrics,
-      _timestamp: Date.now(), // Add timestamp to ensure object reference changes
-      _wsUpdate: true, // Mark as WebSocket update
-    };
+      // Force React Query to recognize this as a new object to ensure subscribers detect the update
+      const metricsWithTimestamp = {
+        ...metrics,
+        _timestamp: Date.now(), // Add timestamp to ensure object reference changes
+        _wsUpdate: true, // Mark as WebSocket update
+      };
 
-    queryClient.setQueryData(
-      QUERY_KEYS.DASHBOARD_METRICS,
-      metricsWithTimestamp
-    );
+      queryClient.setQueryData(
+        QUERY_KEYS.DASHBOARD_METRICS,
+        metricsWithTimestamp
+      );
 
-    console.log("Dashboard metrics updated via WebSocket");
-  };
+      // Invalidate queries to trigger immediate re-fetch for dependent components
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.DASHBOARD_METRICS,
+      });
 
-  const handleWebSocketMessage = (data: WebSocketMessage) => {
-    switch (data.type) {
-      case "initial_metrics":
-        console.log("Received initial metrics from WebSocket");
-        if (data.data) {
-          console.log("Initial metrics data:", data.data);
-          handleMetricsUpdate(data.data as unknown as DashboardMetrics);
-        } else {
-          console.warn("Initial metrics message missing data field");
-        }
-        break;
-      case "dashboard_update":
-        // New consolidated update message - acknowledge and request fresh data
-        console.log(
-          "Dashboard updated - acknowledging and requesting fresh metrics",
-          data.data
-        );
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: "dashboard_update_ack" }));
-        }
-        break;
-      case "fresh_metrics":
-        console.log("Received fresh metrics from WebSocket");
-        if (data.data) {
-          console.log("Fresh metrics data:", data.data);
-          handleMetricsUpdate(data.data as unknown as DashboardMetrics);
-        } else {
-          console.warn("Fresh metrics message missing data field");
-        }
-        break;
-      case "metrics_update":
-        console.log(
-          "Received partial metrics update from WebSocket (Notes server)"
-        );
-        if (data.data && data.data.metrics) {
-          // This is partial data from Notes server - merge with existing cache
-          const currentData = queryClient.getQueryData<DashboardMetrics>(
-            QUERY_KEYS.DASHBOARD_METRICS
-          );
+      console.log("Dashboard metrics updated via WebSocket");
+    },
+    [queryClient]
+  );
 
-          if (currentData) {
-            const notesMetrics = data.data.metrics as NotesMetrics;
-            const updatedData = {
-              ...currentData,
-              // Only update the Notes server fields
-              ...(notesMetrics.mood && { mood: notesMetrics.mood }),
-              ...(notesMetrics.notes && { notes: notesMetrics.notes }),
-              ...(notesMetrics.journals && { journals: notesMetrics.journals }),
-              _timestamp: Date.now(),
-              _wsUpdate: true,
-            };
+  const handleWebSocketMessage = useCallback(
+    (data: WebSocketMessage) => {
+      switch (data.type) {
+        case "connected":
+          console.log("WebSocket connection confirmed");
+          isConnectedRef.current = true;
+          break;
 
-            queryClient.setQueryData(QUERY_KEYS.DASHBOARD_METRICS, updatedData);
-
-            console.log("Merged partial metrics update with existing data");
+        case "initial_metrics":
+          console.log("Received initial metrics from WebSocket");
+          if (data.data) {
+            console.log("Initial metrics data:", data.data);
+            handleMetricsUpdate(data.data as unknown as DashboardMetrics);
           } else {
-            console.warn(
-              "No existing metrics data to merge with - ignoring partial update"
-            );
+            console.warn("Initial metrics message missing data field");
           }
-        } else {
-          console.warn("Metrics update message missing data field");
-        }
-        break;
-      case "error":
-        console.error("WebSocket error:", data);
-        break;
-      case "connected":
-      case "pong":
-      case "ping":
-        // Connection messages - just log
-        console.debug(`WebSocket ${data.type} message`);
-        break;
-      default:
-        // Log unhandled message types for debugging
-        console.debug("❓ Unhandled WebSocket message type:", data.type, data);
-        break;
-    }
-  };
+          break;
+
+        case "dashboard_update":
+          // New consolidated update message - acknowledge immediately for rapid response
+          console.log("Dashboard updated - acknowledging", data.data);
+
+          // Prevent duplicate acknowledgments
+          if (
+            !pendingAckRef.current &&
+            wsRef.current?.readyState === WebSocket.OPEN
+          ) {
+            pendingAckRef.current = true;
+            wsRef.current.send(
+              JSON.stringify({ type: "dashboard_update_ack" })
+            );
+
+            // Reset pending flag after a short delay
+            setTimeout(() => {
+              pendingAckRef.current = false;
+            }, 100);
+          }
+          break;
+
+        case "fresh_metrics":
+          console.log("Received fresh metrics from WebSocket");
+          if (data.data) {
+            console.log("Fresh metrics data:", data.data);
+            handleMetricsUpdate(data.data as unknown as DashboardMetrics);
+          } else {
+            console.warn("Fresh metrics message missing data field");
+          }
+          break;
+
+        case "metrics_update":
+          console.log(
+            "Received partial metrics update from WebSocket (Notes server)"
+          );
+          if (data.data && data.data.metrics) {
+            // This is partial data from Notes server - merge with existing cache
+            const currentData = queryClient.getQueryData<DashboardMetrics>(
+              QUERY_KEYS.DASHBOARD_METRICS
+            );
+
+            if (currentData) {
+              const notesMetrics = data.data.metrics as NotesMetrics;
+              const updatedData = {
+                ...currentData,
+                // Only update the Notes server fields
+                ...(notesMetrics.mood && { mood: notesMetrics.mood }),
+                ...(notesMetrics.notes && { notes: notesMetrics.notes }),
+                ...(notesMetrics.journals && {
+                  journals: notesMetrics.journals,
+                }),
+                _timestamp: Date.now(),
+                _wsUpdate: true,
+              };
+
+              queryClient.setQueryData(
+                QUERY_KEYS.DASHBOARD_METRICS,
+                updatedData
+              );
+
+              console.log("Merged partial metrics update with existing data");
+            } else {
+              console.warn(
+                "No existing metrics data to merge with - ignoring partial update"
+              );
+            }
+          } else {
+            console.warn("Metrics update message missing data field");
+          }
+          break;
+
+        case "error":
+          console.error("WebSocket error:", data);
+          break;
+
+        case "pong":
+          // Connection health check response
+          console.debug("WebSocket pong received");
+          break;
+
+        case "ping":
+          // Server ping - respond with pong
+          console.debug("WebSocket ping received");
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: "pong" }));
+          }
+          break;
+
+        default:
+          // Log unhandled message types for debugging
+          console.debug("Unhandled WebSocket message type:", data.type, data);
+          break;
+      }
+    },
+    [handleMetricsUpdate, queryClient]
+  );
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -209,17 +261,26 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const url = `ws://localhost:8001/ws/dashboard?token=${encodeURIComponent(
       token
     )}`;
-    console.log("Attempting to connect to WebSocket:", url);
-    const ws = new ReconnectingWebSocket(url);
+    console.log("🔌 Attempting to connect to WebSocket:", url);
+
+    const ws = new ReconnectingWebSocket(url, [], {
+      connectionTimeout: 3000,
+      maxRetries: 10,
+      maxReconnectionDelay: 5000,
+      minReconnectionDelay: 500,
+      reconnectionDelayGrowFactor: 1.2,
+    });
     wsRef.current = ws;
 
     ws.onopen = () => {
       console.log("WebSocket connected");
+      isConnectedRef.current = true;
       ws.send(JSON.stringify({ type: "ping" }));
     };
 
     ws.onerror = (error) => {
       console.error("WebSocket error occurred:", error);
+      isConnectedRef.current = false;
     };
 
     ws.onmessage = (event) => {
@@ -234,6 +295,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     ws.onclose = () => {
       console.log("WebSocket disconnected");
+      isConnectedRef.current = false;
     };
 
     // Set up ping interval
@@ -241,25 +303,31 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "ping" }));
       }
-    }, 30000);
+    }, 15000);
 
     return () => {
       clearInterval(pingInterval);
+      isConnectedRef.current = false;
       ws.close();
     };
-  }, [queryClient]);
+  }, [handleWebSocketMessage]);
 
-  const requestRefresh = () => {
+  const requestRefresh = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log("Sending refresh request to WebSocket server");
       wsRef.current.send(JSON.stringify({ type: "refresh" }));
     } else {
       console.warn("Cannot request refresh - WebSocket not connected");
     }
-  };
+  }, []);
 
   return (
-    <WebSocketContext.Provider value={{ requestRefresh }}>
+    <WebSocketContext.Provider
+      value={{
+        requestRefresh,
+        isConnected: isConnectedRef.current,
+      }}
+    >
       {children}
     </WebSocketContext.Provider>
   );

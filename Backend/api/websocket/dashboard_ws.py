@@ -30,7 +30,7 @@ class ConnectionManager:
         # Message deduplication at WebSocket level
         # {user_id: {message_hash: timestamp}}
         self._recent_messages: Dict[str, Dict[str, float]] = {}
-        self._message_dedup_window = 1.0  # 1 second deduplication window
+        self._message_dedup_window = 0.3
 
     async def connect(self, websocket: WebSocket, user_id: str):
         try:
@@ -98,8 +98,16 @@ class ConnectionManager:
             if "timestamp" not in message:
                 message["timestamp"] = datetime.utcnow().isoformat()
 
-            # Check for duplicate messages at WebSocket level
-            if self._is_duplicate_message(user_id, message):
+            # For rapid user actions, reduce deduplication strictness
+            message_type = message.get("type", "")
+            if message_type in ["dashboard_update", "fresh_metrics"]:
+                # Allow rapid updates for immediate user feedback
+                should_dedupe = self._is_duplicate_message(
+                    user_id, message, use_relaxed_dedup=True)
+            else:
+                should_dedupe = self._is_duplicate_message(user_id, message)
+
+            if should_dedupe:
                 return  # Skip this duplicate message
 
             # Store last message for reconnection support (except certain types)
@@ -140,29 +148,40 @@ class ConnectionManager:
             logger.debug(
                 f"Broadcast message to {len(self.active_connections.get(user_id, []))} connections for user {user_id}")
 
-    def _is_duplicate_message(self, user_id: str, message: dict) -> bool:
+    def _is_duplicate_message(self, user_id: str, message: dict, use_relaxed_dedup: bool = False) -> bool:
         """Check if this message is a duplicate within the deduplication window"""
         current_time = time.time()
 
         # Create a hash of the message content (excluding timestamp)
         message_copy = message.copy()
         message_copy.pop('timestamp', None)  # Remove timestamp for comparison
+
+        # For user action updates, include action context in hash for better dedup
+        message_type = message.get("type", "")
+        if message_type in ["dashboard_update", "fresh_metrics"]:
+            # Include action details in hash to differentiate between different actions
+            action_context = f"{message.get('data', {}).get('action', '')}-{message.get('data', {}).get('entity_type', '')}"
+            message_copy["_action_context"] = action_context
+
         message_str = json.dumps(message_copy, sort_keys=True)
         message_hash = hashlib.md5(message_str.encode()).hexdigest()
+
+        # Use relaxed deduplication for user actions (shorter window)
+        dedup_window = 0.1 if use_relaxed_dedup else self._message_dedup_window
 
         # Clean up old messages
         if user_id in self._recent_messages:
             self._recent_messages[user_id] = {
                 msg_hash: timestamp for msg_hash, timestamp in self._recent_messages[user_id].items()
-                if current_time - timestamp < self._message_dedup_window
+                if current_time - timestamp < dedup_window
             }
 
         # Check if this message is a duplicate
         if user_id in self._recent_messages and message_hash in self._recent_messages[user_id]:
             last_time = self._recent_messages[user_id][message_hash]
-            if current_time - last_time < self._message_dedup_window:
+            if current_time - last_time < dedup_window:
                 logger.info(
-                    f"Blocked duplicate WebSocket message for user {user_id}: {message.get('type')} (within {current_time - last_time:.2f}s)")
+                    f"🚫 Blocked duplicate WebSocket message for user {user_id}: {message.get('type')} (within {current_time - last_time:.3f}s)")
                 return True
 
         # Record this message

@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import { Card, CardContent } from "@/components//ui/card";
 import { ChartContainer } from "@/components//ui/chart";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { useDashboardMetrics } from "./useDashboardMetrics";
 
 interface MetricData {
@@ -25,7 +25,7 @@ interface TooltipProps {
   }>;
 }
 
-const CustomTooltip = ({ active, payload }: TooltipProps) => {
+const CustomTooltip = React.memo(({ active, payload }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -38,13 +38,15 @@ const CustomTooltip = ({ active, payload }: TooltipProps) => {
     );
   }
   return null;
-};
+});
 
-export default function PieChart() {
+CustomTooltip.displayName = "CustomTooltip";
+
+const PieChart = React.memo(() => {
   // Use the custom hook for dashboard metrics
-  const { data: metricsData, isLoading } = useDashboardMetrics();
+  const { data: metricsData, isLoading, isConnected } = useDashboardMetrics();
 
-  // Process the metrics data for the chart
+  // Process the metrics data for the chart with better memoization
   const chartData = useMemo<MetricData[]>(() => {
     if (!metricsData) {
       return [];
@@ -76,12 +78,34 @@ export default function PieChart() {
     ];
   }, [metricsData]);
 
+  // Memoize chart configuration
+  const chartConfig = useMemo(
+    () => ({
+      tasks: {
+        label: "Tasks",
+        color: "#1e40af",
+      },
+      habits: {
+        label: "Habits",
+        color: "#1d4ed8",
+      },
+      todos: {
+        label: "Todos",
+        color: "#3b82f6",
+      },
+    }),
+    []
+  );
+
   // Handle loading state
   if (isLoading) {
     return (
       <Card className="flex flex-col rounded-3xl">
         <CardContent className="p-6 flex justify-center items-center h-[280px]">
-          <p className="text-sm text-muted-foreground">Loading metrics...</p>
+          <div className="flex flex-col items-center space-y-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <p className="text-sm text-muted-foreground">Loading metrics...</p>
+          </div>
         </CardContent>
       </Card>
     );
@@ -92,9 +116,18 @@ export default function PieChart() {
       <CardContent className="p-0">
         <div className="flex flex-col">
           <div className="flex flex-col items-center space-y-1.5 p-6 pb-2">
-            <span className="text-xl font-semibold leading-none tracking-tight">
-              Completion Status
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-xl font-semibold leading-none tracking-tight">
+                Completion Status
+              </span>
+              {/* Connection indicator */}
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? "bg-green-500" : "bg-gray-400"
+                }`}
+                title={isConnected ? "Connected" : "Disconnected"}
+              />
+            </div>
             <span className="text-sm text-muted-foreground">
               Progress overview
             </span>
@@ -130,20 +163,7 @@ export default function PieChart() {
               </div>
             </div>
             <ChartContainer
-              config={{
-                tasks: {
-                  label: "Tasks",
-                  color: "#1e40af",
-                },
-                habits: {
-                  label: "Habits",
-                  color: "#1d4ed8",
-                },
-                todos: {
-                  label: "Todos",
-                  color: "#3b82f6",
-                },
-              }}
+              config={chartConfig}
               className="aspect-square w-[180px] h-[180px] -mr-4"
             >
               <RadialBarChart
@@ -169,7 +189,7 @@ export default function PieChart() {
                   dataKey="value"
                   background
                   cornerRadius={6}
-                  animationDuration={1500}
+                  animationDuration={800} // Reduced animation duration for snappier updates
                 />
                 <RechartsTooltip content={<CustomTooltip />} cursor={false} />
               </RadialBarChart>
@@ -179,4 +199,8 @@ export default function PieChart() {
       </CardContent>
     </Card>
   );
-}
+});
+
+PieChart.displayName = "PieChart";
+
+export default PieChart;

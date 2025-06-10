@@ -166,9 +166,10 @@ class DashboardCache:
         # Real-time update configuration
         self.config = {
             "enable_realtime_updates": os.getenv("ENABLE_REALTIME_UPDATES", "true").lower() == "true",
-            # Minimum time between updates
-            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "5")),
-            "batch_updates": os.getenv("BATCH_UPDATES", "true").lower() == "true",
+            # Reduce throttle for faster responses (0.1s = 100ms)
+            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "0.1")),
+            # Disable batching for immediate response
+            "batch_updates": os.getenv("BATCH_UPDATES", "false").lower() == "true",
             "quiet_mode": os.getenv("DASHBOARD_QUIET_MODE", "false").lower() == "true"
         }
 
@@ -178,8 +179,8 @@ class DashboardCache:
 
         # Message deduplication - track recent events to prevent duplicates
         self._recent_events = {}  # {user_id: {event_key: timestamp}}
-        # Configurable deduplication window
-        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "2.0"))
+        # Reduced deduplication window for faster responses (0.5s instead of 2s)
+        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "0.5"))
 
         # Log configuration on startup
         if not self.config["quiet_mode"]:
@@ -241,7 +242,10 @@ class DashboardCache:
         """Fetch focus metrics asynchronously"""
         try:
             focus_repo = FocusSessionRepository()
-            stats = focus_repo.get_stats(user_id, days=30)  # This is sync
+            # Run sync operation in thread pool to make it async
+            import asyncio
+            loop = asyncio.get_event_loop()
+            stats = await loop.run_in_executor(None, focus_repo.get_stats, user_id, 30)
             return stats
         except Exception as e:
             logger.error(f"Error fetching focus metrics: {str(e)}")
@@ -251,7 +255,10 @@ class DashboardCache:
         """Fetch goal metrics asynchronously"""
         try:
             goal_repo = GoalRepository()
-            goals = goal_repo.find_by_user(user_id)  # This is sync
+            # Run sync operation in thread pool to make it async
+            import asyncio
+            loop = asyncio.get_event_loop()
+            goals = await loop.run_in_executor(None, goal_repo.find_by_user, user_id)
             return self._calculate_goal_metrics(goals)
         except Exception as e:
             logger.error(f"Error fetching goal metrics: {str(e)}")
@@ -275,8 +282,10 @@ class DashboardCache:
         """Fetch system metrics asynchronously"""
         try:
             system_metrics_repo = SystemMetricRepository()
-            metrics = system_metrics_repo.aggregate_metrics(
-                user_id, period="daily")  # This is sync
+            # Run sync operation in thread pool to make it async
+            import asyncio
+            loop = asyncio.get_event_loop()
+            metrics = await loop.run_in_executor(None, system_metrics_repo.aggregate_metrics, user_id, "daily")
             return metrics
         except Exception as e:
             logger.error(f"Error fetching system metrics: {str(e)}")
@@ -286,8 +295,10 @@ class DashboardCache:
         """Fetch AI usage metrics asynchronously"""
         try:
             model_usage_repo = ModelUsageRepository()
-            usage = model_usage_repo.get_usage_by_user(
-                user_id, limit=100)  # This is sync
+            # Run sync operation in thread pool to make it async
+            import asyncio
+            loop = asyncio.get_event_loop()
+            usage = await loop.run_in_executor(None, model_usage_repo.get_usage_by_user, user_id, 100)
             return usage
         except Exception as e:
             logger.error(f"Error fetching AI usage metrics: {str(e)}")
@@ -458,8 +469,10 @@ class DashboardCache:
                 logger.error(f"All metrics are null for user {user_id}")
                 return None
 
+            # Log metrics summary without full JSON serialization to avoid coroutine issues
+            metrics_summary = {k: v is not None for k, v in metrics.items()}
             logger.debug(
-                f"Combined metrics for user {user_id}: {json.dumps(metrics, indent=2)}")
+                f"Combined metrics for user {user_id}: {metrics_summary}")
             return metrics
 
         except Exception as e:
@@ -560,6 +573,7 @@ class DashboardCache:
             now = datetime.utcnow()
             last_30 = now - timedelta(days=30)
             cost_repo = CostTrackingRepository()
+            # This method is already async, so call it directly
             return await cost_repo.get_user_cost_summary(user_id, last_30, now)
         except Exception as e:
             logger.error(f"Error fetching cost metrics: {str(e)}")
@@ -637,6 +651,13 @@ class DashboardCache:
 
     async def _should_throttle_update(self, event: DashboardEvent) -> bool:
         """Check if we should throttle this update based on frequency"""
+        # For immediate user actions (like habit completion), don't throttle
+        if event.event_type == "cache_invalidate":
+            action = event.details.get('action', '')
+            # Don't throttle direct user actions for better UX
+            if any(action_type in action for action_type in ['completed', 'created', 'updated', 'deleted']):
+                return False
+
         if not self.config["batch_updates"]:
             return False
 
@@ -647,22 +668,22 @@ class DashboardCache:
         last_update = self._last_update_times.get(user_id, 0)
         time_since_last = current_time - last_update
 
-        # Use shorter throttle time for cache_invalidate events (immediate actions)
-        throttle_time = 1.0 if event.event_type == "cache_invalidate" else self.config[
+        # Use very short throttle time for immediate actions
+        throttle_time = 0.05 if event.event_type == "cache_invalidate" else self.config[
             "update_throttle_seconds"]
 
         if time_since_last < throttle_time:
-            # Store pending update only if it's been less than throttle time
+            # For rapid user actions, only store the latest update
             self._pending_updates[user_id] = event
             if not self.config["quiet_mode"]:
                 logger.debug(
-                    f"Throttling update for user {user_id}: {event.event_type} (last update {time_since_last:.1f}s ago, throttle: {throttle_time}s)")
+                    f"Throttling update for user {user_id}: {event.event_type} (last update {time_since_last:.3f}s ago, throttle: {throttle_time}s)")
             return True
 
         # Update last update time
         self._last_update_times[user_id] = current_time
 
-        # Process any pending updates
+        # Process any pending updates immediately
         if user_id in self._pending_updates:
             if not self.config["quiet_mode"]:
                 logger.debug(f"Processing pending update for user {user_id}")
@@ -682,13 +703,12 @@ class DashboardCache:
                      event.details.get('habit_id') or
                      event.details.get('calendar_event_id', ''))
 
-        # For events without specific entity IDs, use action-based deduplication
+        # For rapid user actions, use entity-specific deduplication
         if entity_id:
             event_key = f"{event.event_type}:{action}:{entity_id}"
         else:
-            # For action-only events (like user activity), use action + very short time window
-            # Round to 200ms to catch rapid duplicates but allow legitimate quick actions
-            rounded_time = round(current_time * 5) / 5  # 200ms windows
+            # For action-only events, use shorter time windows (100ms for rapid actions)
+            rounded_time = round(current_time * 10) / 10  # 100ms windows
             event_key = f"{event.event_type}:{action}:{rounded_time}"
 
         # Clean up old events (older than dedup window)
@@ -704,7 +724,7 @@ class DashboardCache:
             if current_time - last_time < self._dedup_window:
                 if not self.config["quiet_mode"]:
                     logger.info(
-                        f"Blocked duplicate event for user {user_id}: {event_key} (within {current_time - last_time:.2f}s)")
+                        f"Blocked duplicate event for user {user_id}: {event_key} (within {current_time - last_time:.3f}s)")
                 return True
 
         # Record this event
