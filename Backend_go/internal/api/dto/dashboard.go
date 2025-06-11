@@ -1,14 +1,29 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type TimelineItem struct {
+	ID          uuid.UUID  `json:"id"`
+	Title       string     `json:"title"`
+	StartTime   time.Time  `json:"start_time"`
+	EndTime     *time.Time `json:"end_time,omitempty"`
+	Type        string     `json:"type"` // "habit", "task", "todo", "event"
+	IsCompleted bool       `json:"is_completed"`
+}
 
 type DashboardMetricsResponse struct {
-	Habits    HabitsDashboardMetrics   `json:"habits"`
-	Tasks     TasksDashboardMetrics    `json:"tasks"`
-	Todos     TodosDashboardMetrics    `json:"todos"`
-	Calendar  CalendarDashboardMetrics `json:"calendar"`
-	User      UserDashboardMetrics     `json:"user"`
-	Timestamp time.Time                `json:"timestamp"`
+	Habits        HabitsDashboardMetrics   `json:"habits"`
+	Tasks         TasksDashboardMetrics    `json:"tasks"`
+	Todos         TodosDashboardMetrics    `json:"todos"`
+	Calendar      CalendarDashboardMetrics `json:"calendar"`
+	User          UserDashboardMetrics     `json:"user"`
+	DailyTimeline []TimelineItem           `json:"daily_timeline"`
+	HabitHeatmap  map[string]int           `json:"habit_heatmap"`
+	Timestamp     time.Time                `json:"timestamp"`
 }
 
 type HabitsDashboardMetrics struct {
