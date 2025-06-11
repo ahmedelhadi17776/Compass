@@ -11,12 +11,14 @@ class JournalService {
   /**
    * Create a new journal entry
    * @param {Object} input - Journal data
+   * @param {string} selectedFields - Fields to select
+   * @param {string} currentUserId - User ID
    * @returns {Object} Created journal
    */
-  async createJournal(input, selectedFields = '') {
-    logger.debug('Creating journal entry', { input });
-    // Always set userId from input.userId (which is set by resolver from context)
-    const userId = input.userId;
+  async createJournal(input, selectedFields = '', currentUserId = null) {
+    logger.debug('Creating journal page', { input });
+    // Always set userId from currentUserId, ignore input.userId
+    const userId = currentUserId || input.userId;
     if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }
@@ -26,6 +28,7 @@ class JournalService {
     if (!input.date) {
       throw new ValidationError('Date is required', 'date');
     }
+    // Always set userId from trusted backend
     const journal = new Journal({ ...input, userId });
     await journal.save();
     logger.info('Journal entry created', { journalId: journal._id });
@@ -66,33 +69,56 @@ class JournalService {
    * Update an existing journal entry
    * @param {string} id - Journal ID
    * @param {Object} input - Updated journal data
+   * @param {string} selectedFields - Fields to select
+   * @param {string} currentUserId - User ID
    * @returns {Object} Updated journal
    */
-  async updateJournal(id, input, selectedFields = '') {
+  async updateJournal(id, input, selectedFields = '', currentUserId = null) {
     logger.debug('Updating journal entry', { journalId: id, input });
     if (!id) {
       throw new ValidationError('Journal ID is required', 'id');
     }
-    // Fetch the old journal before updating
-    const oldJournal = await Journal.findById(id);
-    if (!oldJournal) {
+    const journal = await Journal.findOne({ _id: id, isDeleted: false });
+    if (!journal) {
       throw new NotFoundError('Journal');
     }
-    await redisClient.invalidateByTags([
-      oldJournal.userId.toString(),
-      ...(Array.isArray(oldJournal.tags) ? oldJournal.tags : [])
-    ]);
-    await redisClient.invalidateByPattern(redisClient.generateKey('journal', id));
+    if (currentUserId && journal.userId.toString() !== currentUserId) {
+      throw new ValidationError('You do not have access to update this journal');
+    }
+
+    // Only validate title if it's being updated and is empty
     if (input.title !== undefined && !input.title?.trim()) {
       throw new ValidationError('Title is required', 'title');
     }
     if (input.date !== undefined && !input.date) {
       throw new ValidationError('Date is required', 'date');
     }
-    // Always set userId from input.userId (which is set by resolver from context)
-    Object.assign(oldJournal, { ...input, userId: input.userId });
-    await oldJournal.save();
-    logger.info('Journal entry updated', { journalId: id });
+
+    // If title is not provided in input, keep the existing title
+    if (input.title === undefined) {
+      delete input.title;
+    }
+
+    await redisClient.invalidateByTags([
+      journal.userId.toString(),
+      ...(Array.isArray(journal.tags) ? journal.tags : [])
+    ]);
+    await redisClient.invalidateByPattern(redisClient.generateKey('journal', id));
+
+    // Only update the fields that are provided in input
+    // Preserve userId and other required fields
+    const updatedFields = { ...input };
+    delete updatedFields.userId; // Remove userId from input if present
+    Object.assign(journal, updatedFields);
+
+    await journal.save();
+    logger.info('Journal page updated', { journalId: id });
+
+    // Publish dashboard event for metrics update
+    await dashboardEvents.publishMetricsUpdate(journal.userId.toString(), id, null, {
+      action: 'update',
+      entityType: 'journal'
+    });
     const updatedJournal = await Journal.findById(id)
       .select(`${selectedFields} userId tags`)
       .lean();
@@ -110,15 +136,8 @@ class JournalService {
       [updatedJournal.userId, ...(Array.isArray(updatedJournal.tags) ? updatedJournal.tags : [])],
       updatedJournal.userId
     );
-    await redisClient.invalidateByPattern(`user:${updatedJournal.userId}:journals:*`);
-
-    // Publish dashboard event for metrics update
-    await dashboardEvents.publishMetricsUpdate(updatedJournal.userId.toString(), id, null, {
-      action: 'update',
-      entityType: 'journal'
-    });
-
-    logger.info('Journal entry update completed', { journalId: id, userId: updatedJournal.userId });
+    await redisClient.invalidateByPattern(`user:${updatedJournal.userId}:journals:*`);  
+    logger.info('Journal page update completed', { journalId: id, userId: journal.userId });
     return updatedJournal;
   }
 
@@ -274,52 +293,40 @@ class JournalService {
    * Get a single journal by ID
    * @param {string} id - Journal ID
    * @param {string} selectedFields - Fields to select
-   * @param {boolean} includeArchived - Whether to include archived journals
+   * @param {string} currentUserId - User ID
    * @returns {Object} Journal entry
    */
-  async getJournal(id, selectedFields = '', includeArchived = false) {
-    logger.debug('Getting journal by ID', { journalId: id, includeArchived });
-
+  async getJournal(id, selectedFields = '', currentUserId = null) {
+    logger.debug('Getting journal by ID', { journalId: id });
     if (!id) {
       throw new ValidationError('Journal ID is required', 'id');
+    }
+
+    const journal = await Journal.findOne({ _id: id, isDeleted: false })
+      .select(selectedFields)
+      .lean();
+    if (!journal) {
+      throw new NotFoundError('Journal');
+    }
+
+    // Only check user access if currentUserId is provided
+    if (currentUserId && journal.userId && journal.userId.toString() !== currentUserId) {
+      throw new ValidationError('You do not have access to this journal');
     }
 
     // Try to get from cache first
     const cachedJournal = await redisClient.getEntity('journal', id);
     if (cachedJournal) {
       logger.debug('Journal retrieved from cache', { journalId: id });
-      // If we don't want archived journals and this one is archived, return not found
-      if (!includeArchived && cachedJournal.archived) {
-        throw new NotFoundError('Journal');
-      }
-      if (cachedJournal.isDeleted) {
-        throw new NotFoundError('Journal');
-      }
       return cachedJournal;
     }
-
-    const query = { _id: id, isDeleted: false };
-    // Only filter by archived status if we're not including archived journals
-    if (!includeArchived) {
-      query.archived = false;
-    }
-
-    const journal = await Journal.findOne(query)
-      .select(`${selectedFields} userId tags`)
-      .lean();
-
-    if (!journal || !journal.userId) {
-      throw new NotFoundError('Journal');
-    }
-
-    // Cache the result
-    const tags = [journal.userId.toString(), ...(Array.isArray(journal.tags) ? journal.tags : [])];
+    // Cache the journal
     await redisClient.setEntity(
       'journal',
       id.toString(),
       journal,
-      tags,
-      journal.userId
+      [journal.userId?.toString() || 'anonymous', ...(Array.isArray(journal.tags) ? journal.tags : [])],
+      journal.userId?.toString() || 'anonymous'
     );
     logger.debug('Journal cached', { journalId: id });
 
@@ -328,71 +335,97 @@ class JournalService {
   }
 
   /**
-   * Get journals with pagination and filtering
-   * @param {Object} params - Query parameters
+   * Get journals with pagination, filtering, and search (with cache)
+   * @param {Object} params - Pagination, filtering, and search parameters
    * @param {string} selectedFields - Fields to select
    * @returns {Object} Paginated journals response
    */
-  async getJournals({ userId, page = 1, limit = 10, sortField = 'date', sortOrder = -1, filter = {} }, selectedFields = '') {
-    logger.debug('Getting journals', { userId, page, limit, sortField, sortOrder, filter });
+  async getJournals({ userId, search, page = 1, limit = 10, sortField = 'date', sortOrder = -1, filter = {} }, selectedFields = '') {
+    logger.debug('Getting journals', { userId, page, limit, sortField, sortOrder, filter, search });
     // Always require userId from argument, never from input
     if (!userId) {
       throw new ValidationError('User ID is required', 'userId');
     }
 
-    // Validate sortField to prevent MongoDB injection or errors
-    const validSortFields = ['date', 'createdAt', 'updatedAt', 'title', 'wordCount', 'mood'];
-    if (!validSortFields.includes(sortField)) {
-      throw new ValidationError(`Invalid sort field: ${sortField}. Valid options are: ${validSortFields.join(', ')}`, 'sortField');
-    }
-
-    // Generate cache key based on query parameters
-    const cacheKey = redisClient.generateListKey(userId, 'journals', { page, limit, sortField, sortOrder, filter });
-
-    // Try to get from cache first
+    const cacheKey = redisClient.generateListKey(userId, 'journals', { page, limit, sortField, sortOrder, filter, search });
     const cachedResult = await redisClient.getList(cacheKey);
     if (cachedResult) {
       logger.debug('Journals retrieved from cache', { userId, page, limit });
       return cachedResult;
     }
-
     const skip = (page - 1) * limit;
     const query = { userId, isDeleted: false };
-
-    // Only apply archived: false if filter.archived is not explicitly set
-    if (filter.archived !== undefined) {
-      query.archived = filter.archived;
-    } else {
-      query.archived = false; // Default behavior
-    }
-
-    // Apply filters
-    if (filter.tags?.length > 0) {
-      query.tags = { $in: filter.tags };
-    }
-    if (filter.mood) {
-      query.mood = filter.mood;
-    }
-    if (filter.dateFrom || filter.dateTo) {
-      query.date = {};
-      if (filter.dateFrom) {
-        query.date.$gte = new Date(filter.dateFrom);
+    // Apply filters if provided
+    if (filter) {
+      // Handle archived status
+      if (filter.archived !== undefined) {
+        query.archived = filter.archived;
+      } else {
+        query.archived = false; // Default behavior
       }
-      if (filter.dateTo) {
-        query.date.$lte = new Date(filter.dateTo);
+
+      // Handle tags
+      if (filter.tags?.length > 0) {
+        query.tags = { $in: filter.tags };
+      }
+
+      // Handle mood
+      if (filter.mood) {
+        query.mood = filter.mood;
+      }
+
+      // Handle date range
+      if (filter.dateFrom || filter.dateTo) {
+        query.date = {};
+        if (filter.dateFrom) {
+          query.date.$gte = new Date(filter.dateFrom);
+        }
+        if (filter.dateTo) {
+          query.date.$lte = new Date(filter.dateTo);
+        }
+      }
+
+      // Handle word count range
+      if (filter.wordCountMin !== undefined || filter.wordCountMax !== undefined) {
+        query.wordCount = {};
+        if (filter.wordCountMin !== undefined) {
+          query.wordCount.$gte = filter.wordCountMin;
+        }
+        if (filter.wordCountMax !== undefined) {
+          query.wordCount.$lte = filter.wordCountMax;
+        }
+      }
+
+      // Handle AI generated filter
+      if (filter.aiGenerated !== undefined) {
+        query.aiGenerated = filter.aiGenerated;
       }
     }
-
-    const [journals, totalItems] = await Promise.all([
-      Journal.find(query)
-        .select(selectedFields || 'title content tags mood date wordCount createdAt updatedAt userId')
-        .sort({ [sortField]: sortOrder })
+    const sortOptions = { [sortField]: sortOrder };
+    let journals;
+    let totalItems;
+    if (search?.query) {
+      logger.debug('Performing text search', { query: search.query });
+      query.$text = {
+        $search: search.query,
+        $caseSensitive: false,
+        $diacriticSensitive: false
+      };
+      journals = await Journal.find(query)
+        .select(selectedFields || '_id userId title content date mood tags aiPromptUsed aiGenerated archived wordCount createdAt updatedAt')
+        .sort({ score: { $meta: 'textScore' }, ...sortOptions })
         .skip(skip)
         .limit(limit)
-        .lean(),
-      Journal.countDocuments(query)
-    ]);
-
+        .lean();
+    } else {
+      journals = await Journal.find(query)
+        .select(selectedFields || '_id userId title content date mood tags aiPromptUsed aiGenerated archived wordCount createdAt updatedAt')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limit)
+        .lean();
+    }
+    totalItems = await Journal.countDocuments(query);
     const result = {
       success: true,
       message: 'Journals retrieved successfully',
@@ -403,14 +436,11 @@ class JournalService {
         totalPages: Math.ceil(totalItems / limit)
       }
     };
-
-    // Cache the result
     // Collect all tags from the result set for robust invalidation
     const allTags = Array.from(new Set(journals.flatMap(j => j.tags || [])));
     await redisClient.setList(cacheKey, result, [userId, ...allTags], userId);
     logger.debug('Journals cached', { userId, page, limit, totalItems });
-
-    logger.info('Journals retrieved successfully', { userId, page, limit, totalItems });
+    logger.info('Journals retrieved successfully', { userId, page, limit, totalItems, hasSearch: !!search?.query });
     return result;
   }
 }

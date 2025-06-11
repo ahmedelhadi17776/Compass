@@ -234,8 +234,6 @@ type TodoFilter struct {
 	Status                *TodoStatus
 	Priority              *TodoPriority
 	IsCompleted           *bool
-	DueDateStart          *time.Time
-	DueDateEnd            *time.Time
 	DueDate               *time.Time
 	ReminderTime          *time.Time
 	IsRecurring           *bool

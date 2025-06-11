@@ -60,7 +60,6 @@ type Service interface {
 	GetTaskActivitySummary(ctx context.Context, taskID uuid.UUID, startTime, endTime time.Time) (*TaskActivitySummary, error)
 	GetUserTaskActivitySummary(ctx context.Context, userID uuid.UUID, startTime, endTime time.Time) (*UserTaskActivitySummary, error)
 	GetDashboardMetrics(userID uuid.UUID) (TasksDashboardMetrics, error)
-	GetTodayTasks(ctx context.Context, userID uuid.UUID) ([]Task, error)
 }
 
 type TaskMetrics struct {
@@ -837,44 +836,6 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (TasksDashboardMetrics, 
 		Completed: completed,
 		Overdue:   overdue,
 	}, nil
-}
-
-func (s *service) GetTodayTasks(ctx context.Context, userID uuid.UUID) ([]Task, error) {
-	// Modified to return all active tasks for the user
-
-	// Get all tasks assigned to the user that are not completed
-	filter := TaskFilter{
-		AssigneeID: &userID,
-		Status:     taskStatusPtr(TaskStatusInProgress), // Only get tasks in progress
-	}
-
-	tasks, _, err := s.repo.FindAll(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	// Log for diagnostic purposes
-	nilDueDateCount := 0
-	for _, task := range tasks {
-		if task.DueDate == nil {
-			nilDueDateCount++
-		}
-	}
-	s.logger.Info("GetTodayTasks results",
-		zap.String("user_id", userID.String()),
-		zap.Int("total_found", len(tasks)),
-		zap.Int("nil_due_date_count", nilDueDateCount))
-
-	// Return all tasks, even those with nil DueDate
-	s.logger.Info("GetTodayTasks returning all active tasks",
-		zap.Int("active_count", len(tasks)))
-
-	return tasks, nil
-}
-
-// Helper function to create a TaskStatus pointer
-func taskStatusPtr(status TaskStatus) *TaskStatus {
-	return &status
 }
 
 func (s *service) recordTaskActivity(ctx context.Context, task *Task, userID uuid.UUID, action string, metadata map[string]interface{}) {

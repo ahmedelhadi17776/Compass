@@ -16,17 +16,3 @@ class FocusSession(MongoBaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     collection_name: ClassVar[str] = "focus_sessions"
-
-
-class FocusSettings(MongoBaseModel):
-    user_id: str = Field(..., description="User ID")
-    daily_target_seconds: int = Field(
-        14400, description="Daily focus target in seconds (default: 4 hours)")
-    weekly_target_seconds: int = Field(
-        72000, description="Weekly focus target in seconds (default: 20 hours)")
-    streak_target_days: int = Field(
-        5, description="Target consecutive days for streak achievement")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    collection_name: ClassVar[str] = "focus_settings"

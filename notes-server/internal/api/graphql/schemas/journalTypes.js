@@ -135,8 +135,10 @@ const getSelectedFields = (info) => {
     if (dataSelection && dataSelection.selectionSet) {
       return dataSelection.selectionSet.selections.map(sel => sel.name.value).join(' ');
     }
+    // If 'data' is not present, fallback to default fields
     return 'title content tags mood date wordCount createdAt updatedAt userId';
   } catch (e) {
+    // Fallback in case of any error
     return 'title content tags mood date wordCount createdAt updatedAt userId';
   }
 };

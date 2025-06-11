@@ -111,28 +111,14 @@ class RedisPubSubClient:
     async def subscribe(self, channel_name, callback):
         redis_conn = await self.get_redis()
         pubsub = redis_conn.pubsub()
-
-        # Check if this is a pattern subscription (contains *)
-        if '*' in channel_name:
-            await pubsub.psubscribe(channel_name)
-            logger.info(f"Pattern subscribed to {channel_name}")
-            async for message in pubsub.listen():
-                if message['type'] == 'pmessage':
-                    try:
-                        event = json.loads(message['data'])
-                        await callback(event)
-                    except Exception as e:
-                        logger.error(f"Error handling pattern event: {e}")
-        else:
-            await pubsub.subscribe(channel_name)
-            logger.info(f"Subscribed to {channel_name}")
-            async for message in pubsub.listen():
-                if message['type'] == 'message':
-                    try:
-                        event = json.loads(message['data'])
-                        await callback(event)
-                    except Exception as e:
-                        logger.error(f"Error handling dashboard event: {e}")
+        await pubsub.subscribe(channel_name)
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                try:
+                    event = json.loads(message['data'])
+                    await callback(event)
+                except Exception as e:
+                    print(f"Error handling dashboard event: {e}")
 
     async def close(self):
         if self._redis:

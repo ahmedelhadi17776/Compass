@@ -1,31 +1,11 @@
 import { BubbleMenu, Editor } from '@tiptap/react'
 import { Button } from "@/components/ui/button"
-import {
-  Bold,
-  Italic,
-  Strikethrough,
-  List,
-  ListOrdered,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  Heading1,
-  Heading2,
-  Heading3,
-  CheckSquare,
-  Code,
-  Quote,
-  Highlighter,
-  Subscript,
-  Superscript,
-  Underline,
-  LucideIcon,
-  Wand2
-} from 'lucide-react'
+import { Bold, Italic, Strikethrough, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify, Heading1, Heading2, Heading3, CheckSquare, Code, Quote, Highlighter, Subscript, Superscript, Underline, LucideIcon, Sparkles, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { toast } from '@/components/ui/use-toast'
 
 interface EditorBubbleMenuProps {
   editor: Editor
@@ -43,9 +23,19 @@ type MenuItem = {
 export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
   const { user, isAuthenticated } = useAuth()
   const token = localStorage.getItem('token')
+  const [isRewriting, setIsRewriting] = useState(false)
 
   const handleRewriteInStyle = useCallback(async () => {
-    if (!editor || !isAuthenticated || !token) return
+    if (!editor || !isAuthenticated || !token) {
+      if (!isAuthenticated) {
+        toast({
+          variant: "destructive",
+          title: "Authentication required",
+          description: "Please sign in to use the style rewrite feature.",
+        })
+      }
+      return
+    }
 
     const selectedText = editor.state.doc.textBetween(
       editor.state.selection.from,
@@ -53,9 +43,24 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       ' '
     )
 
-    if (!selectedText) return
+    if (!selectedText) {
+      toast({
+        variant: "destructive",
+        description: "Please select some text to rewrite.",
+      })
+      return
+    }
 
     try {
+      setIsRewriting(true)
+      
+      // Store the current selection positions
+      const from = editor.state.selection.from
+      const to = editor.state.selection.to
+      
+      // Show subtle highlight to indicate processing
+      editor.chain().focus().setHighlight().run()
+
       const response = await fetch('http://localhost:8001/ai/rewrite-in-style', {
         method: 'POST',
         headers: {
@@ -93,20 +98,43 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       }
 
       if (rewrittenText) {
+        // Remove highlight before applying change
+        editor.chain().focus().unsetHighlight().run()
+        
+        // Apply the rewritten text
         editor
           .chain()
           .focus()
           .setTextSelection({
-            from: editor.state.selection.from,
-            to: editor.state.selection.to
+            from: from,
+            to: to
           })
           .insertContent(rewrittenText)
           .run()
+          
+        // Show success toast
+        toast({
+          title: "Style rewrite complete",
+          description: "Your text has been rewritten in your personal style.",
+          variant: "default",
+        })
       } else {
         console.error('No rewritten text found in response:', data)
+        toast({
+          variant: "destructive",
+          title: "Style rewrite failed",
+          description: "Could not rewrite the selected text. Please try again.",
+        })
       }
     } catch (error) {
       console.error('Error rewriting text:', error)
+      toast({
+        variant: "destructive",
+        title: "Style rewrite failed",
+        description: "An error occurred while rewriting text.",
+      })
+    } finally {
+      setIsRewriting(false)
     }
   }, [editor, user, token, isAuthenticated])
 
@@ -244,49 +272,77 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       action: () => editor.chain().focus().toggleBlockquote().run(),
       isActive: () => editor.isActive('blockquote'),
     },
-    {
-      type: 'divider',
-    },
-    {
-      icon: Wand2,
-      title: 'Rewrite in your style',
-      action: handleRewriteInStyle,
-      isActive: () => false,
-    },
   ]
 
   return (
-    <BubbleMenu 
-      className="flex flex-wrap gap-1 p-2 rounded-lg border bg-black/90 shadow-xl backdrop-blur-sm" 
-      editor={editor}
-      tippyOptions={{ duration: 100 }}
-    >
-      {items.map((item, index) => {
-        if ('type' in item && item.type === 'divider') {
-          return <div key={index} className="w-px h-6 bg-gray-700 mx-1 my-auto" />;
-        }
+    <TooltipProvider delayDuration={300}>
+      <BubbleMenu 
+        className="flex flex-wrap gap-1 p-2 rounded-lg border border-gray-700 bg-black/95 shadow-xl backdrop-blur-lg" 
+        editor={editor}
+        tippyOptions={{ duration: 100 }}
+      >
+        {items.map((item, index) => {
+          if ('type' in item && item.type === 'divider') {
+            return <div key={index} className="w-px h-6 bg-gray-700 mx-1 my-auto" />;
+          }
+          
+          if ('icon' in item) {
+            const Icon = item.icon;
+            return (
+              <Tooltip key={index}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={item.action}
+                    className={cn(
+                      "h-8 w-8 p-0 hover:bg-gray-800 transition-colors",
+                      item.isActive() && 'bg-gray-800 text-white'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="font-medium">
+                  {item.title}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+          
+          return null;
+        })}
         
-        if ('icon' in item) {
-          const Icon = item.icon;
-          return (
+        {/* Special AI Rewrite Button - Separated from normal formatting buttons */}
+        <div className="w-px h-6 bg-gray-700 mx-1 my-auto" />
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
             <Button
-              key={index}
-              variant="ghost"
+              variant="outline"
               size="sm"
-              onClick={item.action}
+              onClick={handleRewriteInStyle}
+              disabled={isRewriting}
               className={cn(
-                "h-8 w-8 p-0 hover:bg-gray-800",
-                item.isActive() && 'bg-gray-800 text-white'
+                "ml-1 gap-1 pl-2 pr-3 h-8 hover:bg-blue-900/30 hover:text-blue-400 hover:border-blue-700 transition-all",
+                isRewriting && "opacity-80"
               )}
-              title={item.title}
             >
-              <Icon className="h-4 w-4" />
+              {isRewriting ? (
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              ) : (
+                <Sparkles className="h-4 w-4 text-blue-500" />
+              )}
+              <span className="text-xs font-medium">
+                {isRewriting ? "Rewriting..." : "My Style"}
+              </span>
             </Button>
-          );
-        }
-        
-        return null;
-      })}
-    </BubbleMenu>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="font-medium">
+            Rewrite selected text in your personal style
+          </TooltipContent>
+        </Tooltip>
+      </BubbleMenu>
+    </TooltipProvider>
   )
 } 

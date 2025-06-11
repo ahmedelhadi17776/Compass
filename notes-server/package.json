@@ -32,6 +32,6 @@
     "zod": "^3.25.28"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.1.10"
   }
 }

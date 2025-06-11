@@ -87,7 +87,7 @@ export default function NotePage({
   }, [isFavorited, onSave])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-16">
       {/* Action buttons - vertically centered */}
       <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
         <Button
@@ -155,13 +155,13 @@ export default function NotePage({
         )}
       </div>
 
-      <div className="mb-10 text-center relative">
-        <Input
+      <div className="mb-10 relative">
+        <input
           value={title}
           onChange={(e) => handleTitleChange(e.target.value)}
           maxLength={201}
           className={cn(
-            "text-4xl font-bold border-0 bg-transparent px-0 text-white text-center focus-visible:ring-0 focus-visible:ring-offset-0",
+            "text-3xl font-bold text-left border-0 bg-transparent text-white focus-visible:ring-0 focus-visible:ring-offset-0",
             titleError && "border-red-500"
           )}
           placeholder="Title"
@@ -176,7 +176,7 @@ export default function NotePage({
         content={content}
         onChange={handleContentChange}
         editable={true}
-        className="min-h-[500px] bg-transparent border-0"
+        className="min-h-[500px] bg-transparent border-0 -mt-10"
       />
 
       {localTags.length > 0 && (

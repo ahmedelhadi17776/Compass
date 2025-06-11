@@ -31,20 +31,3 @@ class FocusStatsResponse(BaseModel):
     streak: int
     longest_streak: int
     sessions: int
-    daily_target_seconds: Optional[int] = None
-
-
-class FocusSettingsUpdate(BaseModel):
-    daily_target_seconds: Optional[int] = None
-    weekly_target_seconds: Optional[int] = None
-    streak_target_days: Optional[int] = None
-
-
-class FocusSettingsResponse(BaseModel):
-    id: str
-    user_id: str
-    daily_target_seconds: int
-    weekly_target_seconds: int
-    streak_target_days: int
-    created_at: datetime
-    updated_at: datetime

@@ -30,7 +30,6 @@ type Service interface {
 	GetTodoList(ctx context.Context, id uuid.UUID) (*TodoList, error)
 	GetAllTodoLists(ctx context.Context, userID uuid.UUID) ([]TodoList, error)
 	GetDashboardMetrics(userID uuid.UUID) (TodosDashboardMetrics, error)
-	GetTodayTodos(ctx context.Context, userID uuid.UUID) ([]Todo, error)
 }
 
 type CreateTodoInput struct {
@@ -461,40 +460,4 @@ func (s *service) GetDashboardMetrics(userID uuid.UUID) (TodosDashboardMetrics, 
 		Completed: completed,
 		Overdue:   overdue,
 	}, nil
-}
-
-func (s *service) GetTodayTodos(ctx context.Context, userID uuid.UUID) ([]Todo, error) {
-	// Modified to return all active (non-completed) todos for the user
-	filter := TodoFilter{
-		UserID:      &userID,
-		IsCompleted: boolPtr(false), // Only get non-completed todos
-	}
-
-	todos, _, err := s.repo.FindAll(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	// Log for diagnostic purposes
-	nilDueDateCount := 0
-	for _, todo := range todos {
-		if todo.DueDate == nil {
-			nilDueDateCount++
-		}
-	}
-	s.logger.Info("GetTodayTodos results",
-		zap.String("user_id", userID.String()),
-		zap.Int("total_found", len(todos)),
-		zap.Int("nil_due_date_count", nilDueDateCount))
-
-	// Return all todos, even those with nil DueDate
-	s.logger.Info("GetTodayTodos returning all active todos",
-		zap.Int("active_count", len(todos)))
-
-	return todos, nil
-}
-
-// Helper function to create a bool pointer
-func boolPtr(b bool) *bool {
-	return &b
 }

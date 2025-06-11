@@ -1,80 +1,25 @@
-import { useEffect, useState, useCallback } from "react";
-import { useDashboardMetrics } from "@/components/dashboard/useDashboardMetrics";
-import { useWebSocket } from "@/contexts/websocket-provider";
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { fetchHeatmapData } from '@/components/todo/api';
 
-export type HeatmapPeriod = "week" | "month" | "year";
 export type HeatmapData = Record<string, number>;
+export type HeatmapPeriod = 'week' | 'month';
 
-export const useHabitHeatmap = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [data, setData] = useState<HeatmapData>({});
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Get data from dashboard metrics
-  const { 
-    data: metricsData, 
-    isLoading: metricsLoading, 
-    isError: metricsError,
-    error: metricsErrorData,
-    requestRefresh
-  } = useDashboardMetrics();
-  
-  // Get WebSocket connection for more targeted refresh
-  const { sendMessage, isConnected } = useWebSocket();
+export const useHabitHeatmap = (userId: string) => {
+  const [period, setPeriod] = useState<HeatmapPeriod>('month');
 
-  useEffect(() => {
-    setLoading(metricsLoading);
-    
-    if (metricsError && metricsErrorData) {
-      setError(metricsErrorData instanceof Error ? metricsErrorData : new Error("Failed to load heatmap data"));
-    } else {
-      setError(null);
-    }
-    
-    if (metricsData?.habit_heatmap) {
-      setData(metricsData.habit_heatmap);
-      // If we were refreshing, mark as done
-      if (isRefreshing) {
-        setIsRefreshing(false);
-      }
-    }
-  }, [metricsData, metricsLoading, metricsError, metricsErrorData, isRefreshing]);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['habitHeatmap', userId, period],
+    queryFn: () => fetchHeatmapData(period),
+    enabled: !!userId,
+  });
 
-  // Function to refresh all dashboard metrics
-  const refreshData = useCallback(() => {
-    requestRefresh();
-    setIsRefreshing(true);
-  }, [requestRefresh]);
-  
-  // Function to refresh only heatmap data via WebSocket
-  const refreshHeatmap = useCallback(() => {
-    setIsRefreshing(true);
-    
-    if (sendMessage && isConnected) {
-      sendMessage({
-        type: "refresh_heatmap"
-      });
-    } else {
-      // Fallback to full refresh if WebSocket is not available
-      requestRefresh();
-    }
-    
-    // Set a timeout to clear refreshing state if no response
-    setTimeout(() => {
-      if (isRefreshing) {
-        setIsRefreshing(false);
-      }
-    }, 5000);
-  }, [sendMessage, isConnected, requestRefresh, isRefreshing]);
-
-  return { 
-    data, 
-    loading: loading || isRefreshing, 
-    error, 
-    refreshData, 
-    refreshHeatmap,
-    isConnected
+  return {
+    data: data || {},
+    loading: isLoading,
+    error,
+    period,
+    setPeriod,
   };
 };
 

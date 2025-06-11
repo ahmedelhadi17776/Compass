@@ -29,78 +29,54 @@ const dashboardMetrics = {
 
       logger.info('Generating dashboard metrics', { userId });
 
-      // Get mood summary from journals with error handling
-      let moodSummary = null;
+      // Get mood summary from journals
+      const moodSummary = await Journal.getMoodSummary(userId);
+
+      // Count notes and journals
+      const notesCount = await Note.countDocuments({ userId, isDeleted: false });
+      const journalsCount = await Journal.countDocuments({ userId, isDeleted: false });
+
+      // Get recent notes (last 5)
+      const recentNotes = await Note.find({ userId, isDeleted: false })
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .select('title content updatedAt')
+        .lean();
+
+      // Get recent journals (last 5)
+      const recentJournals = await Journal.find({ userId, isDeleted: false })
+        .sort({ date: -1 })
+        .limit(5)
+        .select('title content date mood')
+        .lean();
+
+      // Get tag distribution
+      const tagCounts = await Note.aggregate([
+        { $match: { userId, isDeleted: false } },
+        { $unwind: "$tags" },
+        { $group: { _id: "$tags", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ]);
+
+      // Parse mood summary for mood distribution
       let moodDistribution = {};
       try {
-        moodSummary = await Journal.getMoodSummary(userId);
         if (moodSummary) {
           moodDistribution = JSON.parse(moodSummary);
         }
       } catch (error) {
-        logger.warn('Failed to get mood summary', { error: error.message, userId });
-      }
-
-      // Count notes and journals with error handling
-      let notesCount = 0;
-      let journalsCount = 0;
-      try {
-        notesCount = await Note.countDocuments({ userId, isDeleted: false });
-        journalsCount = await Journal.countDocuments({ userId, isDeleted: false });
-      } catch (error) {
-        logger.warn('Failed to count documents', { error: error.message, userId });
-      }
-
-      // Get recent notes (last 5) with error handling
-      let recentNotes = [];
-      try {
-        recentNotes = await Note.find({ userId, isDeleted: false })
-          .sort({ updatedAt: -1 })
-          .limit(5)
-          .select('title content updatedAt')
-          .lean();
-      } catch (error) {
-        logger.warn('Failed to get recent notes', { error: error.message, userId });
-      }
-
-      // Get recent journals (last 5) with error handling
-      let recentJournals = [];
-      try {
-        recentJournals = await Journal.find({ userId, isDeleted: false })
-          .sort({ date: -1 })
-          .limit(5)
-          .select('title content date mood')
-          .lean();
-      } catch (error) {
-        logger.warn('Failed to get recent journals', { error: error.message, userId });
-      }
-
-      // Get tag distribution with error handling
-      let tagCounts = [];
-      try {
-        tagCounts = await Note.aggregate([
-          { $match: { userId, isDeleted: false } },
-          { $unwind: "$tags" },
-          { $group: { _id: "$tags", count: { $sum: 1 } } },
-          { $sort: { count: -1 } },
-          { $limit: 10 }
-        ]);
-      } catch (error) {
-        logger.warn('Failed to get tag distribution', { error: error.message, userId });
+        logger.warn('Failed to parse mood summary', { error: error.message });
       }
 
       const metrics = {
-        mood: moodSummary,
+        moodSummary,
+        notesCount,
+        journalsCount,
+        recentNotes,
+        recentJournals,
+        tagCounts,
         moodDistribution,
-        notes: {
-          count: notesCount,
-          recent: recentNotes
-        },
-        journals: {
-          count: journalsCount,
-          recent: recentJournals
-        },
-        tags: tagCounts,
         timestamp: new Date().toISOString()
       };
 
@@ -108,11 +84,7 @@ const dashboardMetrics = {
       await redisClient.set(cacheKey, JSON.stringify(metrics), 300); // Cache for 5 minutes
 
       // Publish metrics update event
-      try {
-        await dashboardEvents.publishMetricsUpdate(userId, null, metrics);
-      } catch (error) {
-        logger.warn('Failed to publish metrics update event', { error: error.message, userId });
-      }
+      await dashboardEvents.publishMetricsUpdate(userId, null, metrics);
 
       return {
         success: true,
@@ -120,26 +92,7 @@ const dashboardMetrics = {
       };
     } catch (error) {
       logger.error('Error fetching dashboard metrics', { error: error.message, userId: args.userId });
-      
-      // Return empty structure on error instead of throwing
-      return {
-        success: false,
-        data: {
-          mood: null,
-          moodDistribution: {},
-          notes: {
-            count: 0,
-            recent: []
-          },
-          journals: {
-            count: 0,
-            recent: []
-          },
-          tags: [],
-          timestamp: new Date().toISOString()
-        },
-        error: 'Failed to fetch dashboard metrics'
-      };
+      throw new Error('Failed to fetch dashboard metrics');
     }
   }
 };

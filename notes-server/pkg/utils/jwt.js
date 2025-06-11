@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const { config } = require('../../internal/config/server');
 
 function extractUserIdFromToken(authorization) {
   if (!authorization || !authorization.startsWith('Bearer ')) {
@@ -7,25 +6,13 @@ function extractUserIdFromToken(authorization) {
   }
   const token = authorization.split(' ')[1];
   try {
-    const claims = jwt.verify(token, config.jwt.secret, {
-      algorithms: [config.jwt.algorithm]
+    const claims = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: [process.env.JWT_ALGORITHM || 'HS256']
     });
-    
-    // Handle multiple user ID field formats for cross-service compatibility
-    let userId = claims.user_id || claims.userId || claims.sub;
-    
-    if (!userId) {
+    if (!claims.user_id && !claims.userId) {
       throw new Error('user_id not found in token');
     }
-    
-    // Convert to string if it's a UUID object or other format
-    if (typeof userId === 'object' && userId !== null) {
-      userId = String(userId);
-    } else if (typeof userId !== 'string') {
-      userId = String(userId);
-    }
-    
-    return userId;
+    return claims.user_id || claims.userId;
   } catch (e) {
     throw new Error(`Token decode error: ${e.message}`);
   }
