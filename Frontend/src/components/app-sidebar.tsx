@@ -13,6 +13,7 @@ import {
   StickyNote,
   Share2,
   Eye,
+  BookMarked,
 } from "lucide-react"
 
 import { NavMain } from "../components/nav-main"
@@ -78,6 +79,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Notes",
         url: "/notes",
         icon: StickyNote,
+      },
+      {
+        title: "Journaling",
+        url: "/journaling",
+        icon: BookMarked,
       },
       {
         title: "Workflows",

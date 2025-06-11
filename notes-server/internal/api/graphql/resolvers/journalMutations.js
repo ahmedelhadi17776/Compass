@@ -18,7 +18,7 @@ const journalMutations = {
     async resolve(parent, args, context, info) {
       try {
         const { input } = args;
-        const selectedFields = getSelectedFields(info);
+        const selectedFields = getSelectedFields(info) || 'id _id userId title content date mood tags aiPromptUsed aiGenerated archived wordCount createdAt updatedAt isDeleted';
         const currentUserId = context.user && context.user.id;
         const inputWithUser = { ...input, userId: currentUserId };
         const savedJournal = await journalService.createJournal(inputWithUser, selectedFields);
