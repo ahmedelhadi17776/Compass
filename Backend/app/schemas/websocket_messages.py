@@ -79,6 +79,6 @@ MESSAGE_TYPES = {
 def parse_message(data: Dict[str, Any]) -> WebSocketMessage:
     """Parse a raw message into the appropriate message class"""
     message_type = data.get("type")
-    if message_type in MESSAGE_TYPES:
+    if message_type and message_type in MESSAGE_TYPES:
         return MESSAGE_TYPES[message_type](**data)
     return WebSocketMessage(**data)

@@ -26,6 +26,8 @@ type TaskFilter struct {
 	ReviewerID     *uuid.UUID
 	StartDate      *time.Time
 	EndDate        *time.Time
+	DueDateStart   *time.Time
+	DueDateEnd     *time.Time
 	Page           int
 	PageSize       int
 }
@@ -110,6 +112,12 @@ func (r *taskRepository) FindAll(ctx context.Context, filter TaskFilter) ([]Task
 	}
 	if filter.StartDate != nil && filter.EndDate != nil {
 		query = query.Where("created_at BETWEEN ? AND ?", filter.StartDate, filter.EndDate)
+	}
+	if filter.DueDateStart != nil {
+		query = query.Where("due_date >= ?", *filter.DueDateStart)
+	}
+	if filter.DueDateEnd != nil {
+		query = query.Where("due_date < ?", *filter.DueDateEnd)
 	}
 
 	// Count total before pagination

@@ -77,6 +77,12 @@ func (r *todoRepository) FindAll(ctx context.Context, filter TodoFilter) ([]Todo
 	if filter.IsCompleted != nil {
 		query = query.Where("is_completed = ?", *filter.IsCompleted)
 	}
+	if filter.DueDateStart != nil {
+		query = query.Where("due_date >= ?", *filter.DueDateStart)
+	}
+	if filter.DueDateEnd != nil {
+		query = query.Where("due_date < ?", *filter.DueDateEnd)
+	}
 	if filter.DueDate != nil {
 		query = query.Where("due_date = ?", filter.DueDate)
 	}
