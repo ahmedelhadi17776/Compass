@@ -8,12 +8,11 @@ from ai_services.agents.todo_agent import TodoAgent, SubtaskGeneratorAgent, Dead
 
 from atomic_agents.lib.components.agent_memory import AgentMemory
 from atomic_agents.lib.components.system_prompt_generator import SystemPromptGenerator
-from atomic_agents.lib.base.base_io_schema import BaseIOSchema
 
 logger = logging.getLogger(__name__)
 
 
-class CoordinatorInputSchema(BaseIOSchema):
+class CoordinatorInputSchema(BaseModel):
     """Input schema for the AgentOrchestrator."""
     target_type: str = Field(..., description="Type of target to process")
     target_id: str = Field(..., description="ID of the target to process")
@@ -24,7 +23,7 @@ class CoordinatorInputSchema(BaseIOSchema):
         None, description="Data for the target")
 
 
-class CoordinatorOutputSchema(BaseIOSchema):
+class CoordinatorOutputSchema(BaseModel):
     """Output schema for the AgentOrchestrator."""
     options: Optional[List[Dict[str, Any]]] = Field(
         None, description="List of available options")
@@ -39,7 +38,6 @@ class CoordinatorOutputSchema(BaseIOSchema):
 class AgentOrchestrator:
     """
     Orchestrates the selection and execution of specialized AI agents.
-    Following the Atomic Agents pattern for agent coordination.
     """
 
     def __init__(self):
@@ -78,35 +76,8 @@ class AgentOrchestrator:
             # "note_questions": QuestionGeneratorAgent(),
         }
 
-        # Create an atomic agent coordinator
-        self.coordinator = self._create_coordinator()
-
-    def _create_coordinator(self):
-        """Create an agent coordinator using Atomic Agents."""
-        memory = AgentMemory()
-
-        # System prompt generator for coordination decisions
-        system_prompt = SystemPromptGenerator(
-            background=[
-                "You are IRIS Coordinator, the orchestration layer for the COMPASS AI system.",
-                "You direct requests to specialized agents based on the target type and requested operation."
-            ],
-            steps=[
-                "Identify the target type and requested operation.",
-                "Select the appropriate specialized agent to handle the request.",
-                "Route the request to the selected agent and return its response."
-            ],
-            output_instructions=[
-                "Return the appropriate agent's response without modification.",
-                "If no appropriate agent is found, return an error message."
-            ]
-        )
-
-        # Initialize the coordinator
-        return {
-            "memory": memory,
-            "system_prompt": system_prompt
-        }
+        # Create an agent memory for the orchestrator
+        self.memory = AgentMemory()
 
     async def get_options_for_target(
         self,

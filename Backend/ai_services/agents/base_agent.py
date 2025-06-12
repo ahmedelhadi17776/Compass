@@ -1,12 +1,9 @@
-from typing import Dict, Any, List, Optional, Type
+from typing import Dict, Any, List, Optional, Type, AsyncGenerator
 import logging
 import asyncio
 from pydantic import BaseModel, Field
 import json
 import os
-import instructor
-import openai
-from atomic_agents.agents.base_agent import BaseAgent as AtomicBaseAgent, BaseAgentConfig, BaseAgentInputSchema, BaseAgentOutputSchema
 from atomic_agents.lib.components.agent_memory import AgentMemory
 from atomic_agents.lib.components.system_prompt_generator import SystemPromptGenerator
 from atomic_agents.lib.base.base_io_schema import BaseIOSchema as AtomicBaseIOSchema
@@ -16,19 +13,58 @@ from core.mcp_state import get_mcp_client
 from orchestration.prompts import SYSTEM_PROMPT
 from data_layer.cache.ai_cache_manager import AICacheManager
 
+# Global services for use across the application
+_global_llm_service = None
+_global_github_adapter = None
+_global_memory = None
+
+
+def set_global_llm_service(service):
+    """Set the global LLM service instance."""
+    global _global_llm_service
+    _global_llm_service = service
+
+
+def get_global_llm_service():
+    """Get the global LLM service instance."""
+    return _global_llm_service
+
+
+def set_global_github_adapter(adapter):
+    """Set the global GitHub model adapter instance."""
+    global _global_github_adapter
+    _global_github_adapter = adapter
+
+
+def get_global_github_adapter():
+    """Get the global GitHub model adapter instance."""
+    return _global_github_adapter
+
+
+def set_global_memory(memory):
+    """Set the global agent memory instance."""
+    global _global_memory
+    _global_memory = memory
+
+
+def get_global_memory():
+    """Get the global agent memory instance."""
+    return _global_memory
+
 
 class BaseIOSchema(BaseModel):
     """Base schema class for agent input/output following Atomic Agents patterns."""
     pass
 
 
-class CompassAgentInputSchema(BaseAgentInputSchema):
+class CompassAgentInputSchema(BaseModel):
     """Input schema for Compass agents."""
+    chat_message: str = Field(..., description="Message from the user")
     user_id: str = Field(..., description="ID of the user")
     auth_token: Optional[str] = Field(None, description="Authentication token")
 
 
-class CompassAgentOutputSchema(BaseAgentOutputSchema):
+class CompassAgentOutputSchema(BaseModel):
     """Output schema for Compass agents."""
     response: str = Field(..., description="Response message from the agent")
     data: Optional[Dict[str, Any]] = Field(
@@ -38,21 +74,33 @@ class CompassAgentOutputSchema(BaseAgentOutputSchema):
 class BaseAgent:
     """
     Base class for all AI agents in the system.
-    Implements the Atomic Agents pattern for agent structure.
+    Implements a compatible interface with Atomic Agents pattern.
     """
 
     def __init__(self):
-        self.llm_service = LLMService()
         self.logger = logging.getLogger(__name__)
+
+        # Try to use global LLM service if available
+        global _global_llm_service
+        if _global_llm_service is not None:
+            self.llm_service = _global_llm_service
+            self.logger.debug("Using global LLM service instance")
+        else:
+            self.llm_service = LLMService()
+            self.logger.debug("Created new LLM service instance")
+
         self._init_lock = asyncio.Lock()
         self.mcp_client = None
 
         # Initialize memory for the agent
-        self.memory = AgentMemory()
-
-        # Set up OpenAI client with instructor for structured outputs
-        api_key = os.getenv("OPENAI_API_KEY")
-        self.client = instructor.from_openai(openai.OpenAI(api_key=api_key))
+        # Try to use a global memory instance if available
+        global _global_memory
+        if _global_memory is not None:
+            self.memory = _global_memory
+            self.logger.debug("Using global memory instance")
+        else:
+            self.memory = AgentMemory()
+            self.logger.debug("Created new memory instance")
 
         # System prompt generator for better prompting
         self.system_prompt_generator = SystemPromptGenerator(
@@ -67,24 +115,90 @@ class BaseAgent:
             ],
             output_instructions=[
                 "Provide clear, concise, and helpful responses.",
-                "When using tools, explain the results in a user-friendly way."
+                "When using tools, explain the results in a user-friendly way.",
+                "Return your response in JSON format matching the required schema."
             ]
         )
 
-        # Initialize the atomic agent
-        self.atomic_agent = self._create_atomic_agent()
+    async def run(
+        self,
+        input_data: Dict[str, Any],
+        user_id: str,
+        auth_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Run the agent with the given input data.
+        This is the main entry point for agent execution.
 
-    def _create_atomic_agent(self):
-        """Create and return an atomic agent instance."""
-        return AtomicBaseAgent(
-            config=BaseAgentConfig(
-                client=self.client,
-                model="gpt-4o-mini",  # Default model
-                memory=self.memory,
-                system_prompt_generator=self.system_prompt_generator,
-                output_schema=CompassAgentOutputSchema,
+        This implementation directly uses our LLM service with the GitHub-hosted model.
+        """
+        try:
+            # Extract prompt from input data
+            prompt = input_data.get("prompt", "")
+            if not prompt:
+                prompt = input_data.get("chat_message", "")
+
+            if not prompt:
+                return {
+                    "status": "error",
+                    "error": "No prompt provided in input data"
+                }
+
+            # Get system prompt from our generator
+            # Manually build the system prompt using the components
+            system_content = "\n\n".join([
+                "# Background",
+                "\n".join(self.system_prompt_generator.background),
+                "# Steps",
+                "\n".join(self.system_prompt_generator.steps),
+                "# Output Instructions",
+                "\n".join(self.system_prompt_generator.output_instructions)
+            ])
+
+            # Prepare context
+            context = {
+                "system_prompt": system_content,
+                "user_id": user_id
+            }
+
+            # Call LLM service with our GitHub-hosted model
+            response = await self.llm_service.generate_response(
+                prompt=prompt,
+                context=context,
+                stream=False,
+                user_id=user_id
             )
-        )
+
+            # Process the response
+            if isinstance(response, dict) and "text" in response:
+                response_text = response["text"]
+
+                # Try to parse JSON if output is expected to be structured
+                data = None
+                if response_text.startswith("{") and response_text.endswith("}"):
+                    try:
+                        data = json.loads(response_text)
+                    except json.JSONDecodeError:
+                        # Not valid JSON, that's okay
+                        pass
+
+                return {
+                    "status": "success",
+                    "response": response_text,
+                    "data": data
+                }
+            else:
+                return {
+                    "status": "success",
+                    "response": str(response),
+                    "data": None
+                }
+        except Exception as e:
+            self.logger.error(f"Error running agent: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     async def _get_mcp_client(self):
         """Get MCP client, with lazy initialization."""
@@ -447,47 +561,6 @@ class BaseAgent:
         Should be implemented by specialized agent subclasses.
         """
         raise NotImplementedError("Subclasses must implement process")
-
-    async def run(
-        self,
-        input_data: Dict[str, Any],
-        user_id: str,
-        auth_token: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Run the agent with the given input data.
-        This is the main entry point for agent execution.
-        """
-        try:
-            # Create input schema
-            input_schema = BaseAgentInputSchema(
-                chat_message=input_data.get("prompt", "")
-            )
-
-            # Run the atomic agent - consume the AsyncGenerator to get the final result
-            final_response = None
-            async for partial_response in self.atomic_agent.run_async(input_schema):
-                final_response = partial_response
-
-            # If we didn't get a response, return an error
-            if not final_response:
-                return {
-                    "status": "error",
-                    "error": "No response from agent"
-                }
-
-            # Return the response
-            return {
-                "status": "success",
-                "response": final_response.response,
-                "data": final_response.data
-            }
-        except Exception as e:
-            self.logger.error(f"Error running agent: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
 
     async def _generate_response_with_tools(
         self,
