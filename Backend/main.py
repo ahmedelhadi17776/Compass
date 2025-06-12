@@ -214,23 +214,39 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
         # Initialize Atomic Agents
         logger.info("Initializing Atomic Agents framework...")
         try:
-            # Set up OpenAI API key for Atomic Agents
+            # Configure for GitHub-hosted model integration
             import os
             import openai
+            from ai_services.llm.llm_service import LLMService
+            from ai_services.adapters.github_model_adapter import GitHubModelAdapter
+            from atomic_agents.lib.components.agent_memory import AgentMemory
+
+            # Set default API key for Atomic Agents (for compatibility only)
             if not os.environ.get("OPENAI_API_KEY"):
                 logger.warning(
                     "OPENAI_API_KEY not found in environment, using default key for development")
                 os.environ["OPENAI_API_KEY"] = settings.openai_api_key
 
-            # Pre-initialize instructor with openai client
-            import instructor
-            from atomic_agents.lib.components.agent_memory import AgentMemory
-            app.state.instructor_client = instructor.from_openai(
-                openai.OpenAI())
+            # Create GitHub model adapter to integrate with Atomic Agents
+            llm_service = LLMService()
+            github_adapter = GitHubModelAdapter(llm_service)
+
+            # Store adapter and memory in app state for reuse
+            app.state.github_adapter = github_adapter
             app.state.agent_memory = AgentMemory()
-            logger.info("✅ Atomic Agents framework initialized successfully")
+            app.state.llm_service = llm_service
+
+            # Make these available globally
+            from ai_services.agents.base_agent import set_global_llm_service, set_global_github_adapter, set_global_memory
+            set_global_llm_service(llm_service)
+            set_global_github_adapter(github_adapter)
+            set_global_memory(app.state.agent_memory)
+
+            logger.info(
+                "✅ Atomic Agents compatible components initialized successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Atomic Agents: {str(e)}")
+            logger.error(
+                f"❌ Failed to initialize Atomic Agents components: {str(e)}")
             logger.warning(
                 "Application will continue without Atomic Agents support")
 
