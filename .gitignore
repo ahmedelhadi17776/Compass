@@ -7,6 +7,12 @@ __pycache__/
 *.egg-info/
 *.egg
 
+# Node.js
+package.json
+package-lock.json
+**/package.json
+**/package-lock.json
+
 # AI Model Cache Directories
 /app/cache/transformers/
 /app/cache/sentence-transformers/
