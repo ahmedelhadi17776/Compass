@@ -4,6 +4,11 @@ import logging
 from ai_services.agents.base_agent import BaseAgent, BaseIOSchema
 from pydantic import Field
 
+from atomic_agents.agents.base_agent import BaseAgent as AtomicBaseAgent, BaseAgentConfig, BaseAgentInputSchema
+from atomic_agents.lib.components.agent_memory import AgentMemory
+from atomic_agents.lib.components.system_prompt_generator import SystemPromptGenerator
+from atomic_agents.lib.base.base_io_schema import BaseIOSchema as AtomicBaseIOSchema
+
 
 class TodoAgentInputSchema(BaseIOSchema):
     """Input schema for TodoAgent."""
@@ -22,6 +27,35 @@ class TodoAgent(BaseAgent):
     Agent for handling todo-related AI operations.
     Follows Atomic Agents pattern for entity-specific agents.
     """
+
+    def __init__(self):
+        super().__init__()
+
+        # Create specialized system prompt for todo agent
+        self.todo_system_prompt = SystemPromptGenerator(
+            background=[
+                "You are IRIS, an AI assistant for the COMPASS productivity app.",
+                "You specialize in helping users manage their todos effectively."
+            ],
+            steps=[
+                "Analyze the todo to understand its context, priority, and deadline.",
+                "Identify ways you can help the user with this todo."
+            ],
+            output_instructions=[
+                "Provide practical, actionable advice.",
+                "Be specific to the todo's details when possible."
+            ]
+        )
+
+        # Update the atomic agent with specialized configuration
+        self.atomic_agent = AtomicBaseAgent(
+            config=BaseAgentConfig(
+                client=self.client,
+                model="gpt-4o-mini",
+                memory=self.memory,
+                system_prompt_generator=self.todo_system_prompt
+            )
+        )
 
     async def get_options(
         self,
@@ -70,10 +104,13 @@ class TodoAgent(BaseAgent):
         return default_options
 
 
-class SubtaskGeneratorInputSchema(BaseIOSchema):
+class SubtaskGeneratorInputSchema(BaseAgentInputSchema):
     """Input schema for SubtaskGeneratorAgent."""
     todo_id: str = Field(..., description="ID of the todo")
     user_id: str = Field(..., description="ID of the user")
+    todo_title: str = Field(..., description="Title of the todo")
+    todo_description: Optional[str] = Field(
+        None, description="Description of the todo")
 
 
 class SubtaskGeneratorOutputSchema(BaseIOSchema):
@@ -88,6 +125,37 @@ class SubtaskGeneratorAgent(BaseAgent):
     Specialized agent for generating subtasks from a todo.
     Follows Atomic Agents pattern for task-specific agents.
     """
+
+    def __init__(self):
+        super().__init__()
+
+        # Create specialized system prompt for subtask generation
+        self.subtask_system_prompt = SystemPromptGenerator(
+            background=[
+                "You are IRIS, an AI assistant for the COMPASS productivity app.",
+                "You specialize in breaking down todos into manageable subtasks."
+            ],
+            steps=[
+                "Analyze the todo to understand what it involves.",
+                "Break it down into 3-5 logical, sequential subtasks.",
+                "Ensure each subtask is specific and actionable."
+            ],
+            output_instructions=[
+                "Provide subtasks as a numbered list.",
+                "Include a brief recommendation on how to approach these subtasks."
+            ]
+        )
+
+        # Update the atomic agent with specialized configuration
+        self.atomic_agent = AtomicBaseAgent(
+            config=BaseAgentConfig(
+                client=self.client,
+                model="gpt-4o-mini",
+                memory=self.memory,
+                system_prompt_generator=self.subtask_system_prompt,
+                output_schema=SubtaskGeneratorOutputSchema
+            )
+        )
 
     async def process(
         self,
@@ -115,23 +183,42 @@ class SubtaskGeneratorAgent(BaseAgent):
                 self.logger.warning(
                     f"target_data is not a dictionary: {type(target_data)}")
 
-            # Create prompt that encourages tool use
-            prompt = f"""
-You are IRIS, an AI assistant for the COMPASS productivity app.
-I need you to break down this todo into smaller, manageable subtasks. You have tools available to get more information if needed.
+            # Create atomic agent input schema
+            input_schema = BaseAgentInputSchema(
+                chat_message=f"Generate subtasks for todo: {title}. Todo description: {description}"
+            )
 
-Todo: {title}
-Description: {description}
+            # Run the atomic agent
+            try:
+                # Collect the final response from the async generator
+                final_response = None
+                async for partial_response in self.atomic_agent.run_async(input_schema):
+                    final_response = partial_response
 
-Please provide 3-5 specific, actionable subtasks that would help complete this todo. If the task is complex, you can use tools to find more information. Format them as a numbered list.
-"""
+                if final_response:
+                    # Format the response
+                    result = f"**Subtasks for {title}:**\n\n"
+                    for i, subtask in enumerate(final_response.subtasks, 1):
+                        result += f"{i}. {subtask}\n"
 
-            # Generate response with model parameters for better subtask generation
-            model_params = {
-                "temperature": 0.7,
-                "top_p": 0.9
-            }
-            return await self._generate_response_with_tools(prompt, user_id, model_params)
+                    result += f"\n**Recommendation:**\n{final_response.recommendation}"
+
+                    return result
+                else:
+                    # Fall back to the original implementation if no response
+                    return await self._generate_response_with_tools(
+                        f"Break down this todo into smaller, manageable subtasks:\nTodo: {title}\nDescription: {description}",
+                        user_id,
+                        {"temperature": 0.7, "top_p": 0.9}
+                    )
+            except Exception as e:
+                self.logger.error(f"Error running atomic agent: {str(e)}")
+                # Fall back to the original implementation if atomic agent fails
+                return await self._generate_response_with_tools(
+                    f"Break down this todo into smaller, manageable subtasks:\nTodo: {title}\nDescription: {description}",
+                    user_id,
+                    {"temperature": 0.7, "top_p": 0.9}
+                )
         except Exception as e:
             self.logger.error(
                 f"Error in SubtaskGeneratorAgent.process: {str(e)}", exc_info=True)
@@ -143,6 +230,37 @@ class DeadlineAdvisorAgent(BaseAgent):
     Specialized agent for providing deadline-based advice.
     Follows Atomic Agents pattern for task-specific agents.
     """
+
+    def __init__(self):
+        super().__init__()
+
+        # Create specialized system prompt for deadline advice
+        self.deadline_system_prompt = SystemPromptGenerator(
+            background=[
+                "You are IRIS, an AI assistant for the COMPASS productivity app.",
+                "You specialize in providing deadline-based advice for todos."
+            ],
+            steps=[
+                "Analyze the todo's due date and priority.",
+                "Consider how it fits into the user's schedule.",
+                "Develop time management strategies specific to this task."
+            ],
+            output_instructions=[
+                "Provide specific recommendations for managing this deadline.",
+                "Keep your response under 150 words.",
+                "Include time management strategies and prioritization tips."
+            ]
+        )
+
+        # Update the atomic agent with specialized configuration
+        self.atomic_agent = AtomicBaseAgent(
+            config=BaseAgentConfig(
+                client=self.client,
+                model="gpt-4o-mini",
+                memory=self.memory,
+                system_prompt_generator=self.deadline_system_prompt
+            )
+        )
 
     async def process(
         self,
@@ -204,6 +322,37 @@ class PriorityOptimizerAgent(BaseAgent):
     Specialized agent for optimizing task priority.
     Follows Atomic Agents pattern for task-specific agents.
     """
+
+    def __init__(self):
+        super().__init__()
+
+        # Create specialized system prompt for priority optimization
+        self.priority_system_prompt = SystemPromptGenerator(
+            background=[
+                "You are IRIS, an AI assistant for the COMPASS productivity app.",
+                "You specialize in optimizing task priorities and providing motivation."
+            ],
+            steps=[
+                "Analyze the todo's priority, description, and due date.",
+                "Evaluate if the current priority setting is appropriate.",
+                "Develop motivation strategies specific to this task."
+            ],
+            output_instructions=[
+                "Provide insights on whether the priority is appropriate.",
+                "Offer specific motivation strategies for completing this task.",
+                "Keep your response under 150 words and make it actionable."
+            ]
+        )
+
+        # Update the atomic agent with specialized configuration
+        self.atomic_agent = AtomicBaseAgent(
+            config=BaseAgentConfig(
+                client=self.client,
+                model="gpt-4o-mini",
+                memory=self.memory,
+                system_prompt_generator=self.priority_system_prompt
+            )
+        )
 
     async def process(
         self,

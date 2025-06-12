@@ -1,8 +1,15 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 import logging
 import asyncio
 from pydantic import BaseModel, Field
 import json
+import os
+import instructor
+import openai
+from atomic_agents.agents.base_agent import BaseAgent as AtomicBaseAgent, BaseAgentConfig, BaseAgentInputSchema, BaseAgentOutputSchema
+from atomic_agents.lib.components.agent_memory import AgentMemory
+from atomic_agents.lib.components.system_prompt_generator import SystemPromptGenerator
+from atomic_agents.lib.base.base_io_schema import BaseIOSchema as AtomicBaseIOSchema
 
 from ai_services.llm.llm_service import LLMService
 from core.mcp_state import get_mcp_client
@@ -13,6 +20,19 @@ from data_layer.cache.ai_cache_manager import AICacheManager
 class BaseIOSchema(BaseModel):
     """Base schema class for agent input/output following Atomic Agents patterns."""
     pass
+
+
+class CompassAgentInputSchema(BaseAgentInputSchema):
+    """Input schema for Compass agents."""
+    user_id: str = Field(..., description="ID of the user")
+    auth_token: Optional[str] = Field(None, description="Authentication token")
+
+
+class CompassAgentOutputSchema(BaseAgentOutputSchema):
+    """Output schema for Compass agents."""
+    response: str = Field(..., description="Response message from the agent")
+    data: Optional[Dict[str, Any]] = Field(
+        None, description="Additional data returned by the agent")
 
 
 class BaseAgent:
@@ -26,6 +46,45 @@ class BaseAgent:
         self.logger = logging.getLogger(__name__)
         self._init_lock = asyncio.Lock()
         self.mcp_client = None
+
+        # Initialize memory for the agent
+        self.memory = AgentMemory()
+
+        # Set up OpenAI client with instructor for structured outputs
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.client = instructor.from_openai(openai.OpenAI(api_key=api_key))
+
+        # System prompt generator for better prompting
+        self.system_prompt_generator = SystemPromptGenerator(
+            background=[
+                "You are IRIS, an AI assistant for the COMPASS productivity app.",
+                "You help users with their productivity tasks, habits, and goals."
+            ],
+            steps=[
+                "Understand the user's request and context.",
+                "Determine the appropriate response or action.",
+                "Use available tools if needed to fulfill the request."
+            ],
+            output_instructions=[
+                "Provide clear, concise, and helpful responses.",
+                "When using tools, explain the results in a user-friendly way."
+            ]
+        )
+
+        # Initialize the atomic agent
+        self.atomic_agent = self._create_atomic_agent()
+
+    def _create_atomic_agent(self):
+        """Create and return an atomic agent instance."""
+        return AtomicBaseAgent(
+            config=BaseAgentConfig(
+                client=self.client,
+                model="gpt-4o-mini",  # Default model
+                memory=self.memory,
+                system_prompt_generator=self.system_prompt_generator,
+                output_schema=CompassAgentOutputSchema,
+            )
+        )
 
     async def _get_mcp_client(self):
         """Get MCP client, with lazy initialization."""
@@ -388,6 +447,47 @@ class BaseAgent:
         Should be implemented by specialized agent subclasses.
         """
         raise NotImplementedError("Subclasses must implement process")
+
+    async def run(
+        self,
+        input_data: Dict[str, Any],
+        user_id: str,
+        auth_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Run the agent with the given input data.
+        This is the main entry point for agent execution.
+        """
+        try:
+            # Create input schema
+            input_schema = BaseAgentInputSchema(
+                chat_message=input_data.get("prompt", "")
+            )
+
+            # Run the atomic agent - consume the AsyncGenerator to get the final result
+            final_response = None
+            async for partial_response in self.atomic_agent.run_async(input_schema):
+                final_response = partial_response
+
+            # If we didn't get a response, return an error
+            if not final_response:
+                return {
+                    "status": "error",
+                    "error": "No response from agent"
+                }
+
+            # Return the response
+            return {
+                "status": "success",
+                "response": final_response.response,
+                "data": final_response.data
+            }
+        except Exception as e:
+            self.logger.error(f"Error running agent: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     async def _generate_response_with_tools(
         self,
