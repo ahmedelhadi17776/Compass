@@ -70,6 +70,10 @@ export const AIOptionsModal: React.FC<AIOptionsModalProps> = ({
           console.log(
             `Sending AI options request for ${targetType} ${targetId}`
           );
+
+          // Enhanced logging for debugging
+          console.log("Target data:", targetData);
+
           const success = sendMessage({
             type: "ai_options_request",
             target_type: targetType,
@@ -172,7 +176,13 @@ export const AIOptionsModal: React.FC<AIOptionsModalProps> = ({
           return;
         }
 
-        setResult(e.detail.data.result || null);
+        // Format the result properly - atomic agents may return structured output
+        const resultContent = e.detail.data.result || null;
+        setResult(
+          typeof resultContent === "string"
+            ? resultContent
+            : JSON.stringify(resultContent, null, 2)
+        );
         setProcessing(false);
       }
     };

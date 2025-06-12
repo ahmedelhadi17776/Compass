@@ -400,9 +400,10 @@ async def process_ai_option(
         logger.info(
             f"AI process request for option {option_id} on {target_type} {target_id} from user {user_id}")
 
-        # Initialize the orchestrator
+        # Initialize the orchestrator with Atomic Agents pattern
         logger.info(
             f"Initializing AgentOrchestrator for processing option {option_id}")
+        from ai_services.agents.orchestrator import AgentOrchestrator
         orchestrator = AgentOrchestrator()
 
         # Process the option
@@ -560,11 +561,11 @@ async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], 
             f"Target data for {target_type}: {str(enhanced_target_data)[:200]}...")
         logger.info(f"Requesting options from orchestrator for {target_type}")
 
-        # Initialize the orchestrator
+        # Initialize the orchestrator using Atomic Agents pattern
         from ai_services.agents.orchestrator import AgentOrchestrator
         orchestrator = AgentOrchestrator()
 
-        # Get options from orchestrator
+        # Get options from orchestrator using the same interface
         options = await orchestrator.get_options_for_target(
             target_type=target_type,
             target_id=target_id,

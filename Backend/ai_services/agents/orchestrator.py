@@ -3,10 +3,37 @@ import logging
 import asyncio
 from pydantic import BaseModel, Field
 
-from ai_services.agents.base_agent import BaseAgent
+from ai_services.agents.base_agent import BaseAgent, CompassAgentInputSchema, CompassAgentOutputSchema
 from ai_services.agents.todo_agent import TodoAgent, SubtaskGeneratorAgent, DeadlineAdvisorAgent, PriorityOptimizerAgent
 
+from atomic_agents.lib.components.agent_memory import AgentMemory
+from atomic_agents.lib.components.system_prompt_generator import SystemPromptGenerator
+from atomic_agents.lib.base.base_io_schema import BaseIOSchema
+
 logger = logging.getLogger(__name__)
+
+
+class CoordinatorInputSchema(BaseIOSchema):
+    """Input schema for the AgentOrchestrator."""
+    target_type: str = Field(..., description="Type of target to process")
+    target_id: str = Field(..., description="ID of the target to process")
+    user_id: str = Field(..., description="ID of the user")
+    option_id: Optional[str] = Field(
+        None, description="ID of the option to process")
+    target_data: Optional[Dict[str, Any]] = Field(
+        None, description="Data for the target")
+
+
+class CoordinatorOutputSchema(BaseIOSchema):
+    """Output schema for the AgentOrchestrator."""
+    options: Optional[List[Dict[str, Any]]] = Field(
+        None, description="List of available options")
+    response: Optional[str] = Field(
+        None, description="Response from processing an option")
+    success: bool = Field(...,
+                          description="Whether the operation was successful")
+    error: Optional[str] = Field(
+        None, description="Error message if the operation failed")
 
 
 class AgentOrchestrator:
@@ -49,6 +76,36 @@ class AgentOrchestrator:
             # "note_actions": ActionExtractorAgent(),
             # "note_summarize": NoteSummarizerAgent(),
             # "note_questions": QuestionGeneratorAgent(),
+        }
+
+        # Create an atomic agent coordinator
+        self.coordinator = self._create_coordinator()
+
+    def _create_coordinator(self):
+        """Create an agent coordinator using Atomic Agents."""
+        memory = AgentMemory()
+
+        # System prompt generator for coordination decisions
+        system_prompt = SystemPromptGenerator(
+            background=[
+                "You are IRIS Coordinator, the orchestration layer for the COMPASS AI system.",
+                "You direct requests to specialized agents based on the target type and requested operation."
+            ],
+            steps=[
+                "Identify the target type and requested operation.",
+                "Select the appropriate specialized agent to handle the request.",
+                "Route the request to the selected agent and return its response."
+            ],
+            output_instructions=[
+                "Return the appropriate agent's response without modification.",
+                "If no appropriate agent is found, return an error message."
+            ]
+        )
+
+        # Initialize the coordinator
+        return {
+            "memory": memory,
+            "system_prompt": system_prompt
         }
 
     async def get_options_for_target(

@@ -141,8 +141,16 @@ class ApplicationLifecycle:
                 "dashboard_events", handle_dashboard_event))
 
             # Start subscribers for both Go backend and Notes server
-            await dashboard_cache.start_go_metrics_subscriber()
-            await dashboard_cache.start_notes_metrics_subscriber()
+            if hasattr(dashboard_cache, 'start_go_metrics_subscriber'):
+                go_subscriber = dashboard_cache.start_go_metrics_subscriber()
+                if asyncio.iscoroutine(go_subscriber):
+                    await go_subscriber
+
+            if hasattr(dashboard_cache, 'start_notes_metrics_subscriber'):
+                notes_subscriber = dashboard_cache.start_notes_metrics_subscriber()
+                if asyncio.iscoroutine(notes_subscriber):
+                    await notes_subscriber
+
             logger.info(
                 "Started dashboard metrics subscribers for Go backend and Notes server")
 
@@ -203,24 +211,66 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
             logger.error(f"❌ Failed to load sentence transformer: {str(e)}")
             raise
 
-        # Initialize MongoDB
-        async with mongodb_lifespan(app):
-            if settings.mcp_enabled:
-                await init_mcp_server()
+        # Initialize Atomic Agents
+        logger.info("Initializing Atomic Agents framework...")
+        try:
+            # Set up OpenAI API key for Atomic Agents
+            import os
+            import openai
+            if not os.environ.get("OPENAI_API_KEY"):
+                logger.warning(
+                    "OPENAI_API_KEY not found in environment, using default key for development")
+                os.environ["OPENAI_API_KEY"] = settings.openai_api_key
 
-            logger.info("Application started successfully")
-            await lifecycle.startup()
-            yield
+            # Pre-initialize instructor with openai client
+            import instructor
+            from atomic_agents.lib.components.agent_memory import AgentMemory
+            app.state.instructor_client = instructor.from_openai(
+                openai.OpenAI())
+            app.state.agent_memory = AgentMemory()
+            logger.info("✅ Atomic Agents framework initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Atomic Agents: {str(e)}")
+            logger.warning(
+                "Application will continue without Atomic Agents support")
+
+        # Initialize MongoDB directly (not with async with)
+        logger.info("Connecting to MongoDB...")
+        from data_layer.mongodb.connection import get_mongodb_client, get_async_mongodb_client
+        from data_layer.mongodb.lifecycle import init_collections
+
+        # Initialize clients
+        get_mongodb_client()
+        get_async_mongodb_client()
+
+        # Initialize collections
+        await init_collections()
+        logger.info("MongoDB connection initialized")
+
+        if settings.mcp_enabled:
+            await init_mcp_server()
+
+        logger.info("Application started successfully")
+        # Call lifecycle.startup() with proper await handling
+        startup_result = lifecycle.startup()
+        if asyncio.iscoroutine(startup_result):
+            await startup_result
+        yield
     finally:
         logger.info("Shutting down application...")
         if settings.mcp_enabled:
             await cleanup_mcp()
 
         try:
+            # Close MongoDB connections
+            from data_layer.mongodb.connection import close_mongodb_connections
+            await close_mongodb_connections()
+            logger.info("MongoDB connections closed")
+
             await redis_client.close()
             logger.info("Redis connection closed")
         except Exception as e:
-            logger.error(f"Error closing Redis connection: {str(e)}")
+            logger.error(f"Error closing connections: {str(e)}")
 
         logger.info("All resources cleaned up")
         await lifecycle.shutdown()
