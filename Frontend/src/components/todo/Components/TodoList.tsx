@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown, ListTodo, Clock, Zap } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { useDragStore } from '@/dragStore';
 import PriorityIndicator from './PriorityIndicator';
@@ -18,6 +19,7 @@ import { Habit } from '@/components/todo/types-habit';
 import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/components/todo/types-todo';
 import { useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit, useTodoLists, useCreateTodoList, useDeleteTodoList } from '../hooks';
 import { Separator } from '@/components/ui/separator';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface TodoItemProps {
   todo: Todo;
@@ -26,6 +28,7 @@ interface TodoItemProps {
   onDelete: (id: string) => void;
   onUpdateChecklist: (id: string, checklist: { items: Array<{ title: string; completed: boolean }> }) => void;
   isDarkMode: boolean;
+  activeButtonsTodoId: string | null;
 }
 
 const TodoItem: React.FC<TodoItemProps> = ({ 
@@ -34,121 +37,198 @@ const TodoItem: React.FC<TodoItemProps> = ({
   onEdit, 
   onDelete, 
   onUpdateChecklist,
-  isDarkMode 
+  isDarkMode,
+  activeButtonsTodoId
 }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: todo.id,
   });
 
-  const { lastDroppedId } = useDragStore();
+  const showButtons = activeButtonsTodoId === todo.id;
+  const todoRef = useRef<HTMLDivElement>(null);
+  const [basePosition, setBasePosition] = useState({ top: 0, left: 0 });
+
+  // Define individual button offsets
+  const buttonOffsets = [
+    { top: 0, left: -515 },  // Button 1
+    { top: -45, left: -535 },  // Button 2
+    { top: -45, left: -330 },  // Button 3
+  ];
 
   useEffect(() => {
-    if (lastDroppedId === todo.id) {
-      console.log('Chatbot dropped on todo:', todo.title);
-      // Here you can handle what happens when chatbot is dropped on a todo
-      // For example, you could open the chat with context about this todo
+    if (showButtons && todoRef.current) {
+      const rect = todoRef.current.getBoundingClientRect();
+      setBasePosition({
+        top: rect.top,
+        left: rect.right,
+      });
     }
-  }, [lastDroppedId, todo.id, todo.title]);
+  }, [showButtons]);
+
+  const buttonVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.8 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.3,
+        ease: "easeOut"
+      }
+    }),
+    exit: { 
+      opacity: 0,
+      y: -10,
+      scale: 0.8,
+      transition: {
+        duration: 0.2
+      }
+    }
+  };
 
   return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
-        todo.is_completed && "bg-muted",
-        isOver && "border-primary bg-primary/10 shadow-lg"
-      )}
-    >
-      <div className="flex items-start gap-4">
-        <Checkbox
-          name={`todo-${todo.id}`}
-          checked={todo.is_completed}
-          onChange={() => onToggle(todo)}
-          darkMode={isDarkMode}
-          className="mt-0.5"
-        />
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center">
-            <span className={cn(
-              "text-sm font-medium",
-              todo.is_completed && "line-through text-muted-foreground"
-            )}>
-              {todo.title}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
-            {todo.tags && typeof todo.tags === 'object' && Object.keys(todo.tags).map((tag) => (
-              <Badge
-                key={tag}
-                variant="default"
-                className="text-xs text-black hover:bg-white/100 transition-colors"
+    <div className="relative" ref={todoRef}>
+      {showButtons && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 pointer-events-none z-[9999]">
+            {[
+              { label: "Subtask Generation", icon: ListTodo },
+              { label: "Deadline-based Advice", icon: Clock },
+              { label: "Priority & Motivation Boost", icon: Zap }
+            ].map((button, i) => (
+              <motion.div
+                key={`button-${i}`}
+                variants={buttonVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                custom={i}
+                style={{
+                  position: 'fixed',
+                  top: `${basePosition.top + buttonOffsets[i].top}px`,
+                  left: `${basePosition.left + buttonOffsets[i].left}px`,
+                  zIndex: 9999,
+                }}
+                className="pointer-events-auto"
               >
-                {tag}
-              </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 whitespace-nowrap"
+                  onClick={() => {
+                    console.log(`${button.label} clicked for todo:`, todo.title);
+                  }}
+                >
+                  <button.icon className="h-4 w-4" />
+                  {button.label}
+                </Button>
+              </motion.div>
             ))}
           </div>
-          {todo.checklist?.items && todo.checklist.items.length > 0 && (
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Checklist</span>
-                <span>
-                  {todo.checklist.items.filter(item => item.completed).length}/{todo.checklist.items.length}
-                </span>
-              </div>
-              <Progress
-                value={(todo.checklist.items.filter(item => item.completed).length / todo.checklist.items.length) * 100}
-                className="h-1"
-              />
-              <div className="space-y-1.5">
-                {todo.checklist.items.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Checkbox
-                      name={`todo-${todo.id}-checklist-${index}`}
-                      checked={item.completed}
-                      onChange={() => {
-                        const newChecklist = {
-                          items: [...todo.checklist!.items]
-                        };
-                        newChecklist.items[index] = {
-                          ...item,
-                          completed: !item.completed
-                        };
-                        onUpdateChecklist(todo.id, newChecklist);
-                      }}
-                      darkMode={isDarkMode}
-                      className="h-3 w-3"
-                    />
-                    <span className={cn(
-                      "text-xs",
-                      item.completed && "line-through text-muted-foreground"
-                    )}>
-                      {item.title}
-                    </span>
-                  </div>
-                ))}
-              </div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
+          todo.is_completed && "bg-muted",
+          isOver && "border-primary bg-primary/10 shadow-lg"
+        )}
+      >
+        <div className="flex items-start gap-4">
+          <Checkbox
+            name={`todo-${todo.id}`}
+            checked={todo.is_completed}
+            onChange={() => onToggle(todo)}
+            darkMode={isDarkMode}
+            className="mt-0.5"
+          />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center">
+              <span className={cn(
+                "text-sm font-medium",
+                todo.is_completed && "line-through text-muted-foreground"
+              )}>
+                {todo.title}
+              </span>
             </div>
-          )}
+            <div className="flex flex-wrap items-center gap-2">
+              <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
+              {todo.tags && typeof todo.tags === 'object' && Object.keys(todo.tags).map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="default"
+                  className="text-xs text-black hover:bg-white/100 transition-colors"
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+            {todo.checklist?.items && todo.checklist.items.length > 0 && (
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Checklist</span>
+                  <span>
+                    {todo.checklist.items.filter(item => item.completed).length}/{todo.checklist.items.length}
+                  </span>
+                </div>
+                <Progress
+                  value={(todo.checklist.items.filter(item => item.completed).length / todo.checklist.items.length) * 100}
+                  className="h-1"
+                />
+                <div className="space-y-1.5">
+                  {todo.checklist.items.map((item, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Checkbox
+                        name={`todo-${todo.id}-checklist-${index}`}
+                        checked={item.completed}
+                        onChange={() => {
+                          const newChecklist = {
+                            items: [...todo.checklist!.items]
+                          };
+                          newChecklist.items[index] = {
+                            ...item,
+                            completed: !item.completed
+                          };
+                          onUpdateChecklist(todo.id, newChecklist);
+                        }}
+                        darkMode={isDarkMode}
+                        className="h-3 w-3"
+                      />
+                      <span className={cn(
+                        "text-xs",
+                        item.completed && "line-through text-muted-foreground"
+                      )}>
+                        {item.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[160px]">
+              <DropdownMenuItem onClick={() => onEdit(todo)}>
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDelete(todo.id)}>
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[160px]">
-            <DropdownMenuItem onClick={() => onEdit(todo)}>
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDelete(todo.id)}>
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </div>
   );
@@ -164,6 +244,7 @@ const TodoList: React.FC = () => {
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [showHabitTracker, setShowHabitTracker] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  const [activeButtonsTodoId, setActiveButtonsTodoId] = useState<string | null>(null);
   
   // New state for managing multiple lists
   const [currentListId, setCurrentListId] = useState<string>('');
@@ -213,6 +294,17 @@ const TodoList: React.FC = () => {
   // Get current list and its todos
   const currentList = todoLists.find(list => list.id === currentListId);
   const todos = currentList?.todos || [];
+
+  // Add effect to handle button visibility
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (activeButtonsTodoId) {
+      timeoutId = setTimeout(() => {
+        setActiveButtonsTodoId(null);
+      }, 5000);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [activeButtonsTodoId]);
 
   const handleEditHabit = (habit: Habit) => {
     setEditingHabit(habit);
@@ -288,6 +380,7 @@ const TodoList: React.FC = () => {
               updateTodoMutation.mutate({ id, updates: { checklist } })
             }
             isDarkMode={isDarkMode}
+            activeButtonsTodoId={activeButtonsTodoId}
           />
         ))}
       </div>
@@ -643,6 +736,16 @@ const TodoList: React.FC = () => {
   const handleDeleteList = (listId: string) => {
     deleteTodoListMutation.mutate(listId);
   };
+
+  // Modify the effect that handles the drop
+  useEffect(() => {
+    const unsubscribe = useDragStore.subscribe((state) => {
+      if (state.lastDroppedId) {
+        setActiveButtonsTodoId(state.lastDroppedId);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   if (!user) {
     return <div>Please log in to view todos</div>;
