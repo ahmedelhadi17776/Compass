@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { client } from './components/notes/apollo-client';
 import { AnimatePresence } from 'framer-motion';
 import PageTransition from './components/layout/PageTransition';
@@ -29,6 +30,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import Chatbot from './components/Chatbot/Chatbot';
 import CommandPage from '@/pages/command';
 import Journaling from './components/Journaling/components/Journaling';
+import { useDragStore } from './dragStore';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -39,6 +41,26 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 function App() {
   const queryClient = useQueryClient()
   const location = useLocation();
+  
+  // Add sensors configuration
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 100, // Adjust as needed (i think 100ms is good)
+        tolerance: 5, // Allow 5px of movement during delay
+      },
+    })
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    // Silence the unused variable warnings since we'll use these later
+    if (active && over) {
+      // Store drop target
+      useDragStore.getState().setLastDroppedId(over.id as string);
+      console.log(`Dragged: ${active.id} → Dropped on: ${over.id}`);
+    }
+  }, []);
 
   // Check if we're on the command page
   const isCommandPage = window.location.hash === '#command';
@@ -57,45 +79,47 @@ function App() {
       <ThemeProvider defaultTheme="dark" storageKey="aiwa-theme">
         <QueryClientProvider client={queryClient}>
           <WebSocketProvider>
-            <div className="h-screen flex flex-col overflow-hidden">
-              <AnimatePresence mode="wait">
-                <Routes location={location} key={location.pathname}>
-                  <Route path="/login" element={<Login />} />
-                  <Route
-                    path="/*"
-                    element={
-                      <ProtectedRoute>
-                        <SidebarProvider>
-                          <AppSidebar />
-                          <SidebarInset className="flex flex-col">
-                            <TitleBar darkMode={false} />
-                            <main className="flex-1 h-full main-content">
-                              <Routes>
-                                <Route index element={<Navigate to="/login" replace />} />
-                                <Route path="dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
-                                <Route path="Todos&Habits" element={<PageTransition><Tasks /></PageTransition>} />
-                                <Route path="calendar" element={<PageTransition><Calendar /></PageTransition>} />
-                                <Route path="ai" element={<PageTransition><AIAssistant /></PageTransition>} />
-                                <Route path="focus" element={<PageTransition><FocusMode /></PageTransition>} />
-                                <Route path="files" element={<PageTransition><FileManager /></PageTransition>} />
-                                <Route path="health" element={<PageTransition><HealthDashboard /></PageTransition>} />
-                                <Route path="workflow" element={<PageTransition><Workflow /></PageTransition>} />
-                                <Route path="workflow/:id" element={<PageTransition><WorkflowDetailPage /></PageTransition>} />
-                                <Route path="notes" element={<PageTransition><Notes /></PageTransition>} />
-                                <Route path="canvas" element={<PageTransition><Canvas /></PageTransition>} />
-                                <Route path="journaling" element={<PageTransition><Journaling /></PageTransition>} />
-                              </Routes>
-                            </main>
-                            <Chatbot />
-                          </SidebarInset>
-                        </SidebarProvider>
-                      </ProtectedRoute>
-                    }
-                  />
-                </Routes>
-              </AnimatePresence>
-              <Toaster />
-            </div>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <div className="h-screen flex flex-col overflow-hidden">
+                <AnimatePresence mode="wait">
+                  <Routes location={location} key={location.pathname}>
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                      path="/*"
+                      element={
+                        <ProtectedRoute>
+                          <SidebarProvider>
+                            <AppSidebar />
+                            <SidebarInset className="flex flex-col">
+                              <TitleBar darkMode={false} />
+                              <main className="flex-1 h-full main-content">
+                                <Routes>
+                                  <Route index element={<Navigate to="/login" replace />} />
+                                  <Route path="dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
+                                  <Route path="Todos&Habits" element={<PageTransition><Tasks /></PageTransition>} />
+                                  <Route path="calendar" element={<PageTransition><Calendar /></PageTransition>} />
+                                  <Route path="ai" element={<PageTransition><AIAssistant /></PageTransition>} />
+                                  <Route path="focus" element={<PageTransition><FocusMode /></PageTransition>} />
+                                  <Route path="files" element={<PageTransition><FileManager /></PageTransition>} />
+                                  <Route path="health" element={<PageTransition><HealthDashboard /></PageTransition>} />
+                                  <Route path="workflow" element={<PageTransition><Workflow /></PageTransition>} />
+                                  <Route path="workflow/:id" element={<PageTransition><WorkflowDetailPage /></PageTransition>} />
+                                  <Route path="notes" element={<PageTransition><Notes /></PageTransition>} />
+                                  <Route path="canvas" element={<PageTransition><Canvas /></PageTransition>} />
+                                  <Route path="journaling" element={<PageTransition><Journaling /></PageTransition>} />
+                                </Routes>
+                              </main>
+                              <Chatbot />
+                            </SidebarInset>
+                          </SidebarProvider>
+                        </ProtectedRoute>
+                      }
+                    />
+                  </Routes>
+                </AnimatePresence>
+                <Toaster />
+              </div>
+            </DndContext>
           </WebSocketProvider>
         </QueryClientProvider>
       </ThemeProvider>

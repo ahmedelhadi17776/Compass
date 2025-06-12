@@ -1,5 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown } from 'lucide-react';
+import { useDroppable } from '@dnd-kit/core';
+import { useDragStore } from '@/dragStore';
 import PriorityIndicator from './PriorityIndicator';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
@@ -14,15 +16,149 @@ import { useQuery } from '@tanstack/react-query';
 import authApi, { User } from '@/api/auth';
 import { Habit } from '@/components/todo/types-habit';
 import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/components/todo/types-todo';
-import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit, useTodoLists, useCreateTodoList, useUpdateTodoList, useDeleteTodoList } from '../hooks';
+import { useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit, useTodoLists, useCreateTodoList, useDeleteTodoList } from '../hooks';
 import { Separator } from '@/components/ui/separator';
+
+interface TodoItemProps {
+  todo: Todo;
+  onToggle: (todo: Todo) => void;
+  onEdit: (todo: Todo) => void;
+  onDelete: (id: string) => void;
+  onUpdateChecklist: (id: string, checklist: { items: Array<{ title: string; completed: boolean }> }) => void;
+  isDarkMode: boolean;
+}
+
+const TodoItem: React.FC<TodoItemProps> = ({ 
+  todo, 
+  onToggle, 
+  onEdit, 
+  onDelete, 
+  onUpdateChecklist,
+  isDarkMode 
+}) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: todo.id,
+  });
+
+  const { lastDroppedId } = useDragStore();
+
+  useEffect(() => {
+    if (lastDroppedId === todo.id) {
+      console.log('Chatbot dropped on todo:', todo.title);
+      // Here you can handle what happens when chatbot is dropped on a todo
+      // For example, you could open the chat with context about this todo
+    }
+  }, [lastDroppedId, todo.id, todo.title]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
+        todo.is_completed && "bg-muted",
+        isOver && "border-primary bg-primary/10 shadow-lg"
+      )}
+    >
+      <div className="flex items-start gap-4">
+        <Checkbox
+          name={`todo-${todo.id}`}
+          checked={todo.is_completed}
+          onChange={() => onToggle(todo)}
+          darkMode={isDarkMode}
+          className="mt-0.5"
+        />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center">
+            <span className={cn(
+              "text-sm font-medium",
+              todo.is_completed && "line-through text-muted-foreground"
+            )}>
+              {todo.title}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
+            {todo.tags && typeof todo.tags === 'object' && Object.keys(todo.tags).map((tag) => (
+              <Badge
+                key={tag}
+                variant="default"
+                className="text-xs text-black hover:bg-white/100 transition-colors"
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
+          {todo.checklist?.items && todo.checklist.items.length > 0 && (
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Checklist</span>
+                <span>
+                  {todo.checklist.items.filter(item => item.completed).length}/{todo.checklist.items.length}
+                </span>
+              </div>
+              <Progress
+                value={(todo.checklist.items.filter(item => item.completed).length / todo.checklist.items.length) * 100}
+                className="h-1"
+              />
+              <div className="space-y-1.5">
+                {todo.checklist.items.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Checkbox
+                      name={`todo-${todo.id}-checklist-${index}`}
+                      checked={item.completed}
+                      onChange={() => {
+                        const newChecklist = {
+                          items: [...todo.checklist!.items]
+                        };
+                        newChecklist.items[index] = {
+                          ...item,
+                          completed: !item.completed
+                        };
+                        onUpdateChecklist(todo.id, newChecklist);
+                      }}
+                      darkMode={isDarkMode}
+                      className="h-3 w-3"
+                    />
+                    <span className={cn(
+                      "text-xs",
+                      item.completed && "line-through text-muted-foreground"
+                    )}>
+                      {item.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[160px]">
+            <DropdownMenuItem onClick={() => onEdit(todo)}>
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDelete(todo.id)}>
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+};
 
 const TodoList: React.FC = () => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [showTodoForm, setShowTodoForm] = useState(false);
-  const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
   const [newHabit, setNewHabit] = useState('');
   const [showHabitInput, setShowHabitInput] = useState(false);
@@ -57,7 +193,6 @@ const TodoList: React.FC = () => {
   const deleteHabitMutation = useDeleteHabit();
   const updateHabitMutation = useUpdateHabit();
   const createTodoListMutation = useCreateTodoList();
-  const updateTodoListMutation = useUpdateTodoList();
   const deleteTodoListMutation = useDeleteTodoList();
 
   // Refetch todos when component mounts
@@ -142,112 +277,19 @@ const TodoList: React.FC = () => {
 
     return (
       <div className="space-y-2">
-        {todos.map((todo) => {
-          return (
-            <div
-              key={todo.id}
-              className={cn(
-                "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
-                todo.is_completed && "bg-muted"
-              )}
-            >
-              <div className="flex items-start gap-4">
-                <Checkbox
-                  name={`todo-${todo.id}`}
-                  checked={todo.is_completed}
-                  onChange={() => handleToggleTodo(todo)}
-                  darkMode={isDarkMode}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center">
-                    <span className={cn(
-                      "text-sm font-medium",
-                      todo.is_completed && "line-through text-muted-foreground"
-                    )}>
-                      {todo.title}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
-                    {todo.tags && typeof todo.tags === 'object' && Object.keys(todo.tags).map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="default"
-                        className="text-xs text-black hover:bg-white/100 transition-colors"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                  {todo.checklist?.items && todo.checklist.items.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Checklist</span>
-                        <span>
-                          {todo.checklist.items.filter(item => item.completed).length}/{todo.checklist.items.length}
-                        </span>
-                      </div>
-                      <Progress
-                        value={(todo.checklist.items.filter(item => item.completed).length / todo.checklist.items.length) * 100}
-                        className="h-1"
-                      />
-                      <div className="space-y-1.5">
-                        {todo.checklist.items.map((item, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <Checkbox
-                              name={`todo-${todo.id}-checklist-${index}`}
-                              checked={item.completed}
-                              onChange={() => {
-                                const newChecklist = {
-                                  items: [...todo.checklist!.items]
-                                };
-                                newChecklist.items[index] = {
-                                  ...item,
-                                  completed: !item.completed
-                                };
-                                updateTodoMutation.mutate({
-                                  id: todo.id,
-                                  updates: { checklist: newChecklist }
-                                });
-                              }}
-                              darkMode={isDarkMode}
-                              className="h-3 w-3"
-                            />
-                            <span className={cn(
-                              "text-xs",
-                              item.completed && "line-through text-muted-foreground"
-                            )}>
-                              {item.title}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-[160px]">
-                    <DropdownMenuItem onClick={() => handleEditTodo(todo)}>
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteTodo(todo.id)}>
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          );
-        })}
+        {todos.map((todo) => (
+          <TodoItem
+            key={todo.id}
+            todo={todo}
+            onToggle={handleToggleTodo}
+            onEdit={handleEditTodo}
+            onDelete={handleDeleteTodo}
+            onUpdateChecklist={(id, checklist) => 
+              updateTodoMutation.mutate({ id, updates: { checklist } })
+            }
+            isDarkMode={isDarkMode}
+          />
+        ))}
       </div>
     );
   };
@@ -265,7 +307,7 @@ const TodoList: React.FC = () => {
         title: newHabit.trim(),
         description: '',
         start_day: new Date().toISOString(),
-        user_id: user.id
+        end_day: new Date().toISOString()
       });
     }
 
@@ -394,7 +436,6 @@ const TodoList: React.FC = () => {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      setAddingToColumn(type);
                       setShowTodoForm(true);
                     }}
                     className="text-muted-foreground hover:text-foreground"
@@ -563,7 +604,6 @@ const TodoList: React.FC = () => {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  setAddingToColumn(type);
                   setShowTodoForm(true);
                 }}
                 className="text-muted-foreground hover:text-foreground"

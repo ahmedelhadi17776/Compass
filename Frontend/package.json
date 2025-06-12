@@ -15,6 +15,7 @@
     "electron:preview": "electron ."
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
     "@headlessui/react": "^2.2.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-avatar": "^1.1.2",
@@ -37,6 +38,7 @@
     "@tanstack/react-query": "^5.66.7",
     "@tanstack/react-query-devtools": "^5.66.7",
     "@tiptap/extension-image": "^2.12.0",
+    "@tiptap/extension-placeholder": "^2.14.0",
     "@tiptap/extension-task-item": "^2.12.0",
     "@tiptap/extension-task-list": "^2.12.0",
     "@tiptap/extension-text-align": "^2.12.0",
@@ -71,7 +73,8 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "ws": "^8.18.2",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "zustand": "^5.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
