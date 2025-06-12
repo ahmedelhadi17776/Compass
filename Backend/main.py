@@ -2,7 +2,7 @@ from data_layer.cache.dashboard_cache import DashboardCache
 from data_layer.mongodb.lifecycle import mongodb_lifespan
 from data_layer.mongodb.connection import get_mongodb_client
 from core.config import settings
-from core.mcp_state import set_mcp_client, get_mcp_client
+from core.mcp_state import set_mcp_client, get_mcp_client, set_mcp_process
 from api.ai_routes import router as ai_router
 from data_layer.cache.redis_client import redis_client, redis_pubsub_client
 from data_layer.cache.pubsub_manager import pubsub_manager
@@ -274,99 +274,109 @@ dashboard_cache = DashboardCache()
 
 
 async def init_mcp_server():
-    """Initialize MCP server integration."""
+    """Initialize the MCP server."""
     logger.info("Initializing MCP server integration")
+    env = os.environ.copy()
+
+    # For debugging
+    logger.info(f"PYTHONPATH: {sys.path}")
+
+    # MCP server script
+    server_script = os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), "mcp_py", "server.py")
+    logger.info(f"Starting MCP server: {server_script}")
 
     try:
-        # Import MCP client and server
-        from mcp_py.client import MCPClient
-        from mcp_py.server import run_server
+        # Check if we're on Windows
+        if sys.platform == 'win32':
+            # Windows-specific approach - use subprocess directly instead of asyncio.create_subprocess_exec
+            import subprocess
+            process = subprocess.Popen(
+                [sys.executable, server_script],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
 
-        # Start the MCP server in the background
-        server_script_path = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), "mcp_py", "server.py"))
+            # Store the process in global state so it can be terminated later
+            set_mcp_process(process)
 
-        # Validate the server script path
-        if not os.path.exists(server_script_path):
-            logger.error(
-                f"MCP server script not found at {server_script_path}")
-            return
+            # Give the server a moment to start
+            await asyncio.sleep(1)
 
-        logger.info(f"Starting MCP server: {server_script_path}")
+            # Set up MCP client
+            from mcp_py.client import MCPClient
+            client = MCPClient()
+            await client.connect_to_server(server_script)
 
-        # Start the MCP server on a separate process
-        process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            server_script_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=os.environ.copy()
-        )
+            # Store the client in global state for other components to use
+            set_mcp_client(client)
+        else:
+            # Original code for Unix-like systems
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, server_script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env
+            )
 
-        # Wait for the server to start - increased wait time for better initialization
-        server_init_wait = 5.0
-        logger.info(
-            f"Waiting {server_init_wait} seconds for MCP server to initialize...")
-        await asyncio.sleep(server_init_wait)
+            set_mcp_process(process)
 
-        # Check if process is still running
-        if process.returncode is not None:
-            stdout, stderr = await process.communicate()
-            logger.error(
-                f"MCP server failed to start. Return code: {process.returncode}")
-            logger.error(f"STDOUT: {stdout.decode()}")
-            logger.error(f"STDERR: {stderr.decode()}")
-            return
+            # Set up MCP client
+            from mcp_py.client import MCPClient
+            client = MCPClient()
+            await client.connect_to_server(server_script)
 
-        # Create and configure MCP client
-        logger.info("Initializing MCP client")
-        mcp_client = MCPClient()
-
-        # Connect to the server with retry logic and increased retry delay
-        await mcp_client.connect_to_server(server_script_path, max_retries=5, retry_delay=3.0)
-
-        # Store the MCP client in the global state
-        set_mcp_client(mcp_client)
-
-        # Wait longer for tools to be registered - increased from 1.0 to 5.0 seconds
-        logger.info("Waiting for tools to be registered...")
-        await asyncio.sleep(5.0)
-
-        # Try multiple times to get tools if not available on first attempt
-        max_tool_attempts = 3
-        for attempt in range(max_tool_attempts):
-            tools = await mcp_client.get_tools()
-            if tools:
-                logger.info(f"MCP client initialized with {len(tools)} tools")
-                break
-            elif attempt < max_tool_attempts - 1:
-                logger.warning(
-                    f"No tools found on attempt {attempt+1}, waiting before retry...")
-                await asyncio.sleep(2.0)
-            else:
-                logger.warning(
-                    "MCP client initialized but no tools were registered after multiple attempts")
-
-        logger.info("MCP server integration complete")
+            # Store the client in global state for other components to use
+            set_mcp_client(client)
 
     except Exception as e:
-        logger.error(f"Error initializing MCP server: {str(e)}", exc_info=True)
+        logger.error(f"Error initializing MCP server:", exc_info=True)
+        return False
+
+    return True
 
 
 async def cleanup_mcp():
-    """Cleanup MCP client resources."""
-    try:
-        logger.info("Cleaning up MCP resources")
-        mcp_client = get_mcp_client()
-        if mcp_client:
+    """Clean up MCP client and server resources."""
+    from core.mcp_state import get_mcp_client, get_mcp_process
+
+    # Close MCP client if it exists
+    mcp_client = get_mcp_client()
+    if mcp_client:
+        logger.info("Closing MCP client connection")
+        try:
             await mcp_client.cleanup()
-            logger.info("MCP client resources cleaned up successfully")
-        else:
-            logger.info("No MCP client to clean up")
-        return True  # Return a value to ensure it's awaitable
-    except Exception as e:
-        logger.error(f"Error during MCP cleanup: {str(e)}", exc_info=True)
-        return False  # Return a value even in case of error
+        except Exception as e:
+            logger.error(f"Error cleaning up MCP client: {str(e)}")
+
+    # Terminate MCP server process if it exists
+    mcp_process = get_mcp_process()
+    if mcp_process:
+        logger.info("Terminating MCP server process")
+        try:
+            # Handle both subprocess.Popen (Windows) and asyncio subprocess (Unix)
+            if hasattr(mcp_process, 'terminate'):  # subprocess.Popen
+                mcp_process.terminate()
+                # Wait for process to terminate
+                try:
+                    mcp_process.wait(timeout=5)
+                except:
+                    # Force kill if timeout
+                    if hasattr(mcp_process, 'kill'):
+                        mcp_process.kill()
+            else:  # asyncio subprocess
+                mcp_process.terminate()
+                # Wait for process to terminate
+                try:
+                    await asyncio.wait_for(mcp_process.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    # Force kill if timeout
+                    mcp_process.kill()
+
+        except Exception as e:
+            logger.error(f"Error terminating MCP server process: {str(e)}")
 
 # Root endpoint
 
