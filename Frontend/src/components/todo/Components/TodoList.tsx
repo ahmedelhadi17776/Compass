@@ -1,52 +1,93 @@
-import React, { useState, useRef } from 'react';
-import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown } from 'lucide-react';
-import PriorityIndicator from './PriorityIndicator';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
+import React, { useState, useRef } from "react";
+import {
+  Plus,
+  X,
+  MoreVertical,
+  CalendarFold,
+  Repeat,
+  Check,
+  ArrowLeft,
+  CalendarSync,
+  CalendarCheck,
+  CalendarClock,
+  ChevronDown,
+} from "lucide-react";
+import PriorityIndicator from "./PriorityIndicator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Progress } from "../../ui/progress";
 import Checkbox from "../../ui/checkbox";
-import TodoForm from './TodoForm';
+import TodoForm from "./TodoForm";
 import { Badge } from "../../ui/badge";
-import cn from 'classnames';
-import { useTheme } from '@/contexts/theme-provider';
-import { useQuery } from '@tanstack/react-query';
-import authApi, { User } from '@/api/auth';
-import { Habit } from '@/components/todo/types-habit';
-import { Todo, TodoFormData, TodoStatus, TodoPriority } from '@/components/todo/types-todo';
-import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHabits, useCreateHabit, useToggleHabit, useDeleteHabit, useUpdateHabit, useTodoLists, useCreateTodoList, useUpdateTodoList, useDeleteTodoList } from '../hooks';
-import { Separator } from '@/components/ui/separator';
+import cn from "classnames";
+import { useTheme } from "@/contexts/theme-provider";
+import { useQuery } from "@tanstack/react-query";
+import authApi, { User } from "@/api/auth";
+import { Habit } from "@/components/todo/types-habit";
+import {
+  Todo,
+  TodoFormData,
+  TodoStatus,
+  TodoPriority,
+} from "@/components/todo/types-todo";
+import {
+  useTodos,
+  useCreateTodo,
+  useUpdateTodo,
+  useDeleteTodo,
+  useToggleTodoStatus,
+  useHabits,
+  useCreateHabit,
+  useToggleHabit,
+  useDeleteHabit,
+  useUpdateHabit,
+  useTodoLists,
+  useCreateTodoList,
+  useUpdateTodoList,
+  useDeleteTodoList,
+} from "../hooks";
+import { Separator } from "@/components/ui/separator";
+import { TodoItemWithAI } from "./TodoItemWithAI";
 
 const TodoList: React.FC = () => {
   const { theme } = useTheme();
-  const isDarkMode = theme === 'dark';
+  const isDarkMode = theme === "dark";
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [showTodoForm, setShowTodoForm] = useState(false);
-  const [addingToColumn, setAddingToColumn] = useState<'log' | 'thisWeek' | 'today' | null>(null);
+  const [addingToColumn, setAddingToColumn] = useState<
+    "log" | "thisWeek" | "today" | null
+  >(null);
   const [isFlipping, setIsFlipping] = useState(false);
-  const [newHabit, setNewHabit] = useState('');
+  const [newHabit, setNewHabit] = useState("");
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [showHabitTracker, setShowHabitTracker] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
-  
+
   // New state for managing multiple lists
-  const [currentListId, setCurrentListId] = useState<string>('');
+  const [currentListId, setCurrentListId] = useState<string>("");
   const [showNewListInput, setShowNewListInput] = useState(false);
-  const [newListName, setNewListName] = useState('');
+  const [newListName, setNewListName] = useState("");
   const newListInputRef = useRef<HTMLInputElement>(null);
-  
+
   // User authentication query
   const { data: user } = useQuery<User>({
-    queryKey: ['user'],
+    queryKey: ["user"],
     queryFn: async () => {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No token found");
       return authApi.getMe();
     },
   });
 
   // Use the custom hooks
-  const { data: todoLists = [], refetch: refetchTodoLists } = useTodoLists(user);
+  const { data: todoLists = [], refetch: refetchTodoLists } =
+    useTodoLists(user);
   const { data: habits = [] } = useHabits(user);
   const createTodoMutation = useCreateTodo();
   const updateTodoMutation = useUpdateTodo();
@@ -70,13 +111,13 @@ const TodoList: React.FC = () => {
   // Set default list ID on initial load
   React.useEffect(() => {
     if (todoLists.length > 0 && !currentListId) {
-      const defaultList = todoLists.find(list => list.is_default);
+      const defaultList = todoLists.find((list) => list.is_default);
       setCurrentListId(defaultList?.id || todoLists[0].id);
     }
   }, [todoLists, currentListId]);
 
   // Get current list and its todos
-  const currentList = todoLists.find(list => list.id === currentListId);
+  const currentList = todoLists.find((list) => list.id === currentListId);
   const todos = currentList?.todos || [];
 
   const handleEditHabit = (habit: Habit) => {
@@ -100,13 +141,16 @@ const TodoList: React.FC = () => {
         reminder_time: formData.reminder_time?.toISOString() || null,
         tags: formData.tags?.reduce((acc, tag) => ({ ...acc, [tag]: {} }), {}),
         checklist: { items: formData.checklist?.items || [] },
-        is_completed: editingTodo.is_completed
+        is_completed: editingTodo.is_completed,
       };
       updateTodoMutation.mutate({ id: editingTodo.id, updates });
     } else {
-      const newTodo: Omit<Todo, "id" | "created_at" | "updated_at" | "completed_at"> = {
+      const newTodo: Omit<
+        Todo,
+        "id" | "created_at" | "updated_at" | "completed_at"
+      > = {
         user_id: user.id,
-        list_id: currentListId === 'default' ? undefined : currentListId,
+        list_id: currentListId === "default" ? undefined : currentListId,
         title: formData.title,
         description: formData.description,
         status: TodoStatus.PENDING,
@@ -119,7 +163,7 @@ const TodoList: React.FC = () => {
         is_completed: false,
         linked_task_id: null,
         linked_calendar_event_id: null,
-        recurrence_pattern: {}
+        recurrence_pattern: {},
       };
       createTodoMutation.mutate(newTodo);
     }
@@ -144,108 +188,136 @@ const TodoList: React.FC = () => {
       <div className="space-y-2">
         {todos.map((todo) => {
           return (
-            <div
-              key={todo.id}
-              className={cn(
-                "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
-                todo.is_completed && "bg-muted"
-              )}
-            >
-              <div className="flex items-start gap-4">
-                <Checkbox
-                  name={`todo-${todo.id}`}
-                  checked={todo.is_completed}
-                  onChange={() => handleToggleTodo(todo)}
-                  darkMode={isDarkMode}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center">
-                    <span className={cn(
-                      "text-sm font-medium",
-                      todo.is_completed && "line-through text-muted-foreground"
-                    )}>
-                      {todo.title}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PriorityIndicator priority={todo.priority || TodoPriority.MEDIUM} />
-                    {todo.tags && typeof todo.tags === 'object' && Object.keys(todo.tags).map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="default"
-                        className="text-xs text-black hover:bg-white/100 transition-colors"
+            <TodoItemWithAI key={todo.id} todo={todo}>
+              <div
+                className={cn(
+                  "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
+                  todo.is_completed && "bg-muted"
+                )}
+              >
+                <div className="flex items-start gap-4">
+                  <Checkbox
+                    name={`todo-${todo.id}`}
+                    checked={todo.is_completed}
+                    onChange={() => handleToggleTodo(todo)}
+                    darkMode={isDarkMode}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center">
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          todo.is_completed &&
+                            "line-through text-muted-foreground"
+                        )}
                       >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                  {todo.checklist?.items && todo.checklist.items.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Checklist</span>
-                        <span>
-                          {todo.checklist.items.filter(item => item.completed).length}/{todo.checklist.items.length}
-                        </span>
-                      </div>
-                      <Progress
-                        value={(todo.checklist.items.filter(item => item.completed).length / todo.checklist.items.length) * 100}
-                        className="h-1"
+                        {todo.title}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PriorityIndicator
+                        priority={todo.priority || TodoPriority.MEDIUM}
                       />
-                      <div className="space-y-1.5">
-                        {todo.checklist.items.map((item, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <Checkbox
-                              name={`todo-${todo.id}-checklist-${index}`}
-                              checked={item.completed}
-                              onChange={() => {
-                                const newChecklist = {
-                                  items: [...todo.checklist!.items]
-                                };
-                                newChecklist.items[index] = {
-                                  ...item,
-                                  completed: !item.completed
-                                };
-                                updateTodoMutation.mutate({
-                                  id: todo.id,
-                                  updates: { checklist: newChecklist }
-                                });
-                              }}
-                              darkMode={isDarkMode}
-                              className="h-3 w-3"
-                            />
-                            <span className={cn(
-                              "text-xs",
-                              item.completed && "line-through text-muted-foreground"
-                            )}>
-                              {item.title}
+                      {todo.tags &&
+                        typeof todo.tags === "object" &&
+                        Object.keys(todo.tags).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="default"
+                            className="text-xs text-black hover:bg-white/100 transition-colors"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                    </div>
+                    {todo.checklist?.items &&
+                      todo.checklist.items.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>Checklist</span>
+                            <span>
+                              {
+                                todo.checklist.items.filter(
+                                  (item) => item.completed
+                                ).length
+                              }
+                              /{todo.checklist.items.length}
                             </span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                          <Progress
+                            value={
+                              (todo.checklist.items.filter(
+                                (item) => item.completed
+                              ).length /
+                                todo.checklist.items.length) *
+                              100
+                            }
+                            className="h-1"
+                          />
+                          <div className="space-y-1.5">
+                            {todo.checklist.items.map((item, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center gap-2"
+                              >
+                                <Checkbox
+                                  name={`todo-${todo.id}-checklist-${index}`}
+                                  checked={item.completed}
+                                  onChange={() => {
+                                    const newChecklist = {
+                                      items: [...todo.checklist!.items],
+                                    };
+                                    newChecklist.items[index] = {
+                                      ...item,
+                                      completed: !item.completed,
+                                    };
+                                    updateTodoMutation.mutate({
+                                      id: todo.id,
+                                      updates: { checklist: newChecklist },
+                                    });
+                                  }}
+                                  darkMode={isDarkMode}
+                                  className="h-3 w-3"
+                                />
+                                <span
+                                  className={cn(
+                                    "text-xs",
+                                    item.completed &&
+                                      "line-through text-muted-foreground"
+                                  )}
+                                >
+                                  {item.title}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-[160px]">
+                      <DropdownMenuItem onClick={() => handleEditTodo(todo)}>
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteTodo(todo.id)}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-[160px]">
-                    <DropdownMenuItem onClick={() => handleEditTodo(todo)}>
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteTodo(todo.id)}>
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
-            </div>
+            </TodoItemWithAI>
           );
         })}
       </div>
@@ -258,19 +330,19 @@ const TodoList: React.FC = () => {
     if (editingHabit) {
       updateHabitMutation.mutate({
         habitId: editingHabit.id,
-        title: newHabit.trim()
+        title: newHabit.trim(),
       });
     } else {
       createHabitMutation.mutate({
         title: newHabit.trim(),
-        description: '',
+        description: "",
         start_day: new Date().toISOString(),
-        user_id: user.id
+        user_id: user.id,
       });
     }
 
     // Clear input and close form
-    setNewHabit('');
+    setNewHabit("");
     setShowHabitInput(false);
     setEditingHabit(null);
   };
@@ -286,58 +358,58 @@ const TodoList: React.FC = () => {
   const handleFlipToHabits = () => {
     setIsFlipping(true);
     setShowHabitTracker(true);
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     setTimeout(() => {
       setIsFlipping(false);
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     }, 250);
   };
 
   const handleFlipToLog = () => {
     setShowHabitTracker(false);
     setIsFlipping(true);
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     setTimeout(() => {
       setIsFlipping(false);
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     }, 250);
   };
 
-  type TodoFilterType = 'log' | 'thisWeek' | 'today' | 'done';
-  
+  type TodoFilterType = "log" | "thisWeek" | "today" | "done";
+
   const filterTodos = (type: TodoFilterType): Todo[] => {
     // Ensure we have an array to work with
     if (!Array.isArray(todos)) {
       return [];
     }
-    
-    const filtered = todos.filter(todo => {
+
+    const filtered = todos.filter((todo) => {
       // Handle completed todos first
       if (todo.is_completed) {
-        return type === 'done';
+        return type === "done";
       }
 
       // For non-completed todos, never show in done section
-      if (type === 'done') {
+      if (type === "done") {
         return false;
       }
 
       // If no due date, put it in the log
       if (!todo.due_date) {
-        return type === 'log';
+        return type === "log";
       }
-      
+
       // Parse the due date string to a Date object
       const dueDate = new Date(todo.due_date);
-      
+
       // Get current date at midnight in local timezone
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
+
       // Calculate end of today in local timezone
       const endOfToday = new Date(today);
       endOfToday.setHours(23, 59, 59, 999);
-      
+
       // Calculate end of week in local timezone
       const endOfWeek = new Date(today);
       endOfWeek.setDate(today.getDate() + 7);
@@ -348,13 +420,13 @@ const TodoList: React.FC = () => {
       const isDueToday = dueDate >= today && dueDate <= endOfToday;
       const isDueThisWeek = dueDate > endOfToday && dueDate <= endOfWeek;
       const isDueLater = dueDate > endOfWeek;
-      
+
       switch (type) {
-        case 'today':
+        case "today":
           return isDueToday || isPastDue;
-        case 'thisWeek':
+        case "thisWeek":
           return isDueThisWeek;
-        case 'log':
+        case "log":
           return isDueLater || !todo.due_date;
         default:
           return false;
@@ -367,13 +439,15 @@ const TodoList: React.FC = () => {
   const renderTodoColumn = (type: TodoFilterType, title: string) => {
     const columnTodos = filterTodos(type);
 
-    if (type === 'log' && (showHabitTracker || isFlipping)) {
+    if (type === "log" && (showHabitTracker || isFlipping)) {
       return (
         <div className="h-[calc(100vh-190px)] w-full perspective-1000 -mt-4">
-          <div className={cn(
-            "relative h-full w-full [transition:transform_250ms_ease-in-out] [transform-style:preserve-3d]",
-            showHabitTracker ? "[transform:rotateY(180deg)]" : ""
-          )}>
+          <div
+            className={cn(
+              "relative h-full w-full [transition:transform_250ms_ease-in-out] [transform-style:preserve-3d]",
+              showHabitTracker ? "[transform:rotateY(180deg)]" : ""
+            )}
+          >
             {/* Front side - Log */}
             <div className="absolute inset-0 w-full h-full rounded-lg border bg-card p-4 flex flex-col [backface-visibility:hidden]">
               <div className="mb-4 flex items-center justify-between">
@@ -407,7 +481,7 @@ const TodoList: React.FC = () => {
                 {renderTodoList(columnTodos)}
               </div>
             </div>
-            
+
             {/* Back side - Habits */}
             <div className="absolute inset-0 w-full h-full rounded-lg border bg-card p-4 flex flex-col [backface-visibility:hidden] [transform:rotateY(180deg)]">
               <div className="flex flex-col h-full w-full">
@@ -418,7 +492,10 @@ const TodoList: React.FC = () => {
                         <CalendarSync className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-medium">Daily Habits</h3>
                       </div>
-                      <span className="text-sm text-muted-foreground">{habits.filter(h => h.is_completed).length}/{habits.length} Done</span>
+                      <span className="text-sm text-muted-foreground">
+                        {habits.filter((h) => h.is_completed).length}/
+                        {habits.length} Done
+                      </span>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -448,7 +525,7 @@ const TodoList: React.FC = () => {
                       onChange={(e) => setNewHabit(e.target.value)}
                       placeholder="New habit..."
                       className="flex-1"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddHabit()}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddHabit()}
                     />
                     <Button
                       variant="ghost"
@@ -456,7 +533,7 @@ const TodoList: React.FC = () => {
                       onClick={() => {
                         setShowHabitInput(false);
                         setEditingHabit(null);
-                        setNewHabit('');
+                        setNewHabit("");
                       }}
                       className="text-muted-foreground hover:text-foreground"
                     >
@@ -487,16 +564,21 @@ const TodoList: React.FC = () => {
                           <Checkbox
                             name={`habit-${habit.id}`}
                             checked={habit.is_completed}
-                            onChange={() => toggleHabit(habit.id, habit.is_completed)}
+                            onChange={() =>
+                              toggleHabit(habit.id, habit.is_completed)
+                            }
                             darkMode={isDarkMode}
                             className="mt-0.5"
                           />
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center">
-                              <span className={cn(
-                                "text-sm font-medium",
-                                habit.is_completed && "line-through text-muted-foreground"
-                              )}>
+                              <span
+                                className={cn(
+                                  "text-sm font-medium",
+                                  habit.is_completed &&
+                                    "line-through text-muted-foreground"
+                                )}
+                              >
                                 {habit.title}
                               </span>
                             </div>
@@ -516,11 +598,18 @@ const TodoList: React.FC = () => {
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-[160px]">
-                              <DropdownMenuItem onClick={() => handleEditHabit(habit)}>
+                            <DropdownMenuContent
+                              align="end"
+                              className="w-[160px]"
+                            >
+                              <DropdownMenuItem
+                                onClick={() => handleEditHabit(habit)}
+                              >
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => deleteHabit(habit.id)}>
+                              <DropdownMenuItem
+                                onClick={() => deleteHabit(habit.id)}
+                              >
                                 Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -541,14 +630,22 @@ const TodoList: React.FC = () => {
       <div className="h-[calc(100vh-190px)] w-full rounded-lg border bg-card p-4 -mt-4 flex flex-col">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {type === 'log' && <CalendarFold className="h-4 w-4 text-muted-foreground" />}
-            {type === 'thisWeek' && <CalendarClock className="h-4 w-4 text-muted-foreground" />}
-            {type === 'today' && <CalendarCheck className="h-4 w-4 text-muted-foreground" />}
-            {type === 'done' && <Check className="h-4 w-4 text-muted-foreground" />}
+            {type === "log" && (
+              <CalendarFold className="h-4 w-4 text-muted-foreground" />
+            )}
+            {type === "thisWeek" && (
+              <CalendarClock className="h-4 w-4 text-muted-foreground" />
+            )}
+            {type === "today" && (
+              <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+            )}
+            {type === "done" && (
+              <Check className="h-4 w-4 text-muted-foreground" />
+            )}
             <h3 className="font-medium">{title}</h3>
           </div>
           <div className="flex gap-2">
-            {type === 'log' && (
+            {type === "log" && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -558,7 +655,7 @@ const TodoList: React.FC = () => {
                 <Repeat className="w-4 h-4" />
               </Button>
             )}
-            {type !== 'done' && (
+            {type !== "done" && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -588,14 +685,14 @@ const TodoList: React.FC = () => {
   // Add new list handler
   const handleAddNewList = () => {
     if (!newListName.trim()) return;
-    
+
     createTodoListMutation.mutate({
       name: newListName.trim(),
-      description: '',
-      is_default: false
+      description: "",
+      is_default: false,
     });
-    
-    setNewListName('');
+
+    setNewListName("");
     setShowNewListInput(false);
   };
 
@@ -612,28 +709,40 @@ const TodoList: React.FC = () => {
     <div className="grid grid-cols-4 gap-4 p-6 h-full w-full">
       {/* Todo Label - Main page title */}
       <div className="col-span-4">
-        <p className="text-xs uppercase text-muted-foreground tracking-wider mb-4">todo</p>
+        <p className="text-xs uppercase text-muted-foreground tracking-wider mb-4">
+          todo
+        </p>
         <div className="flex justify-start">
-          <h1 className="text-2xl font-bold tracking-tight leading-none mr-2">Todos & Habits</h1>
-          <Separator orientation="vertical" className="h-5 relative top-[6px] z-[1] mr-1" />
+          <h1 className="text-2xl font-bold tracking-tight leading-none mr-2">
+            Todos & Habits
+          </h1>
+          <Separator
+            orientation="vertical"
+            className="h-5 relative top-[6px] z-[1] mr-1"
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" className="-ml-2 bg-background hover:bg-background relative top-[-1px]">
-                {todoLists.find(list => list.id === currentListId)?.name}
+              <Button
+                size="sm"
+                className="-ml-2 bg-background hover:bg-background relative top-[-1px]"
+              >
+                {todoLists.find((list) => list.id === currentListId)?.name}
                 <ChevronDown className="h-4 w-4 opacity-70" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-[180px]">
-              {todoLists.map(list => (
-                <DropdownMenuItem 
+              {todoLists.map((list) => (
+                <DropdownMenuItem
                   key={list.id}
                   className="flex items-center justify-between group"
                   onClick={() => handleListChange(list.id)}
                 >
-                  <span className={cn(
-                    "flex-1",
-                    currentListId === list.id && "font-medium"
-                  )}>
+                  <span
+                    className={cn(
+                      "flex-1",
+                      currentListId === list.id && "font-medium"
+                    )}
+                  >
                     {list.name}
                   </span>
                   {!list.is_default && (
@@ -651,7 +760,7 @@ const TodoList: React.FC = () => {
                   )}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="border-t mt-1 pt-1 cursor-pointer text-foreground font-medium"
                 onClick={() => {
                   setShowNewListInput(true);
@@ -668,14 +777,16 @@ const TodoList: React.FC = () => {
           <div className="flex items-baseline">
             {/* New list input */}
             {showNewListInput && (
-              <div className="flex gap-2 items-center ml-1"> {/* //////Remove the outline and focus styles */}
+              <div className="flex gap-2 items-center ml-1">
+                {" "}
+                {/* //////Remove the outline and focus styles */}
                 <Input
                   ref={newListInputRef}
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
                   placeholder="List name..."
                   className="w-40 h-8"
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddNewList()}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddNewList()}
                 />
                 <Button
                   variant="ghost"
@@ -696,11 +807,11 @@ const TodoList: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="col-span-4 mb-4 flex items-center ml-auto -mt-1"> 
-              <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2" 
+          <div className="col-span-4 mb-4 flex items-center ml-auto -mt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
               onClick={() => {
                 setEditingTodo(null);
                 setShowTodoForm(true);
@@ -712,10 +823,10 @@ const TodoList: React.FC = () => {
           </div>
         </div>
       </div>
-      {renderTodoColumn('log', 'Log')}
-      {renderTodoColumn('thisWeek', 'This Week')}
-      {renderTodoColumn('today', 'Today')}
-      {renderTodoColumn('done', 'Done')}
+      {renderTodoColumn("log", "Log")}
+      {renderTodoColumn("thisWeek", "This Week")}
+      {renderTodoColumn("today", "Today")}
+      {renderTodoColumn("done", "Done")}
 
       {showTodoForm && (
         <TodoForm

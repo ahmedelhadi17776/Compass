@@ -40,6 +40,32 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, user_id: str):
         try:
             await websocket.accept()
+
+            # Check for existing connections for this user and clean up any that are disconnected
+            if user_id in self.active_connections:
+                # Check each existing connection to see if it's still valid
+                disconnected = []
+                for i, conn in enumerate(self.active_connections[user_id]):
+                    if hasattr(conn, 'client_state') and conn.client_state.name != "CONNECTED":
+                        logger.warning(
+                            f"Found stale connection for user {user_id}. Marking for cleanup.")
+                        disconnected.append(i)
+
+                # Remove any disconnected connections
+                for i in sorted(disconnected, reverse=True):
+                    try:
+                        if (hasattr(self.active_connections[user_id][i], 'client_state') and
+                                self.active_connections[user_id][i].client_state.name == "CONNECTED"):
+                            await self.active_connections[user_id][i].close()
+                    except Exception as e:
+                        logger.error(
+                            f"Error closing stale connection: {str(e)}")
+
+                    # Handle out of range case
+                    if i < len(self.active_connections[user_id]):
+                        del self.active_connections[user_id][i]
+
+            # Now add the new connection
             if user_id not in self.active_connections:
                 self.active_connections[user_id] = []
             self.active_connections[user_id].append(websocket)
@@ -142,12 +168,31 @@ class ConnectionManager:
         disconnected = []
         for i, connection in enumerate(self.active_connections[user_id]):
             try:
+                # Check if connection is still active before sending
+                if hasattr(connection, 'client_state') and connection.client_state.name != "CONNECTED":
+                    logger.warning(
+                        f"Connection {i} for user {user_id} is no longer connected. Marking for removal.")
+                    disconnected.append(i)
+                    continue
+
                 await connection.send_json(message)
                 self.stats["messages_sent"] += 1
                 # Update last ping time
                 if user_id in self.connection_health:
                     self.connection_health[user_id]["last_ping"] = datetime.utcnow(
                     ).isoformat()
+            except RuntimeError as re:
+                if "after sending 'websocket.close'" in str(re) or "not connected" in str(re).lower():
+                    logger.warning(
+                        f"Connection {i} for user {user_id} was already closed. Marking for removal.")
+                    disconnected.append(i)
+                else:
+                    logger.error(
+                        f"Error broadcasting to user {user_id}: {str(re)}", exc_info=True)
+                    self.stats["errors"] += 1
+                    if user_id in self.connection_health:
+                        self.connection_health[user_id]["errors"] += 1
+                    disconnected.append(i)
             except Exception as e:
                 logger.error(
                     f"Error broadcasting to user {user_id}: {str(e)}", exc_info=True)
@@ -159,7 +204,10 @@ class ConnectionManager:
         # Remove disconnected connections
         for i in sorted(disconnected, reverse=True):
             try:
-                await self.active_connections[user_id][i].close()
+                # Only try to close if not already closed
+                if (hasattr(self.active_connections[user_id][i], 'client_state') and
+                        self.active_connections[user_id][i].client_state.name == "CONNECTED"):
+                    await self.active_connections[user_id][i].close()
             except:
                 pass
 

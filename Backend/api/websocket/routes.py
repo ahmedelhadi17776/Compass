@@ -1,15 +1,21 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException, status
-from typing import Optional
+from typing import Optional, Dict, Any
 import logging
 import json
+import asyncio
+import traceback
 from datetime import datetime
 
 from api.websocket.dashboard_ws import dashboard_ws_manager
 from utils.jwt import extract_user_id_from_token, decode_token
 from core.config import settings
+from ai_services.agents.orchestrator import AgentOrchestrator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Store active tasks to prevent garbage collection
+active_tasks: Dict[str, asyncio.Task] = {}
 
 
 @router.websocket("/ws/dashboard")
@@ -42,6 +48,12 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
         await dashboard_ws_manager.connect(websocket, user_id)
         logger.info(f"WebSocket connection accepted for user_id: {user_id}")
 
+        # Verify that the connection is still alive after connect
+        if websocket.client_state.name != "CONNECTED":
+            logger.error(
+                f"WebSocket connection failed immediately after accept for user_id: {user_id}")
+            return
+
         # Send initial connection confirmation
         await websocket.send_json({
             "type": "connected",
@@ -55,6 +67,13 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
             from data_layer.cache.dashboard_cache import dashboard_cache
             if hasattr(dashboard_cache, '_memory_cache') and user_id in dashboard_cache._memory_cache:
                 metrics, _ = dashboard_cache._memory_cache[user_id]
+
+                # Verify connection is still alive
+                if websocket.client_state.name != "CONNECTED":
+                    logger.warning(
+                        f"WebSocket disconnected before sending initial metrics to user {user_id}")
+                    return
+
                 await websocket.send_json({
                     "type": "initial_metrics",
                     "data": metrics,
@@ -66,6 +85,13 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                 # Fetch metrics if not in memory cache
                 try:
                     metrics = await dashboard_cache.get_metrics(user_id, token)
+
+                    # Verify connection is still alive
+                    if websocket.client_state.name != "CONNECTED":
+                        logger.warning(
+                            f"WebSocket disconnected before sending fetched metrics to user {user_id}")
+                        return
+
                     if metrics:
                         await websocket.send_json({
                             "type": "initial_metrics",
@@ -102,6 +128,13 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                 except Exception as fetch_error:
                     logger.error(
                         f"Error fetching initial metrics: {str(fetch_error)}")
+
+                    # Verify connection is still alive
+                    if websocket.client_state.name != "CONNECTED":
+                        logger.warning(
+                            f"WebSocket disconnected after metrics fetch error for user {user_id}")
+                        return
+
                     # Send error notification to client
                     await websocket.send_json({
                         "type": "error",
@@ -114,11 +147,28 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
 
         # Keep the connection alive and handle client messages
         while True:
+            # Verify connection before waiting for message
+            if websocket.client_state.name != "CONNECTED":
+                logger.warning(
+                    f"WebSocket connection lost for user {user_id} before receiving message")
+                break
+
             # Wait for messages from the client
-            data = await websocket.receive_text()
+            try:
+                data = await websocket.receive_text()
+            except WebSocketDisconnect:
+                logger.info(
+                    f"WebSocket disconnected while waiting for message from user {user_id}")
+                break
+            except Exception as recv_error:
+                logger.error(
+                    f"Error receiving WebSocket message: {str(recv_error)}")
+                break
+
             try:
                 message = json.loads(data)
                 message_type = message.get("type")
+                message_data = message.get("data", {})
 
                 # Handle different message types
                 if message_type == "ping":
@@ -134,6 +184,28 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                         "type": "refresh_initiated",
                         "timestamp": datetime.utcnow().isoformat()
                     })
+
+                # AI Drag & Drop feature message handlers
+                elif message_type == "ai_options_request":
+                    # Use our new dedicated handler function
+                    await handle_ai_options_request(websocket, message, user_id)
+
+                elif message_type == "ai_process_request":
+                    logger.info(
+                        f"AI process request for option {message.get('option_id')} on {message.get('target_type')} {message.get('target_id')} from user {user_id}")
+
+                    # Process the request asynchronously
+                    task = asyncio.create_task(
+                        process_ai_option(
+                            websocket=websocket,
+                            message_data=message,
+                            user_id=user_id
+                        )
+                    )
+                    # Store the task to prevent it from being garbage collected
+                    task_key = f"{user_id}_{message.get('target_id')}_{message.get('option_id')}"
+                    active_tasks[task_key] = task
+
                 elif message_type == "refresh_heatmap":
                     # Client is requesting a refresh of the habit heatmap specifically
                     logger.info(
@@ -175,17 +247,42 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                         stats = focus_repo.get_stats(user_id)
                         user_settings = settings_repo.get_user_settings(
                             user_id)
-                        stats["daily_target_seconds"] = user_settings.daily_target_seconds
 
-                        # Add daily breakdown for visualization
-                        daily_breakdown = dashboard_cache._generate_daily_focus_breakdown(
+                        # Convert stats to a dictionary we can modify safely
+                        response_data = {}
+                        if isinstance(stats, dict):
+                            # If it's already a dict, make a copy
+                            response_data = dict(stats)
+                        else:
+                            # Otherwise try to convert it
+                            try:
+                                response_data = dict(vars(stats))
+                            except:
+                                # Fallback to empty dict with key stats if available
+                                response_data = {}
+                                if hasattr(stats, "total_focus_seconds"):
+                                    response_data["total_focus_seconds"] = stats.total_focus_seconds
+                                if hasattr(stats, "streak"):
+                                    response_data["streak"] = stats.streak
+                                if hasattr(stats, "longest_streak"):
+                                    response_data["longest_streak"] = stats.longest_streak
+                                if hasattr(stats, "sessions"):
+                                    response_data["sessions"] = stats.sessions
+
+                        # Add settings data
+                        response_data["daily_target_seconds"] = user_settings.daily_target_seconds
+
+                        # Get daily breakdown - this returns a list of day objects, not an integer
+                        breakdown = dashboard_cache._generate_daily_focus_breakdown(
                             user_id)
-                        stats["daily_breakdown"] = daily_breakdown
+                        # Store it in a separate field so we don't overwrite any existing data
+                        response_data = {**response_data,
+                                         "focus_breakdown": breakdown}
 
                         # Send immediate response for better UX
                         await websocket.send_json({
                             "type": "focus_stats",
-                            "data": stats,
+                            "data": response_data,
                             "timestamp": datetime.utcnow().isoformat()
                         })
 
@@ -269,7 +366,8 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
             except json.JSONDecodeError:
                 logger.warning(f"Received invalid JSON from client: {user_id}")
             except Exception as e:
-                logger.error(f"Error handling client message: {str(e)}")
+                logger.error(
+                    f"Error handling client message: {str(e)}", exc_info=True)
 
     except WebSocketDisconnect:
         if user_id:
@@ -277,12 +375,94 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
             await dashboard_ws_manager.disconnect(websocket, user_id)
     except Exception as e:
         logger.error(f"WebSocket error: {str(e)}", exc_info=True)
+        logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
         if user_id:
             await dashboard_ws_manager.disconnect(websocket, user_id)
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except:
             pass
+
+
+async def process_ai_option(
+    websocket: WebSocket,
+    message_data: Dict[str, Any],
+    user_id: str
+):
+    """Process an AI option selected by the user.
+    Uses the agent orchestrator to process the option.
+    """
+    option_id = message_data.get("option_id")
+    target_type = message_data.get("target_type")
+    target_id = message_data.get("target_id")
+    target_data = message_data.get("target_data")
+    try:
+        logger.info(
+            f"AI process request for option {option_id} on {target_type} {target_id} from user {user_id}")
+
+        # Initialize the orchestrator
+        logger.info(
+            f"Initializing AgentOrchestrator for processing option {option_id}")
+        orchestrator = AgentOrchestrator()
+
+        # Process the option
+        logger.info(
+            f"Processing option {option_id} for {target_type} {target_id}")
+        result = await orchestrator.process_option(
+            option_id=str(option_id),
+            target_type=str(target_type),
+            target_id=str(target_id),
+            user_id=user_id,
+            target_data=target_data
+        )
+
+        # Check if result is valid
+        if not result:
+            error_msg = "No result returned from agent"
+            logger.error(error_msg)
+            await websocket.send_json({
+                "type": "ai_option_result",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "optionId": option_id,
+                    "error": error_msg,
+                    "success": False
+                }
+            })
+            return
+
+        logger.info(f"Successfully processed option {option_id}")
+
+        # Send result to client
+        await websocket.send_json({
+            "type": "ai_option_result",
+            "data": {
+                "targetId": target_id,
+                "targetType": target_type,
+                "optionId": option_id,
+                "result": result,
+                "success": True
+            }
+        })
+    except Exception as e:
+        error_msg = f"Error processing AI option: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+
+        # Send error to client
+        try:
+            await websocket.send_json({
+                "type": "ai_option_result",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "optionId": option_id,
+                    "error": error_msg,
+                    "success": False
+                }
+            })
+        except Exception as send_err:
+            logger.error(f"Error sending error response: {str(send_err)}")
 
 
 @router.websocket("/ws/dashboard/admin")
@@ -331,3 +511,97 @@ async def admin_dashboard_websocket(websocket: WebSocket, token: str = Query(...
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except:
             pass
+
+
+async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], user_id: str):
+    """Handle AI options request from client.
+    Gets AI options for a target from the agent orchestrator.
+    """
+    try:
+        target_type = data.get("target_type", "")
+        target_id = data.get("target_id", "")
+        target_data = data.get("target_data", {})
+
+        # Validate required fields
+        if not target_type or not target_id:
+            logger.error("Missing required fields for AI options request")
+            await websocket.send_json({
+                "type": "ai_options_response",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "error": "Missing required fields",
+                    "success": False
+                }
+            })
+            return
+
+        # Ensure target_type is a string
+        if not isinstance(target_type, str):
+            target_type = str(target_type)
+
+        # Ensure target_id is a string
+        if not isinstance(target_id, str):
+            target_id = str(target_id)
+
+        # Ensure the target data contains required fields for MCP tools
+        enhanced_target_data = dict(target_data) if isinstance(
+            target_data, dict) else {}
+
+        # Make sure it has an ID
+        if "id" not in enhanced_target_data and target_id:
+            enhanced_target_data["id"] = target_id
+
+        # Ensure it has a user_id
+        if "user_id" not in enhanced_target_data and user_id:
+            enhanced_target_data["user_id"] = user_id
+
+        logger.info(
+            f"Target data for {target_type}: {str(enhanced_target_data)[:200]}...")
+        logger.info(f"Requesting options from orchestrator for {target_type}")
+
+        # Initialize the orchestrator
+        from ai_services.agents.orchestrator import AgentOrchestrator
+        orchestrator = AgentOrchestrator()
+
+        # Get options from orchestrator
+        options = await orchestrator.get_options_for_target(
+            target_type=target_type,
+            target_id=target_id,
+            target_data=enhanced_target_data,
+            user_id=user_id
+        )
+
+        logger.info(
+            f"Got {len(options)} options from orchestrator for {target_type}")
+
+        # Send options back to client
+        await websocket.send_json({
+            "type": "ai_options_response",
+            "data": {
+                "targetId": target_id,
+                "targetType": target_type,
+                "options": options,
+                "success": True
+            }
+        })
+        logger.info(f"Sent ai_options_response for {target_type} {target_id}")
+
+    except Exception as e:
+        logger.error(
+            f"Error handling AI options request: {str(e)}", exc_info=True)
+        # Try to send error response if possible
+        try:
+            target_type = str(data.get("target_type", "unknown"))
+            target_id = str(data.get("target_id", "unknown"))
+            await websocket.send_json({
+                "type": "ai_options_response",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "error": f"Error handling AI options request: {str(e)}",
+                    "success": False
+                }
+            })
+        except Exception as send_error:
+            logger.error(f"Error sending error response: {str(send_error)}")

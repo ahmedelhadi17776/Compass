@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useState,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import ReconnectingWebSocket from "reconnecting-websocket";
@@ -16,7 +17,7 @@ export const QUERY_KEYS = {
 interface WebSocketContextType {
   requestRefresh: () => void;
   isConnected: boolean;
-  sendMessage?: (message: Record<string, unknown>) => void;
+  sendMessage?: (message: Record<string, unknown>) => boolean;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -116,7 +117,7 @@ export interface DashboardMetrics {
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const wsRef = useRef<ReconnectingWebSocket | null>(null);
-  const isConnectedRef = useRef<boolean>(false);
+  const [isConnected, setIsConnected] = useState(false);
   const pendingAckRef = useRef<boolean>(false);
   // Add debounce tracking
   const lastUpdateRef = useRef<number>(0);
@@ -179,7 +180,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       switch (data.type) {
         case "connected":
           console.log("WebSocket connection confirmed");
-          isConnectedRef.current = true;
+          setIsConnected(true);
           break;
 
         case "initial_metrics":
@@ -211,6 +212,40 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           if (data.data) {
             handleMetricsUpdate(data.data as unknown as DashboardMetrics);
           }
+          break;
+
+        case "ai_options_response":
+          // Dispatch a custom event for AI options
+          console.log("Received AI options response", data);
+          window.dispatchEvent(
+            new CustomEvent("websocket_ai_event", {
+              detail: data,
+            })
+          );
+          break;
+
+        case "ai_option_processing":
+          // Dispatch a custom event for AI option processing
+          console.log("Received AI option processing notification", data);
+          window.dispatchEvent(
+            new CustomEvent("websocket_ai_event", {
+              detail: data,
+            })
+          );
+          break;
+
+        case "ai_option_result":
+          // Dispatch a custom event for AI option result
+          console.log("Received AI option result", data);
+          // For backward compatibility, ensure 'success' field exists
+          if (data.data && !("success" in data.data)) {
+            data.data.success = !data.data.error;
+          }
+          window.dispatchEvent(
+            new CustomEvent("websocket_ai_event", {
+              detail: data,
+            })
+          );
           break;
 
         case "focus_data":
@@ -413,13 +448,13 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     ws.onopen = () => {
       console.log("WebSocket connected");
-      isConnectedRef.current = true;
+      setIsConnected(true);
       ws.send(JSON.stringify({ type: "ping" }));
     };
 
     ws.onerror = (error) => {
       console.error("WebSocket error occurred:", error);
-      isConnectedRef.current = false;
+      setIsConnected(false);
     };
 
     ws.onmessage = (event) => {
@@ -439,7 +474,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     ws.onclose = () => {
       console.log("WebSocket disconnected");
-      isConnectedRef.current = false;
+      setIsConnected(false);
     };
 
     // Set up ping interval
@@ -451,7 +486,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       clearInterval(pingInterval);
-      isConnectedRef.current = false;
+      setIsConnected(false);
       // Clear any pending updates
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
@@ -472,8 +507,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const sendMessage = useCallback((message: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
+      return true;
     } else {
       console.warn("Cannot send message - WebSocket not connected");
+      return false;
     }
   }, []);
 
@@ -481,7 +518,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     <WebSocketContext.Provider
       value={{
         requestRefresh,
-        isConnected: isConnectedRef.current,
+        isConnected,
         sendMessage,
       }}
     >

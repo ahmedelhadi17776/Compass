@@ -54,6 +54,8 @@ mcp = FastMCP(
 )
 
 # Add a diagnostic endpoint to check registered tools
+
+
 @app.get("/mcp-diagnostic")
 async def mcp_diagnostic():
     """Diagnostic endpoint to verify MCP server configuration and tool registration."""
@@ -339,6 +341,7 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
         await ctx.error(f"Failed to create project: {str(e)}")
         raise
 
+
 @mcp.tool("entity.create")
 async def create_entity(
     ctx: Context,
@@ -362,6 +365,7 @@ async def create_entity(
     except Exception as e:
         logger.error(f"Error creating entity: {str(e)}")
         raise
+
 
 @mcp.tool("user.getInfo")
 async def get_user_info(
@@ -635,6 +639,7 @@ async def create_habit(
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
+
 @mcp.tool("calendar.getEvents")
 async def get_calendar_events(
     ctx: Context,
@@ -660,14 +665,16 @@ async def get_calendar_events(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Format dates as RFC3339/ISO format with timezone
         # If only a date is provided (YYYY-MM-DD), convert to start/end of day with UTC timezone
         start_time = start_date
         if len(start_date) <= 10:  # It's just a date without time
-            start_time = f"{start_date}T00:00:00Z"  # Beginning of the day in UTC
-        
+            # Beginning of the day in UTC
+            start_time = f"{start_date}T00:00:00Z"
+
         end_time = end_date
         if end_date:
             if len(end_date) <= 10:  # It's just a date without time
@@ -676,7 +683,7 @@ async def get_calendar_events(
             # If no end_date is provided, default to end of the start_date
             end_date_val = start_date
             end_time = f"{end_date_val}T23:59:59Z"  # End of the start day
-        
+
         # Build query parameters with correct names: start_time/end_time
         params = {"start_time": start_time}
         if end_time:
@@ -699,6 +706,7 @@ async def get_calendar_events(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("calendar.createEvent")
 async def create_calendar_event(
@@ -741,18 +749,23 @@ async def create_calendar_event(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Ensure start_time and end_time have RFC3339 format
-        if not any(s in start_time for s in ["Z", "+", "-"]) or "-" not in      start_time[10:]:start_time = f"{start_time}+03:00"
+        if not any(s in start_time for s in ["Z", "+", "-"]) or "-" not in start_time[10:]:
+            start_time = f"{start_time}+03:00"
 
-        if not any(s in end_time for s in ["Z", "+", "-"]) or "-" not in end_time[10:]:end_time = f"{end_time}+03:00"
+        if not any(s in end_time for s in ["Z", "+", "-"]) or "-" not in end_time[10:]:
+            end_time = f"{end_time}+03:00"
 
         # Extract date from start_time for conflict checking
-        event_date = start_time.split("T")[0] if "T" in start_time else start_time
+        event_date = start_time.split(
+            "T")[0] if "T" in start_time else start_time
 
         # Normalize event_type to a valid value (must match the Go backend's EventType enum)
-        valid_event_types = ["None", "Task", "Meeting", "Todo", "Holiday", "Reminder"]
+        valid_event_types = ["None", "Task",
+                             "Meeting", "Todo", "Holiday", "Reminder"]
         if not event_type or event_type not in valid_event_types:
             event_type = "Meeting"  # Default to Meeting
 
@@ -760,15 +773,16 @@ async def create_calendar_event(
         insights = {}
         if check_conflicts:
             await ctx.info(f"Checking for conflicts on {event_date}")
-            
+
             # Get events for the same day
             async def get_func(client, url, **kwargs):
                 return await client.get(url, **kwargs)
-            
+
             # Format dates as RFC3339/ISO format
-            conflict_start = f"{event_date}T00:00:00Z"  # Beginning of the day in UTC
+            # Beginning of the day in UTC
+            conflict_start = f"{event_date}T00:00:00Z"
             conflict_end = f"{event_date}T23:59:59Z"    # End of the day in UTC
-            
+
             events_result = await try_backend_urls(
                 get_func,
                 "/api/calendar/events",
@@ -778,37 +792,38 @@ async def create_calendar_event(
                 },
                 params={"start_time": conflict_start, "end_time": conflict_end}
             )
-            
+
             # Process events to check for conflicts
             conflicts = []
+            events = []
             if events_result.get("status") != "error" and isinstance(events_result, dict):
                 events = events_result.get("events", [])
                 if not isinstance(events, list):
                     events = []
-                
+
                 for event in events:
                     event_start = event.get("start_time", "")
                     event_end = event.get("end_time", "")
                     event_title = event.get("title", "Untitled Event")
-                    
+
                     # Check if there's an overlap
-                    if ((event_start <= start_time <= event_end) or 
+                    if ((event_start <= start_time <= event_end) or
                         (event_start <= end_time <= event_end) or
-                        (start_time <= event_start and end_time >= event_end)):
+                            (start_time <= event_start and end_time >= event_end)):
                         conflicts.append({
                             "title": event_title,
                             "start_time": event_start,
                             "end_time": event_end
                         })
-            
+
             # Add insights about the schedule
             insights = {
-                "total_events_on_day": len(events) if "events" in events_result and isinstance(events_result["events"], list) else 0,
+                "total_events_on_day": len(events),
                 "conflicts": conflicts,
                 "has_conflicts": len(conflicts) > 0,
                 "conflict_count": len(conflicts)
             }
-            
+
             if insights["has_conflicts"]:
                 await ctx.warning(f"Found {len(conflicts)} scheduling conflicts for the requested time")
             else:
@@ -826,7 +841,7 @@ async def create_calendar_event(
             "color": color,
             "transparency": transparency
         }
-        
+
         await ctx.info(f"Creating calendar event with data: {json.dumps(event_data, default=str)[:200]}...")
 
         async def post_func(client, url, **kwargs):
@@ -842,17 +857,18 @@ async def create_calendar_event(
             },
             json=event_data
         )
-        
+
         # Add insights to the result
         if isinstance(result, dict):
             result["insights"] = insights
-            
+
         return result
     except Exception as e:
         error_msg = f"Error creating calendar event: {str(e)}"
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("todos.smartUpdate")
 async def smart_update_todo_handler(
@@ -872,6 +888,7 @@ async def smart_update_todo_handler(
         The updated todo item
     """
     return await smart_update_todo(ctx, edit_request, authorization, user_id)
+
 
 @app.get("/api-test/jwt-check")
 async def test_jwt():
@@ -948,6 +965,7 @@ async def test_jwt():
     except Exception as e:
         return {"error": str(e)}
 
+
 @app.post("/mcp/tools/refresh")
 async def refresh_tools():
     """Endpoint to refresh tools cache."""
@@ -957,6 +975,7 @@ async def refresh_tools():
     except Exception as e:
         logger.error(f"Error refreshing tools cache: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @mcp.tool("notes.get")
 async def get_notes(
@@ -981,7 +1000,8 @@ async def get_notes(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # GraphQL query matching frontend GET_NOTES query exactly
         graphql_query = """
@@ -1023,12 +1043,12 @@ async def get_notes(
             response = await client.post(
                 "http://localhost:5000/notes/graphql",
                 headers={
-                    "Content-Type": "application/json", 
+                    "Content-Type": "application/json",
                     "Authorization": auth_token
                 },
                 json=graphql_payload
             )
-            
+
             result = response.json()
 
         # Check for GraphQL errors
@@ -1049,6 +1069,7 @@ async def get_notes(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("notes.create")
 async def create_note(
@@ -1079,7 +1100,8 @@ async def create_note(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # GraphQL mutation matching frontend CREATE_NOTE mutation exactly
         graphql_mutation = """
@@ -1124,12 +1146,12 @@ async def create_note(
             response = await client.post(
                 "http://localhost:5000/notes/graphql",
                 headers={
-                    "Content-Type": "application/json", 
+                    "Content-Type": "application/json",
                     "Authorization": auth_token
                 },
                 json=graphql_payload
             )
-            
+
             result = response.json()
 
         # Check for GraphQL errors
@@ -1150,6 +1172,7 @@ async def create_note(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("notes.rewriteInStyle")
 async def rewrite_in_style(
@@ -1176,7 +1199,8 @@ async def rewrite_in_style(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Enhanced GraphQL query to fetch user's notes for style analysis
         graphql_query = """
@@ -1194,7 +1218,7 @@ async def rewrite_in_style(
         # Fetch user's notes for style analysis
         user_notes = []
         page = 1
-        
+
         while True:
             graphql_payload = {
                 "query": graphql_query,
@@ -1210,14 +1234,14 @@ async def rewrite_in_style(
                     },
                     json=graphql_payload
                 )
-                
+
                 result = response.json()
-                
+
                 if "data" in result and "notePages" in result["data"]:
                     notes_data = result["data"]["notePages"]["data"]
                     if not notes_data:
                         break
-                        
+
                     # Filter out empty or very short notes
                     valid_notes = [
                         {
@@ -1226,11 +1250,12 @@ async def rewrite_in_style(
                             "title": note["title"]
                         }
                         for note in notes_data
-                        if note["content"] and len(note["content"]) > 50  # Only use notes with substantial content
+                        # Only use notes with substantial content
+                        if note["content"] and len(note["content"]) > 50
                     ]
                     user_notes.extend(valid_notes)
                     page += 1
-                    
+
                     # Stop after collecting enough notes for analysis
                     if len(user_notes) >= 10:  # We only need 10 notes for style analysis
                         break
@@ -1336,11 +1361,12 @@ Return ONLY the rewritten text, without any additional formatting or metadata.""
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
+
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""
     # Log basic info
     logger.info(f"Setting up MCP server: {mcp.name}")
-    
+
     # Invalidate cache on startup
     async def invalidate_cache_on_startup():
         try:
@@ -1348,7 +1374,7 @@ def setup_mcp_server(app: Optional[FastAPI] = None):
             logger.info("Invalidated AI cache on startup")
         except Exception as e:
             logger.error(f"Error invalidating cache on startup: {str(e)}")
-    
+
     # Add startup event
     if app:
         app.add_event_handler("startup", invalidate_cache_on_startup)

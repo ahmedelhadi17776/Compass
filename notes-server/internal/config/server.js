@@ -28,8 +28,17 @@ const config = {
     expiryHours: parseInt(process.env.JWT_EXPIRY_HOURS) || 24,
   },
   cors: {
-    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:8080'],
-    credentials: true
+    origin: (origin, callback) => {
+      const whitelist = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['https://localhost:3000', 'http://localhost:8080', 'http://localhost:8001'];
+      if (whitelist.indexOf(origin) !== -1 || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
@@ -51,7 +60,7 @@ const configureServer = (app) => {
       ip: req.ip
     });
     
-    const status = err.status || 500;
+    const status = err.status || (err.message.includes('Token') ? 401 : 500);
     const errorResponse = {
       success: false,
       message: err.message || 'Internal Server Error',
