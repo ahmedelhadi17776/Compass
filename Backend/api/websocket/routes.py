@@ -188,7 +188,7 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                 # AI Drag & Drop feature message handlers
                 elif message_type == "ai_options_request":
                     # Use our new dedicated handler function
-                    await handle_ai_options_request(websocket, message, user_id)
+                    await handle_ai_options_request(websocket, message, user_id, token)
 
                 elif message_type == "ai_process_request":
                     logger.info(
@@ -199,7 +199,8 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                         process_ai_option(
                             websocket=websocket,
                             message_data=message,
-                            user_id=user_id
+                            user_id=user_id,
+                            token=token
                         )
                     )
                     # Store the task to prevent it from being garbage collected
@@ -387,7 +388,8 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
 async def process_ai_option(
     websocket: WebSocket,
     message_data: Dict[str, Any],
-    user_id: str
+    user_id: str,
+    token: str
 ):
     """Process an AI option selected by the user.
     Uses the agent orchestrator to process the option.
@@ -414,7 +416,8 @@ async def process_ai_option(
             target_type=str(target_type),
             target_id=str(target_id),
             user_id=user_id,
-            target_data=target_data
+            target_data=target_data,
+            token=token
         )
 
         # Check if result is valid
@@ -514,7 +517,7 @@ async def admin_dashboard_websocket(websocket: WebSocket, token: str = Query(...
             pass
 
 
-async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], user_id: str):
+async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], user_id: str, token: str):
     """Handle AI options request from client.
     Gets AI options for a target from the agent orchestrator.
     """
@@ -570,7 +573,8 @@ async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], 
             target_type=target_type,
             target_id=target_id,
             target_data=enhanced_target_data,
-            user_id=user_id
+            user_id=user_id,
+            token=token
         )
 
         logger.info(
