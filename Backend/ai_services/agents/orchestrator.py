@@ -84,7 +84,8 @@ class AgentOrchestrator:
         target_type: str,
         target_id: str,
         target_data: Dict[str, Any],
-        user_id: str
+        user_id: str,
+        token: str
     ) -> List[Dict[str, Any]]:
         """
         Get AI options for a specific target using the appropriate entity agent.
@@ -109,7 +110,7 @@ class AgentOrchestrator:
                 f"No agent found for target type: {target_type_str}")
             return []
 
-        return await agent.get_options(target_id_str, target_data, user_id_str)
+        return await agent.get_options(target_id_str, target_data, user_id_str, token)
 
     async def process_option(
         self,
@@ -117,6 +118,7 @@ class AgentOrchestrator:
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
         """
@@ -153,7 +155,7 @@ class AgentOrchestrator:
 
             # Process the option with the agent
             try:
-                return await agent.process(option_id_str, target_type_str, target_id_str, user_id_str, target_data=target_data)
+                return await agent.process(option_id_str, target_type_str, target_id_str, user_id_str, token, target_data=target_data)
             except Exception as process_error:
                 self.logger.error(
                     f"Error in agent.process: {str(process_error)}", exc_info=True)

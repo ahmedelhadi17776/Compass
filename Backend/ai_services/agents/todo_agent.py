@@ -49,7 +49,8 @@ class TodoAgent(BaseAgent):
         self,
         target_id: str,
         target_data: Dict[str, Any],
-        user_id: str
+        user_id: str,
+        token: str
     ) -> List[Dict[str, Any]]:
         """Get AI options for a todo."""
         # Log that we're getting options
@@ -130,6 +131,7 @@ class SubtaskGeneratorAgent(BaseAgent):
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -137,7 +139,7 @@ class SubtaskGeneratorAgent(BaseAgent):
         try:
             # Get todo data if not provided
             if not target_data:
-                target_data = await self._get_target_data(target_type, target_id, user_id)
+                target_data = await self._get_target_data(target_type, target_id, user_id, token)
 
             # Safely access dictionary properties
             title = "this task"
@@ -178,17 +180,21 @@ class SubtaskGeneratorAgent(BaseAgent):
                         if not mcp_client:
                             raise ValueError("MCP client is not available")
 
+                        # Get arguments and inject authorization token
+                        tool_args = tool_call.get("arguments", {})
+                        tool_args["authorization"] = f"Bearer {token}"
+
                         # Execute the tool call with retry logic
                         tool_result = await mcp_client.call_tool(
                             tool_call["name"],
-                            tool_call["arguments"]
+                            tool_args
                         )
 
                         # Process the result
                         if tool_result.get("status") == "success":
                             self.logger.info(f"Successfully added checklist items to todo {target_id}")
                             content = tool_result.get("content", {})
-                            return f"Successfully added {len(tool_call['arguments'].get('checklist_items', []))} subtasks to your todo."
+                            return f"Successfully added {len(tool_args.get('checklist_items', []))} subtasks to your todo."
                         else:
                             error_msg = tool_result.get("error", "Unknown error")
                             self.logger.error(f"Tool call failed: {error_msg}")
@@ -204,7 +210,8 @@ class SubtaskGeneratorAgent(BaseAgent):
                 fallback_result = await self._generate_response_with_tools(
                     f"Add 3-5 subtasks to this todo using todos.addChecklist:\nTodo ID: {target_id}\nTitle: {title}\nDescription: {description}",
                     user_id,
-                    {"temperature": 0.7, "top_p": 0.9}
+                    {"temperature": 0.7, "top_p": 0.9},
+                    token
                 )
 
                 # Process the fallback result the same way
@@ -219,14 +226,17 @@ class SubtaskGeneratorAgent(BaseAgent):
                             mcp_client = await self._get_mcp_client()
                             if not mcp_client:
                                 raise ValueError("MCP client is not available")
+                            
+                            tool_args = tool_call.get("arguments", {})
+                            tool_args["authorization"] = f"Bearer {token}"
 
                             tool_result = await mcp_client.call_tool(
                                 tool_call["name"],
-                                tool_call["arguments"]
+                                tool_args
                             )
 
                             if tool_result.get("status") == "success":
-                                return f"Successfully added {len(tool_call['arguments'].get('checklist_items', []))} subtasks to your todo."
+                                return f"Successfully added {len(tool_args.get('checklist_items', []))} subtasks to your todo."
                             else:
                                 return f"Failed to add subtasks: {tool_result.get('error', 'Unknown error')}"
                         except Exception as e:
@@ -303,6 +313,7 @@ class DeadlineAdvisorAgent(BaseAgent):
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -310,7 +321,7 @@ class DeadlineAdvisorAgent(BaseAgent):
         try:
             # Get todo data if not provided
             if not target_data:
-                target_data = await self._get_target_data(target_type, target_id, user_id)
+                target_data = await self._get_target_data(target_type, target_id, user_id, token)
 
             # Safely access dictionary properties
             title = "this task"
@@ -345,7 +356,7 @@ Please provide specific recommendations on how to approach this task based on it
                 "temperature": 0.5,
                 "top_p": 0.8
             }
-            return await self._generate_response_with_tools(prompt, user_id, model_params)
+            return await self._generate_response_with_tools(prompt, user_id, model_params, token)
         except Exception as e:
             self.logger.error(
                 f"Error in DeadlineAdvisorAgent.process: {str(e)}", exc_info=True)
@@ -384,6 +395,7 @@ class PriorityOptimizerAgent(BaseAgent):
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -391,7 +403,7 @@ class PriorityOptimizerAgent(BaseAgent):
         try:
             # Get todo data if not provided
             if not target_data:
-                target_data = await self._get_target_data(target_type, target_id, user_id)
+                target_data = await self._get_target_data(target_type, target_id, user_id, token)
 
             # Safely access dictionary properties
             title = "this task"
@@ -426,7 +438,7 @@ Please provide insights on whether this priority is appropriate, and offer speci
                 "temperature": 0.6,
                 "top_p": 0.85
             }
-            return await self._generate_response_with_tools(prompt, user_id, model_params)
+            return await self._generate_response_with_tools(prompt, user_id, model_params, token)
         except Exception as e:
             self.logger.error(
                 f"Error in PriorityOptimizerAgent.process: {str(e)}", exc_info=True)
