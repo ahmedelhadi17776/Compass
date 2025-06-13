@@ -21,6 +21,68 @@ import { useCreateTodo, useUpdateTodo, useDeleteTodo, useToggleTodoStatus, useHa
 import { Separator } from '@/components/ui/separator';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const AttachedActionsBox: React.FC<{
+  todo: Todo;
+  position: { x: number; y: number };
+  onClose: () => void;
+}> = ({ todo, position, onClose }) => {
+    
+    const ICON_WIDTH = -280; // Corresponds to w-12 on ChatbotIcon
+    const GAP = 16; // Control the space between the icon and the modal here (in pixels)
+
+    const actionButtons = [
+        { label: "Subtask Generation", icon: ListTodo },
+        { label: "Deadline-based Advice", icon: Clock },
+        { label: "Priority & Motivation Boost", icon: Zap }
+    ];
+
+    return createPortal(
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }} 
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            style={{
+                position: 'fixed',
+                top: `${position.y}px`,
+                left: `${position.x + ICON_WIDTH + GAP}px`,
+            }}
+            className="bg-card border rounded-lg shadow-xl p-3 space-y-2 z-[9999] w-64"
+            data-no-dismiss
+        >
+             <div className="flex items-center justify-between pb-2 border-b mb-2">
+                <h4 className="text-sm font-medium">AI Actions</h4>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 -mr-2 -mt-2"
+                    onClick={onClose}
+                    aria-label="Close AI Actions"
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+            <div className="flex flex-col gap-1">
+                {actionButtons.map((button, i) => (
+                    <Button
+                        key={i}
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 whitespace-nowrap justify-start w-full"
+                        onClick={() => {
+                            console.log(`${button.label} clicked for todo:`, todo.title);
+                        }}
+                    >
+                        <button.icon className="h-4 w-4" />
+                        <span>{button.label}</span>
+                    </Button>
+                ))}
+            </div>
+        </motion.div>,
+        document.body
+    );
+}
+
 interface TodoItemProps {
   todo: Todo;
   onToggle: (todo: Todo) => void;
@@ -41,19 +103,14 @@ const TodoItem: React.FC<TodoItemProps> = ({
   const { setNodeRef, isOver } = useDroppable({
     id: todo.id,
   });
-
-  const { chatbotAttachedTo, setAttachmentPosition, setChatbotAttachedTo } = useDragStore();
-
-  const showButtons = chatbotAttachedTo === todo.id;
-  const todoRef = useRef<HTMLDivElement>(null);
-  const [basePosition, setBasePosition] = useState({ top: 0, left: 0 });
-
-  // Define individual button offsets
-  const buttonOffsets = [
-    { top: 0, left: -515 },  // Button 1
-    { top: -45, left: -535 },  // Button 2
-    { top: -45, left: -330 },  // Button 3
-  ];
+  
+  const { chatbotAttachedTo, setAttachmentPosition } = useDragStore();
+  const todoRef = useRef<HTMLDivElement | null>(null);
+  
+  const combinedRef = (node: HTMLDivElement) => {
+    todoRef.current = node;
+    setNodeRef(node);
+  };
 
   useEffect(() => {
     if (chatbotAttachedTo === todo.id && todoRef.current) {
@@ -63,97 +120,29 @@ const TodoItem: React.FC<TodoItemProps> = ({
       const y = rect.top + rect.height / 2 - chatbotIconWidth / 2;
       setAttachmentPosition({ x, y });
 
-      const handleResize = () => {
+      const handleResizeOrScroll = () => {
          if (todoRef.current) {
             const newRect = todoRef.current.getBoundingClientRect();
-            const newX = newRect.right + 16;
+            const newX = newRect.left - 60;
             const newY = newRect.top + newRect.height / 2 - chatbotIconWidth / 2;
             setAttachmentPosition({ x: newX, y: newY });
          }
       };
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
+      
+      window.addEventListener('resize', handleResizeOrScroll);
+      document.querySelector('.main-content')?.addEventListener('scroll', handleResizeOrScroll);
+      
+      return () => {
+        window.removeEventListener('resize', handleResizeOrScroll);
+        document.querySelector('.main-content')?.removeEventListener('scroll', handleResizeOrScroll);
+      }
     }
   }, [chatbotAttachedTo, todo.id, setAttachmentPosition]);
 
-  useEffect(() => {
-    if (showButtons && todoRef.current) {
-      const rect = todoRef.current.getBoundingClientRect();
-      setBasePosition({
-        top: rect.top,
-        left: rect.right,
-      });
-    }
-  }, [showButtons]);
-
-  const buttonVariants = {
-    hidden: { opacity: 0, y: 20, scale: 0.8 },
-    visible: (i: number) => ({
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: {
-        delay: i * 0.1,
-        duration: 0.3,
-        ease: "easeOut"
-      }
-    }),
-    exit: { 
-      opacity: 0,
-      y: -10,
-      scale: 0.8,
-      transition: {
-        duration: 0.2
-      }
-    }
-  };
-
   return (
-    <div className="relative" ref={todoRef}>
-      {showButtons && createPortal(
-        <AnimatePresence>
-          <div className="fixed inset-0 pointer-events-none z-[9999]">
-            {[
-              { label: "Subtask Generation", icon: ListTodo },
-              { label: "Deadline-based Advice", icon: Clock },
-              { label: "Priority & Motivation Boost", icon: Zap }
-            ].map((button, i) => (
-              <motion.div
-                key={`button-${i}`}
-                variants={buttonVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                custom={i}
-                style={{
-                  position: 'fixed',
-                  top: `${basePosition.top + buttonOffsets[i].top}px`,
-                  left: `${basePosition.left + buttonOffsets[i].left}px`,
-                  zIndex: 9999,
-                }}
-                className="pointer-events-auto"
-                data-no-dismiss
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 whitespace-nowrap"
-                  onClick={() => {
-                    console.log(`${button.label} clicked for todo:`, todo.title);
-                  }}
-                >
-                  <button.icon className="h-4 w-4" />
-                  {button.label}
-                </Button>
-              </motion.div>
-            ))}
-          </div>
-        </AnimatePresence>,
-        document.body
-      )}
-
+    <div className="relative">
       <div
-        ref={setNodeRef}
+        ref={combinedRef}
         className={cn(
           "group relative rounded-lg border bg-card p-3 transition-all hover:border-border/50",
           todo.is_completed && "bg-muted",
@@ -161,22 +150,6 @@ const TodoItem: React.FC<TodoItemProps> = ({
         )}
         data-no-dismiss
       >
-        {chatbotAttachedTo === todo.id && (
-          <div className="absolute top-0 right-0 -mr-12 flex items-center h-full">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded-full bg-background z-10"
-                onClick={() => {
-                  setChatbotAttachedTo(null);
-                  setAttachmentPosition(null);
-                }}
-                aria-label="Detach chatbot"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-          </div>
-        )}
         <div className="flex items-start gap-4">
           <Checkbox
             name={`todo-${todo.id}`}
@@ -284,6 +257,8 @@ const TodoList: React.FC = () => {
   const [showHabitTracker, setShowHabitTracker] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   
+  const { chatbotAttachedTo, attachmentPosition, setChatbotAttachedTo, setAttachmentPosition } = useDragStore();
+  
   // New state for managing multiple lists
   const [currentListId, setCurrentListId] = useState<string>('');
   const [showNewListInput, setShowNewListInput] = useState(false);
@@ -332,6 +307,8 @@ const TodoList: React.FC = () => {
   // Get current list and its todos
   const currentList = todoLists.find(list => list.id === currentListId);
   const todos = currentList?.todos || [];
+
+  const attachedTodo = todos.find(t => t.id === chatbotAttachedTo);
 
   const handleEditHabit = (habit: Habit) => {
     setEditingHabit(habit);
@@ -875,6 +852,19 @@ const TodoList: React.FC = () => {
       {renderTodoColumn('thisWeek', 'This Week')}
       {renderTodoColumn('today', 'Today')}
       {renderTodoColumn('done', 'Done')}
+
+      <AnimatePresence>
+          {attachedTodo && attachmentPosition && (
+              <AttachedActionsBox
+                  todo={attachedTodo}
+                  position={attachmentPosition}
+                  onClose={() => {
+                      setChatbotAttachedTo(null);
+                      setAttachmentPosition(null);
+                  }}
+              />
+          )}
+      </AnimatePresence>
 
       {showTodoForm && (
         <TodoForm
