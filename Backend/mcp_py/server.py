@@ -1362,6 +1362,59 @@ Return ONLY the rewritten text, without any additional formatting or metadata.""
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
 
+@mcp.tool("todos.addChecklist")
+async def add_todo_checklist(
+    ctx: Context,
+    todo_id: str,
+    checklist_items: List[str],
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Add checklist items to an existing todo.
+
+    Args:
+        todo_id: ID of the todo to update
+        checklist_items: List of checklist item descriptions to add
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        The updated todo item with the new checklist
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # Prepare checklist data in the format expected by the backend
+        checklist_data = {
+            "checklist": {
+                "items": [{"title": item, "completed": False} for item in checklist_items]
+            }
+        }
+
+        async def put_func(client, url, **kwargs):
+            return await client.put(url, **kwargs)
+
+        return await try_backend_urls(
+            put_func,
+            f"/api/todos/{todo_id}",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            },
+            json=checklist_data
+        )
+    except Exception as e:
+        error_msg = f"Error adding checklist items to todo: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""
     # Log basic info
