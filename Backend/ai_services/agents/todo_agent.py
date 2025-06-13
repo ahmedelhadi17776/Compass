@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional
 import logging
+import json
 
 from ai_services.agents.base_agent import BaseAgent, BaseIOSchema
 from pydantic import Field, BaseModel
@@ -103,16 +104,23 @@ class SubtaskGeneratorAgent(BaseAgent):
         self.system_prompt_generator = SystemPromptGenerator(
             background=[
                 "You are IRIS, an AI assistant for the COMPASS productivity app.",
-                "You specialize in breaking down todos into manageable subtasks."
+                "You specialize in breaking down todos into manageable subtasks using the todos.addChecklist tool."
             ],
             steps=[
                 "Analyze the todo to understand what it involves.",
                 "Break it down into 3-5 logical, sequential subtasks.",
-                "Ensure each subtask is specific and actionable."
+                "Use todos.addChecklist tool to add the subtasks directly to the todo.",
+                "NEVER ask for confirmation - execute the checklist update immediately.",
+                "NEVER fetch todos first - the tool handles that internally."
             ],
             output_instructions=[
-                "Provide subtasks as a numbered list.",
-                "Include a brief recommendation on how to approach these subtasks."
+                "For direct checklist requests, execute immediately without explanation.",
+                "Skip all natural language responses.",
+                "Just make the tool call with the checklist items.",
+                "Format tool calls exactly as:",
+                "<tool_call>",
+                '{"name": "todos.addChecklist", "arguments": {"todo_id": "id", "checklist_items": ["item1", "item2"]}}',
+                "</tool_call>"
             ]
         )
 
@@ -143,7 +151,7 @@ class SubtaskGeneratorAgent(BaseAgent):
                     f"target_data is not a dictionary: {type(target_data)}")
 
             # Direct LLM generation with our system prompt
-            prompt = f"Generate a list of 3-5 subtasks for this todo:\nTodo: {title}\nDescription: {description}\n\nPlease format your response with a numbered list of subtasks, followed by a brief recommendation on how to approach them."
+            prompt = f"Generate a list of 3-5 subtasks for this todo and add them using todos.addChecklist:\nTodo ID: {target_id}\nTitle: {title}\nDescription: {description}\n\nPlease format your response as a tool call to todos.addChecklist with the checklist items."
 
             # Use our run method which directly calls the LLM service
             result = await self.run(
@@ -152,19 +160,115 @@ class SubtaskGeneratorAgent(BaseAgent):
             )
 
             if result["status"] == "success":
-                return result["response"]
+                # Extract tool calls from the response
+                tool_calls = self._extract_tool_calls(result["response"])
+                
+                if not tool_calls:
+                    self.logger.warning("No tool calls found in LLM response")
+                    return "I was unable to generate subtasks. Please try again."
+
+                # Process each tool call
+                for tool_call in tool_calls:
+                    try:
+                        if tool_call["name"] != "todos.addChecklist":
+                            continue
+
+                        # Get MCP client
+                        mcp_client = await self._get_mcp_client()
+                        if not mcp_client:
+                            raise ValueError("MCP client is not available")
+
+                        # Execute the tool call with retry logic
+                        tool_result = await mcp_client.call_tool(
+                            tool_call["name"],
+                            tool_call["arguments"]
+                        )
+
+                        # Process the result
+                        if tool_result.get("status") == "success":
+                            self.logger.info(f"Successfully added checklist items to todo {target_id}")
+                            content = tool_result.get("content", {})
+                            return f"Successfully added {len(tool_call['arguments'].get('checklist_items', []))} subtasks to your todo."
+                        else:
+                            error_msg = tool_result.get("error", "Unknown error")
+                            self.logger.error(f"Tool call failed: {error_msg}")
+                            return f"Failed to add subtasks: {error_msg}"
+
+                    except Exception as e:
+                        self.logger.error(f"Error executing tool call: {str(e)}")
+                        return f"Error adding subtasks: {str(e)}"
+
+                return "No valid subtasks were generated. Please try again."
             else:
-                # Fall back to direct LLM call
-                return await self._generate_response_with_tools(
-                    f"Break down this todo into smaller, manageable subtasks:\nTodo: {title}\nDescription: {description}",
+                # Fall back to direct LLM call with tool instruction
+                fallback_result = await self._generate_response_with_tools(
+                    f"Add 3-5 subtasks to this todo using todos.addChecklist:\nTodo ID: {target_id}\nTitle: {title}\nDescription: {description}",
                     user_id,
                     {"temperature": 0.7, "top_p": 0.9}
                 )
+
+                # Process the fallback result the same way
+                tool_calls = self._extract_tool_calls(fallback_result)
+                if not tool_calls:
+                    return "I was unable to generate subtasks. Please try again."
+
+                # Process tool calls from fallback
+                for tool_call in tool_calls:
+                    if tool_call["name"] == "todos.addChecklist":
+                        try:
+                            mcp_client = await self._get_mcp_client()
+                            if not mcp_client:
+                                raise ValueError("MCP client is not available")
+
+                            tool_result = await mcp_client.call_tool(
+                                tool_call["name"],
+                                tool_call["arguments"]
+                            )
+
+                            if tool_result.get("status") == "success":
+                                return f"Successfully added {len(tool_call['arguments'].get('checklist_items', []))} subtasks to your todo."
+                            else:
+                                return f"Failed to add subtasks: {tool_result.get('error', 'Unknown error')}"
+                        except Exception as e:
+                            self.logger.error(f"Error in fallback tool execution: {str(e)}")
+                            return f"Error adding subtasks: {str(e)}"
+
+                return "No valid subtasks were generated. Please try again."
 
         except Exception as e:
             self.logger.error(
                 f"Error in SubtaskGeneratorAgent.process: {str(e)}", exc_info=True)
             return f"Sorry, I encountered an error while generating subtasks: {str(e)}"
+
+    def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+        """Extract tool calls from LLM response."""
+        tool_calls = []
+        start_tag = "<tool_call>"
+        end_tag = "</tool_call>"
+
+        while start_tag in text and end_tag in text:
+            start = text.find(start_tag) + len(start_tag)
+            end = text.find(end_tag)
+            if start > -1 and end > -1:
+                tool_call_text = text[start:end].strip()
+                try:
+                    tool_call = json.loads(tool_call_text)
+                    if "name" in tool_call:
+                        tool_calls.append(tool_call)
+                    else:
+                        self.logger.warning(f"Tool call missing 'name' field: {tool_call_text}")
+                except json.JSONDecodeError:
+                    self.logger.error(f"Failed to parse tool call: {tool_call_text}")
+                text = text[end + len(end_tag):]
+            else:
+                break
+
+        return tool_calls
+
+    async def _get_mcp_client(self):
+        """Get MCP client from global state."""
+        from core.mcp_state import get_mcp_client
+        return get_mcp_client()
 
 
 class DeadlineAdvisorAgent(BaseAgent):
