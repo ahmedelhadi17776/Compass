@@ -28,7 +28,6 @@ interface TodoItemProps {
   onDelete: (id: string) => void;
   onUpdateChecklist: (id: string, checklist: { items: Array<{ title: string; completed: boolean }> }) => void;
   isDarkMode: boolean;
-  activeButtonsTodoId: string | null;
 }
 
 const TodoItem: React.FC<TodoItemProps> = ({ 
@@ -37,14 +36,15 @@ const TodoItem: React.FC<TodoItemProps> = ({
   onEdit, 
   onDelete, 
   onUpdateChecklist,
-  isDarkMode,
-  activeButtonsTodoId
+  isDarkMode
 }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: todo.id,
   });
 
-  const showButtons = activeButtonsTodoId === todo.id;
+  const { chatbotAttachedTo, setAttachmentPosition, setChatbotAttachedTo } = useDragStore();
+
+  const showButtons = chatbotAttachedTo === todo.id;
   const todoRef = useRef<HTMLDivElement>(null);
   const [basePosition, setBasePosition] = useState({ top: 0, left: 0 });
 
@@ -54,6 +54,27 @@ const TodoItem: React.FC<TodoItemProps> = ({
     { top: -45, left: -535 },  // Button 2
     { top: -45, left: -330 },  // Button 3
   ];
+
+  useEffect(() => {
+    if (chatbotAttachedTo === todo.id && todoRef.current) {
+      const rect = todoRef.current.getBoundingClientRect();
+      const chatbotIconWidth = 48; // w-12 from ChatbotIcon.tsx
+      const x = rect.left - 60;
+      const y = rect.top + rect.height / 2 - chatbotIconWidth / 2;
+      setAttachmentPosition({ x, y });
+
+      const handleResize = () => {
+         if (todoRef.current) {
+            const newRect = todoRef.current.getBoundingClientRect();
+            const newX = newRect.right + 16;
+            const newY = newRect.top + newRect.height / 2 - chatbotIconWidth / 2;
+            setAttachmentPosition({ x: newX, y: newY });
+         }
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, [chatbotAttachedTo, todo.id, setAttachmentPosition]);
 
   useEffect(() => {
     if (showButtons && todoRef.current) {
@@ -111,6 +132,7 @@ const TodoItem: React.FC<TodoItemProps> = ({
                   zIndex: 9999,
                 }}
                 className="pointer-events-auto"
+                data-no-dismiss
               >
                 <Button
                   variant="outline"
@@ -137,7 +159,24 @@ const TodoItem: React.FC<TodoItemProps> = ({
           todo.is_completed && "bg-muted",
           isOver && "border-primary bg-primary/10 shadow-lg"
         )}
+        data-no-dismiss
       >
+        {chatbotAttachedTo === todo.id && (
+          <div className="absolute top-0 right-0 -mr-12 flex items-center h-full">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full bg-background z-10"
+                onClick={() => {
+                  setChatbotAttachedTo(null);
+                  setAttachmentPosition(null);
+                }}
+                aria-label="Detach chatbot"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+          </div>
+        )}
         <div className="flex items-start gap-4">
           <Checkbox
             name={`todo-${todo.id}`}
@@ -244,7 +283,6 @@ const TodoList: React.FC = () => {
   const [showHabitInput, setShowHabitInput] = useState(false);
   const [showHabitTracker, setShowHabitTracker] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
-  const [activeButtonsTodoId, setActiveButtonsTodoId] = useState<string | null>(null);
   
   // New state for managing multiple lists
   const [currentListId, setCurrentListId] = useState<string>('');
@@ -294,17 +332,6 @@ const TodoList: React.FC = () => {
   // Get current list and its todos
   const currentList = todoLists.find(list => list.id === currentListId);
   const todos = currentList?.todos || [];
-
-  // Add effect to handle button visibility
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    if (activeButtonsTodoId) {
-      timeoutId = setTimeout(() => {
-        setActiveButtonsTodoId(null);
-      }, 5000);
-    }
-    return () => clearTimeout(timeoutId);
-  }, [activeButtonsTodoId]);
 
   const handleEditHabit = (habit: Habit) => {
     setEditingHabit(habit);
@@ -380,7 +407,6 @@ const TodoList: React.FC = () => {
               updateTodoMutation.mutate({ id, updates: { checklist } })
             }
             isDarkMode={isDarkMode}
-            activeButtonsTodoId={activeButtonsTodoId}
           />
         ))}
       </div>
@@ -736,16 +762,6 @@ const TodoList: React.FC = () => {
   const handleDeleteList = (listId: string) => {
     deleteTodoListMutation.mutate(listId);
   };
-
-  // Modify the effect that handles the drop
-  useEffect(() => {
-    const unsubscribe = useDragStore.subscribe((state) => {
-      if (state.lastDroppedId) {
-        setActiveButtonsTodoId(state.lastDroppedId);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
 
   if (!user) {
     return <div>Please log in to view todos</div>;

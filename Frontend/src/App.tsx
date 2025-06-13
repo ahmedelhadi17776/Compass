@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -52,11 +52,35 @@ function App() {
     })
   );
 
+  useEffect(() => {
+    const handleGlobalClick = (event: MouseEvent) => {
+      if ((event.target as HTMLElement).closest('[data-no-dismiss]')) {
+        return;
+      }
+      useDragStore.getState().setChatbotAttachedTo(null);
+      useDragStore.getState().setAttachmentPosition(null);
+      useDragStore.getState().setLastDroppedId(null);
+    };
+
+    document.addEventListener('mousedown', handleGlobalClick);
+    return () => document.removeEventListener('mousedown', handleGlobalClick);
+  }, []);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    // Silence the unused variable warnings since we'll use these later
+
+    if (active.id === 'chatbot-bubble') {
+      if (over) {
+        useDragStore.getState().setChatbotAttachedTo(over.id as string);
+      } else {
+        // If dropped outside any droppable area, detach it.
+        useDragStore.getState().setChatbotAttachedTo(null);
+        useDragStore.getState().setAttachmentPosition(null);
+      }
+    }
+
     if (active && over) {
-      // Store drop target
+      // This is used to show the buttons next to the todo item
       useDragStore.getState().setLastDroppedId(over.id as string);
       console.log(`Dragged: ${active.id} → Dropped on: ${over.id}`);
     }

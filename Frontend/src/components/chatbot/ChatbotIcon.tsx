@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/contexts/theme-provider';
 import { Eye } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
+import { useDragStore } from '@/dragStore';
 
 interface ChatbotIconProps {
   toggleChat: () => void;
@@ -14,6 +15,10 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
   const [showTooltip, setShowTooltip] = useState(false);
   const { theme } = useTheme();
   const isDarkTheme = theme === 'dark';
+
+  const { attachmentPosition, chatbotAttachedTo } = useDragStore();
+  const [initialPosition, setInitialPosition] =useState<{ x: number, y: number } | null>(null);
+  const iconContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Motion values for smooth animation
   const x = useMotionValue(0);
@@ -27,18 +32,38 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: 'chatbot-bubble',
   });
+  
+  const combinedRef = (node: HTMLDivElement) => {
+    setNodeRef(node);
+    iconContainerRef.current = node;
+  };
+
+  useEffect(() => {
+    if (iconContainerRef.current && !initialPosition) {
+        const rect = iconContainerRef.current.getBoundingClientRect();
+        // We only want to set the initial position once.
+        if (rect.width > 0 && rect.height > 0) {
+            setInitialPosition({x: rect.left, y: rect.top});
+        }
+    }
+  }, [initialPosition]);
 
   // Update motion values when transform changes
   useEffect(() => {
     if (transform) {
       x.set(transform.x);
       y.set(transform.y);
+    } else if (attachmentPosition && chatbotAttachedTo && initialPosition) {
+        const newX = attachmentPosition.x - initialPosition.x;
+        const newY = attachmentPosition.y - initialPosition.y;
+        x.set(newX);
+        y.set(newY);
     } else {
       // Smoothly animate back to original position
       x.set(0);
       y.set(0);
     }
-  }, [transform, x, y]);
+  }, [transform, x, y, attachmentPosition, chatbotAttachedTo, initialPosition]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -53,12 +78,13 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
   return (
     <motion.div 
       className="fixed bottom-6 right-6 z-50" 
-      ref={setNodeRef}
+      ref={combinedRef}
       style={{
         x: springX,
         y: springY,
         cursor: isDragging ? 'grabbing' : 'grab'
       }}
+      data-no-dismiss
     >
       <motion.button
         onClick={!isDragging ? toggleChat : undefined}
