@@ -3,7 +3,7 @@ Agent for generating task reports.
 """
 from typing import Dict, Any, Optional, List
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ai_services.agents.report_agents.base_report_agent import BaseReportAgent
 from data_layer.models.report import ReportType
@@ -52,11 +52,21 @@ class TaskReportAgent(BaseReportAgent):
         context = await super().gather_context(user_id, parameters, time_range, auth_token)
 
         try:
-            # Fetch task and todo data
+            # Prepare task filters from the incoming parameters
+            task_filters = {
+                "status": parameters.get("status"),
+                "priority": parameters.get("priority"),
+                "project_id": parameters.get("project_id")
+            }
+            # Clean the filters dict to remove any None values
+            task_filters = {k: v for k,
+                            v in task_filters.items() if v is not None}
+
+            # Fetch task, todo, and project data
             task_data = await self.data_fetcher.fetch_user_data(
                 user_id,
                 "tasks",
-                {},
+                task_filters,
                 time_range,
                 auth_token
             )
@@ -69,32 +79,61 @@ class TaskReportAgent(BaseReportAgent):
                 auth_token
             )
 
+            project_data = await self.data_fetcher.fetch_user_data(
+                user_id,
+                "projects",
+                {},
+                time_range,
+                auth_token
+            )
+
             # Add data to context
             context["task_data"] = task_data
             context["todo_data"] = todo_data
+            context["project_data"] = project_data
 
             # Extract key metrics from task data
-            if task_data:
-                context["task_completion_rate"] = task_data.get(
-                    "completion_rate", 0)
-                context["tasks_completed"] = task_data.get(
-                    "completed_count", 0)
-                context["tasks_total"] = task_data.get("total_count", 0)
-                context["task_categories"] = task_data.get("categories", {})
-                context["task_priorities"] = task_data.get("priorities", {})
-                context["task_overdue"] = task_data.get("overdue_count", 0)
+            if task_data and isinstance(task_data.get("tasks"), list):
+                tasks = task_data["tasks"]
+                completed_tasks = [
+                    t for t in tasks if t.get("status") == "Completed"]
+                context["tasks_completed"] = len(completed_tasks)
+                context["tasks_total"] = len(tasks)
+                context["task_completion_rate"] = (
+                    len(completed_tasks) / len(tasks) * 100) if tasks else 0
+                context["task_overdue"] = len([t for t in tasks if t.get("due_date") and datetime.fromisoformat(
+                    t["due_date"].replace('Z', '+00:00')) < datetime.now(timezone.utc) and t.get("status") != "Completed"])
 
             # Extract key metrics from todo data
-            if todo_data:
-                context["todo_completion_rate"] = todo_data.get(
-                    "completion_rate", 0)
-                context["todos_completed"] = todo_data.get(
-                    "completed_count", 0)
-                context["todos_total"] = todo_data.get("total_count", 0)
-                context["todo_lists"] = todo_data.get("lists", {})
+            if todo_data and isinstance(todo_data.get("data", {}).get("lists"), list):
+                all_todos = []
+                for a_list in todo_data["data"]["lists"]:
+                    if isinstance(a_list.get("todos"), list):
+                        all_todos.extend(a_list["todos"])
+
+                completed_todos = [
+                    t for t in all_todos if t.get("is_completed")]
+                context["todos_completed"] = len(completed_todos)
+                context["todos_total"] = len(all_todos)
+                context["todo_completion_rate"] = (
+                    len(completed_todos) / len(all_todos) * 100) if all_todos else 0
+
+            # Extract key metrics from project data
+            if project_data and isinstance(project_data.get("projects"), list):
+                projects = project_data["projects"]
+                completed_projects = [
+                    p for p in projects if p.get("status") == "completed"]
+                context["projects_completed"] = len(completed_projects)
+                context["projects_total"] = len(projects)
+                context["project_completion_rate"] = (
+                    len(completed_projects) / len(projects) * 100) if projects else 0
+                context["projects_on_time"] = len([p for p in completed_projects if p.get(
+                    "endDate") and p.get("actualEndDate") and p.get("actualEndDate") <= p.get("endDate")])
+                context["projects_delayed"] = len([p for p in completed_projects if p.get(
+                    "endDate") and p.get("actualEndDate") and p.get("actualEndDate") > p.get("endDate")])
 
             logger.info(
-                f"Successfully gathered task data for user {user_id}")
+                f"Successfully gathered and processed task data for user {user_id}")
 
         except Exception as e:
             logger.error(f"Error gathering task data: {str(e)}")
@@ -134,6 +173,11 @@ class TaskReportAgent(BaseReportAgent):
         projects_on_time = context.get("projects_on_time", "N/A")
         projects_delayed = context.get("projects_delayed", "N/A")
 
+        # Extract raw data for deeper analysis
+        task_data = context.get("task_data", {})
+        todo_data = context.get("todo_data", {})
+        project_data = context.get("project_data", {})
+
         prompt = f"""
         Generate a detailed task management report for the user based on their data from {start_date} to {end_date}.
         
@@ -159,9 +203,9 @@ class TaskReportAgent(BaseReportAgent):
         5. Recommendations - Actionable suggestions for improving task management
         
         Raw data:
-        Task Data: {context.get("tasks", {})}
-        Todo Data: {context.get("todos", {})}
-        Project Data: {context.get("projects", {})}
+        Task Data: {task_data}
+        Todo Data: {todo_data}
+        Project Data: {project_data}
         
         Return the report as a JSON with the following structure:
         {{

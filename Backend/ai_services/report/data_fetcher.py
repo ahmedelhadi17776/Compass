@@ -212,7 +212,8 @@ class DataFetcherService:
             "todos": "get_items",
             "focus": "user.getInfo",
             "productivity": "user.getInfo",
-            "workflow": "user.getInfo"
+            "workflow": "user.getInfo",
+            "projects": "get_projects"
         }
 
         # If data type is in our map, use MCP to fetch from Go backend
@@ -253,40 +254,33 @@ class DataFetcherService:
                         f"MCP call for {data_type} failed: {error_message}")
                     return {}
 
-                result = response.get('content')
-
                 # The MCP client can return different object types. We need to handle them safely.
-                if hasattr(result, 'isError') and getattr(result, 'isError'):
+                call_tool_result = response.get('content')
+
+                # Check if the tool call itself resulted in an error
+                if hasattr(call_tool_result, 'isError') and getattr(call_tool_result, 'isError'):
                     logger.warning(
-                        f"MCP tool '{mcp_methods[data_type]}' returned an error: {getattr(result, 'content', 'No content')}")
-                    return {}  # Return an empty, cacheable dictionary for errors
-
-                content = getattr(result, 'content', None)
-
-                # If there's no error but the content is not a dict, it's still not cacheable.
-                if content and not isinstance(content, dict):
-                    # Attempt to parse text content if it's a JSON string
-                    try:
-                        if isinstance(content, list) and len(content) > 0 and hasattr(content[0], 'text'):
-                            text_content = getattr(content[0], 'text')
-                            return json.loads(text_content)
-                    except Exception:
-                        logger.warning(
-                            f"Could not parse content from MCP tool '{mcp_methods[data_type]}'. Content: {content}")
-                        return {}
-
-                # Handle cases where the result might be a direct dictionary
-                if isinstance(result, dict):
-                    return result
-
-                # Fallback for unexpected successful response types
-                if content and isinstance(content, dict):
-                    return content
-
-                # If content is None but result is not an error, it might be an empty successful response
-                if content is None and not (hasattr(result, 'isError') and getattr(result, 'isError')):
+                        f"MCP tool '{mcp_methods[data_type]}' returned an error response: {getattr(call_tool_result, 'content', 'No content')}")
                     return {}
 
+                # Get the content from the result object
+                result_content = getattr(call_tool_result, 'content', None)
+
+                # The actual data is a JSON string inside a TextContent object within a list
+                if isinstance(result_content, list) and len(result_content) > 0:
+                    text_content_item = result_content[0]
+                    if hasattr(text_content_item, 'text') and isinstance(text_content_item.text, str):
+                        try:
+                            # The text attribute contains the final JSON string
+                            return json.loads(text_content_item.text)
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.error(
+                                f"Could not parse JSON from TextContent for {data_type}. Error: {e}. Content: {text_content_item.text}")
+                            return {}
+
+                # Fallback for unexpected structures
+                logger.warning(
+                    f"Unexpected content structure for {data_type} from MCP: {type(result_content)}")
                 return {}
 
             except Exception as e:
