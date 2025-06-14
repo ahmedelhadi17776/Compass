@@ -326,10 +326,11 @@ class BaseAgent:
         self,
         target_type: str,
         target_id: str,
-        user_id: str
+        user_id: str,
+        token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Retrieve data for a specific target using MCP tools.
+        Get data for a target entity from the appropriate source.
         """
         mcp_client = await self._get_mcp_client()
         if not mcp_client:
@@ -344,11 +345,16 @@ class BaseAgent:
 
                 # Try to get todo data from the MCP
                 try:
-                    result = await mcp_client.call_tool("get_items", {
+                    self.logger.info(
+                        f"Trying get_items tool for todo {target_id}")
+                    tool_args = {
                         "item_type": "todos",
                         "id": target_id,
                         "user_id": user_id
-                    })
+                    }
+                    if token:
+                        tool_args["authorization"] = f"Bearer {token}"
+                    result = await mcp_client.call_tool("get_items", tool_args)
 
                     # Check if result is valid and has content
                     if isinstance(result, dict):
@@ -399,11 +405,14 @@ class BaseAgent:
                 try:
                     self.logger.info(
                         f"Trying get_items tool for habit {target_id}")
-                    result = await mcp_client.call_tool("get_items", {
+                    tool_args = {
                         "item_type": "habits",
                         "id": target_id,
                         "user_id": user_id
-                    })
+                    }
+                    if token:
+                        tool_args["authorization"] = f"Bearer {token}"
+                    result = await mcp_client.call_tool("get_items", tool_args)
 
                     if isinstance(result, dict):
                         # Check for error status
@@ -431,10 +440,13 @@ class BaseAgent:
                         f"Trying calendar.getEvents for event {target_id}")
                     # Since we don't have a direct get_event tool, we need to get all events
                     # and filter for this specific one
-                    result = await mcp_client.call_tool("calendar.getEvents", {
+                    tool_args = {
                         "start_date": "2023-01-01",  # Far back date to include all events
                         "user_id": user_id
-                    })
+                    }
+                    if token:
+                        tool_args["authorization"] = f"Bearer {token}"
+                    result = await mcp_client.call_tool("calendar.getEvents", tool_args)
 
                     if isinstance(result, dict):
                         # Check for error status
@@ -463,9 +475,12 @@ class BaseAgent:
                 # Try notes.get
                 try:
                     self.logger.info(f"Trying notes.get for note {target_id}")
-                    result = await mcp_client.call_tool("notes.get", {
+                    tool_args = {
                         "user_id": user_id
-                    })
+                    }
+                    if token:
+                        tool_args["authorization"] = f"Bearer {token}"
+                    result = await mcp_client.call_tool("notes.get", tool_args)
 
                     if isinstance(result, dict):
                         # Check for error status
@@ -539,11 +554,11 @@ class BaseAgent:
         self,
         target_id: str,
         target_data: Dict[str, Any],
-        user_id: str
+        user_id: str,
+        token: str
     ) -> List[Dict[str, Any]]:
         """
-        Get AI options for a specific target.
-        Should be implemented by subclasses.
+        Get a list of AI-powered options for a target entity.
         """
         raise NotImplementedError("Subclasses must implement get_options")
 
@@ -553,12 +568,12 @@ class BaseAgent:
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Process a selected AI option.
-        Should be implemented by specialized agent subclasses.
+        Process an AI-powered option for a target entity.
         """
         raise NotImplementedError("Subclasses must implement process")
 

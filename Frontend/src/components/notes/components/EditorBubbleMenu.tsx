@@ -61,7 +61,7 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       // Show subtle highlight to indicate processing
       editor.chain().focus().setHighlight().run()
 
-      const response = await fetch('http://localhost:8001/ai/rewrite-in-style', {
+      const response = await fetch('http://localhost:8001/api/v1/ai/rewrite-in-style', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
