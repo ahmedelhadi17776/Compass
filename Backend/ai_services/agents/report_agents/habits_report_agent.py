@@ -3,7 +3,7 @@ Agent for generating habits reports.
 """
 from typing import Dict, Any, Optional, List
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ai_services.agents.report_agents.base_report_agent import BaseReportAgent
 from data_layer.models.report import ReportType
@@ -37,68 +37,89 @@ class HabitsReportAgent(BaseReportAgent):
         auth_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Gather user habits data for report generation.
-
-        Parameters:
-            user_id (str): User ID to gather data for
-            parameters (Dict[str, Any]): Additional parameters for gathering context
-            time_range (Dict[str, str]): Time range for data (start_date, end_date)
-            auth_token (Optional[str]): Authentication token
-
-        Returns:
-            Dict[str, Any]: Context data for report generation
+        Gather and process user habits data for report generation.
         """
-        # Get basic context from parent class
         context = await super().gather_context(user_id, parameters, time_range, auth_token)
 
         try:
             habits_data = await self.data_fetcher.fetch_user_data(
                 user_id,
                 "habits",
-                {},
+                parameters,  # Pass parameters for potential future filtering
                 time_range,
                 auth_token,
             )
 
-            # Add habits data to context
             context["habits_data"] = habits_data
 
-            # Extract key metrics
-            if habits_data:
-                # Get habit completion rate
-                if "completion_rate" in habits_data:
-                    context["habit_completion_rate"] = habits_data["completion_rate"]
+            # Extract habits list safely from nested structure
+            habits_list = habits_data.get("data", {}).get("habits", [])
 
-                # Get habit streaks
-                if "streaks" in habits_data:
-                    context["habit_streaks"] = habits_data["streaks"]
+            # Check if habits data is valid
+            if not habits_list or not isinstance(habits_list, list):
+                logger.warning(
+                    f"Habits data for user {user_id} is missing or not in expected format.")
+                return context
 
-                # Get habit categories
-                if "categories" in habits_data:
-                    context["habit_categories"] = habits_data["categories"]
+            # Calculate metrics
+            total_habits = len(habits_list)
+            if total_habits == 0:
+                context["habit_completion_rate"] = 0
+                context["habit_streaks"] = {
+                    "max_streak": 0, "average_streak": 0}
+                context["habit_categories"] = {}
+                context["habit_consistency"] = {}
+                context["top_habits"] = []
+                context["bottom_habits"] = []
+            else:
+                # 1. Calculate Overall Completion Rate
+                total_completion = sum(
+                    h.get("completion_rate", 0) for h in habits_list)
+                context["habit_completion_rate"] = total_completion / \
+                    total_habits
 
-                # Get habit consistency
-                if "consistency" in habits_data:
-                    context["habit_consistency"] = habits_data["consistency"]
+                # 2. Analyze Streaks
+                all_streaks = [h.get("streak", 0) for h in habits_list]
+                context["habit_streaks"] = {
+                    "max_streak": max(all_streaks) if all_streaks else 0,
+                    "average_streak": sum(all_streaks) / len(all_streaks) if all_streaks else 0
+                }
 
-                # Get top habits
-                if "habits" in habits_data:
-                    habits = habits_data["habits"]
+                # 3. Analyze Categories
+                categories = {}
+                for habit in habits_list:
+                    cat = habit.get("category", "Uncategorized")
+                    if cat not in categories:
+                        categories[cat] = {"completions": [], "count": 0}
+                    categories[cat]["completions"].append(
+                        habit.get("completion_rate", 0))
+                    categories[cat]["count"] += 1
 
-                    # Sort habits by completion rate
-                    if isinstance(habits, list) and len(habits) > 0:
-                        sorted_habits = sorted(
-                            habits,
-                            key=lambda h: h.get("completion_rate", 0),
-                            reverse=True
-                        )
+                category_analysis = {}
+                for cat, data in categories.items():
+                    avg_completion = sum(data["completions"]) / \
+                        data["count"] if data["count"] > 0 else 0
+                    category_analysis[cat] = {
+                        "average_completion_rate": round(avg_completion, 2),
+                        "habit_count": data["count"]
+                    }
+                context["habit_categories"] = category_analysis
 
-                        context["top_habits"] = sorted_habits[:5]
-                        context["bottom_habits"] = sorted_habits[-5:] if len(
-                            sorted_habits) >= 5 else sorted_habits
+                # Placeholder for consistency analysis
+                context["habit_consistency"] = {}
 
-            logger.info(
-                f"Successfully gathered habits data for user {user_id}")
+                # 4. Get Top and Bottom Habits
+                if habits_list:
+                    sorted_habits = sorted(
+                        habits_list,
+                        key=lambda h: h.get("completion_rate", 0),
+                        reverse=True
+                    )
+                    context["top_habits"] = sorted_habits[:5]
+                    context["bottom_habits"] = sorted_habits[-5:]
+
+                logger.info(
+                    f"Successfully gathered and processed habits data for user {user_id}")
 
         except Exception as e:
             logger.error(f"Error gathering habits data: {str(e)}")
@@ -120,31 +141,37 @@ class HabitsReportAgent(BaseReportAgent):
         start_date = time_range.get("start_date", "")
         end_date = time_range.get("end_date", "")
 
-        # Extract key metrics for the prompt
-        completion_rate = context.get("habit_completion_rate", "N/A")
-        habit_streaks = context.get("habit_streaks", {})
-        habit_categories = context.get("habit_categories", {})
-        habit_consistency = context.get("habit_consistency", {})
-        top_habits = context.get("top_habits", [])
-        bottom_habits = context.get("bottom_habits", [])
+        # Extract key metrics for the prompt, using numeric defaults for formatted values
+        overall_completion_rate = context.get("habit_completion_rate", 0.0)
+        total_habits = context.get("total_habits", 0)
+        completed_habits = context.get("completed_habits", 0)
+        longest_streak = context.get("habit_streaks", {}).get("max_streak", 0)
+        average_streak = context.get(
+            "habit_streaks", {}).get("average_streak", 0.0)
+        habit_completion_by_category = context.get(
+            "habit_completion_by_category", {})
 
         # Format top habits for the prompt
         top_habits_str = "\n".join([
-            f"- {h.get('name', 'Unknown')}: {h.get('completion_rate', 0)}% completion rate"
-            for h in top_habits
-        ]) if top_habits else "No habit data available"
+            f"- {h.get('name', 'Unknown')}: {h.get('completion_rate', 0)}% completion rate, {h.get('streak', 0)}-day streak"
+            for h in context.get("top_habits", [])
+        ]) if context.get("top_habits", []) else "No habit data available"
 
         # Format bottom habits for the prompt
         bottom_habits_str = "\n".join([
             f"- {h.get('name', 'Unknown')}: {h.get('completion_rate', 0)}% completion rate"
-            for h in bottom_habits
-        ]) if bottom_habits else "No habit data available"
+            for h in context.get("bottom_habits", [])
+        ]) if context.get("bottom_habits", []) else "No habit data available"
 
         prompt = f"""
         Generate a detailed habits report for the user based on their data from {start_date} to {end_date}.
         
         Key metrics:
-        - Overall Habit Completion Rate: {completion_rate}%
+        - Overall Habit Completion Rate: {overall_completion_rate:.2f}%
+        - Total Habits: {total_habits}
+        - Completed Habits: {completed_habits}
+        - Longest Streak Achieved: {longest_streak} days
+        - Average Streak Length: {average_streak:.2f} days
         
         Top performing habits:
         {top_habits_str}
@@ -159,19 +186,20 @@ class HabitsReportAgent(BaseReportAgent):
         4. Time of Day Analysis - When the user is most successful at completing habits
         5. Recommendations - Actionable suggestions for improving habit consistency and building new habits
         
-        Raw data:
-        Habits Data: {context.get("habits_data", {})}
-        Habit Streaks: {habit_streaks}
-        Habit Categories: {habit_categories}
-        Habit Consistency: {habit_consistency}
+        Raw data for context:
+        {context.get("habits_data", {})}
         
         Return the report as a JSON with the following structure:
         {{
             "summary": "Brief summary of key findings",
             "content": {{
-                "overall_score": 85,  // Overall habits score out of 100
+                "overall_score": {overall_completion_rate},  // Overall habits score out of 100
                 "key_metrics": {{
-                    // Key metrics extracted from the data
+                    "overall_completion_rate": {overall_completion_rate},
+                    "total_habits": {total_habits},
+                    "completed_habits": {completed_habits},
+                    "longest_streak": {longest_streak},
+                    "average_streak": {average_streak}
                 }},
                 "insights": [
                     // List of key insights

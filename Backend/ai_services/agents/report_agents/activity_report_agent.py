@@ -3,7 +3,7 @@ Agent for generating activity reports.
 """
 from typing import Dict, Any, Optional, List
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ai_services.agents.report_agents.base_report_agent import BaseReportAgent
 from data_layer.models.report import ReportType
@@ -62,13 +62,36 @@ class ActivityReportAgent(BaseReportAgent):
                 auth_token
             )
 
-            # Add data to context
+            # Add raw data to context for the prompt
             context.update({
                 "activity_data": metrics.get("activity", {}),
                 "task_data": metrics.get("tasks", {}),
                 "calendar_data": metrics.get("calendar", {}),
-                "time_range": time_range
             })
+
+            # Process raw data to extract key metrics for the prompt
+            if isinstance(metrics.get("tasks", {}).get("tasks"), list):
+                tasks = metrics["tasks"]["tasks"]
+                completed_tasks = [
+                    t for t in tasks if t.get("status") == "Completed"]
+                context["tasks_completed"] = len(completed_tasks)
+                context["tasks_total"] = len(tasks)
+                context["task_overdue"] = len([
+                    t for t in tasks if t.get("due_date") and
+                    datetime.fromisoformat(t["due_date"].replace(
+                        'Z', '+00:00')) < datetime.now(timezone.utc)
+                    and t.get("status") != "Completed"
+                ])
+
+            if isinstance(metrics.get("calendar", {}).get("events"), list):
+                events = metrics["calendar"]["events"]
+                context["meeting_count"] = len(
+                    [e for e in events if e.get("type") == "Meeting"])
+                context["meeting_time"] = sum(
+                    (datetime.fromisoformat(
+                        e["end_time"]) - datetime.fromisoformat(e["start_time"])).total_seconds() / 60
+                    for e in events if e.get("type") == "Meeting" and "start_time" in e and "end_time" in e
+                )
 
             logger.info(
                 f"Successfully gathered activity data for user {user_id}")
@@ -93,6 +116,14 @@ class ActivityReportAgent(BaseReportAgent):
         start_date = time_range.get("start_date", "")
         end_date = time_range.get("end_date", "")
 
+        # Key metrics calculated in gather_context
+        tasks_completed = context.get("tasks_completed", 0)
+        tasks_total = context.get("tasks_total", 0)
+        tasks_overdue = context.get("task_overdue", 0)
+        meeting_count = context.get("meeting_count", 0)
+        meeting_time = context.get("meeting_time", 0)
+
+        # Raw data for deeper analysis by the LLM
         activity_data = context.get("activity_data", {})
         task_data = context.get("task_data", {})
         calendar_data = context.get("calendar_data", {})
@@ -100,6 +131,12 @@ class ActivityReportAgent(BaseReportAgent):
         prompt = f"""
         Generate a detailed activity report for the user based on their data from {start_date} to {end_date}.
         
+        Key Metrics:
+        - Tasks Completed: {tasks_completed} out of {tasks_total}
+        - Overdue Tasks: {tasks_overdue}
+        - Meetings Attended: {meeting_count}
+        - Total Meeting Time: {meeting_time:.0f} minutes
+
         The report should analyze the user's activity patterns, task completion, and calendar usage.
         
         Include the following sections:
@@ -108,13 +145,13 @@ class ActivityReportAgent(BaseReportAgent):
         3. Calendar Analysis - Analysis of time management, meeting patterns, and scheduling efficiency
         4. Recommendations - Actionable suggestions for improving productivity and time management
         
-        Activity Data:
+        Raw Activity Data for Analysis:
         {activity_data}
         
-        Task Data:
+        Raw Task Data for Analysis:
         {task_data}
         
-        Calendar Data:
+        Raw Calendar Data for Analysis:
         {calendar_data}
         
         Return the report as a JSON with the following structure:
@@ -123,7 +160,10 @@ class ActivityReportAgent(BaseReportAgent):
             "content": {{
                 "activity_score": 85,  // Overall activity score out of 100
                 "key_metrics": {{
-                    // Key metrics extracted from the data
+                    "tasks_completed": "{tasks_completed} out of {tasks_total}",
+                    "overdue_tasks": {tasks_overdue},
+                    "meetings_attended": {meeting_count},
+                    "total_meeting_time_minutes": {meeting_time:.0f}
                 }},
                 "insights": [
                     // List of key insights

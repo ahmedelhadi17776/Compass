@@ -3,7 +3,7 @@ Agent for generating productivity reports.
 """
 from typing import Dict, Any, Optional, List
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ai_services.agents.report_agents.base_report_agent import BaseReportAgent
 from data_layer.models.report import ReportType
@@ -72,51 +72,63 @@ class ProductivityReportAgent(BaseReportAgent):
             # Add metrics to context
             context.update(metrics)
 
-            # Calculate comparative metrics if possible
-            if "productivity" in metrics and "productivity" in metrics["productivity"]:
-                prod_data = metrics["productivity"]["productivity"]
+            # --- Process Raw Data to Calculate Metrics ---
 
-                # Calculate average productivity score
-                if "daily_scores" in prod_data:
-                    daily_scores = prod_data["daily_scores"]
-                    if daily_scores:
-                        avg_score = sum(
-                            score for _, score in daily_scores.items()) / len(daily_scores)
-                        context["avg_productivity_score"] = round(avg_score, 2)
+            # Calculate average productivity score from raw data
+            if "productivity" in metrics and "daily_scores" in metrics.get("productivity", {}):
+                daily_scores = metrics["productivity"]["daily_scores"]
+                if daily_scores:
+                    avg_score = sum(
+                        score for _, score in daily_scores.items()) / len(daily_scores)
+                    context["avg_productivity_score"] = round(avg_score, 2)
 
             # Extract focus time metrics
-            if "focus" in metrics and "total_focus_time" in metrics["focus"]:
-                context["total_focus_time"] = metrics["focus"]["total_focus_time"]
-                context["daily_focus_time"] = metrics["focus"].get(
-                    "daily_focus_time", {})
-
-                # Calculate average daily focus time
-                daily_focus = metrics["focus"].get("daily_focus_time", {})
+            if "focus" in metrics and "total_focus_time" in metrics.get("focus", {}):
+                focus_data = metrics["focus"]
+                context["total_focus_time"] = focus_data.get(
+                    "total_focus_time", 0)
+                daily_focus = focus_data.get("daily_focus_time", {})
                 if daily_focus:
                     avg_focus = sum(
                         time for _, time in daily_focus.items()) / len(daily_focus)
-                    context["avg_daily_focus_time"] = round(
-                        avg_focus / 60, 2)  # Convert to hours
+                    context["avg_daily_focus_time"] = round(avg_focus / 60, 2)
 
-            # Extract task completion metrics
-            if "tasks" in metrics:
-                task_data = metrics["tasks"]
-                context["task_completion_rate"] = task_data.get(
-                    "completion_rate", 0)
-                context["tasks_completed"] = task_data.get(
-                    "completed_count", 0)
-                context["tasks_total"] = task_data.get("total_count", 0)
+            # Process raw task list to calculate metrics
+            if "tasks" in metrics and isinstance(metrics.get("tasks", {}).get("tasks"), list):
+                tasks = metrics["tasks"]["tasks"]
+                completed_tasks = [
+                    t for t in tasks if t.get("status") == "Completed"]
+                context["tasks_completed"] = len(completed_tasks)
+                context["tasks_total"] = len(tasks)
+                context["task_completion_rate"] = (
+                    len(completed_tasks) / len(tasks) * 100) if tasks else 0
+
+            # Process raw todo lists to calculate metrics
+            if "todos" in metrics and isinstance(metrics.get("todos", {}).get("data", {}).get("lists"), list):
+                all_todos = []
+                for a_list in metrics["todos"]["data"]["lists"]:
+                    if isinstance(a_list.get("todos"), list):
+                        all_todos.extend(a_list["todos"])
+
+                completed_todos = [
+                    t for t in all_todos if t.get("is_completed")]
+                context["todos_completed_count"] = len(completed_todos)
+                context["todos_total_count"] = len(all_todos)
 
             # Extract calendar metrics
-            if "calendar" in metrics:
+            if "calendar" in metrics and "events" in metrics.get("calendar", {}):
                 calendar_data = metrics["calendar"]
-                context["meeting_time"] = calendar_data.get(
-                    "total_meeting_time", 0)
-                context["meeting_count"] = calendar_data.get(
-                    "meeting_count", 0)
+                meeting_events = [e for e in calendar_data.get(
+                    "events", []) if e.get("type") == "Meeting"]
+                context["meeting_time"] = sum(
+                    (datetime.fromisoformat(
+                        e["end_time"]) - datetime.fromisoformat(e["start_time"])).total_seconds() / 60
+                    for e in meeting_events if "start_time" in e and "end_time" in e
+                )
+                context["meeting_count"] = len(meeting_events)
 
             logger.info(
-                f"Successfully gathered productivity data for user {user_id}")
+                f"Successfully gathered and processed productivity data for user {user_id}")
 
         except Exception as e:
             logger.error(f"Error gathering productivity data: {str(e)}")
@@ -141,11 +153,19 @@ class ProductivityReportAgent(BaseReportAgent):
         # Extract key metrics for the prompt
         avg_productivity_score = context.get("avg_productivity_score", "N/A")
         avg_daily_focus_time = context.get("avg_daily_focus_time", "N/A")
-        task_completion_rate = context.get("task_completion_rate", "N/A")
-        tasks_completed = context.get("tasks_completed", "N/A")
-        tasks_total = context.get("tasks_total", "N/A")
-        meeting_time = context.get("meeting_time", "N/A")
-        meeting_count = context.get("meeting_count", "N/A")
+        task_completion_rate = context.get("task_completion_rate", 0.0)
+        tasks_completed = context.get("tasks_completed", 0)
+        tasks_total = context.get("tasks_total", 0)
+        meeting_time = context.get("meeting_time", 0)
+        meeting_count = context.get("meeting_count", 0)
+
+        # Raw data for deeper analysis
+        productivity_data = context.get("productivity", {})
+        focus_data = context.get("focus", {})
+        task_data = context.get("tasks", {})
+        todo_data = context.get("todos", {})
+        calendar_data = context.get("calendar", {})
+        dashboard_data = context.get("dashboard", {})
 
         prompt = f"""
         Generate a detailed productivity report for the user based on their data from {start_date} to {end_date}.
@@ -153,9 +173,9 @@ class ProductivityReportAgent(BaseReportAgent):
         Key metrics:
         - Average Productivity Score: {avg_productivity_score}
         - Average Daily Focus Time: {avg_daily_focus_time} hours
-        - Task Completion Rate: {task_completion_rate}%
+        - Task Completion Rate: {task_completion_rate:.2f}%
         - Tasks Completed: {tasks_completed} out of {tasks_total}
-        - Meeting Time: {meeting_time} minutes across {meeting_count} meetings
+        - Meeting Time: {meeting_time:.0f} minutes across {meeting_count} meetings
         
         The report should include the following sections:
         1. Productivity Summary - A high-level overview of the user's productivity during this period
@@ -165,12 +185,12 @@ class ProductivityReportAgent(BaseReportAgent):
         5. Recommendations - Actionable suggestions for improving productivity based on the data
         
         Raw data:
-        Productivity Data: {context.get("productivity", {})}
-        Focus Data: {context.get("focus", {})}
-        Task Data: {context.get("tasks", {})}
-        Todo Data: {context.get("todos", {})}
-        Calendar Data: {context.get("calendar", {})}
-        Dashboard Data: {context.get("dashboard", {})}
+        Productivity Data: {productivity_data}
+        Focus Data: {focus_data}
+        Task Data: {task_data}
+        Todo Data: {todo_data}
+        Calendar Data: {calendar_data}
+        Dashboard Data: {dashboard_data}
         
         Return the report as a JSON with the following structure:
         {{
@@ -178,7 +198,12 @@ class ProductivityReportAgent(BaseReportAgent):
             "content": {{
                 "productivity_score": 85,  // Overall productivity score out of 100
                 "key_metrics": {{
-                    // Key metrics extracted from the data
+                    "average_productivity_score": "N/A",
+                    "average_daily_focus_time_hours": "N/A",
+                    "task_completion_rate": "{task_completion_rate:.2f}%",
+                    "tasks_completed": "{tasks_completed} out of {tasks_total}",
+                    "meeting_time_minutes": {meeting_time:.0f},
+                    "number_of_meetings": {meeting_count}
                 }},
                 "insights": [
                     // List of key insights

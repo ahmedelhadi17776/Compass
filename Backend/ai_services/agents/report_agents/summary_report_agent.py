@@ -96,50 +96,76 @@ class SummaryReportAgent(BaseReportAgent):
         return context
 
     def _extract_key_metrics(self, context: Dict[str, Any], metrics: Dict[str, Any]) -> None:
-        """Extract key metrics from raw data for easier access in prompt generation."""
-        # Extract activity metrics
-        if "activity" in metrics and metrics["activity"]:
+        """Process raw data to calculate and extract key metrics for the summary report."""
+
+        # --- Activity ---
+        if "activity" in metrics and metrics.get("activity"):
             activity = metrics["activity"]
             context["active_days"] = activity.get("active_days", 0)
             context["active_hours"] = activity.get("active_hours", 0)
 
-        # Extract productivity metrics
-        if "productivity" in metrics and metrics["productivity"]:
-            productivity = metrics["productivity"]
-            if "productivity" in productivity:
-                prod_data = productivity["productivity"]
-                if "daily_scores" in prod_data:
-                    daily_scores = prod_data["daily_scores"]
-                    if daily_scores:
-                        avg_score = sum(
-                            score for _, score in daily_scores.items()) / len(daily_scores)
-                        context["avg_productivity_score"] = round(avg_score, 2)
+        # --- Productivity ---
+        if "productivity" in metrics and "daily_scores" in metrics.get("productivity", {}):
+            daily_scores = metrics["productivity"]["daily_scores"]
+            if daily_scores:
+                avg_score = sum(
+                    score for _, score in daily_scores.items()) / len(daily_scores)
+                context["avg_productivity_score"] = round(avg_score, 2)
 
-        # Extract focus metrics
-        if "focus" in metrics and metrics["focus"]:
+        # --- Focus ---
+        if "focus" in metrics and metrics.get("focus"):
             focus = metrics["focus"]
             context["total_focus_time"] = focus.get("total_focus_time", 0)
             context["focus_sessions"] = focus.get("sessions", 0)
 
-        # Extract task metrics
-        if "tasks" in metrics and metrics["tasks"]:
-            tasks = metrics["tasks"]
-            context["task_completion_rate"] = tasks.get("completion_rate", 0)
-            context["tasks_completed"] = tasks.get("completed_count", 0)
-            context["tasks_total"] = tasks.get("total_count", 0)
+        # --- Tasks ---
+        if "tasks" in metrics and isinstance(metrics.get("tasks", {}).get("tasks"), list):
+            tasks = metrics["tasks"]["tasks"]
+            completed_tasks = [
+                t for t in tasks if t.get("status") == "Completed"]
+            context["tasks_completed"] = len(completed_tasks)
+            context["tasks_total"] = len(tasks)
+            context["task_completion_rate"] = (
+                len(completed_tasks) / len(tasks) * 100) if tasks else 0
 
-        # Extract habit metrics
-        if "habits" in metrics and metrics["habits"]:
-            habits = metrics["habits"]
-            context["habit_completion_rate"] = habits.get("completion_rate", 0)
-            context["habits_completed"] = habits.get("completed_count", 0)
-            context["habits_total"] = habits.get("total_count", 0)
+        # --- Habits ---
+        if "habits" in metrics and isinstance(metrics.get("habits", {}).get("data", {}).get("habits"), list):
+            habits = metrics["habits"]["data"]["habits"]
+            total_habits = len(habits)
+            if total_habits > 0:
+                completed_habits = len(
+                    [h for h in habits if h.get("is_completed")])
+                context["habit_completion_rate"] = (
+                    completed_habits / total_habits) * 100
+                context["habits_completed"] = completed_habits
+                context["habits_total"] = total_habits
+            else:
+                context["habit_completion_rate"] = 0
+                context["habits_completed"] = 0
+                context["habits_total"] = 0
 
-        # Extract calendar metrics
-        if "calendar" in metrics and metrics["calendar"]:
-            calendar = metrics["calendar"]
-            context["meeting_time"] = calendar.get("total_meeting_time", 0)
-            context["meeting_count"] = calendar.get("meeting_count", 0)
+        # --- Todos ---
+        if "todos" in metrics and isinstance(metrics.get("todos", {}).get("data", {}).get("lists"), list):
+            all_todos = []
+            for a_list in metrics["todos"]["data"]["lists"]:
+                if isinstance(a_list.get("todos"), list):
+                    all_todos.extend(a_list["todos"])
+
+            completed_todos = [t for t in all_todos if t.get("is_completed")]
+            context["todos_completed_count"] = len(completed_todos)
+            context["todos_total_count"] = len(all_todos)
+
+        # --- Calendar ---
+        if "calendar" in metrics and isinstance(metrics.get("calendar", {}).get("events"), list):
+            calendar_events = metrics["calendar"]["events"]
+            meeting_events = [
+                e for e in calendar_events if e.get("type") == "Meeting"]
+            context["meeting_time"] = sum(
+                (datetime.fromisoformat(
+                    e["end_time"]) - datetime.fromisoformat(e["start_time"])).total_seconds() / 60
+                for e in meeting_events if "start_time" in e and "end_time" in e
+            )
+            context["meeting_count"] = len(meeting_events)
 
     async def _prepare_report_prompt(self, context: Dict[str, Any]) -> str:
         """
@@ -160,13 +186,25 @@ class SummaryReportAgent(BaseReportAgent):
         activity_trend = context.get("activity_trend", "N/A")
         avg_productivity_score = context.get("avg_productivity_score", "N/A")
         avg_daily_focus_time = context.get("avg_daily_focus_time", "N/A")
-        task_completion_rate = context.get("task_completion_rate", "N/A")
-        tasks_completed = context.get("tasks_completed", "N/A")
-        habit_completion_rate = context.get("habit_completion_rate", "N/A")
-        meeting_time = context.get("meeting_time", "N/A")
-        meeting_count = context.get("meeting_count", "N/A")
+        task_completion_rate = context.get("task_completion_rate", 0)
+        tasks_completed = context.get("tasks_completed", 0)
+        habit_completion_rate = context.get("habit_completion_rate", 0)
+        meeting_time = context.get("meeting_time", 0)
+        meeting_count = context.get("meeting_count", 0)
         project_completion_rate = context.get("project_completion_rate", "N/A")
         workflows_executed = context.get("workflows_executed", "N/A")
+
+        # Extract raw data for deeper analysis
+        activity_data = context.get("activity", {})
+        productivity_data = context.get("productivity", {})
+        focus_data = context.get("focus", {})
+        task_data = context.get("tasks", {})
+        todo_data = context.get("todos", {})
+        habit_data = context.get("habits", {})
+        calendar_data = context.get("calendar", {})
+        project_data = context.get("projects", {})
+        workflow_data = context.get("workflow", {})
+        dashboard_data = context.get("dashboard", {})
 
         prompt = f"""
         Generate a comprehensive summary report for the user based on their data from {start_date} to {end_date}.
@@ -176,10 +214,10 @@ class SummaryReportAgent(BaseReportAgent):
         - Activity Trend: {activity_trend}
         - Average Productivity Score: {avg_productivity_score}
         - Average Daily Focus Time: {avg_daily_focus_time} hours
-        - Task Completion Rate: {task_completion_rate}%
+        - Task Completion Rate: {task_completion_rate:.2f}%
         - Tasks Completed: {tasks_completed}
-        - Habit Completion Rate: {habit_completion_rate}%
-        - Meeting Time: {meeting_time} minutes across {meeting_count} meetings
+        - Habit Completion Rate: {habit_completion_rate:.2f}%
+        - Meeting Time: {meeting_time:.0f} minutes across {meeting_count} meetings
         - Project Completion Rate: {project_completion_rate}%
         - Workflows Executed: {workflows_executed}
         
@@ -195,16 +233,16 @@ class SummaryReportAgent(BaseReportAgent):
         9. Recommendations - Actionable suggestions across different domains
         
         Raw data:
-        Activity Data: {context.get("activity", {})}
-        Productivity Data: {context.get("productivity", {})}
-        Focus Data: {context.get("focus", {})}
-        Task Data: {context.get("tasks", {})}
-        Todo Data: {context.get("todos", {})}
-        Habit Data: {context.get("habits", {})}
-        Calendar Data: {context.get("calendar", {})}
-        Project Data: {context.get("projects", {})}
-        Workflow Data: {context.get("workflow", {})}
-        Dashboard Data: {context.get("dashboard", {})}
+        Activity Data: {activity_data}
+        Productivity Data: {productivity_data}
+        Focus Data: {focus_data}
+        Task Data: {task_data}
+        Todo Data: {todo_data}
+        Habit Data: {habit_data}
+        Calendar Data: {calendar_data}
+        Project Data: {project_data}
+        Workflow Data: {workflow_data}
+        Dashboard Data: {dashboard_data}
         
         Return the report as a JSON with the following structure:
         {{

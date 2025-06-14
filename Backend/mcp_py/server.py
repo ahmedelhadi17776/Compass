@@ -23,6 +23,7 @@ from orchestration.todo_operations import smart_update_todo
 import uuid
 from data_layer.cache.ai_cache_manager import AICacheManager
 from ai_services.llm.llm_service import LLMService
+from datetime import datetime, timezone
 
 # Hardcoded JWT token for development - only used as fallback
 DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjUwNDg1NiwibmJmIjoxNzQ2NDE4NDU2LCJpYXQiOjE3NDY0MTg0NTZ9.nUky6q0vPRnVYP9gTPIPaibNezB-7Sn-EgDZvlxU0_8"
@@ -295,15 +296,140 @@ async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
 
 
 @mcp.tool()
-async def get_tasks(user_id: str, ctx: Context) -> Dict[str, Any]:
+async def get_tasks(
+    ctx: Context,
+    user_id: str,
+    authorization: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    project_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Retrieves a list of tasks for a given user.
+    Retrieves a list of tasks for a given user, with optional filters.
+    This tool fetches tasks where the user is either the creator or the assignee and
+    filters them by the provided date range.
     """
-    logger.warning(
-        "MCP tool 'get_tasks' is not fully implemented and will return an empty list.")
+    logger.info(
+        f"get_tasks called for user_id: {user_id} with date range: {start_date} to {end_date}")
+
+    auth_token = None
+    if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+        auth_token = authorization
+    else:
+        auth_token = f"Bearer {DEV_JWT_TOKEN}"
+
+    headers = {"Content-Type": "application/json", "Authorization": auth_token}
+
+    all_tasks = {}
+
+    async def fetch_paged_tasks(base_params: Dict[str, Any]):
+        page = 0
+        page_size = 100
+        while True:
+            params = base_params.copy()
+            params["page"] = str(page)
+            params["page_size"] = str(page_size)
+
+            async def get_func(client, url, **kwargs):
+                return await client.get(url, **kwargs)
+
+            result = await try_backend_urls(
+                get_func,
+                "/api/tasks",
+                headers=headers,
+                params=params
+            )
+
+            if result.get("status") == "error":
+                logger.error(
+                    f"Failed to fetch tasks with params {params}: {result.get('error')}")
+                break
+
+            data = result.get("data", {})
+            tasks = data.get("tasks", [])
+
+            for task in tasks:
+                all_tasks[task['id']] = task
+
+            if len(tasks) < page_size:
+                break
+
+            page += 1
+
+    common_params = {}
+    if status:
+        common_params['status'] = status
+    if priority:
+        common_params['priority'] = priority
+    if project_id:
+        common_params['project_id'] = project_id
+
+    # Fetch tasks created by user
+    logger.info(f"Fetching tasks created by user {user_id}")
+    creator_params = {"creator_id": user_id, **common_params}
+    await fetch_paged_tasks(creator_params)
+
+    # Fetch tasks assigned to user
+    logger.info(f"Fetching tasks assigned to user {user_id}")
+    assignee_params = {"assignee_id": user_id, **common_params}
+    await fetch_paged_tasks(assignee_params)
+
+    tasks_list = list(all_tasks.values())
+
+    # Filter by date range if provided
+    if start_date and end_date:
+        try:
+            start_dt_naive = datetime.fromisoformat(
+                start_date.replace('Z', '+00:00'))
+            start_dt = start_dt_naive.replace(
+                tzinfo=timezone.utc) if start_dt_naive.tzinfo is None else start_dt_naive
+
+            end_dt_naive = datetime.fromisoformat(
+                end_date.replace('Z', '+00:00'))
+            end_dt = end_dt_naive.replace(
+                tzinfo=timezone.utc) if end_dt_naive.tzinfo is None else end_dt_naive
+
+            filtered_tasks = []
+            for task in tasks_list:
+                task_start_date_str = task.get("start_date")
+                task_due_date_str = task.get("due_date")
+
+                task_date_to_check = None
+                if task_start_date_str:
+                    try:
+                        task_date_to_check = datetime.fromisoformat(
+                            task_start_date_str.replace('Z', '+00:00'))
+                    except ValueError:
+                        logger.warning(
+                            f"Could not parse task start_date: {task_start_date_str}")
+
+                if not task_date_to_check and task_due_date_str:
+                    try:
+                        task_date_to_check = datetime.fromisoformat(
+                            task_due_date_str.replace('Z', '+00:00'))
+                    except ValueError:
+                        logger.warning(
+                            f"Could not parse task due_date: {task_due_date_str}")
+
+                if task_date_to_check and start_dt <= task_date_to_check <= end_dt:
+                    filtered_tasks.append(task)
+
+            tasks_list = filtered_tasks
+            logger.info(
+                f"Filtered tasks by date range. Found {len(tasks_list)} tasks.")
+
+        except ValueError as e:
+            logger.error(f"Invalid date format for filtering: {e}")
+            await ctx.error(f"Invalid date format provided: {e}")
+            return {"status": "error", "error": f"Invalid date format: {e}"}
+
+    logger.info(f"get_tasks finished. Returning {len(tasks_list)} tasks.")
     return {
         "status": "success",
-        "tasks": []
+        "tasks": tasks_list,
+        "total": len(tasks_list)
     }
 
 
@@ -331,6 +457,25 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
     except Exception as e:
         await ctx.error(f"Failed to create project: {str(e)}")
         raise
+
+
+@mcp.tool()
+async def get_projects(
+    ctx: Context,
+    user_id: str,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    (Placeholder) Retrieves a list of projects for a given user.
+    Currently returns an empty list.
+    """
+    logger.warning(
+        "MCP tool 'get_projects' is a placeholder and will return an empty list.")
+    return {
+        "status": "success",
+        "projects": [],
+        "total": 0
+    }
 
 
 @mcp.tool("entity.create")
