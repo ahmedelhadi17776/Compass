@@ -135,10 +135,7 @@ class SubtaskGeneratorAgent(BaseAgent):
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Generate subtasks for a given todo."""
-        self.logger.info(
-            f"SubtaskGeneratorAgent.process called for option {option_id} on todo {target_id}")
-
+        """Generate subtasks for a todo."""
         try:
             # Get todo data if not provided
             if not target_data:
@@ -167,7 +164,7 @@ class SubtaskGeneratorAgent(BaseAgent):
             if result["status"] == "success":
                 # Extract tool calls from the response
                 tool_calls = self._extract_tool_calls(result["response"])
-
+                
                 if not tool_calls:
                     self.logger.warning("No tool calls found in LLM response")
                     return "I was unable to generate subtasks. Please try again."
@@ -195,19 +192,16 @@ class SubtaskGeneratorAgent(BaseAgent):
 
                         # Process the result
                         if tool_result.get("status") == "success":
-                            self.logger.info(
-                                f"Successfully added checklist items to todo {target_id}")
+                            self.logger.info(f"Successfully added checklist items to todo {target_id}")
                             content = tool_result.get("content", {})
                             return f"Successfully added {len(tool_args.get('checklist_items', []))} subtasks to your todo."
                         else:
-                            error_msg = tool_result.get(
-                                "error", "Unknown error")
+                            error_msg = tool_result.get("error", "Unknown error")
                             self.logger.error(f"Tool call failed: {error_msg}")
                             return f"Failed to add subtasks: {error_msg}"
 
                     except Exception as e:
-                        self.logger.error(
-                            f"Error executing tool call: {str(e)}")
+                        self.logger.error(f"Error executing tool call: {str(e)}")
                         return f"Error adding subtasks: {str(e)}"
 
                 return "No valid subtasks were generated. Please try again."
@@ -232,7 +226,7 @@ class SubtaskGeneratorAgent(BaseAgent):
                             mcp_client = await self._get_mcp_client()
                             if not mcp_client:
                                 raise ValueError("MCP client is not available")
-
+                            
                             tool_args = tool_call.get("arguments", {})
                             tool_args["authorization"] = f"Bearer {token}"
 
@@ -246,8 +240,7 @@ class SubtaskGeneratorAgent(BaseAgent):
                             else:
                                 return f"Failed to add subtasks: {tool_result.get('error', 'Unknown error')}"
                         except Exception as e:
-                            self.logger.error(
-                                f"Error in fallback tool execution: {str(e)}")
+                            self.logger.error(f"Error in fallback tool execution: {str(e)}")
                             return f"Error adding subtasks: {str(e)}"
 
                 return "No valid subtasks were generated. Please try again."
@@ -273,11 +266,9 @@ class SubtaskGeneratorAgent(BaseAgent):
                     if "name" in tool_call:
                         tool_calls.append(tool_call)
                     else:
-                        self.logger.warning(
-                            f"Tool call missing 'name' field: {tool_call_text}")
+                        self.logger.warning(f"Tool call missing 'name' field: {tool_call_text}")
                 except json.JSONDecodeError:
-                    self.logger.error(
-                        f"Failed to parse tool call: {tool_call_text}")
+                    self.logger.error(f"Failed to parse tool call: {tool_call_text}")
                 text = text[end + len(end_tag):]
             else:
                 break
@@ -326,10 +317,7 @@ class DeadlineAdvisorAgent(BaseAgent):
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Provide deadline-based advice for a todo."""
-        self.logger.info(
-            f"DeadlineAdvisorAgent.process called for option {option_id} on todo {target_id}")
-
+        """Generate deadline advice for a todo."""
         try:
             # Get todo data if not provided
             if not target_data:
@@ -411,10 +399,7 @@ class PriorityOptimizerAgent(BaseAgent):
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Optimize the priority of a todo."""
-        self.logger.info(
-            f"PriorityOptimizerAgent.process called for option {option_id} on todo {target_id}")
-
+        """Generate priority and motivation advice for a todo."""
         try:
             # Get todo data if not provided
             if not target_data:

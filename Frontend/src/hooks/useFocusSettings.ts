@@ -141,7 +141,7 @@ export const useFocusSettings = () => {
         throw new Error("No authentication token found");
       }
       
-      const response = await fetch("http://localhost:8001/api/v1/focus/settings", {
+      const response = await fetch("http://localhost:8001/focus/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

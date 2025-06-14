@@ -7,9 +7,9 @@ import traceback
 from datetime import datetime
 
 from api.websocket.dashboard_ws import dashboard_ws_manager
+from utils.jwt import extract_user_id_from_token, decode_token
 from core.config import settings
 from ai_services.agents.orchestrator import AgentOrchestrator
-from core.auth.jwt_handler import get_current_user, get_token_from_websocket
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,26 +18,30 @@ router = APIRouter()
 active_tasks: Dict[str, asyncio.Task] = {}
 
 
-@router.websocket("/ws")
-async def dashboard_websocket(websocket: WebSocket):
+@router.websocket("/ws/dashboard")
+async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
     """
     WebSocket endpoint for dashboard real-time updates.
     Requires a valid JWT token as a query parameter.
     """
+    user_id = None
     try:
-        token_data = await get_token_from_websocket(websocket)
-        if not token_data:
+        logger.info(
+            f"Attempting WebSocket connection with token: {token[:20]}...")
+
+        # Validate token and extract user_id
+        payload = decode_token(token)
+        if not payload:
+            logger.error("Invalid token format or signature")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        user = get_current_user(token_data)
-        user_id = user["user_id"]
-        token = token_data["raw"]
-    except Exception as auth_error:
-        logger.error(
-            f"WebSocket authentication failed: {auth_error}", exc_info=True)
-        return
+        if "user_id" not in payload:
+            logger.error("Token missing user_id claim")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
 
-    try:
+        user_id = payload["user_id"]
         logger.info(f"Token validated for user_id: {user_id}")
 
         # Accept the connection
@@ -367,13 +371,14 @@ async def dashboard_websocket(websocket: WebSocket):
                     f"Error handling client message: {str(e)}", exc_info=True)
 
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for user_id: {user_id}")
-        await dashboard_ws_manager.disconnect(websocket, user_id)
+        if user_id:
+            logger.info(f"WebSocket disconnected for user_id: {user_id}")
+            await dashboard_ws_manager.disconnect(websocket, user_id)
     except Exception as e:
-        logger.error(
-            f"WebSocket error for user_id {user_id}: {str(e)}", exc_info=True)
+        logger.error(f"WebSocket error: {str(e)}", exc_info=True)
         logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
-        await dashboard_ws_manager.disconnect(websocket, user_id)
+        if user_id:
+            await dashboard_ws_manager.disconnect(websocket, user_id)
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except:
@@ -465,25 +470,20 @@ async def process_ai_option(
 
 
 @router.websocket("/ws/dashboard/admin")
-async def admin_dashboard_websocket(websocket: WebSocket):
+async def admin_dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
     """
     Admin WebSocket endpoint for monitoring dashboard connections.
     Requires a valid JWT token with admin privileges.
     """
     try:
-        token_data = await get_token_from_websocket(websocket)
-        if not token_data:
-            return
-
-        user = get_current_user(token_data)
-        # A proper role check should be implemented.
-        if "admin" not in user.get("roles", []):
-            logger.warning(
-                f"Non-admin user {user.get('user_id')} attempted to connect to admin dashboard.")
+        # Validate token and check admin privileges
+        payload = decode_token(token)
+        # or not payload.get("is_admin", False)
+        if not payload or "user_id" not in payload:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        user_id = user["user_id"]
+        user_id = payload["user_id"]
 
         # Accept the connection
         await websocket.accept()

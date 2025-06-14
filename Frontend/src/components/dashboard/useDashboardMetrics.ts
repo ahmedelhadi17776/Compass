@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useWebSocket, QUERY_KEYS, DashboardMetrics } from "@/contexts/websocket-provider";
 
-const API_BASE_URL = "http://localhost:8001/api/v1";
+const API_BASE_URL = "http://localhost:8001";
 
 const fetchDashboardMetrics = async (): Promise<DashboardMetrics> => {
   const token = localStorage.getItem("token");

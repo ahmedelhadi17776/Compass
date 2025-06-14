@@ -433,7 +433,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const url = `ws://localhost:8001/api/v1/dashboard/ws?token=${encodeURIComponent(
+    const url = `ws://localhost:8001/ws/dashboard?token=${encodeURIComponent(
       token
     )}`;
 

@@ -27,8 +27,6 @@ from api.goal_routes import router as goal_router
 from api.system_metric_routes import router as system_metric_router
 from api.cost_tracking_routes import router as cost_tracking_router
 from api.dashboard_routes import dashboard_router
-from api.report_routes import router as report_router
-from api.websocket import report_ws
 
 # Import WebSocket manager if available
 try:
@@ -294,34 +292,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
         await lifecycle.shutdown()
 
 # Create FastAPI app with lifespan
-app = FastAPI(
-    title="COMPASS Backend API",
-    description="API for the COMPASS productivity platform",
-    version="1.0.0",
-    lifespan=lifespan
-)
+app = FastAPI(title="COMPASS Backend", version="1.0.0", lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
-# Include routers
-app.include_router(ai_router, prefix="/api/v1", tags=["AI"])
-app.include_router(focus_router, prefix="/api/v1", tags=["Focus"])
-app.include_router(goal_router, prefix="/api/v1", tags=["Goals"])
-app.include_router(system_metric_router, prefix="/api/v1",
-                   tags=["System Metrics"])
-app.include_router(cost_tracking_router, prefix="/api/v1",
-                   tags=["Cost Tracking"])
-app.include_router(dashboard_router, prefix="/api/v1", tags=["Dashboard"])
-app.include_router(report_router, prefix="/api/v1", tags=["Reports"])
-app.include_router(report_ws.router, prefix="/api/v1/ws",
-                   tags=["Reports WebSocket"])
+# Include API routes
+app.include_router(ai_router)
+app.include_router(focus_router)
+app.include_router(goal_router)
+app.include_router(system_metric_router)
+app.include_router(cost_tracking_router)
+app.include_router(dashboard_router)
 
 # Include WebSocket routes if available
 try:
@@ -500,18 +489,6 @@ async def health_check():
         "websocket": websocket_ok,
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
-
-# Global exception handler
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler for unhandled exceptions."""
-    logger.exception(f"Unhandled exception: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"},
-    )
 
 if __name__ == "__main__":
     import uvicorn
