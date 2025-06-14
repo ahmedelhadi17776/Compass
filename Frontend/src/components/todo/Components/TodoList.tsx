@@ -22,9 +22,11 @@ import { Separator } from '@/components/ui/separator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWebSocket } from '@/contexts/websocket-provider';
 
+type TodoFilterType = 'log' | 'thisWeek' | 'today' | 'done';
+
 const AttachedActionsBox: React.FC<{
   todo: Todo;
-  position: { x: number; y: number };
+  position: { x: number; y: number; side: 'left' | 'right' };
   onClose: () => void;
   onSubtasksGenerated: () => void;
 }> = ({ todo, position, onClose, onSubtasksGenerated }) => {
@@ -36,9 +38,20 @@ const AttachedActionsBox: React.FC<{
 
     const { sendMessage, isConnected } = useWebSocket();
     
-    const ICON_WIDTH = -280;
-    const RESULT_WIDTH = -280;
+    const ACTION_BOX_WIDTH = 245; // w-64
+    const RESULT_BOX_WIDTH = 245; // w-64
     const GAP = 16;
+    const CHATBOT_ICON_WIDTH = 38; // w-12
+
+    const isRightSide = position.side === 'right';
+
+    const actionBoxLeft = isRightSide
+        ? position.x + CHATBOT_ICON_WIDTH + GAP
+        : position.x - ACTION_BOX_WIDTH - GAP;
+    
+    const resultBoxLeft = isRightSide
+        ? actionBoxLeft + ACTION_BOX_WIDTH + GAP
+        : actionBoxLeft - RESULT_BOX_WIDTH - GAP;
 
     // Map action buttons to option IDs from the TodoAgent
     const actionButtons = [
@@ -146,7 +159,7 @@ const AttachedActionsBox: React.FC<{
                     style={{
                         position: 'fixed',
                         top: `${position.y}px`,
-                        left: `${position.x + RESULT_WIDTH + GAP - 260}px`,
+                        left: `${resultBoxLeft}px`,
                     }}
                     className="bg-card border rounded-lg shadow-xl p-3 space-y-2 z-[9999] w-64"
                     data-no-dismiss
@@ -195,7 +208,7 @@ const AttachedActionsBox: React.FC<{
                 style={{
                     position: 'fixed',
                     top: `${position.y}px`,
-                    left: `${position.x + ICON_WIDTH + GAP + 2.5}px`,
+                    left: `${actionBoxLeft}px`,
                 }}
                 className="bg-card border rounded-lg shadow-xl p-3 space-y-2 z-[9999] w-64"
                 data-no-dismiss
@@ -244,6 +257,7 @@ interface TodoItemProps {
   onDelete: (id: string) => void;
   onUpdateChecklist: (id: string, checklist: { items: Array<{ title: string; completed: boolean }> }) => void;
   isDarkMode: boolean;
+  columnType: TodoFilterType;
 }
 
 const TodoItem: React.FC<TodoItemProps> = ({ 
@@ -252,7 +266,8 @@ const TodoItem: React.FC<TodoItemProps> = ({
   onEdit, 
   onDelete, 
   onUpdateChecklist,
-  isDarkMode
+  isDarkMode,
+  columnType
 }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: todo.id,
@@ -270,16 +285,30 @@ const TodoItem: React.FC<TodoItemProps> = ({
     if (chatbotAttachedTo === todo.id && todoRef.current) {
       const rect = todoRef.current.getBoundingClientRect();
       const chatbotIconWidth = 48; // w-12 from ChatbotIcon.tsx
-      const x = rect.left - 60;
       const y = rect.top + rect.height / 2 - chatbotIconWidth / 2;
-      setAttachmentPosition({ x, y });
+
+      let x: number;
+      const side: 'left' | 'right' = (columnType === 'log' || columnType === 'thisWeek') ? 'right' : 'left';
+
+      if (side === 'right') {
+        x = rect.right + 12;
+      } else {
+        x = rect.left - 60;
+      }
+      
+      setAttachmentPosition({ x, y, side });
 
       const handleResizeOrScroll = () => {
          if (todoRef.current) {
             const newRect = todoRef.current.getBoundingClientRect();
-            const newX = newRect.left - 60;
+            let newX: number;
+            if (side === 'right') {
+              newX = newRect.right + 12;
+            } else {
+              newX = newRect.left - 60;
+            }
             const newY = newRect.top + newRect.height / 2 - chatbotIconWidth / 2;
-            setAttachmentPosition({ x: newX, y: newY });
+            setAttachmentPosition({ x: newX, y: newY, side });
          }
       };
       
@@ -291,7 +320,7 @@ const TodoItem: React.FC<TodoItemProps> = ({
         document.querySelector('.main-content')?.removeEventListener('scroll', handleResizeOrScroll);
       }
     }
-  }, [chatbotAttachedTo, todo.id, setAttachmentPosition]);
+  }, [chatbotAttachedTo, todo.id, setAttachmentPosition, columnType]);
 
   return (
     <div className="relative">
@@ -520,7 +549,7 @@ const TodoList: React.FC = () => {
     deleteTodoMutation.mutate(id);
   };
 
-  const renderTodoList = (todos: Todo[]) => {
+  const renderTodoList = (todos: Todo[], columnType: TodoFilterType) => {
     if (!todos || todos.length === 0) {
       return <div className="text-sm text-muted-foreground">No Todos</div>;
     }
@@ -538,6 +567,7 @@ const TodoList: React.FC = () => {
               updateTodoMutation.mutate({ id, updates: { checklist } })
             }
             isDarkMode={isDarkMode}
+            columnType={columnType}
           />
         ))}
       </div>
@@ -595,8 +625,6 @@ const TodoList: React.FC = () => {
     }, 250);
   };
 
-  type TodoFilterType = 'log' | 'thisWeek' | 'today' | 'done';
-  
   const filterTodos = (type: TodoFilterType): Todo[] => {
     // Ensure we have an array to work with
     if (!Array.isArray(todos)) {
@@ -695,7 +723,7 @@ const TodoList: React.FC = () => {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto">
-                {renderTodoList(columnTodos)}
+                {renderTodoList(columnTodos, type)}
               </div>
             </div>
             
@@ -864,7 +892,7 @@ const TodoList: React.FC = () => {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {renderTodoList(columnTodos)}
+          {renderTodoList(columnTodos, type)}
         </div>
       </div>
     );
