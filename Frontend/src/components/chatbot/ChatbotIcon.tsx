@@ -17,7 +17,6 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
   const isDarkTheme = theme === 'dark';
 
   const { attachmentPosition, chatbotAttachedTo } = useDragStore();
-  const [initialPosition, setInitialPosition] =useState<{ x: number, y: number } | null>(null);
   const iconContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Motion values for smooth animation
@@ -38,32 +37,31 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
     iconContainerRef.current = node;
   };
 
-  useEffect(() => {
-    if (iconContainerRef.current && !initialPosition) {
-        const rect = iconContainerRef.current.getBoundingClientRect();
-        // We only want to set the initial position once.
-        if (rect.width > 0 && rect.height > 0) {
-            setInitialPosition({x: rect.left, y: rect.top});
-        }
-    }
-  }, [initialPosition]);
-
   // Update motion values when transform changes
   useEffect(() => {
     if (transform) {
       x.set(transform.x);
       y.set(transform.y);
-    } else if (attachmentPosition && chatbotAttachedTo && initialPosition) {
-        const newX = attachmentPosition.x - initialPosition.x;
-        const newY = attachmentPosition.y - initialPosition.y;
-        x.set(newX);
-        y.set(newY);
+    } else if (attachmentPosition && chatbotAttachedTo && iconContainerRef.current) {
+      const { x: attachX, y: attachY } = attachmentPosition;
+      
+      // Temporarily remove transform to get the icon's base position
+      const originalTransform = iconContainerRef.current.style.transform;
+      iconContainerRef.current.style.transform = 'none';
+      const iconRect = iconContainerRef.current.getBoundingClientRect();
+      iconContainerRef.current.style.transform = originalTransform;
+
+      const newX = attachX - iconRect.left;
+      const newY = attachY - iconRect.top;
+      
+      x.set(newX);
+      y.set(newY);
     } else {
       // Smoothly animate back to original position
       x.set(0);
       y.set(0);
     }
-  }, [transform, x, y, attachmentPosition, chatbotAttachedTo, initialPosition]);
+  }, [transform, x, y, attachmentPosition, chatbotAttachedTo]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
