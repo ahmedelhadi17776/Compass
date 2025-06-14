@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/contexts/theme-provider';
-import { Eye } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 import { useDragStore } from '@/dragStore';
+import IrisIcon from '@/components/IRIS.svg';
+import IrisHat from '@/components/IrisHat.svg';
 
 interface ChatbotIconProps {
   toggleChat: () => void;
@@ -100,7 +101,14 @@ const ChatbotIcon: React.FC<ChatbotIconProps> = ({ toggleChat, isChatOpen }) => 
         {...listeners}
         {...attributes}
       >
-        <Eye className="h-5 w-5 text-[#E7E7E7]" />
+        <div>
+          <img src={IrisIcon} alt="Logo" className="pointer-events-none h-8 w-8" />
+          <img
+            src={IrisHat}
+            alt="Iris Hat"
+            className="pointer-events-none absolute -top-9 -left-1 size-20"
+          />
+        </div>
       </motion.button>
       
       <AnimatePresence>

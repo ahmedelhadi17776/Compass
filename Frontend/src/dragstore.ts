@@ -5,8 +5,8 @@ type DragStore = {
   setLastDroppedId: (id: string | null) => void;
   chatbotAttachedTo: string | null;
   setChatbotAttachedTo: (id: string | null) => void;
-  attachmentPosition: { x: number; y: number } | null;
-  setAttachmentPosition: (pos: { x: number; y: number } | null) => void;
+  attachmentPosition: { x: number; y: number; side: 'left' | 'right' } | null;
+  setAttachmentPosition: (pos: { x: number; y: number; side: 'left' | 'right' } | null) => void;
 };
 
 export const useDragStore = create<DragStore>((set) => ({

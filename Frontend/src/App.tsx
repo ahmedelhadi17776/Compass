@@ -30,7 +30,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import Chatbot from './components/Chatbot/Chatbot';
 import CommandPage from '@/pages/command';
 import Journaling from './components/Journaling/components/Journaling';
-import { useDragStore } from './dragStore';
+import { useDragStore } from '@/dragStore';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -99,6 +99,7 @@ function App() {
   }
 
   return (
+    // @ts-expect-error - ApolloProvider type issue with React 18
     <ApolloProvider client={client}>
       <ThemeProvider defaultTheme="dark" storageKey="aiwa-theme">
         <QueryClientProvider client={queryClient}>
