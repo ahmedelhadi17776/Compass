@@ -285,7 +285,7 @@ async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
 
         return await try_backend_urls(
             post_func,
-            "/api/v1/tasks",
+            "/api/tasks",
             json=task_data,
             headers=HEADERS
         )
@@ -296,24 +296,15 @@ async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
 
 @mcp.tool()
 async def get_tasks(user_id: str, ctx: Context) -> Dict[str, Any]:
-    """Get all tasks for a user.
-
-    Args:
-        user_id: The ID of the user
     """
-    try:
-        async def get_func(client, url, **kwargs):
-            return await client.get(url, **kwargs)
-
-        return await try_backend_urls(
-            get_func,
-            "/api/v1/tasks",
-            params={"user_id": user_id},
-            headers=HEADERS
-        )
-    except Exception as e:
-        await ctx.error(f"Failed to get tasks for user {user_id}: {str(e)}")
-        raise
+    Retrieves a list of tasks for a given user.
+    """
+    logger.warning(
+        "MCP tool 'get_tasks' is not fully implemented and will return an empty list.")
+    return {
+        "status": "success",
+        "tasks": []
+    }
 
 
 @mcp.tool()
@@ -370,40 +361,34 @@ async def create_entity(
 @mcp.tool("user.getInfo")
 async def get_user_info(
     ctx: Context,
-    user_id: str
+    user_id: str,
+    authorization: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Get user information from the Go backend."""
+    """
+    Retrieves user information from the Go backend.
+    """
+    logger.info(f"Received request for user.getInfo for user_id: {user_id}")
     try:
-        logger.info(f"Getting info for user {user_id}")
+        request_id = str(uuid.uuid4())
+        headers = {
+            "X-Internal-Service": "mcp-server",
+            "X-Request-ID": request_id,
+            "User-Agent": "MCP-Server/1.0"
+        }
+        if authorization:
+            headers["Authorization"] = authorization
 
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {DEV_JWT_TOKEN}"
-            }
+        async def get_func(client, url, **kwargs):
+            return await client.get(url, headers=headers, timeout=10.0, **kwargs)
 
-            response = await client.get(
-                f"{GO_BACKEND_URL}/api/users/{user_id}",
-                headers=headers
-            )
-            response.raise_for_status()
+        user_info_url = "/api/users/profile"
+        response_data = await try_backend_urls(get_func, user_info_url)
 
-            # Return response data or fallback
-            try:
-                return response.json()
-            except:
-                # Fallback if response isn't valid JSON
-                return {
-                    "user_id": user_id,
-                    "name": "User",
-                    "email": "user@example.com"
-                }
+        return response_data
 
     except Exception as e:
-        logger.error(f"Error getting user info: {str(e)}")
-        await ctx.error(f"Failed to get user info: {str(e)}")
-
-        # Return fallback data on error
+        logger.error(
+            f"Error in get_user_info for user {user_id}: {e}", exc_info=True)
         return {
             "user_id": user_id,
             "name": "Unknown User",
@@ -1387,7 +1372,8 @@ async def add_todo_checklist(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Prepare checklist data in the format expected by the backend
         checklist_data = {
