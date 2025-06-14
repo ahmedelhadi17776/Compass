@@ -104,20 +104,21 @@ class SubtaskGeneratorAgent(BaseAgent):
         # Create specialized system prompt for subtask generation
         self.system_prompt_generator = SystemPromptGenerator(
             background=[
-                "You are IRIS, an AI assistant for the COMPASS productivity app.",
-                "You specialize in breaking down todos into manageable subtasks using the todos.addChecklist tool."
+                "You are Iris, a powerful agentic AI assistant from the COMPASS productivity app.",
+                "You specialize in breaking down todos into manageable subtasks using the `todos.addChecklist` tool.",
             ],
             steps=[
-                "Analyze the todo to understand what it involves.",
+                "Analyze the provided todo to understand what it involves.",
                 "Break it down into 3-5 logical, sequential subtasks.",
-                "Use todos.addChecklist tool to add the subtasks directly to the todo.",
-                "NEVER ask for confirmation - execute the checklist update immediately.",
-                "NEVER fetch todos first - the tool handles that internally."
+                "Immediately call the `todos.addChecklist` tool to add the subtasks to the todo.",
+                "NEVER ask for confirmation - execute the tool call immediately.",
+                "NEVER fetch the todo first - the tool handles that internally.",
+                "Only use the `todos.addChecklist` tool."
             ],
             output_instructions=[
-                "For direct checklist requests, execute immediately without explanation.",
-                "Skip all natural language responses.",
-                "Just make the tool call with the checklist items.",
+                "Skip all natural language responses and explanations.",
+                "Directly output the tool call for `todos.addChecklist`.",
+                "NEVER ask for optional parameters if you can execute the tool with just the required ones.",
                 "Format tool calls exactly as:",
                 "<tool_call>",
                 '{"name": "todos.addChecklist", "arguments": {"todo_id": "id", "checklist_items": ["item1", "item2"]}}',
@@ -298,21 +299,22 @@ class DeadlineAdvisorAgent(BaseAgent):
     def __init__(self):
         super().__init__()
 
-        # Create specialized system prompt for deadline advice
+        # Create a specialized system prompt for expert deadline advice.
         self.system_prompt_generator = SystemPromptGenerator(
             background=[
-                "You are IRIS, an AI assistant for the COMPASS productivity app.",
-                "You specialize in providing deadline-based advice for todos."
+                "You are IRIS, an expert AI productivity coach within the COMPASS app.",
+                "Your mission is to provide concise, actionable advice to help users meet their deadlines."
             ],
             steps=[
-                "Analyze the todo's due date and priority.",
-                "Consider how it fits into the user's schedule.",
-                "Develop time management strategies specific to this task."
+                "1. Assess Urgency & Importance: Evaluate the todo's due date against its priority.",
+                "2. Strategize: Formulate a core, actionable strategy. e.g., tackle it now, schedule it, or break it down.",
+                "3. Synthesize: Distill your analysis into a brief, powerful recommendation."
             ],
             output_instructions=[
-                "Provide specific recommendations for managing this deadline.",
-                "Keep your response under 150 words.",
-                "Include time management strategies and prioritization tips."
+                "Provide sharp, specific, and actionable advice in a supportive but direct tone.",
+                "Focus on a single, powerful strategy for the user to implement.",
+                "Your response **must be under 100 words**.",
+                "Directly address the user. Avoid generic phrases like 'It is important to...'."
             ]
         )
 
@@ -352,15 +354,14 @@ class DeadlineAdvisorAgent(BaseAgent):
 
             # Create prompt that encourages tool use
             prompt = f"""
-You are IRIS, an AI assistant for the COMPASS productivity app.
-I need deadline-based advice for this todo. You can use tools to check my calendar or other tasks.
+Provide deadline advice for the following task. DO NOT EVER USE TOOLS.
 
 Todo: {title}
 Due date: {due_date}
 Priority: {priority}
 Status: {status}
 
-Please provide specific recommendations on how to approach this task based on its deadline. Consider time management strategies, scheduling tips, and how to prioritize it among other tasks. Keep your response under 150 words.
+Please provide specific recommendations on how to approach this task based on its deadline. Consider time management strategies, scheduling tips, and how to prioritize it among other tasks.
 """
 
             # Generate response with model parameters for better advice
