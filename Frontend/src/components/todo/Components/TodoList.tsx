@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown, ListTodo, Clock, Zap } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
-import { useDragStore } from '@/dragStore';
+import { useDragStore } from '@/dragstore';
 import PriorityIndicator from './PriorityIndicator';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
