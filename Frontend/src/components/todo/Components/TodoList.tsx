@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, MoreVertical, CalendarFold, Repeat, Check, ArrowLeft, CalendarSync, CalendarCheck, CalendarClock, ChevronDown, ListTodo, Clock, Zap } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
-import { useDragStore } from '@/dragstore';
+import { useDragStore } from '@/dragStore';
 import PriorityIndicator from './PriorityIndicator';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 import { Button } from "../../ui/button";
@@ -26,7 +26,8 @@ const AttachedActionsBox: React.FC<{
   todo: Todo;
   position: { x: number; y: number };
   onClose: () => void;
-}> = ({ todo, position, onClose }) => {
+  onSubtasksGenerated: () => void;
+}> = ({ todo, position, onClose, onSubtasksGenerated }) => {
     const [error, setError] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [result, setResult] = useState<string | null>(null);
@@ -80,6 +81,7 @@ const AttachedActionsBox: React.FC<{
                 data: {
                     targetId: string;
                     targetType: string;
+                    optionId?: string;
                     error?: string;
                     result?: string;
                     success?: boolean;
@@ -112,6 +114,10 @@ const AttachedActionsBox: React.FC<{
                         : JSON.stringify(resultContent, null, 2)
                 );
                 setProcessing(false);
+
+                if (e.detail?.data?.optionId === 'todo_subtasks' && e.detail?.data?.success) {
+                    onSubtasksGenerated();
+                }
             }
         };
 
@@ -126,7 +132,7 @@ const AttachedActionsBox: React.FC<{
                 handleAIResponse as EventListener
             );
         };
-    }, [todo.id, requestTimeout]);
+    }, [todo.id, requestTimeout, onSubtasksGenerated]);
 
     return createPortal(
         <>
@@ -189,7 +195,7 @@ const AttachedActionsBox: React.FC<{
                 style={{
                     position: 'fixed',
                     top: `${position.y}px`,
-                    left: `${position.x + ICON_WIDTH + GAP}px`,
+                    left: `${position.x + ICON_WIDTH + GAP + 2.5}px`,
                 }}
                 className="bg-card border rounded-lg shadow-xl p-3 space-y-2 z-[9999] w-64"
                 data-no-dismiss
@@ -1010,6 +1016,7 @@ const TodoList: React.FC = () => {
                       setChatbotAttachedTo(null);
                       setAttachmentPosition(null);
                   }}
+                  onSubtasksGenerated={refetchTodoLists}
               />
           )}
       </AnimatePresence>

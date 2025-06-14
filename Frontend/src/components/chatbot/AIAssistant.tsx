@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useChat } from "@/components/Chatbot/chat-context"
 import './AIAssistant.css'
-import Reports from "./Reports"
+import Reports from "@/components/AiReports/Reports"
 
 interface AIAssistantProps {
   view?: 'chat' | 'reports' | 'agents'
@@ -263,7 +263,7 @@ export default function AIAssistant({ view = 'chat' }: AIAssistantProps) {
             </div>
           </TabsContent>
 
-          <TabsContent value="reports" className={cn("space-y-4", activeTab !== 'reports' && 'hidden')}>
+          <TabsContent value="reports" className={cn("flex-1 min-h-0", activeTab !== 'reports' && 'hidden')}>
             <Reports />
           </TabsContent>
           
