@@ -15,6 +15,7 @@ type WorkflowTransition struct {
 	ToStepID   uuid.UUID      `json:"to_step_id" gorm:"type:uuid;not null"`
 	Conditions datatypes.JSON `json:"conditions" gorm:"type:jsonb"`
 	Triggers   datatypes.JSON `json:"triggers" gorm:"type:jsonb"`
+	OnEvent    string         `json:"on_event" gorm:"type:varchar(50);not null;default:'on_approve'"`
 	CreatedAt  time.Time      `json:"created_at" gorm:"not null;default:current_timestamp"`
 }
 
@@ -24,12 +25,14 @@ type CreateWorkflowTransitionRequest struct {
 	ToStepID   uuid.UUID      `json:"to_step_id" binding:"required"`
 	Conditions datatypes.JSON `json:"conditions,omitempty"`
 	Triggers   datatypes.JSON `json:"triggers,omitempty"`
+	OnEvent    string         `json:"on_event,omitempty" example:"on_approve"`
 }
 
 // UpdateWorkflowTransitionRequest represents the request body for updating a workflow transition
 type UpdateWorkflowTransitionRequest struct {
 	Conditions datatypes.JSON `json:"conditions,omitempty"`
 	Triggers   datatypes.JSON `json:"triggers,omitempty"`
+	OnEvent    *string        `json:"on_event,omitempty" example:"on_reject"`
 }
 
 // WorkflowTransitionResponse represents the response for transition operations
@@ -61,6 +64,7 @@ func (t *WorkflowTransition) BeforeCreate(tx *gorm.DB) error {
 type WorkflowTransitionFilter struct {
 	FromStepID *uuid.UUID
 	ToStepID   *uuid.UUID
+	OnEvent    *string
 	Page       int
 	PageSize   int
 }

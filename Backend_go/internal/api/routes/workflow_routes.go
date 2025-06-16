@@ -53,6 +53,8 @@ func (wr *WorkflowRoutes) RegisterRoutes(router *gin.Engine) {
 	workflowGroup.GET("/executions/:executionId", wr.handler.GetWorkflowExecution)
 	workflowGroup.GET("/:id/executions", wr.handler.ListWorkflowExecutions)
 	workflowGroup.PUT("/step-executions/:executionId", wr.handler.UpdateStepExecution)
+	workflowGroup.POST("/step-executions/:executionId/approve", wr.handler.ApproveStepExecution)
+	workflowGroup.POST("/step-executions/:executionId/reject", wr.handler.RejectStepExecution)
 
 	// Workflow analysis and optimization
 	workflowGroup.GET("/:id/analyze", wr.handler.AnalyzeWorkflow)

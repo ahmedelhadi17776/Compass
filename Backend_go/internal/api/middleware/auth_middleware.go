@@ -184,70 +184,72 @@ func GetUserID(c *gin.Context) (uuid.UUID, bool) {
 	return userID.(uuid.UUID), true
 }
 
-// RequireRoles middleware checks if user has required roles
+// RequireRoles middleware checks if user has all required roles
 func RequireRoles(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userRoles, exists := c.Get("roles")
+		userRolesVal, exists := c.Get("roles")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 			c.Abort()
 			return
 		}
 
-		userRolesList := userRoles.([]string)
-		hasRole := false
-
-		for _, role := range roles {
-			for _, userRole := range userRolesList {
-				if userRole == role {
-					hasRole = true
-					break
-				}
-			}
-			if hasRole {
-				break
-			}
-		}
-
-		if !hasRole {
-			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
+		userRoles, ok := userRolesVal.([]string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid roles format in token"})
 			c.Abort()
 			return
+		}
+
+		// Create a map for efficient lookup of user's roles
+		userRolesMap := make(map[string]struct{})
+		for _, role := range userRoles {
+			userRolesMap[role] = struct{}{}
+		}
+
+		// Check if the user has all the required roles
+		for _, requiredRole := range roles {
+			if _, found := userRolesMap[requiredRole]; !found {
+				c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
+				c.Abort()
+				return
+			}
 		}
 
 		c.Next()
 	}
 }
 
-// RequirePermissions middleware checks if user has required permissions
+// RequirePermissions middleware checks if user has all required permissions
 func RequirePermissions(permissions ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userPermissions, exists := c.Get("permissions")
+		userPermissionsVal, exists := c.Get("permissions")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 			c.Abort()
 			return
 		}
 
-		userPermissionsList := userPermissions.([]string)
-		hasPermission := false
-
-		for _, permission := range permissions {
-			for _, userPermission := range userPermissionsList {
-				if userPermission == permission {
-					hasPermission = true
-					break
-				}
-			}
-			if hasPermission {
-				break
-			}
-		}
-
-		if !hasPermission {
-			c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
+		userPermissions, ok := userPermissionsVal.([]string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid permissions format in token"})
 			c.Abort()
 			return
+		}
+
+		// Create a map for efficient lookup of user's permissions
+		userPermissionsMap := make(map[string]struct{})
+		for _, perm := range userPermissions {
+			userPermissionsMap[perm] = struct{}{}
+		}
+
+		// Check if the user has all the required permissions
+		for _, requiredPerm := range permissions {
+			if _, found := userPermissionsMap[requiredPerm]; !found {
+				c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
+				c.Abort()
+				return
+			}
 		}
 
 		c.Next()
