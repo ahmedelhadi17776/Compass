@@ -763,6 +763,7 @@ func (h *WorkflowHandler) CreateTransition(c *gin.Context) {
 		ToStepID:   req.ToStepID,
 		Conditions: req.Conditions,
 		Triggers:   req.Triggers,
+		OnEvent:    req.OnEvent,
 	}
 
 	if err := h.service.GetRepo().CreateTransition(c.Request.Context(), transition); err != nil {
@@ -923,6 +924,9 @@ func (h *WorkflowHandler) UpdateTransition(c *gin.Context) {
 	}
 	if req.Triggers != nil {
 		transition.Triggers = req.Triggers
+	}
+	if req.OnEvent != nil {
+		transition.OnEvent = *req.OnEvent
 	}
 
 	if err := h.service.GetRepo().UpdateTransition(c.Request.Context(), transition); err != nil {
@@ -1126,12 +1130,112 @@ func (h *WorkflowHandler) UpdateStepExecution(c *gin.Context) {
 		if h.service.GetExecutor() != nil {
 			go func() {
 				ctx := context.Background() // Use a new context for async execution
-				_ = h.service.GetExecutor().ProcessNextSteps(ctx, step.Step, stepExecution)
+				_ = h.service.GetExecutor().ProcessTransitions(ctx, step.Step, stepExecution, "on_approve")
 			}()
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Step execution updated successfully"})
+}
+
+// ApproveOrRejectStepRequest represents the request body for approving or rejecting a step
+type ApproveOrRejectStepRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// ApproveStepExecution godoc
+// @Summary Approve a workflow step execution
+// @Description Approve a pending workflow step execution
+// @Tags workflows
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param executionId path string true "Step Execution ID" format(uuid)
+// @Param reason body ApproveOrRejectStepRequest false "Approval reason"
+// @Success 200 {object} map[string]string "Step execution approved successfully"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 403 {object} map[string]string "Not authorized or step not approvable"
+// @Failure 404 {object} map[string]string "Step execution not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/workflows/step-executions/{executionId}/approve [post]
+func (h *WorkflowHandler) ApproveStepExecution(c *gin.Context) {
+	executionID, err := uuid.Parse(c.Param("executionId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution ID"})
+		return
+	}
+
+	var req ApproveOrRejectStepRequest
+	_ = c.ShouldBindJSON(&req) // Ignore error if body is empty
+
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	if err := h.service.ApproveStepExecution(c.Request.Context(), executionID, userID, req.Reason); err != nil {
+		// A more robust error handling can be done here to check specific error types
+		if err.Error() == "step execution not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if err.Error() == "not authorized" || err.Error() == "step is not of type approval or is not pending" {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Step execution approved successfully"})
+}
+
+// RejectStepExecution godoc
+// @Summary Reject a workflow step execution
+// @Description Reject a pending workflow step execution
+// @Tags workflows
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param executionId path string true "Step Execution ID" format(uuid)
+// @Param reason body ApproveOrRejectStepRequest true "Rejection reason"
+// @Success 200 {object} map[string]string "Step execution rejected successfully"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 403 {object} map[string]string "Not authorized or step not approvable"
+// @Failure 404 {object} map[string]string "Step execution not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /api/workflows/step-executions/{executionId}/reject [post]
+func (h *WorkflowHandler) RejectStepExecution(c *gin.Context) {
+	executionID, err := uuid.Parse(c.Param("executionId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution ID"})
+		return
+	}
+
+	var req ApproveOrRejectStepRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Reason == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "a reason for rejection is required"})
+		return
+	}
+
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	if err := h.service.RejectStepExecution(c.Request.Context(), executionID, userID, req.Reason); err != nil {
+		// A more robust error handling can be done here to check specific error types
+		if err.Error() == "step execution not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if err.Error() == "not authorized" || err.Error() == "step is not of type approval or is not pending" {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Step execution rejected successfully"})
 }
 
 // UpdateStepExecutionRequest represents the request body for updating a step execution

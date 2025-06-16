@@ -43,6 +43,8 @@ type Repository interface {
 	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, error)
 	GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]Permission, error)
+	UserHasRole(ctx context.Context, userID, roleID uuid.UUID) (bool, error)
+	GetUserIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type repository struct {
@@ -239,4 +241,22 @@ func (r *repository) GetUserPermissions(ctx context.Context, userID uuid.UUID) (
 		return nil, err
 	}
 	return permissions, nil
+}
+
+func (r *repository) UserHasRole(ctx context.Context, userID, roleID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&UserRole{}).Where("user_id = ? AND role_id = ?", userID, roleID).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *repository) GetUserIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error) {
+	var userIDs []uuid.UUID
+	err := r.db.WithContext(ctx).Model(&UserRole{}).Where("role_id = ?", roleID).Pluck("user_id", &userIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return userIDs, nil
 }

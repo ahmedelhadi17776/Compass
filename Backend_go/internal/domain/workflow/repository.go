@@ -252,6 +252,9 @@ func (r *repository) ListTransitions(ctx context.Context, filter *WorkflowTransi
 		if filter.ToStepID != nil {
 			query = query.Where("to_step_id = ?", filter.ToStepID)
 		}
+		if filter.OnEvent != nil {
+			query = query.Where("on_event = ?", *filter.OnEvent)
+		}
 	}
 
 	err := query.Count(&total).Error
