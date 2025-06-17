@@ -1,8 +1,11 @@
 import { DashboardReportContent } from './dashboard';
 import { ActivityReportContent } from './activity';
 import { ProductivityReportContent } from './productivity';
+import { HabitsReportContent } from './habits';
+import { TaskReportContent } from './task';
+import { SummaryReportContent } from './summary';
 
-export type ReportType = "productivity" | "activity" | "dashboard";
+export type ReportType = "productivity" | "activity" | "dashboard" | "habits" | "task" | "summary";
 
 export interface CreateReportPayload {
   title: string;
@@ -41,7 +44,7 @@ export interface ReportTextContent {
 
 export interface ParsedReportContent {
     summary: string;
-    content: DashboardReportContent | ActivityReportContent | ProductivityReportContent;
+    content: DashboardReportContent | ActivityReportContent | ProductivityReportContent | HabitsReportContent | TaskReportContent | SummaryReportContent;
     sections: ParsedReportSection[];
 }
 
@@ -64,4 +67,4 @@ export interface Report {
     parsedContent?: ParsedReportContent;
 }
 
-export type { DashboardReportContent, ActivityReportContent, ProductivityReportContent }; 
+export type { DashboardReportContent, ActivityReportContent, ProductivityReportContent, HabitsReportContent, TaskReportContent, SummaryReportContent }; 
