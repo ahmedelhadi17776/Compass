@@ -33,6 +33,7 @@ import { useTheme } from "@/contexts/theme-provider";
 import { useMutation } from "@tanstack/react-query";
 import authApi, { LoginCredentials, MFALoginResponse } from "@/api/auth";
 import MFAVerificationModal from "./MFAVerificationModal";
+import { OAuthButtons } from "./OAuthButtons";
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   onLogin?: () => void;
@@ -225,7 +226,7 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
         {/* Right side - Login Form */}
         <div className="w-[440px] mr-8">
           <TitleBar darkMode={isDarkMode} />
-          <Card className="backdrop-blur-sm bg-card/50">
+          <Card className="backdrop-blur-sm bg-card/50 transition-all duration-300 hover:shadow-lg">
             <CardHeader className="space-y-1">
               <div className="flex items-center justify-center mb-4">
                 <div className="p-2 rounded-xl bg-background/20">
@@ -325,6 +326,27 @@ export function Login({ className, onLogin, ...props }: UserAuthFormProps) {
                   ) : null}
                   Sign in
                 </Button>
+
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or continue with
+                    </span>
+                  </div>
+                <OAuthButtons className="w-full"/>
+
+                <div className="text-center text-sm">
+                  Don't have an account?{" "}
+                  <a
+                    href="/signup"
+                    className="text-primary hover:underline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate("/signup");
+                    }}
+                  >
+                    Create account
+                  </a>
+                </div>
               </CardFooter>
             </form>
           </Card>

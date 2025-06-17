@@ -1,36 +1,23 @@
-# 1. Build stage
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# Copy package files and install dependencies
-COPY package*.json ./
-RUN npm ci
-
-# Copy the rest of the application source code
-COPY . .
-
-# (Optional) Add a build step when set it
-# RUN npm run build
-
-# 2. Production stage
+# Use official Node.js LTS image
 FROM node:20-alpine
+
+# Set working directory
 WORKDIR /app
 
-# Create a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Copy package.json and package-lock.json
+COPY package.json ./
 
-# Copy dependencies from the builder stage
-COPY --from=builder /app/node_modules ./node_modules
-# Copy application code
+# Install dependencies
+RUN npm install --production
+
+# Copy the rest of the application code
 COPY . .
 
-# Set correct permissions
-RUN chown -R appuser:appgroup /app
-
-# Switch to the non-root user
-USER appuser
-
+# Expose the app port
 EXPOSE 5000
 
+# Set environment variables (can be overridden at runtime)
+ENV NODE_ENV=production
+
 # Start the server
-CMD ["node", "cmd/api/server.js"] 
+CMD ["npm", "start"] 

@@ -8,7 +8,7 @@ import {
 import {
   llmService,
   useStreamingLLMResponse,
-} from "@/components/chatbot/llmService";
+} from "@/components/Chatbot/llmService";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface Message {
