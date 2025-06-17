@@ -5,6 +5,7 @@ import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '
 import { client } from './components/notes/apollo-client';
 import { AnimatePresence } from 'framer-motion';
 import PageTransition from './components/layout/PageTransition';
+import AuthTransition from './components/layout/AuthTransition';
 import Dashboard from './components/dashboard/Dashboard';
 import HealthDashboard from './components/health/HealthDashboard';
 import Workflow from './components/workflow/components/Workflow';
@@ -24,6 +25,8 @@ import { SidebarInset } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import TitleBar from '@/components/layout/TitleBar';
 import { Login } from './components/auth/Login';
+import { Signup } from './components/auth/Signup';
+import OAuthCallback from './pages/auth/callback';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -108,7 +111,9 @@ function App() {
               <div className="h-screen flex flex-col overflow-hidden">
                 <AnimatePresence mode="wait">
                   <Routes location={location} key={location.pathname}>
-                    <Route path="/login" element={<Login />} />
+                    <Route path="/login" element={<AuthTransition><Login /></AuthTransition>} />
+                    <Route path="/signup" element={<AuthTransition><Signup /></AuthTransition>} />
+                    <Route path="/auth/callback" element={<AuthTransition><OAuthCallback /></AuthTransition>} />
                     <Route
                       path="/*"
                       element={

@@ -7,6 +7,17 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface RegisterCredentials {
+  email: string;
+  username: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  phone_number?: string;
+  timezone?: string;
+  locale?: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;
@@ -84,6 +95,16 @@ export interface ValidateMFARequest {
 
 // API client
 const authApi = {
+  register: async (credentials: RegisterCredentials): Promise<User> => {
+    const response = await axios.post(`${GO_API_URL}/users/register`, credentials, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return response.data.user;
+  },
+
   login: async (credentials: LoginCredentials): Promise<AuthResponse | MFALoginResponse> => {
     const response = await axios.post(`${GO_API_URL}/users/login`, {
       email: credentials.email,
