@@ -1,42 +1,39 @@
-import React, { useCallback, useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { ApolloProvider } from "@apollo/client";
-import {
-  DndContext,
-  DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { client } from "./components/notes/apollo-client";
-import { AnimatePresence } from "framer-motion";
-import PageTransition from "./components/layout/PageTransition";
-import Dashboard from "./components/dashboard/Dashboard";
-import HealthDashboard from "./components/health/HealthDashboard";
-import Workflow from "./components/workflow/components/Workflow";
-import WorkflowDetailPage from "./components/workflow/components/WorkflowDetail";
-import { Tasks } from "./components/todo/Components/TodoParentPage";
-import Calendar from "./components/calendar/components/Calendar";
-import AIAssistant from "@/components/chatbot/AIAssistant";
-import FocusMode from "./components/productivity/FocusMode";
-import FileManager from "./components/files/FileManager";
-import Notes from "./components/notes/components/Notes";
-import Canvas from "./components/Canvas/components/Canvas";
-import { ThemeProvider } from "./contexts/theme-provider";
-import { WebSocketProvider } from "./contexts/websocket-provider";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset } from "@/components/ui/sidebar";
-import { Toaster } from "@/components/ui/toaster";
-import TitleBar from "@/components/layout/TitleBar";
-import { Login } from "./components/auth/Login";
-import { useAuth } from "@/hooks/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
-import { QueryClientProvider } from "@tanstack/react-query";
-import Chatbot from "./components/chatbot/Chatbot";
-import CommandPage from "@/pages/command";
-import Journaling from "./components/Journaling/components/Journaling";
-import { useDragStore } from "@/dragStore";
+import React, { useCallback, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ApolloProvider } from '@apollo/client';
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { client } from './components/notes/apollo-client';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/layout/PageTransition';
+import AuthTransition from "./components/layout/AuthTransition";
+import Dashboard from './components/dashboard/Dashboard';
+import HealthDashboard from './components/health/HealthDashboard';
+import Workflow from './components/workflow/components/Workflow';
+import WorkflowDetailPage from './components/workflow/components/WorkflowDetail';
+import {Tasks} from './components/todo/Components/TodoParentPage';
+import Calendar from './components/calendar/components/Calendar';
+import AIAssistant from '@/components/Chatbot/AIAssistant';
+import FocusMode from './components/productivity/FocusMode';
+import FileManager from './components/files/FileManager';
+import Notes from './components/notes/components/Notes';
+import Canvas from './components/Canvas/components/Canvas';
+import { ThemeProvider } from './contexts/theme-provider';
+import { WebSocketProvider } from './contexts/websocket-provider';
+import { SidebarProvider } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/app-sidebar';
+import { SidebarInset } from '@/components/ui/sidebar';
+import { Toaster } from '@/components/ui/toaster';
+import TitleBar from '@/components/layout/TitleBar';
+import { Login } from './components/auth/Login';
+import { Signup } from "./components/auth/Signup";
+import OAuthCallback from "./pages/auth/callback";
+import { useAuth } from '@/hooks/useAuth';
+import { useQueryClient } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import Chatbot from './components/Chatbot/Chatbot';
+import CommandPage from '@/pages/command';
+import Journaling from './components/Journaling/components/Journaling';
+import { useDragStore } from '@/dragStore';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -105,7 +102,6 @@ function App() {
   }
 
   return (
-    // @ts-expect-error - ApolloProvider type issue with React 18
     <ApolloProvider client={client}>
       <ThemeProvider defaultTheme="dark" storageKey="aiwa-theme">
         <QueryClientProvider client={queryClient}>
@@ -114,7 +110,9 @@ function App() {
               <div className="h-screen flex flex-col overflow-hidden">
                 <AnimatePresence mode="wait">
                   <Routes location={location} key={location.pathname}>
-                    <Route path="/login" element={<Login />} />
+                    <Route path="/login" element={<AuthTransition><Login /></AuthTransition>} />
+                    <Route path="/signup" element={<AuthTransition><Signup /></AuthTransition>} />
+                    <Route path="/auth/callback" element={<AuthTransition><OAuthCallback /></AuthTransition>} />
                     <Route
                       path="/*"
                       element={

@@ -1,4 +1,11 @@
-export type ReportType = "productivity" | "activity" | "dashboard";
+import { DashboardReportContent } from './dashboard';
+import { ActivityReportContent } from './activity';
+import { ProductivityReportContent } from './productivity';
+import { HabitsReportContent } from './habits';
+import { TaskReportContent } from './task';
+import { SummaryReportContent } from './summary';
+
+export type ReportType = "productivity" | "activity" | "dashboard" | "habits" | "task" | "summary";
 
 export interface CreateReportPayload {
   title: string;
@@ -26,29 +33,6 @@ export interface ParsedReportSection {
     type: string;
 }
 
-export interface DashboardReportInnerContent {
-    overall_score: number;
-    key_insights: string[];
-    recommendations: string[];
-}
-
-export interface ActivityReportInnerContent {
-    activity_score: number;
-    key_metrics: {
-        tasks_completed: string;
-        overdue_tasks: number;
-        meetings_attended: number;
-        total_meeting_time_minutes: number;
-    };
-    insights: string[];
-}
-
-export interface ParsedReportContent {
-    summary: string;
-    content: DashboardReportInnerContent | ActivityReportInnerContent;
-    sections: ParsedReportSection[];
-}
-
 export interface TimeRange {
     start_date: string;
     end_date: string;
@@ -56,6 +40,12 @@ export interface TimeRange {
 
 export interface ReportTextContent {
     text: string;
+}
+
+export interface ParsedReportContent {
+    summary: string;
+    content: DashboardReportContent | ActivityReportContent | ProductivityReportContent | HabitsReportContent | TaskReportContent | SummaryReportContent;
+    sections: ParsedReportSection[];
 }
 
 export interface Report {
@@ -76,3 +66,5 @@ export interface Report {
     error: string | null;
     parsedContent?: ParsedReportContent;
 }
+
+export type { DashboardReportContent, ActivityReportContent, ProductivityReportContent, HabitsReportContent, TaskReportContent, SummaryReportContent }; 

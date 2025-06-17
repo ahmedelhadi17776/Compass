@@ -16,6 +16,7 @@ import { DatePicker } from './DatePicker'
 import '../styles/journal.css'
 import { useCreateJournal, useUpdateJournal, useDeleteJournal, useJournalsByDateRange } from '../hooks'
 import { toast } from '@/components/ui/use-toast'
+import { GET_JOURNALS_BY_DATE_RANGE } from '../api'
 
 // Add helper function for date parsing
 const parseDate = (date: string | number): Date => {
@@ -133,9 +134,28 @@ export default function Journaling() {
         archived: false
       }
       
-      const { data: response } = await createJournal({ variables: { input } })
+      const { data: response } = await createJournal({ 
+        variables: { input },
+        refetchQueries: [
+          {
+            query: GET_JOURNALS_BY_DATE_RANGE,
+            variables: {
+              startDate: selectedDate ? startOfDay(selectedDate).toISOString() : '',
+              endDate: selectedDate ? endOfDay(selectedDate).toISOString() : ''
+            }
+          },
+          {
+            query: GET_JOURNALS_BY_DATE_RANGE,
+            variables: {
+              startDate: startOfDay(firstDayOfMonth).toISOString(),
+              endDate: endOfDay(lastDayOfMonth).toISOString()
+            }
+          }
+        ]
+      })
       if (response?.createJournal.success && response?.createJournal.data) {
         setSelectedJournalId(response.createJournal.data.id)
+        setSelectedDate(new Date(journalDate));
       } else {
         throw new Error(response?.createJournal.message || 'Failed to create journal')
       }
@@ -195,7 +215,7 @@ export default function Journaling() {
     }
   })
 
-  // Create debounced save function only once
+  // Create debounced save function only for content and title updates
   const debouncedSave = useRef(
     debounce(async (journalId: string, updates: Partial<JournalInput>) => {
       await saveJournalRef.current(journalId, updates)
@@ -203,7 +223,13 @@ export default function Journaling() {
   ).current
 
   const handleSaveJournal = useCallback((journalId: string, updates: Partial<JournalInput>) => {
-    debouncedSave(journalId, updates)
+    // If updating mood or tags, save immediately
+    if (updates.mood !== undefined || updates.tags !== undefined) {
+      saveJournalRef.current(journalId, updates)
+    } else {
+      // For other updates (title, content), use debounce
+      debouncedSave(journalId, updates)
+    }
   }, [debouncedSave])
 
   const handleDeleteJournal = async (journalId: string) => {
@@ -264,20 +290,29 @@ export default function Journaling() {
 
   if (!selectedJournal && selectedDate) {
     return (
-      <div className="flex h-full items-center justify-center text-white/70">
-        <div className="text-center">
-          <p className="mb-4">No journal entry for {selectedDate.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}</p>
-          <Button 
-            onClick={() => handleCreateJournal(selectedDate)}
-            disabled={isCreating}
-          >
-            {isCreating ? 'Creating...' : 'Create Journal Entry'}
-          </Button>
+      <div className="flex h-full relative overflow-hidden">
+        <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
+          <DatePicker
+            date={selectedDate}
+            onSelect={handleDateSelection}
+            highlightedDates={journalDates}
+          />
+        </div>
+        <div className="flex-1 h-full flex items-center justify-center text-white/70">
+          <div className="text-center">
+            <p className="mb-4">No journal entry for {selectedDate.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}</p>
+            <Button 
+              onClick={() => handleCreateJournal(selectedDate)}
+              disabled={isCreating}
+            >
+              {isCreating ? 'Creating...' : 'Create Journal Entry'}
+            </Button>
+          </div>
         </div>
       </div>
     )
