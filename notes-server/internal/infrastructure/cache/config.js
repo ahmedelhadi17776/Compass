@@ -4,7 +4,7 @@ const config = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6380'),
   password: process.env.REDIS_PASSWORD || '',
-  db: 2,
+  db: parseInt(process.env.REDIS_DB || '2'),
   keyPrefix: 'compass:notes:',
   maxRetries: 3,
   retryDelay: 100,
