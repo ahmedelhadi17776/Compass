@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState } from "react"
 import { useCreateReport, useReportGeneration, useGetReport } from "./hooks"
-import { CreateReportPayload, ReportType, DashboardReportContent, ActivityReportContent, ProductivityReportContent } from "./types"
+import { CreateReportPayload, ReportType, DashboardReportContent, ActivityReportContent, ProductivityReportContent, HabitsReportContent, TaskReportContent, SummaryReportContent } from "./types"
 import { useAuth } from "@/hooks/useAuth"
 
 export default function Reports() {
@@ -200,6 +200,220 @@ export default function Reports() {
         )
     }
 
+    const renderHabitsContent = () => {
+        const content = parsedContent.content as HabitsReportContent;
+        return (
+            <>
+                <div className="mb-6 flex flex-row gap-4">
+                    <Card className="flex-1">
+                        <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+                        <CardContent><p>{parsedContent.summary}</p></CardContent>
+                    </Card>
+                    <Card className="w-[150px]">
+                        <CardHeader className="text-center"><CardTitle>Overall Score</CardTitle></CardHeader>
+                        <CardContent><p className="text-5xl font-bold text-center">{content.overall_score}</p></CardContent>
+                    </Card>
+                </div>
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <Card>
+                        <CardHeader><CardTitle>Key Metrics</CardTitle></CardHeader>
+                        <CardContent>
+                            <ul className="space-y-2">
+                                <li><strong>Overall Completion Rate:</strong> {(content.key_metrics.overall_completion_rate * 100).toFixed(1)}%</li>
+                                <li><strong>Total Habits:</strong> {content.key_metrics.total_habits}</li>
+                                <li><strong>Completed Habits:</strong> {content.key_metrics.completed_habits}</li>
+                                <li><strong>Longest Streak:</strong> {content.key_metrics.longest_streak} days</li>
+                                <li><strong>Average Streak:</strong> {content.key_metrics.average_streak.toFixed(1)} days</li>
+                            </ul>
+                        </CardContent>
+                    </Card>
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle>Insights</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.insights.map((insight: string, index: number) => <li key={index}>{insight}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Recommendations</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.habit_recommendations.map((rec: string, index: number) => <li key={index}>{rec}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </>
+        )
+    }
+
+    const renderTaskContent = () => {
+        const content = parsedContent.content as TaskReportContent;
+        return (
+            <>
+                <div className="mb-6 flex flex-row gap-4">
+                    <Card className="flex-1">
+                        <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+                        <CardContent><p>{parsedContent.summary}</p></CardContent>
+                    </Card>
+                    <Card className="w-[150px]">
+                        <CardHeader className="text-center"><CardTitle>Efficiency Score</CardTitle></CardHeader>
+                        <CardContent><p className="text-5xl font-bold text-center">{content.task_efficiency_score}</p></CardContent>
+                    </Card>
+                </div>
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle>Task Metrics</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2">
+                                    <li><strong>Task Completion Rate:</strong> {content.key_metrics["Task Completion Rate"]}</li>
+                                    <li><strong>Tasks Completed:</strong> {content.key_metrics["Tasks Completed"]}</li>
+                                    <li><strong>Overdue Tasks:</strong> {content.key_metrics["Overdue Tasks"]}</li>
+                                    <li><strong>Average Completion Time:</strong> {content.key_metrics["Average Task Completion Time"]}</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Project Metrics</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2">
+                                    <li><strong>Project Completion Rate:</strong> {content.key_metrics["Project Completion Rate"]}</li>
+                                    <li><strong>Projects Completed:</strong> {content.key_metrics["Projects Completed"]}</li>
+                                    <li><strong>Projects On Time:</strong> {content.key_metrics["Projects On Time"]}</li>
+                                    <li><strong>Projects Delayed:</strong> {content.key_metrics["Projects Delayed"]}</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle>Todo Metrics</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2">
+                                    <li><strong>Todo Completion Rate:</strong> {content.key_metrics["Todo Completion Rate"]}</li>
+                                    <li><strong>Todos Completed:</strong> {content.key_metrics["Todos Completed"]}</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Insights</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.insights.map((insight: string, index: number) => <li key={index}>{insight}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Bottlenecks</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.bottlenecks.map((bottleneck: string, index: number) => <li key={index}>{bottleneck}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Recommendations</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.recommendations.map((rec: string, index: number) => <li key={index}>{rec}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </>
+        )
+    }
+
+    const renderSummaryContent = () => {
+        const content = parsedContent.content as SummaryReportContent;
+        return (
+            <>
+                <div className="mb-6 flex flex-row gap-4">
+                    <Card className="flex-1">
+                        <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+                        <CardContent><p>{parsedContent.summary}</p></CardContent>
+                    </Card>
+                    <Card className="w-[150px]">
+                        <CardHeader className="text-center"><CardTitle>Overall Score</CardTitle></CardHeader>
+                        <CardContent><p className="text-5xl font-bold text-center">{content.overall_score}</p></CardContent>
+                    </Card>
+                </div>
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle>Activity Metrics</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2">
+                                    <li><strong>Active Days:</strong> {content.key_metrics["Active Days"]}</li>
+                                    <li><strong>Activity Trend:</strong> {content.key_metrics["Activity Trend"]}</li>
+                                    <li><strong>Average Productivity:</strong> {content.key_metrics["Average Productivity Score"]}</li>
+                                    <li><strong>Focus Time:</strong> {content.key_metrics["Average Daily Focus Time"]}</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Performance Metrics</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2">
+                                    <li><strong>Task Completion:</strong> {content.key_metrics["Task Completion Rate"]}</li>
+                                    <li><strong>Tasks Completed:</strong> {content.key_metrics["Tasks Completed"]}</li>
+                                    <li><strong>Habit Completion:</strong> {content.key_metrics["Habit Completion Rate"]}</li>
+                                    <li><strong>Project Completion:</strong> {content.key_metrics["Project Completion Rate"]}</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Time & Workflow</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="space-y-2">
+                                    <li><strong>Meeting Time:</strong> {content.key_metrics["Meeting Time"]}</li>
+                                    <li><strong>Workflows:</strong> {content.key_metrics["Workflows Executed"]}</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle>Key Achievements</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.achievements.map((achievement: string, index: number) => (
+                                        <li key={index}>{achievement}</li>
+                                    ))}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Areas for Improvement</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.areas_for_improvement.map((area: string, index: number) => (
+                                        <li key={index}>{area}</li>
+                                    ))}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Recommendations</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.recommendations.map((rec: string, index: number) => (
+                                        <li key={index}>{rec}</li>
+                                    ))}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </>
+        )
+    }
+
     return (
       <div className="p-8 h-full overflow-y-auto">
         <h1 className="text-3xl font-bold mb-2">{reportData.title}</h1>
@@ -210,6 +424,9 @@ export default function Reports() {
         {type === 'dashboard' && renderDashboardContent()}
         {type === 'activity' && renderActivityContent()}
         {type === 'productivity' && renderProductivityContent()}
+        {type === 'habits' && renderHabitsContent()}
+        {type === 'task' && renderTaskContent()}
+        {type === 'summary' && renderSummaryContent()}
 
         <div>
           <h2 className="text-2xl font-bold mb-4">Detailed Sections</h2>
@@ -295,6 +512,9 @@ export default function Reports() {
                   <SelectItem value="productivity">Productivity</SelectItem>
                   <SelectItem value="activity">Activity</SelectItem>
                   <SelectItem value="dashboard">Dashboard</SelectItem>
+                  <SelectItem value="habits">Habits</SelectItem>
+                  <SelectItem value="task">Task</SelectItem>
+                  <SelectItem value="summary">Summary</SelectItem>
                 </SelectContent>
               </Select>
             </div>
