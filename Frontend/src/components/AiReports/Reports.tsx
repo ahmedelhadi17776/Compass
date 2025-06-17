@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState } from "react"
 import { useCreateReport, useReportGeneration, useGetReport } from "./hooks"
-import { CreateReportPayload, ReportType, DashboardReportInnerContent, ActivityReportInnerContent } from "./types"
+import { CreateReportPayload, ReportType, DashboardReportContent, ActivityReportContent, ProductivityReportContent } from "./types"
 import { useAuth } from "@/hooks/useAuth"
 
 export default function Reports() {
@@ -65,7 +65,7 @@ export default function Reports() {
     const { parsedContent, type } = reportData;
 
     const renderDashboardContent = () => {
-      const content = parsedContent.content as DashboardReportInnerContent;
+      const content = parsedContent.content as DashboardReportContent;
       return (
         <>
           <div className="mb-6 flex flex-row gap-4">
@@ -93,7 +93,7 @@ export default function Reports() {
                   <CardHeader><CardTitle>Key Insights</CardTitle></CardHeader>
                   <CardContent>
                       <ul className="list-disc pl-5 space-y-2">
-                          {content.key_insights.map((insight, index) => <li key={index}>{insight}</li>)}
+                          {content.key_insights.map((insight: string, index: number) => <li key={index}>{insight}</li>)}
                       </ul>
                   </CardContent>
               </Card>
@@ -101,7 +101,7 @@ export default function Reports() {
                   <CardHeader><CardTitle>Recommendations</CardTitle></CardHeader>
                   <CardContent>
                       <ul className="list-disc pl-5 space-y-2">
-                          {content.recommendations.map((rec, index) => <li key={index}>{rec}</li>)}
+                          {content.recommendations.map((rec: string, index: number) => <li key={index}>{rec}</li>)}
                       </ul>
                   </CardContent>
               </Card>
@@ -111,7 +111,7 @@ export default function Reports() {
     }
 
     const renderActivityContent = () => {
-        const content = parsedContent.content as ActivityReportInnerContent;
+        const content = parsedContent.content as ActivityReportContent;
         return (
             <>
                 <div className="mb-6 flex flex-row gap-4">
@@ -140,10 +140,61 @@ export default function Reports() {
                         <CardHeader><CardTitle>Insights</CardTitle></CardHeader>
                         <CardContent>
                             <ul className="list-disc pl-5 space-y-2">
-                                {content.insights.map((insight, index) => <li key={index}>{insight}</li>)}
+                                {content.insights.map((insight: string, index: number) => <li key={index}>{insight}</li>)}
                             </ul>
                         </CardContent>
                     </Card>
+                </div>
+            </>
+        )
+    }
+
+    const renderProductivityContent = () => {
+        const content = parsedContent.content as ProductivityReportContent;
+        return (
+            <>
+                <div className="mb-6 flex flex-row gap-4">
+                    <Card className="flex-1">
+                        <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+                        <CardContent><p>{parsedContent.summary}</p></CardContent>
+                    </Card>
+                    <Card className="w-[150px]">
+                        <CardHeader className="text-center"><CardTitle>Productivity Score</CardTitle></CardHeader>
+                        <CardContent><p className="text-5xl font-bold text-center">{content.productivity_score}</p></CardContent>
+                    </Card>
+                </div>
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <Card>
+                        <CardHeader><CardTitle>Key Metrics</CardTitle></CardHeader>
+                        <CardContent>
+                            <ul className="space-y-2">
+                                <li><strong>Average Productivity Score:</strong> {content.key_metrics.average_productivity_score}</li>
+                                <li><strong>Average Daily Focus Time:</strong> {content.key_metrics.average_daily_focus_time_hours}</li>
+                                <li><strong>Task Completion Rate:</strong> {content.key_metrics.task_completion_rate}</li>
+                                <li><strong>Tasks Completed:</strong> {content.key_metrics.tasks_completed}</li>
+                                <li><strong>Meeting Time:</strong> {content.key_metrics.meeting_time_minutes} minutes</li>
+                                <li><strong>Number of Meetings:</strong> {content.key_metrics.number_of_meetings}</li>
+                            </ul>
+                        </CardContent>
+                    </Card>
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle>Insights</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.insights.map((insight: string, index: number) => <li key={index}>{insight}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Areas for Improvement</CardTitle></CardHeader>
+                            <CardContent>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    {content.areas_for_improvement.map((area: string, index: number) => <li key={index}>{area}</li>)}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
             </>
         )
@@ -156,8 +207,9 @@ export default function Reports() {
           <p className="text-gray-500 dark:text-gray-400 mb-6">Report generated on {new Date(reportData.completed_at).toLocaleString()}</p>
         )}
         
-        {(type === 'dashboard' || type === "productivity") && renderDashboardContent()}
+        {type === 'dashboard' && renderDashboardContent()}
         {type === 'activity' && renderActivityContent()}
+        {type === 'productivity' && renderProductivityContent()}
 
         <div>
           <h2 className="text-2xl font-bold mb-4">Detailed Sections</h2>
