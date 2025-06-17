@@ -12,7 +12,7 @@ import Workflow from './components/workflow/components/Workflow';
 import WorkflowDetailPage from './components/workflow/components/WorkflowDetail';
 import {Tasks} from './components/todo/Components/TodoParentPage';
 import Calendar from './components/calendar/components/Calendar';
-import AIAssistant from '@/components/Chatbot/AIAssistant';
+import AIAssistant from '@/components/chatbot/AIAssistant';
 import FocusMode from './components/productivity/FocusMode';
 import FileManager from './components/files/FileManager';
 import Notes from './components/notes/components/Notes';
@@ -30,7 +30,7 @@ import OAuthCallback from "./pages/auth/callback";
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
-import Chatbot from './components/Chatbot/Chatbot';
+import Chatbot from './components/chatbot/Chatbot';
 import CommandPage from '@/pages/command';
 import Journaling from './components/Journaling/components/Journaling';
 import { useDragStore } from '@/dragStore';
