@@ -102,7 +102,6 @@ function App() {
   }
 
   return (
-    // @ts-expect-error - ApolloProvider type issue with React 18
     <ApolloProvider client={client}>
       <ThemeProvider defaultTheme="dark" storageKey="aiwa-theme">
         <QueryClientProvider client={queryClient}>
