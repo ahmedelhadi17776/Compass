@@ -14,13 +14,14 @@ logger = logging.getLogger(__name__)
 _mongodb_client: Any = None
 _async_mongodb_client: Any = None
 
-# Connection pool settings
-MAX_POOL_SIZE = 100  # Increase max connections for high traffic
-MIN_POOL_SIZE = 20   # Higher minimum pool size to keep connections ready
-MAX_IDLE_TIME_MS = 60000  # Allow connections to be idle for 1 minute
-CONNECT_TIMEOUT_MS = 5000
-SERVER_SELECTION_TIMEOUT_MS = 5000
-MAX_CONNECTING = 50  # Maximum number of connections being established simultaneously
+# Connection pool settings from core.config
+MAX_POOL_SIZE = settings.mongodb_max_pool_size
+MIN_POOL_SIZE = settings.mongodb_min_pool_size
+MAX_IDLE_TIME_MS = settings.mongodb_max_idle_time_ms
+CONNECT_TIMEOUT_MS = settings.mongodb_connect_timeout_ms
+SERVER_SELECTION_TIMEOUT_MS = settings.mongodb_server_selection_timeout_ms
+MAX_CONNECTING = settings.mongodb_max_connecting
+WAIT_QUEUE_TIMEOUT_MS = settings.mongodb_wait_queue_timeout_ms
 
 
 @lru_cache(maxsize=1)
@@ -49,7 +50,8 @@ def get_mongodb_client() -> Any:
                 retryWrites=True,  # Enable retryable writes
                 w='majority',  # Write concern for data durability
                 maxConnecting=MAX_CONNECTING,  # Limit concurrent connection establishments
-                waitQueueTimeoutMS=2000  # How long operations wait for a connection
+                # How long operations wait for a connection
+                waitQueueTimeoutMS=WAIT_QUEUE_TIMEOUT_MS
             )
 
             # Test connection
@@ -83,7 +85,7 @@ def get_async_mongodb_client() -> Any:
                 retryWrites=True,
                 w='majority',
                 maxConnecting=MAX_CONNECTING,
-                waitQueueTimeoutMS=2000
+                waitQueueTimeoutMS=WAIT_QUEUE_TIMEOUT_MS
             )
             logger.info(
                 f"Successfully created async MongoDB client with pool size: {MAX_POOL_SIZE}")

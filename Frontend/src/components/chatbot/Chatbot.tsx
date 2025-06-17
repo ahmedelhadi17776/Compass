@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import ChatbotIcon from '@/components/Chatbot/ChatbotIcon';
-import ChatWindow from '@/components/Chatbot/ChatWindow';
-import { Position } from '@/components/Chatbot/types';
-import { useChat } from '@/components/Chatbot/chat-context';
+import React, { useState } from "react";
+import ChatbotIcon from "@/components/chatbot/ChatbotIcon";
+import ChatWindow from "@/components/chatbot/ChatWindow";
+import { Position } from "@/components/chatbot/types";
+import { useChat } from "@/components/chatbot/chat-context";
 
 const Chatbot: React.FC = () => {
   const { messages } = useChat();
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
