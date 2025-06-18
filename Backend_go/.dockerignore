@@ -1,0 +1,29 @@
+# Git and IDE files
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Ignore documentation
+*.md
+#docs/
+*.docx
+*.txt
+
+# Environment files
+.env
+.env.*
+!/.env.example
+
+# Avoid including build artifacts from local machine
+main
+*.exe
+*.test
+
+# Go build cache
+/build/
+*.out 
+
+/scripts/
+
+/k8s/
