@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional
 import logging
+import json
 
 from ai_services.agents.base_agent import BaseAgent, BaseIOSchema
 from pydantic import Field, BaseModel
@@ -48,7 +49,8 @@ class TodoAgent(BaseAgent):
         self,
         target_id: str,
         target_data: Dict[str, Any],
-        user_id: str
+        user_id: str,
+        token: str
     ) -> List[Dict[str, Any]]:
         """Get AI options for a todo."""
         # Log that we're getting options
@@ -102,17 +104,25 @@ class SubtaskGeneratorAgent(BaseAgent):
         # Create specialized system prompt for subtask generation
         self.system_prompt_generator = SystemPromptGenerator(
             background=[
-                "You are IRIS, an AI assistant for the COMPASS productivity app.",
-                "You specialize in breaking down todos into manageable subtasks."
+                "You are Iris, a powerful agentic AI assistant from the COMPASS productivity app.",
+                "You specialize in breaking down todos into manageable subtasks using the `todos.addChecklist` tool.",
             ],
             steps=[
-                "Analyze the todo to understand what it involves.",
+                "Analyze the provided todo to understand what it involves.",
                 "Break it down into 3-5 logical, sequential subtasks.",
-                "Ensure each subtask is specific and actionable."
+                "Immediately call the `todos.addChecklist` tool to add the subtasks to the todo.",
+                "NEVER ask for confirmation - execute the tool call immediately.",
+                "NEVER fetch the todo first - the tool handles that internally.",
+                "Only use the `todos.addChecklist` tool."
             ],
             output_instructions=[
-                "Provide subtasks as a numbered list.",
-                "Include a brief recommendation on how to approach these subtasks."
+                "Skip all natural language responses and explanations.",
+                "Directly output the tool call for `todos.addChecklist`.",
+                "NEVER ask for optional parameters if you can execute the tool with just the required ones.",
+                "Format tool calls exactly as:",
+                "<tool_call>",
+                '{"name": "todos.addChecklist", "arguments": {"todo_id": "id", "checklist_items": ["item1", "item2"]}}',
+                "</tool_call>"
             ]
         )
 
@@ -122,14 +132,18 @@ class SubtaskGeneratorAgent(BaseAgent):
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Generate subtasks for a todo."""
+        """Generate subtasks for a given todo."""
+        self.logger.info(
+            f"SubtaskGeneratorAgent.process called for option {option_id} on todo {target_id}")
+
         try:
             # Get todo data if not provided
             if not target_data:
-                target_data = await self._get_target_data(target_type, target_id, user_id)
+                target_data = await self._get_target_data(target_type, target_id, user_id, token)
 
             # Safely access dictionary properties
             title = "this task"
@@ -143,7 +157,7 @@ class SubtaskGeneratorAgent(BaseAgent):
                     f"target_data is not a dictionary: {type(target_data)}")
 
             # Direct LLM generation with our system prompt
-            prompt = f"Generate a list of 3-5 subtasks for this todo:\nTodo: {title}\nDescription: {description}\n\nPlease format your response with a numbered list of subtasks, followed by a brief recommendation on how to approach them."
+            prompt = f"Generate a list of 3-5 subtasks for this todo and add them using todos.addChecklist:\nTodo ID: {target_id}\nTitle: {title}\nDescription: {description}\n\nPlease format your response as a tool call to todos.addChecklist with the checklist items."
 
             # Use our run method which directly calls the LLM service
             result = await self.run(
@@ -152,19 +166,129 @@ class SubtaskGeneratorAgent(BaseAgent):
             )
 
             if result["status"] == "success":
-                return result["response"]
+                # Extract tool calls from the response
+                tool_calls = self._extract_tool_calls(result["response"])
+
+                if not tool_calls:
+                    self.logger.warning("No tool calls found in LLM response")
+                    return "I was unable to generate subtasks. Please try again."
+
+                # Process each tool call
+                for tool_call in tool_calls:
+                    try:
+                        if tool_call["name"] != "todos.addChecklist":
+                            continue
+
+                        # Get MCP client
+                        mcp_client = await self._get_mcp_client()
+                        if not mcp_client:
+                            raise ValueError("MCP client is not available")
+
+                        # Get arguments and inject authorization token
+                        tool_args = tool_call.get("arguments", {})
+                        tool_args["authorization"] = f"Bearer {token}"
+
+                        # Execute the tool call with retry logic
+                        tool_result = await mcp_client.call_tool(
+                            tool_call["name"],
+                            tool_args
+                        )
+
+                        # Process the result
+                        if tool_result.get("status") == "success":
+                            self.logger.info(
+                                f"Successfully added checklist items to todo {target_id}")
+                            content = tool_result.get("content", {})
+                            return f"Successfully added {len(tool_args.get('checklist_items', []))} subtasks to your todo."
+                        else:
+                            error_msg = tool_result.get(
+                                "error", "Unknown error")
+                            self.logger.error(f"Tool call failed: {error_msg}")
+                            return f"Failed to add subtasks: {error_msg}"
+
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error executing tool call: {str(e)}")
+                        return f"Error adding subtasks: {str(e)}"
+
+                return "No valid subtasks were generated. Please try again."
             else:
-                # Fall back to direct LLM call
-                return await self._generate_response_with_tools(
-                    f"Break down this todo into smaller, manageable subtasks:\nTodo: {title}\nDescription: {description}",
+                # Fall back to direct LLM call with tool instruction
+                fallback_result = await self._generate_response_with_tools(
+                    f"Add 3-5 subtasks to this todo using todos.addChecklist:\nTodo ID: {target_id}\nTitle: {title}\nDescription: {description}",
                     user_id,
-                    {"temperature": 0.7, "top_p": 0.9}
+                    {"temperature": 0.7, "top_p": 0.9},
+                    token
                 )
+
+                # Process the fallback result the same way
+                tool_calls = self._extract_tool_calls(fallback_result)
+                if not tool_calls:
+                    return "I was unable to generate subtasks. Please try again."
+
+                # Process tool calls from fallback
+                for tool_call in tool_calls:
+                    if tool_call["name"] == "todos.addChecklist":
+                        try:
+                            mcp_client = await self._get_mcp_client()
+                            if not mcp_client:
+                                raise ValueError("MCP client is not available")
+
+                            tool_args = tool_call.get("arguments", {})
+                            tool_args["authorization"] = f"Bearer {token}"
+
+                            tool_result = await mcp_client.call_tool(
+                                tool_call["name"],
+                                tool_args
+                            )
+
+                            if tool_result.get("status") == "success":
+                                return f"Successfully added {len(tool_args.get('checklist_items', []))} subtasks to your todo."
+                            else:
+                                return f"Failed to add subtasks: {tool_result.get('error', 'Unknown error')}"
+                        except Exception as e:
+                            self.logger.error(
+                                f"Error in fallback tool execution: {str(e)}")
+                            return f"Error adding subtasks: {str(e)}"
+
+                return "No valid subtasks were generated. Please try again."
 
         except Exception as e:
             self.logger.error(
                 f"Error in SubtaskGeneratorAgent.process: {str(e)}", exc_info=True)
             return f"Sorry, I encountered an error while generating subtasks: {str(e)}"
+
+    def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+        """Extract tool calls from LLM response."""
+        tool_calls = []
+        start_tag = "<tool_call>"
+        end_tag = "</tool_call>"
+
+        while start_tag in text and end_tag in text:
+            start = text.find(start_tag) + len(start_tag)
+            end = text.find(end_tag)
+            if start > -1 and end > -1:
+                tool_call_text = text[start:end].strip()
+                try:
+                    tool_call = json.loads(tool_call_text)
+                    if "name" in tool_call:
+                        tool_calls.append(tool_call)
+                    else:
+                        self.logger.warning(
+                            f"Tool call missing 'name' field: {tool_call_text}")
+                except json.JSONDecodeError:
+                    self.logger.error(
+                        f"Failed to parse tool call: {tool_call_text}")
+                text = text[end + len(end_tag):]
+            else:
+                break
+
+        return tool_calls
+
+    async def _get_mcp_client(self):
+        """Get MCP client from global state."""
+        from core.mcp_state import get_mcp_client
+        return get_mcp_client()
 
 
 class DeadlineAdvisorAgent(BaseAgent):
@@ -175,21 +299,22 @@ class DeadlineAdvisorAgent(BaseAgent):
     def __init__(self):
         super().__init__()
 
-        # Create specialized system prompt for deadline advice
+        # Create a specialized system prompt for expert deadline advice.
         self.system_prompt_generator = SystemPromptGenerator(
             background=[
-                "You are IRIS, an AI assistant for the COMPASS productivity app.",
-                "You specialize in providing deadline-based advice for todos."
+                "You are IRIS, an expert AI productivity coach within the COMPASS app.",
+                "Your mission is to provide concise, actionable advice to help users meet their deadlines."
             ],
             steps=[
-                "Analyze the todo's due date and priority.",
-                "Consider how it fits into the user's schedule.",
-                "Develop time management strategies specific to this task."
+                "1. Assess Urgency & Importance: Evaluate the todo's due date against its priority.",
+                "2. Strategize: Formulate a core, actionable strategy. e.g., tackle it now, schedule it, or break it down.",
+                "3. Synthesize: Distill your analysis into a brief, powerful recommendation."
             ],
             output_instructions=[
-                "Provide specific recommendations for managing this deadline.",
-                "Keep your response under 150 words.",
-                "Include time management strategies and prioritization tips."
+                "Provide sharp, specific, and actionable advice in a supportive but direct tone.",
+                "Focus on a single, powerful strategy for the user to implement.",
+                "Your response **must be under 100 words**.",
+                "Directly address the user. Avoid generic phrases like 'It is important to...'."
             ]
         )
 
@@ -199,14 +324,18 @@ class DeadlineAdvisorAgent(BaseAgent):
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Generate deadline advice for a todo."""
+        """Provide deadline-based advice for a todo."""
+        self.logger.info(
+            f"DeadlineAdvisorAgent.process called for option {option_id} on todo {target_id}")
+
         try:
             # Get todo data if not provided
             if not target_data:
-                target_data = await self._get_target_data(target_type, target_id, user_id)
+                target_data = await self._get_target_data(target_type, target_id, user_id, token)
 
             # Safely access dictionary properties
             title = "this task"
@@ -225,15 +354,14 @@ class DeadlineAdvisorAgent(BaseAgent):
 
             # Create prompt that encourages tool use
             prompt = f"""
-You are IRIS, an AI assistant for the COMPASS productivity app.
-I need deadline-based advice for this todo. You can use tools to check my calendar or other tasks.
+Provide deadline advice for the following task. DO NOT EVER USE TOOLS.
 
 Todo: {title}
 Due date: {due_date}
 Priority: {priority}
 Status: {status}
 
-Please provide specific recommendations on how to approach this task based on its deadline. Consider time management strategies, scheduling tips, and how to prioritize it among other tasks. Keep your response under 150 words.
+Please provide specific recommendations on how to approach this task based on its deadline. Consider time management strategies, scheduling tips, and how to prioritize it among other tasks.
 """
 
             # Generate response with model parameters for better advice
@@ -241,7 +369,7 @@ Please provide specific recommendations on how to approach this task based on it
                 "temperature": 0.5,
                 "top_p": 0.8
             }
-            return await self._generate_response_with_tools(prompt, user_id, model_params)
+            return await self._generate_response_with_tools(prompt, user_id, model_params, token)
         except Exception as e:
             self.logger.error(
                 f"Error in DeadlineAdvisorAgent.process: {str(e)}", exc_info=True)
@@ -280,14 +408,18 @@ class PriorityOptimizerAgent(BaseAgent):
         target_type: str,
         target_id: str,
         user_id: str,
+        token: str,
         *,
         target_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Generate priority and motivation advice for a todo."""
+        """Optimize the priority of a todo."""
+        self.logger.info(
+            f"PriorityOptimizerAgent.process called for option {option_id} on todo {target_id}")
+
         try:
             # Get todo data if not provided
             if not target_data:
-                target_data = await self._get_target_data(target_type, target_id, user_id)
+                target_data = await self._get_target_data(target_type, target_id, user_id, token)
 
             # Safely access dictionary properties
             title = "this task"
@@ -322,7 +454,7 @@ Please provide insights on whether this priority is appropriate, and offer speci
                 "temperature": 0.6,
                 "top_p": 0.85
             }
-            return await self._generate_response_with_tools(prompt, user_id, model_params)
+            return await self._generate_response_with_tools(prompt, user_id, model_params, token)
         except Exception as e:
             self.logger.error(
                 f"Error in PriorityOptimizerAgent.process: {str(e)}", exc_info=True)

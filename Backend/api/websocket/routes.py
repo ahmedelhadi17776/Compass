@@ -7,9 +7,9 @@ import traceback
 from datetime import datetime
 
 from api.websocket.dashboard_ws import dashboard_ws_manager
-from utils.jwt import extract_user_id_from_token, decode_token
 from core.config import settings
 from ai_services.agents.orchestrator import AgentOrchestrator
+from core.auth.jwt_handler import get_current_user, get_token_from_websocket
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,30 +18,26 @@ router = APIRouter()
 active_tasks: Dict[str, asyncio.Task] = {}
 
 
-@router.websocket("/ws/dashboard")
-async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
+@router.websocket("/ws")
+async def dashboard_websocket(websocket: WebSocket):
     """
     WebSocket endpoint for dashboard real-time updates.
     Requires a valid JWT token as a query parameter.
     """
-    user_id = None
     try:
-        logger.info(
-            f"Attempting WebSocket connection with token: {token[:20]}...")
-
-        # Validate token and extract user_id
-        payload = decode_token(token)
-        if not payload:
-            logger.error("Invalid token format or signature")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        token_data = await get_token_from_websocket(websocket)
+        if not token_data:
             return
 
-        if "user_id" not in payload:
-            logger.error("Token missing user_id claim")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
+        user = get_current_user(token_data)
+        user_id = user["user_id"]
+        token = token_data["raw"]
+    except Exception as auth_error:
+        logger.error(
+            f"WebSocket authentication failed: {auth_error}", exc_info=True)
+        return
 
-        user_id = payload["user_id"]
+    try:
         logger.info(f"Token validated for user_id: {user_id}")
 
         # Accept the connection
@@ -188,7 +184,7 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                 # AI Drag & Drop feature message handlers
                 elif message_type == "ai_options_request":
                     # Use our new dedicated handler function
-                    await handle_ai_options_request(websocket, message, user_id)
+                    await handle_ai_options_request(websocket, message, user_id, token)
 
                 elif message_type == "ai_process_request":
                     logger.info(
@@ -199,7 +195,8 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                         process_ai_option(
                             websocket=websocket,
                             message_data=message,
-                            user_id=user_id
+                            user_id=user_id,
+                            token=token
                         )
                     )
                     # Store the task to prevent it from being garbage collected
@@ -370,14 +367,13 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
                     f"Error handling client message: {str(e)}", exc_info=True)
 
     except WebSocketDisconnect:
-        if user_id:
-            logger.info(f"WebSocket disconnected for user_id: {user_id}")
-            await dashboard_ws_manager.disconnect(websocket, user_id)
+        logger.info(f"WebSocket disconnected for user_id: {user_id}")
+        await dashboard_ws_manager.disconnect(websocket, user_id)
     except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}", exc_info=True)
+        logger.error(
+            f"WebSocket error for user_id {user_id}: {str(e)}", exc_info=True)
         logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
-        if user_id:
-            await dashboard_ws_manager.disconnect(websocket, user_id)
+        await dashboard_ws_manager.disconnect(websocket, user_id)
         try:
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         except:
@@ -387,7 +383,8 @@ async def dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
 async def process_ai_option(
     websocket: WebSocket,
     message_data: Dict[str, Any],
-    user_id: str
+    user_id: str,
+    token: str
 ):
     """Process an AI option selected by the user.
     Uses the agent orchestrator to process the option.
@@ -414,7 +411,8 @@ async def process_ai_option(
             target_type=str(target_type),
             target_id=str(target_id),
             user_id=user_id,
-            target_data=target_data
+            target_data=target_data,
+            token=token
         )
 
         # Check if result is valid
@@ -467,20 +465,25 @@ async def process_ai_option(
 
 
 @router.websocket("/ws/dashboard/admin")
-async def admin_dashboard_websocket(websocket: WebSocket, token: str = Query(...)):
+async def admin_dashboard_websocket(websocket: WebSocket):
     """
     Admin WebSocket endpoint for monitoring dashboard connections.
     Requires a valid JWT token with admin privileges.
     """
     try:
-        # Validate token and check admin privileges
-        payload = decode_token(token)
-        # or not payload.get("is_admin", False)
-        if not payload or "user_id" not in payload:
+        token_data = await get_token_from_websocket(websocket)
+        if not token_data:
+            return
+
+        user = get_current_user(token_data)
+        # A proper role check should be implemented.
+        if "admin" not in user.get("roles", []):
+            logger.warning(
+                f"Non-admin user {user.get('user_id')} attempted to connect to admin dashboard.")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        user_id = payload["user_id"]
+        user_id = user["user_id"]
 
         # Accept the connection
         await websocket.accept()
@@ -514,7 +517,7 @@ async def admin_dashboard_websocket(websocket: WebSocket, token: str = Query(...
             pass
 
 
-async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], user_id: str):
+async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], user_id: str, token: str):
     """Handle AI options request from client.
     Gets AI options for a target from the agent orchestrator.
     """
@@ -570,7 +573,8 @@ async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], 
             target_type=target_type,
             target_id=target_id,
             target_data=enhanced_target_data,
-            user_id=user_id
+            user_id=user_id,
+            token=token
         )
 
         logger.info(

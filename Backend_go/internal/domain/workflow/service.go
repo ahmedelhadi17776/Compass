@@ -3,12 +3,22 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/notification"
+	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/roles"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/datatypes"
+)
+
+var (
+	ErrNotFound                = errors.New("not found")
+	ErrStepNotApprovable       = errors.New("step is not of type approval or is not pending")
+	ErrNotAuthorized           = errors.New("not authorized")
+	ErrRejectionRequiresReason = errors.New("rejection requires a reason")
 )
 
 // Service defines the interface for workflow business logic
@@ -31,8 +41,10 @@ type Service interface {
 	ExecuteWorkflow(ctx context.Context, workflowID uuid.UUID) (*WorkflowExecutionResponse, error)
 	ExecuteWorkflowStep(ctx context.Context, stepID uuid.UUID, executionID uuid.UUID) (*WorkflowStepExecution, error)
 	CancelWorkflowExecution(ctx context.Context, workflowID uuid.UUID) error
-	GetWorkflowExecution(ctx context.Context, id uuid.UUID) (*WorkflowExecutionResponse, error)
+	GetWorkflowExecution(ctx context.Context, executionID uuid.UUID) (*WorkflowExecutionResponse, error)
 	ListWorkflowExecutions(ctx context.Context, filter *WorkflowExecutionFilter) (*WorkflowExecutionListResponse, error)
+	ApproveStepExecution(ctx context.Context, executionID, userID uuid.UUID, reason string) error
+	RejectStepExecution(ctx context.Context, executionID, userID uuid.UUID, reason string) error
 
 	// Analysis and optimization
 	AnalyzeWorkflow(ctx context.Context, workflowID uuid.UUID) (map[string]interface{}, error)
@@ -43,31 +55,37 @@ type Service interface {
 }
 
 type service struct {
-	repo     Repository
-	logger   *logrus.Logger
-	executor WorkflowExecutor
+	repo         Repository
+	logger       *logrus.Logger
+	executor     WorkflowExecutor
+	rolesService roles.Service
+	notifier     notification.DomainNotifier
 }
 
 // WorkflowExecutor handles the actual execution of workflow steps
 type WorkflowExecutor interface {
 	ExecuteStep(ctx context.Context, step *WorkflowStep, execution *WorkflowStepExecution) error
 	ValidateTransition(ctx context.Context, fromStep, toStep *WorkflowStep) error
-	ProcessNextSteps(ctx context.Context, currentStep *WorkflowStep, execution *WorkflowStepExecution) error
+	ProcessTransitions(ctx context.Context, currentStep *WorkflowStep, execution *WorkflowStepExecution, onEvent string) error
 }
 
 // ServiceConfig holds the configuration for the workflow service
 type ServiceConfig struct {
-	Repository Repository
-	Logger     *logrus.Logger
-	Executor   WorkflowExecutor
+	Repository   Repository
+	Logger       *logrus.Logger
+	Executor     WorkflowExecutor
+	RolesService roles.Service
+	Notifier     notification.DomainNotifier
 }
 
 // NewService creates a new workflow service
-func NewService(cfg ServiceConfig) Service {
+func NewService(config ServiceConfig) Service {
 	return &service{
-		repo:     cfg.Repository,
-		logger:   cfg.Logger,
-		executor: cfg.Executor,
+		repo:         config.Repository,
+		logger:       config.Logger,
+		executor:     config.Executor,
+		rolesService: config.RolesService,
+		notifier:     config.Notifier,
 	}
 }
 
@@ -268,6 +286,10 @@ func (s *service) AddWorkflowStep(ctx context.Context, workflowID uuid.UUID, req
 		step.AssignedTo = req.AssignedTo
 	}
 
+	if req.AssignedToRoleID != nil {
+		step.AssignedToRoleID = req.AssignedToRoleID
+	}
+
 	if err := s.repo.CreateStep(ctx, step); err != nil {
 		s.logger.WithError(err).Error("Failed to create workflow step")
 		return nil, fmt.Errorf("failed to create workflow step: %w", err)
@@ -325,6 +347,9 @@ func (s *service) UpdateWorkflowStep(ctx context.Context, id uuid.UUID, req Upda
 	}
 	if req.AssignedTo != nil {
 		step.AssignedTo = req.AssignedTo
+	}
+	if req.AssignedToRoleID != nil {
+		step.AssignedToRoleID = req.AssignedToRoleID
 	}
 
 	if err := s.repo.UpdateStep(ctx, step); err != nil {
@@ -650,21 +675,29 @@ func (s *service) CancelWorkflowExecution(ctx context.Context, workflowID uuid.U
 }
 
 // GetWorkflowExecution implements the execution retrieval logic
-func (s *service) GetWorkflowExecution(ctx context.Context, id uuid.UUID) (*WorkflowExecutionResponse, error) {
-	s.logger.WithFields(logrus.Fields{
-		"execution_id": id,
-	}).Info("Getting workflow execution details")
+func (s *service) GetWorkflowExecution(ctx context.Context, executionID uuid.UUID) (*WorkflowExecutionResponse, error) {
+	s.logger.WithField("execution_id", executionID).Info("Getting workflow execution details")
 
-	execution, err := s.repo.GetExecutionByID(ctx, id)
+	// Get execution from repository
+	execution, err := s.repo.GetExecutionByID(ctx, executionID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get workflow execution")
 		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
 	}
 
-	return &WorkflowExecutionResponse{Execution: execution}, nil
+	// Get associated step executions
+	stepExecutions, err := s.repo.ListStepExecutions(ctx, executionID)
+	if err != nil {
+		// Log error but continue, so we can at least return the main execution info
+		s.logger.WithError(err).WithField("execution_id", executionID).Error("Failed to list step executions")
+	}
+
+	return &WorkflowExecutionResponse{
+		Execution:      execution,
+		StepExecutions: stepExecutions,
+	}, nil
 }
 
-// ListWorkflowExecutions implements the execution listing logic
+// ListWorkflowExecutions retrieves a paginated list of workflow executions based on a filter
 func (s *service) ListWorkflowExecutions(ctx context.Context, filter *WorkflowExecutionFilter) (*WorkflowExecutionListResponse, error) {
 	s.logger.Info("Listing workflow executions")
 
@@ -678,6 +711,154 @@ func (s *service) ListWorkflowExecutions(ctx context.Context, filter *WorkflowEx
 		Executions: executions,
 		Total:      total,
 	}, nil
+}
+
+// ApproveStepExecution approves a step execution and processes the next steps.
+func (s *service) ApproveStepExecution(ctx context.Context, executionID, userID uuid.UUID, reason string) error {
+	return s.handleStepApprovalAction(ctx, executionID, userID, reason, true)
+}
+
+// RejectStepExecution rejects a step execution.
+func (s *service) RejectStepExecution(ctx context.Context, executionID, userID uuid.UUID, reason string) error {
+	if reason == "" {
+		return ErrRejectionRequiresReason
+	}
+	return s.handleStepApprovalAction(ctx, executionID, userID, reason, false)
+}
+
+func (s *service) handleStepApprovalAction(ctx context.Context, executionID, userID uuid.UUID, reason string, approved bool) error {
+	s.logger.WithFields(logrus.Fields{
+		"execution_id": executionID,
+		"user_id":      userID,
+		"approved":     approved,
+	}).Info("Handling step approval action")
+
+	// Get the step execution
+	stepExecution, err := s.repo.GetStepExecutionByID(ctx, executionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get step execution")
+		return ErrNotFound
+	}
+
+	// Get the step to check type and assignment
+	step, err := s.repo.GetStepByID(ctx, stepExecution.StepID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get step")
+		return ErrNotFound
+	}
+
+	// Validate step is an approval step and is pending
+	if step.StepType != StepTypeApproval || stepExecution.Status != StepStatusPending {
+		return ErrStepNotApprovable
+	}
+
+	// Authorization check
+	authorized, err := s.isUserAuthorizedForStep(ctx, step, userID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to check user authorization for step")
+		return fmt.Errorf("could not verify authorization: %w", err)
+	}
+	if !authorized {
+		return ErrNotAuthorized
+	}
+
+	// Update step execution
+	now := time.Now()
+	stepExecution.CompletedAt = &now
+	stepExecution.UpdatedAt = now
+
+	result := map[string]interface{}{
+		"action_by":    userID,
+		"reason":       reason,
+		"completed_at": now,
+	}
+
+	if approved {
+		stepExecution.Status = StepStatusCompleted
+		result["status"] = "approved"
+	} else {
+		stepExecution.Status = StepStatusFailed // Use 'Failed' for rejection
+		result["status"] = "rejected"
+		errorStr := fmt.Sprintf("Rejected by %s: %s", userID, reason)
+		stepExecution.Error = &errorStr
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	stepExecution.Result = datatypes.JSON(resultJSON)
+
+	if err := s.repo.UpdateStepExecution(ctx, stepExecution); err != nil {
+		s.logger.WithError(err).Error("Failed to update step execution")
+		return err
+	}
+
+	if approved {
+		// Notify the workflow initiator that the step was approved
+		go func() {
+			workflow, err := s.repo.GetByID(context.Background(), step.WorkflowID)
+			if err != nil {
+				s.logger.WithError(err).Warn("Failed to get workflow for notification")
+				return
+			}
+			if s.notifier != nil {
+				title := fmt.Sprintf("Step '%s' Approved", step.Name)
+				content := fmt.Sprintf("The workflow step '%s' in workflow '%s' was approved.", step.Name, workflow.Name)
+				data := map[string]string{
+					"workflowId":          workflow.ID.String(),
+					"workflowExecutionId": stepExecution.ExecutionID.String(),
+					"stepId":              step.ID.String(),
+				}
+				s.notifier.NotifyUser(context.Background(), workflow.CreatedBy, notification.WorkflowApproved, title, content, data, "workflow", workflow.ID)
+			}
+		}()
+
+		// On approval, process the "on_approve" transitions
+		return s.executor.ProcessTransitions(ctx, step, stepExecution, "on_approve")
+	} else {
+		// Notify the workflow initiator that the step was rejected
+		go func() {
+			workflow, err := s.repo.GetByID(context.Background(), step.WorkflowID)
+			if err != nil {
+				s.logger.WithError(err).Warn("Failed to get workflow for notification")
+				return
+			}
+			if s.notifier != nil {
+				title := fmt.Sprintf("Step '%s' Rejected", step.Name)
+				content := fmt.Sprintf("The workflow step '%s' in workflow '%s' was rejected. Reason: %s", step.Name, workflow.Name, reason)
+				data := map[string]string{
+					"workflowId":          workflow.ID.String(),
+					"workflowExecutionId": stepExecution.ExecutionID.String(),
+					"stepId":              step.ID.String(),
+				}
+				s.notifier.NotifyUser(context.Background(), workflow.CreatedBy, notification.WorkflowRejected, title, content, data, "workflow", workflow.ID)
+			}
+		}()
+
+		// On rejection, process the "on_reject" transitions
+		return s.executor.ProcessTransitions(ctx, step, stepExecution, "on_reject")
+	}
+}
+
+func (s *service) isUserAuthorizedForStep(ctx context.Context, step *WorkflowStep, userID uuid.UUID) (bool, error) {
+	// 1. Direct assignment
+	if step.AssignedTo != nil {
+		return *step.AssignedTo == userID, nil
+	}
+
+	// 2. Role-based assignment
+	if step.AssignedToRoleID != nil {
+		userRoles, err := s.rolesService.GetUserRoles(ctx, userID)
+		if err != nil {
+			return false, err
+		}
+		for _, role := range userRoles {
+			if role.ID == *step.AssignedToRoleID {
+				return true, nil
+			}
+		}
+	}
+
+	// 3. If neither is set, or no match, user is not authorized.
+	return false, nil
 }
 
 // AnalyzeWorkflow implements the workflow analysis logic
@@ -845,9 +1026,4 @@ func (s *service) GetRepo() Repository {
 
 func (s *service) GetExecutor() WorkflowExecutor {
 	return s.executor
-}
-
-// ProcessNextSteps exposes the processNextSteps functionality from the executor
-func (e *DefaultWorkflowExecutor) ProcessNextSteps(ctx context.Context, currentStep *WorkflowStep, execution *WorkflowStepExecution) error {
-	return e.processNextSteps(ctx, currentStep, execution)
 }

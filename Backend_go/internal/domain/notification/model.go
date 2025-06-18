@@ -35,6 +35,13 @@ const (
 	EventInviteAccepted    = "event_invite_accepted"
 	EventInviteDeclined    = "event_invite_declined"
 	EventRemovedFromCollab = "event_removed_from_collab"
+
+	// Workflow notification types
+	WorkflowActionRequired = "workflow_action_required"
+	WorkflowApproved       = "workflow_approved"
+	WorkflowRejected       = "workflow_rejected"
+	WorkflowCompleted      = "workflow_completed"
+	WorkflowFailed         = "workflow_failed"
 )
 
 // Status represents the status of a notification

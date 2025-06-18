@@ -18,8 +18,26 @@ class BaseMongoRepository(Generic[T]):
         """Initialize the repository with a model class."""
         self.model_class = model_class
         self.collection_name = model_class.collection_name
+        self._collection = self.get_collection()
+        self._async_collection = self.get_async_collection()
+        self._model = model_class
         logger.info(
             f"Initialized {self.__class__.__name__} for collection {self.collection_name}")
+
+    @property
+    def collection(self) -> Collection:
+        """Get the MongoDB collection for this repository."""
+        return self._collection
+
+    @property
+    def async_collection(self) -> Any:
+        """Get the async MongoDB collection for this repository."""
+        return self._async_collection
+
+    @property
+    def model(self) -> Type[T]:
+        """Get the model class for this repository."""
+        return self._model
 
     def get_collection(self) -> Collection:
         """Get the MongoDB collection for this repository."""

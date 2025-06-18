@@ -228,9 +228,13 @@ func main() {
 	organizationService := organization.NewService(organizationRepo)
 	habitsService := habits.NewService(habitsRepo, habitNotifySvc, redisClient, log.Logger)
 	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier, redisClient, log.Logger)
+	workflowExecutor := workflow.NewDefaultExecutor(workflowRepo, workflowLogger, notificationSystem.DomainNotifier, rolesService)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
-		Repository: workflowRepo,
-		Logger:     workflowLogger,
+		Repository:   workflowRepo,
+		Logger:       workflowLogger,
+		Executor:     workflowExecutor,
+		RolesService: rolesService,
+		Notifier:     notificationSystem.DomainNotifier,
 	})
 	todosService := todos.NewService(todosRepo, redisClient, log.Logger)
 

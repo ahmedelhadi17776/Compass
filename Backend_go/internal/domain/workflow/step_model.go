@@ -63,6 +63,7 @@ type WorkflowStep struct {
 
 	// Assignment & Notifications
 	AssignedTo         *uuid.UUID     `json:"assigned_to" gorm:"type:uuid"`
+	AssignedToRoleID   *uuid.UUID     `json:"assigned_to_role_id" gorm:"type:uuid"`
 	NotificationConfig datatypes.JSON `json:"notification_config" gorm:"type:jsonb"`
 
 	CreatedAt time.Time `json:"created_at" gorm:"not null;default:current_timestamp"`
@@ -71,29 +72,31 @@ type WorkflowStep struct {
 
 // CreateWorkflowStepRequest represents the request body for creating a workflow step
 type CreateWorkflowStepRequest struct {
-	Name        string         `json:"name" binding:"required"`
-	Description string         `json:"description"`
-	StepType    StepType       `json:"step_type" binding:"required"`
-	StepOrder   int            `json:"step_order" binding:"required"`
-	Config      datatypes.JSON `json:"config,omitempty"`
-	Conditions  datatypes.JSON `json:"conditions,omitempty"`
-	Timeout     *int           `json:"timeout,omitempty"`
-	IsRequired  *bool          `json:"is_required,omitempty"`
-	AssignedTo  *uuid.UUID     `json:"assigned_to,omitempty"`
+	Name             string         `json:"name" binding:"required"`
+	Description      string         `json:"description"`
+	StepType         StepType       `json:"step_type" binding:"required"`
+	StepOrder        int            `json:"step_order" binding:"required"`
+	Config           datatypes.JSON `json:"config,omitempty"`
+	Conditions       datatypes.JSON `json:"conditions,omitempty"`
+	Timeout          *int           `json:"timeout,omitempty"`
+	IsRequired       *bool          `json:"is_required,omitempty"`
+	AssignedTo       *uuid.UUID     `json:"assigned_to,omitempty"`
+	AssignedToRoleID *uuid.UUID     `json:"assigned_to_role_id,omitempty"`
 }
 
 // UpdateWorkflowStepRequest represents the request body for updating a workflow step
 type UpdateWorkflowStepRequest struct {
-	Name        *string        `json:"name,omitempty"`
-	Description *string        `json:"description,omitempty"`
-	StepType    *StepType      `json:"step_type,omitempty"`
-	StepOrder   *int           `json:"step_order,omitempty"`
-	Status      *StepStatus    `json:"status,omitempty"`
-	Config      datatypes.JSON `json:"config,omitempty"`
-	Conditions  datatypes.JSON `json:"conditions,omitempty"`
-	Timeout     *int           `json:"timeout,omitempty"`
-	IsRequired  *bool          `json:"is_required,omitempty"`
-	AssignedTo  *uuid.UUID     `json:"assigned_to,omitempty"`
+	Name             *string        `json:"name,omitempty"`
+	Description      *string        `json:"description,omitempty"`
+	StepType         *StepType      `json:"step_type,omitempty"`
+	StepOrder        *int           `json:"step_order,omitempty"`
+	Status           *StepStatus    `json:"status,omitempty"`
+	Config           datatypes.JSON `json:"config,omitempty"`
+	Conditions       datatypes.JSON `json:"conditions,omitempty"`
+	Timeout          *int           `json:"timeout,omitempty"`
+	IsRequired       *bool          `json:"is_required,omitempty"`
+	AssignedTo       *uuid.UUID     `json:"assigned_to,omitempty"`
+	AssignedToRoleID *uuid.UUID     `json:"assigned_to_role_id,omitempty"`
 }
 
 // WorkflowStepResponse represents the response for step operations

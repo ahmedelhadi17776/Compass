@@ -23,10 +23,7 @@ export type StepType =
   | "notification"
   | "integration"
   | "decision"
-  | "ai_task"
-  | "start"
-  | "process"
-  | "end";
+  | "ai_task";
 
 export type StepStatus = 
   | "pending"
@@ -41,13 +38,13 @@ export interface WorkflowStep {
   workflowId: string;
   name: string;
   description: string;
-  type: StepType;
-  stepOrder: number;
+  step_type: StepType;
+  step_order: number;
   status: StepStatus;
-  config?: Record<string, any>;
-  conditions?: Record<string, any>;
+  config?: Record<string, unknown>;
+  conditions?: Record<string, unknown>;
   timeout?: number;
-  retryConfig?: Record<string, any>;
+  retryConfig?: Record<string, unknown>;
   isRequired: boolean;
   autoAdvance: boolean;
   canRevert: boolean;
@@ -56,21 +53,21 @@ export interface WorkflowStep {
   previousVersionId?: string;
   averageExecutionTime: number;
   successRate: number;
-  lastExecutionResult?: Record<string, any>;
+  lastExecutionResult?: Record<string, unknown>;
   assignedTo?: string;
-  notificationConfig?: Record<string, any>;
+  notificationConfig?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface WorkflowTransition {
   id: string;
-  fromStepId: string;
-  toStepId: string;
+  from_step_id: string;
+  to_step_id: string;
   condition?: string;
   workflowId: string;
-  conditions?: Record<string, any>;
-  triggers?: Record<string, any>;
+  conditions?: Record<string, unknown>;
+  triggers?: Record<string, unknown>;
 }
 
 export interface WorkflowDetail {
@@ -81,38 +78,38 @@ export interface WorkflowDetail {
   createdBy: string;
   organizationId: string;
   status: WorkflowStatus;
-  config?: Record<string, any>;
-  workflowMetadata?: Record<string, any>;
+  config?: Record<string, unknown>;
+  workflowMetadata?: Record<string, unknown>;
   version: string;
   tags: string[];
   
   // AI Integration
   aiEnabled: boolean;
   aiConfidenceThreshold?: number;
-  aiOverrideRules?: Record<string, any>;
-  aiLearningData?: Record<string, any>;
+  aiOverrideRules?: Record<string, unknown>;
+  aiLearningData?: Record<string, unknown>;
 
   // Performance Metrics
   averageCompletionTime?: number;
   successRate?: number;
   optimizationScore?: number;
-  bottleneckAnalysis?: Record<string, any>;
+  bottleneckAnalysis?: Record<string, unknown>;
 
   // Time Management
   estimatedDuration?: number;
   actualDuration?: number;
-  scheduleConstraints?: Record<string, any>;
+  scheduleConstraints?: Record<string, unknown>;
   deadline?: string;
 
   // Error Handling
-  errorHandlingConfig?: Record<string, any>;
-  retryPolicy?: Record<string, any>;
-  fallbackSteps?: Record<string, any>;
+  errorHandlingConfig?: Record<string, unknown>;
+  retryPolicy?: Record<string, unknown>;
+  fallbackSteps?: Record<string, unknown>;
 
   // Audit & Compliance
-  complianceRules?: Record<string, any>;
-  auditTrail?: Record<string, any>;
-  accessControl?: Record<string, any>;
+  complianceRules?: Record<string, unknown>;
+  auditTrail?: Record<string, unknown>;
+  accessControl?: Record<string, unknown>;
 
   // Timestamps
   createdAt: string;
@@ -133,7 +130,7 @@ export interface WorkflowListItem {
   createdBy: string;
   organizationId: string;
   status: WorkflowStatus;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   workflowMetadata: {
     version: string;
     createdAt: string;
@@ -143,22 +140,22 @@ export interface WorkflowListItem {
   tags: string[] | null;
   aiEnabled: boolean;
   aiConfidenceThreshold: number;
-  aiOverrideRules: Record<string, any>;
-  aiLearningData: Record<string, any>;
+  aiOverrideRules: Record<string, unknown>;
+  aiLearningData: Record<string, unknown>;
   averageCompletionTime: number;
   successRate: number;
   optimizationScore: number;
-  bottleneckAnalysis: Record<string, any>;
+  bottleneckAnalysis: Record<string, unknown>;
   estimatedDuration: number | null;
   actualDuration: number | null;
-  scheduleConstraints: Record<string, any>;
+  scheduleConstraints: Record<string, unknown>;
   deadline: string | null;
-  errorHandlingConfig: Record<string, any>;
-  retryPolicy: Record<string, any>;
-  fallbackSteps: Record<string, any>;
-  complianceRules: Record<string, any>;
-  auditTrail: Record<string, any>;
-  accessControl: Record<string, any>;
+  errorHandlingConfig: Record<string, unknown>;
+  retryPolicy: Record<string, unknown>;
+  fallbackSteps: Record<string, unknown>;
+  complianceRules: Record<string, unknown>;
+  auditTrail: Record<string, unknown>;
+  accessControl: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   lastExecutedAt: string | null;
@@ -170,7 +167,7 @@ export interface CreateWorkflowRequest {
   description: string;
   workflow_type: WorkflowType;
   organization_id: string;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   ai_enabled?: boolean;
   tags?: string[];
   estimated_duration?: number;
@@ -181,7 +178,7 @@ export interface UpdateWorkflowRequest {
   name?: string;
   description?: string;
   status?: WorkflowStatus;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   aiEnabled?: boolean;
   tags?: string[];
   estimatedDuration?: number;
@@ -191,25 +188,25 @@ export interface UpdateWorkflowRequest {
 export interface WorkflowStepRequest {
   name: string;
   description: string;
-  type: StepType;
-  stepOrder: number;
+  step_type: StepType;
+  step_order: number;
   status?: StepStatus;
-  config?: Record<string, any>;
-  conditions?: Record<string, any>;
+  config?: Record<string, unknown>;
+  conditions?: Record<string, unknown>;
   timeout?: number;
   isRequired?: boolean;
   autoAdvance?: boolean;
   canRevert?: boolean;
   dependencies?: string[];
   assignedTo?: string;
-  notificationConfig?: Record<string, any>;
+  notificationConfig?: Record<string, unknown>;
 }
 
 export interface WorkflowTransitionRequest {
-  fromStepId: string;
-  toStepId: string;
-  conditions?: Record<string, any>;
-  triggers?: Record<string, any>;
+  from_step_id: string;
+  to_step_id: string;
+  conditions?: Record<string, unknown>;
+  triggers?: Record<string, unknown>;
 }
 
 export interface WorkflowExecutionResponse {
@@ -219,8 +216,8 @@ export interface WorkflowExecutionResponse {
   startedAt: string;
   completedAt?: string;
   error?: string;
-  result?: Record<string, any>;
-  metadata?: Record<string, any>;
+  result?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface WorkflowAnalysisResponse {

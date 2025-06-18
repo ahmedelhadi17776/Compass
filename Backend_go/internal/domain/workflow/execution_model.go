@@ -66,7 +66,8 @@ type UpdateWorkflowExecutionRequest struct {
 
 // WorkflowExecutionResponse represents the response for execution operations
 type WorkflowExecutionResponse struct {
-	Execution *WorkflowExecution `json:"execution"`
+	Execution      *WorkflowExecution      `json:"execution"`
+	StepExecutions []WorkflowStepExecution `json:"step_executions,omitempty"`
 }
 
 // WorkflowExecutionListResponse represents the response for listing executions
