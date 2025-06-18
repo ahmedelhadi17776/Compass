@@ -10,13 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Plus, LayoutPanelLeft } from 'lucide-react'
 
 // Import node components with any type to avoid declaration file errors
-import CustomResizerNode from './nodes/CustomResizerNode'
-import DefaultNode from './nodes/DefaultNode'
+import CustomResizerNode from './nodes/CustomResizerNode.tsx'
+import DefaultNode from './nodes/DefaultNode.tsx'
 
 // Define node types for React Flow
 const nodeTypes: NodeTypes = {
-  resizable: CustomResizerNode,
-  default: DefaultNode,
+  resizable: CustomResizerNode as any,
+  default: DefaultNode as any,
 }
 
 const nodeDefaults = {
@@ -30,6 +30,12 @@ const nodeDefaults = {
     minHeight: 50,
   },
 }
+
+// Helper to generate nodeTypes with updateNodeLabel
+const getNodeTypesWithProps = (updateNodeLabel: (id: string, label: string) => void) => ({
+  resizable: (props: any) => <CustomResizerNode {...props} updateNodeLabel={updateNodeLabel} />,
+  default: (props: any) => <DefaultNode {...props} updateNodeLabel={updateNodeLabel} />
+});
 
 function Flow({ canvasId }: { canvasId: string }) {
   const { canvas, loading } = useCanvas(canvasId)
@@ -187,21 +193,29 @@ function Flow({ canvasId }: { canvasId: string }) {
 
   // Add updateNodeLabel handler
   const updateNodeLabel = useCallback(async (nodeId: string, newLabel: string) => {
+    console.log('updateNodeLabel called:', { nodeId, newLabel })
     const node = nodes.find(n => n.id === nodeId)
+    console.log('Found node:', node)
     if (node) {
       const updatedData = { ...node.data, label: newLabel }
-      await updateNode(nodeId, {
-        canvasId,
-        data: JSON.stringify(updatedData),
-      })
-      setNodes(nds => 
-        nds.map(n => {
-          if (n.id === nodeId) {
-            return { ...n, data: updatedData }
-          }
-          return n
+      console.log('Updated data:', updatedData)
+      try {
+        await updateNode(nodeId, {
+          canvasId,
+          data: JSON.stringify(updatedData),
         })
-      )
+        setNodes(nds => 
+          nds.map(n => {
+            if (n.id === nodeId) {
+              return { ...n, data: updatedData }
+            }
+            return n
+          })
+        )
+        console.log('Node updated successfully')
+      } catch (error) {
+        console.error('Error updating node:', error)
+      }
     }
   }, [nodes, updateNode, canvasId])
 

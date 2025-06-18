@@ -72,13 +72,24 @@ function toggleCommandWindow() {
 
 function createWindow(): void {
   // Create the browser window.
+  
+  const isMac = process.platform === 'darwin';
+
+  // Get the size of the primary display
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 900,
-    minWidth: 1600,
-    minHeight: 900,
-    frame: false,
-    titleBarStyle: 'hidden',
+    width: screenWidth,
+    height: screenHeight,
+    x: 0,
+    y: 0,
+    frame: isMac ? false : true,
+    resizable: !isMac,
+    minimizable: !isMac,
+    maximizable: !isMac,
+    fullscreen: false, // not true fullscreen — we just match screen size
+    titleBarStyle: isMac ? undefined : 'hidden',
+    titleBarOverlay: isMac ? false : undefined,
     backgroundColor: '#ffffff',
     icon: path.join(__dirname, '../AppLogo.png'),
     webPreferences: {
