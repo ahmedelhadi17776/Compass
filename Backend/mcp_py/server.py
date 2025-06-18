@@ -1041,7 +1041,7 @@ async def get_notes(
         # Execute GraphQL query
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/notes/graphql",
+                "http://localhost:5050/notes/graphql",
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": auth_token
@@ -1144,7 +1144,7 @@ async def create_note(
         # Execute GraphQL mutation
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/notes/graphql",
+                "http://localhost:5050/notes/graphql",
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": auth_token
@@ -1227,7 +1227,7 @@ async def rewrite_in_style(
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    "http://localhost:5000/notes/graphql",
+                    "http://localhost:5050/notes/graphql",
                     headers={
                         "Content-Type": "application/json",
                         "Authorization": auth_token

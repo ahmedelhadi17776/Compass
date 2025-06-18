@@ -65,7 +65,7 @@ const initializeServer = async () => {
       }
     });
 
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT || 5050;
 
     // Start server
     server = app.listen(PORT, () => {

@@ -13,7 +13,7 @@ const CommandPage: React.FC = () => {
 
   const createNote = async (noteData: { title: string; content: string; tags: string[]; favorited: boolean }) => {
     try {
-      const response = await fetch('http://localhost:5000/notes/graphql', {
+      const response = await fetch('http://localhost:5050/notes/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

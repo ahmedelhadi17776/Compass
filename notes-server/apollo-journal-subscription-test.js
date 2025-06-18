@@ -10,7 +10,7 @@ const gql = require('graphql-tag');
 const jwtToken = process.env.TEST_JWT_TOKEN || '<YOUR_JWT_TOKEN_HERE>';
 
 const wsLink = new GraphQLWsLink(createClient({
-  url: 'ws://localhost:5000/notes/graphql',
+  url: 'ws://localhost:5050/notes/graphql',
   webSocketImpl: WebSocket,
   connectionParams: {
     'Authorization': `Bearer ${jwtToken}`
@@ -18,7 +18,7 @@ const wsLink = new GraphQLWsLink(createClient({
 }));
 
 const httpLink = new HttpLink({
-  uri: 'http://localhost:5000/notes/graphql',
+  uri: 'http://localhost:5050/notes/graphql',
   fetch,
   headers: {
     'Authorization': `Bearer ${jwtToken}`

@@ -4,7 +4,7 @@ const { logger, requestLogger } = require('../../pkg/utils/logger');
 require('dotenv').config();
 
 const config = {
-  port: process.env.PORT || 5000,
+  port: process.env.PORT || 5050,
   nodeEnv: process.env.NODE_ENV || 'development',
   mongodb: {
     uri: process.env.MONGODB_URI || 'mongodb+srv://ahmedelhadi1777:fb5OpNipjvS65euk@cluster0.ojy4aft.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',

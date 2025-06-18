@@ -5,7 +5,7 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { Observable } from 'rxjs';
 
 const wsLink = new GraphQLWsLink(createClient({
-  url: 'ws://localhost:5000/notes/graphql',
+  url: 'ws://localhost:5050/notes/graphql',
   connectionParams: () => {
     const token = localStorage.getItem('token');
     return token ? {
@@ -33,7 +33,7 @@ const authMiddleware = new ApolloLink((operation, forward) => {
 });
 
 const httpLink = new HttpLink({
-  uri: 'http://localhost:5000/notes/graphql'
+  uri: 'http://localhost:5050/notes/graphql'
 });
 
 const splitLink = split(

@@ -139,7 +139,7 @@ class DashboardCache:
         self.redis_client = redis_client
         self.pubsub_manager = PubSubManager()
         self.is_subscribed = False
-        self.notes_server_url = f"http://localhost:5000"
+        self.notes_server_url = f"http://localhost:5050"
         self.session = None
         self.subscriber_task = None
         # Store reference to WebSocket manager if available
