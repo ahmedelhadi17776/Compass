@@ -1,0 +1,29 @@
+# Git and IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+
+# Docs
+*.md
+*.docx
+*.txt
+
+# Environment
+.env
+.env.*
+!/.env.example 

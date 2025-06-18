@@ -1,7 +1,65 @@
+# Ignore other services' directories completely
+Backend/
+Backend_go/
+notes-server/
+
+# Ignore git and IDE files
+.git/
+.gitignore
+.vscode/
+.idea/
+.cursor/
+.mypy_cache/
+.pytest_cache/
+
+# Ignore node modules
+node_modules/
+
+
+# Ignore node modules and build artifacts from frontend
+Frontend/node_modules/
+Frontend/dist/
+Frontend/build/
+Frontend/electron/
+Frontend/electron-builder.json
+Frontend/coverage/
+
+# Misc
+*.stackdump
+certs/
+k8s/
+prometheus/
+mcp_py/
+MD files/
+COMPASS/
+$nul
+bash.exe.stackdump
+
+# Env files in root
+.env
+.env.*
+!/.env.example
+
+# Root doc files
+docs/
+logs/
+*.md
+README.md
+configure_dashboard.py
+*.docx
+*.txt
+*.log
+*.bat
+*.sh
+*.py
+*.jsonl
+*.json
+*.yaml
+*.yml
+*.xml
+
 node_modules
 npm-debug.log
 dist
-.git
-.gitignore
 Dockerfile
 .dockerignore 

@@ -1,29 +1,29 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ChevronLeft, 
   CheckCircle2, 
   CircleDot, 
   AlertCircle, 
+  CircleX, 
   Clock,
   CheckIcon,
   ArrowRightCircle,
+  MoreHorizontal,
   Loader2,
-  Brain,
-  Plus
+  Brain
 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { WorkflowDetail, WorkflowStep, StepStatus, WorkflowStepRequest } from "@/components/workflow/types";
+import { WorkflowDetail, WorkflowStep, StepStatus } from "@/components/workflow/types";
 import { calculateLineAnimations } from "@/utils/workflowAnimation";
 import ParallelWorkflowDetailPage from "./ParallelWorkflowDetail";
-import { useWorkflowDetail, useUpdateWorkflowStep, useExecuteWorkflow, useExecuteWorkflowStep, useCreateWorkflowStep, useCreateWorkflowTransition } from "@/components/workflow/hooks";
-import { UseQueryResult, useQueryClient } from "@tanstack/react-query";
-import WorkflowStepForm from "./WorkflowStepForm";
-import WorkflowStepEditForm from "./WorkflowStepEditForm";
+import { useWorkflowDetail, useUpdateWorkflowStep, useExecuteWorkflow, useExecuteWorkflowStep } from "@/components/workflow/hooks";
+import { UseQueryResult, UseMutationResult } from "@tanstack/react-query";
 
 interface WorkflowDetailProps {
   darkMode?: boolean;
@@ -31,6 +31,7 @@ interface WorkflowDetailProps {
 
 export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailProps) {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: workflow, isLoading, error } = useWorkflowDetail(id!) as UseQueryResult<WorkflowDetail, Error>;
 
   if (isLoading) {
@@ -55,7 +56,7 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
       return <ParallelWorkflowDetailPage darkMode={darkMode} mockData={workflow} />;
     case "sequential":
     default:
-      return <SequentialWorkflowDetail workflow={workflow} workflowId={id!} />;
+      return <SequentialWorkflowDetail workflow={workflow} workflowId={id!} darkMode={darkMode} />;
   }
 }
 
@@ -63,23 +64,19 @@ export default function WorkflowDetailPage({ darkMode = false }: WorkflowDetailP
 interface SequentialWorkflowDetailProps {
   workflow: WorkflowDetail;
   workflowId: string;
+  darkMode?: boolean;
 }
 
-function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDetailProps) {
+function SequentialWorkflowDetail({ workflow, workflowId, darkMode = false }: SequentialWorkflowDetailProps) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const [lastCompletedStep, setLastCompletedStep] = useState<string | null>(null);
-  const [isAddingStep, setIsAddingStep] = useState(false);
-  const [editingStep, setEditingStep] = useState<WorkflowStep | null>(null);
 
   const updateStep = useUpdateWorkflowStep(workflowId);
   const executeWorkflow = useExecuteWorkflow(workflowId);
   const executeStep = useExecuteWorkflowStep(workflowId);
-  const createStep = useCreateWorkflowStep(workflowId);
-  const createTransition = useCreateWorkflowTransition(workflowId);
 
   // Initialize from workflow data
   useState(() => {
@@ -102,49 +99,6 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
 
   const handleBack = () => {
     navigate(-1); // Go back to the previous page
-  };
-
-  const handleAddNewStep = async (stepData: Partial<WorkflowStepRequest>) => {
-    try {
-      const lastStep = workflow.steps.length > 0 ? workflow.steps[workflow.steps.length - 1] : null;
-      const newStepOrder = lastStep ? lastStep.step_order + 1 : 1;
-      
-      const newStep = await createStep.mutateAsync({
-        ...stepData,
-        step_order: newStepOrder,
-        name: stepData.name!,
-        step_type: stepData.step_type!,
-        description: stepData.description!,
-      });
-
-      if (lastStep) {
-        await createTransition.mutateAsync({
-          from_step_id: lastStep.id,
-          to_step_id: newStep.id,
-        });
-      }
-
-      await queryClient.invalidateQueries({
-        queryKey: ["workflows", "detail", workflowId],
-      });
-
-      setIsAddingStep(false);
-    } catch (error) {
-      console.error("Failed to add new step:", error);
-    }
-  };
-
-  const handleUpdateStep = async (stepData: Partial<WorkflowStepRequest>) => {
-    if (!editingStep) return;
-    try {
-      await updateStep.mutateAsync({
-        stepId: editingStep.id,
-        step: stepData,
-      });
-      setEditingStep(null);
-    } catch (error) {
-      console.error("Failed to update step:", error);
-    }
   };
 
   const handleAutoRun = async () => {
@@ -185,7 +139,7 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
         stepId,
         step: { 
           status: newStatus as StepStatus,
-          step_type: step.step_type
+          type: step.type
         }
       });
 
@@ -308,7 +262,7 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 h-[calc(100vh-32px)] overflow-hidden">
       {/* Header */}
-      <div className="flex justify-start">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button 
             variant="ghost" 
@@ -320,8 +274,29 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
           </Button>
           <h2 className="text-3xl font-bold tracking-tight">{workflow.name}</h2>
         </div>
+
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-1.5 h-8"
+            onClick={handleAutoRun}
+            disabled={executeWorkflow.isPending}
+          >
+            {executeWorkflow.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CheckIcon className="h-3.5 w-3.5" />
+            )}
+            Auto-Run
+          </Button>
+        </div>
+      </div>
+
+      {/* Main content container */}
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Workflow Status Bar - simplified to a single line */}
-        <div className="flex">
+        <div className="flex items-center justify-between mb-3 px-1 py-1.5">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
               {workflow.steps.length} steps
@@ -342,44 +317,34 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
               {workflow.lastExecutedAt ? new Date(workflow.lastExecutedAt).toLocaleDateString() : 'Never'}
             </span>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium">{Math.round(progressPercentage)}%</span>
+            <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
+              <motion.div 
+                className={cn(
+                  "h-full rounded-full",
+                  completedSteps.length === workflow.steps.length
+                    ? "bg-emerald-500 dark:bg-emerald-500"
+                    : "bg-primary"
+                )}
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercentage}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {completedSteps.length}/{workflow.steps.length}
+            </span>
+          </div>
         </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-1.5 h-8"
-            onClick={() => setIsAddingStep(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Step
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-1.5 h-8"
-            onClick={handleAutoRun}
-            disabled={executeWorkflow.isPending}
-          >
-            {executeWorkflow.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <CheckIcon className="h-3.5 w-3.5" />
-            )}
-            Execute Workflow
-          </Button>
-        </div>
-      </div>
-
-      {/* Main content container */}
-      <div className="flex-1 flex flex-col min-h-0">
 
         {/* Workflow Steps Container */}
         <div className="flex-1 bg-background border border-border rounded-xl overflow-hidden flex flex-col min-h-0">
           <div className="p-4 border-b border-border flex items-center justify-between bg-card">
             <h3 className="font-medium">Sequential Workflow</h3>
             <div className="flex items-center text-sm">
-              <span className="mr-2 text-muted-foreground">{Math.round(progressPercentage)}% Completed</span>
+              <span className="mr-2 text-muted-foreground">Completion Flow</span>
               <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                 <motion.div 
                   className="h-full bg-primary rounded-full"
@@ -481,7 +446,7 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
                             className={cn(
                               "relative w-full p-5 rounded-xl shadow-md transition-all duration-200 mt-4",
                               "bg-card border border-border",
-                              activeStep === step.id && `ring-2 ${getStepRingStyle(step.step_type)} ring-opacity-70`,
+                              activeStep === step.id && `ring-2 ${getStepRingStyle(step.type)} ring-opacity-70`,
                               isCompleted && "border-primary/30 dark:border-primary/30",
                               "cursor-pointer group z-10"
                             )}
@@ -507,7 +472,7 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
                                 zIndex: 30
                               }}
                             >
-                              {getStepIcon(step.step_type, isCompleted)}
+                              {getStepIcon(step.type, isCompleted)}
                             </motion.div>
                             
                             <div className="w-full pt-4">
@@ -516,25 +481,12 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
                                   "font-medium text-base text-card-foreground",
                                   isCompleted && "text-primary dark:text-primary"
                                 )}>{step.name}</h3>
-                                <div className="flex items-center gap-1">
-                                  <Badge variant="outline" className={cn(
-                                    "text-xs capitalize",
-                                    getStepBadgeStyles(step.step_type)
-                                  )}>
-                                    {step.step_type}
-                                  </Badge>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-xs"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingStep(step);
-                                    }}
-                                  >
-                                    Edit
-                                  </Button>
-                                </div>
+                                <Badge variant="outline" className={cn(
+                                  "text-xs capitalize",
+                                  getStepBadgeStyles(step.type)
+                                )}>
+                                  {step.type}
+                                </Badge>
                               </div>
                               <p className="text-sm text-muted-foreground mt-1.5">{step.description}</p>
                               
@@ -571,6 +523,24 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
                                       </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
+                                  
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button 
+                                          size="sm" 
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 text-muted-foreground"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>More actions</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </motion.div>
                               )}
                             </div>
@@ -585,21 +555,6 @@ function SequentialWorkflowDetail({ workflow, workflowId }: SequentialWorkflowDe
           </div>
         </div>
       </div>
-      {isAddingStep && (
-        <WorkflowStepForm
-          onClose={() => setIsAddingStep(false)}
-          onSubmit={handleAddNewStep}
-          isLoading={createStep.isPending || createTransition.isPending}
-        />
-      )}
-      {editingStep && (
-        <WorkflowStepEditForm
-          step={editingStep}
-          onClose={() => setEditingStep(null)}
-          onSubmit={handleUpdateStep}
-          isLoading={updateStep.isPending}
-        />
-      )}
     </div>
   );
 }

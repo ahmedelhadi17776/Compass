@@ -20,6 +20,10 @@ import { useWorkflows } from "@/components/workflow/hooks"
 import WorkflowForm from "./WorkflowForm"
 import { useCreateWorkflow } from "@/components/workflow/hooks"
 
+interface WorkflowProps {
+  darkMode?: boolean
+}
+
 const getStatusColor = (status: WorkflowStatus) => {
   switch (status) {
     case "active":
@@ -67,7 +71,7 @@ const getWorkflowTypeStyle = (type: WorkflowType) => {
   }
 }
 
-export default function WorkflowPage() {
+export default function WorkflowPage({ darkMode = false }: WorkflowProps) {
   const navigate = useNavigate();
   const [showWorkflowForm, setShowWorkflowForm] = useState(false);
 
@@ -120,12 +124,16 @@ export default function WorkflowPage() {
   const workflows = data || [];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6 h-full">
-      {/* Workflow Label */}
-      <p className="text-xs uppercase text-muted-foreground tracking-wider">workflow</p>
-      <div className="flex justify-start">
-          <h1 className="text-2xl font-bold tracking-tight leading-none">Workflow Automation</h1>
-        <div className="ml-auto">
+    <div className={cn("h-full flex flex-col p-4", darkMode ? "bg-gray-900 text-white" : "bg-background text-foreground")}>
+      
+      {/* Header on the left */}
+      <div className="flex justify-between items-center mt-4 mb-6 mx-4">
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-semibold">Workflows</h2>
+        </div>
+      
+        {/* Header on the right */}
+        <div className="flex items-center gap-2">
           <Button 
             variant="outline" 
             size="sm" 
@@ -139,7 +147,7 @@ export default function WorkflowPage() {
       </div>
 
       {/* Workflow Cards */}
-      <div className="space-y-4">
+      <div className="space-y-4 mx-4">
         {workflows.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
             No workflows found. Create a new workflow to get started.
