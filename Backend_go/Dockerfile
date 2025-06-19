@@ -26,18 +26,20 @@ FROM alpine:3.19
 # Add security updates and basic tools
 RUN apk --no-cache add ca-certificates tzdata curl && \
     update-ca-certificates && \
-    adduser -D -g '' appuser && \
-    mkdir -p /app/config /app/certs && \
-    chown -R appuser:appuser /app
+    adduser -D -g '' appuser
 
 WORKDIR /app
 
-# Copy binary and config
-COPY --from=builder /build/main .
-COPY --from=builder /build/pkg/config/config.docker.yaml /app/config/config.yaml
+# Create directories and set ownership before copying anything in
+RUN mkdir -p /app/config /app/certs && \
+    chown -R appuser:appuser /app
 
-# Set permissions
-RUN chown -R appuser:appuser /app && \
+# Copy binary and config with correct ownership
+COPY --from=builder --chown=appuser:appuser /build/main .
+COPY --from=builder --chown=appuser:appuser /build/pkg/config/config.docker.yaml /app/config/config.yaml
+
+# Set permissions for execution and config read
+RUN chmod 755 /app/main && \
     chmod -R 755 /app/config && \
     chmod -R 755 /app/certs
 

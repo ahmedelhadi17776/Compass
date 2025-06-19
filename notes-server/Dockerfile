@@ -19,16 +19,16 @@ WORKDIR /app
 # Create a non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy dependencies from the builder stage
-COPY --from=builder /app/node_modules ./node_modules
-# Copy application code
-COPY . .
-
-# Set correct permissions
+# Set ownership of the app directory before copying files
 RUN chown -R appuser:appgroup /app
 
 # Switch to the non-root user
 USER appuser
+
+# Copy dependencies from the builder stage
+COPY --from=builder /app/node_modules ./node_modules
+# Copy application code from builder stage, ensuring correct ownership
+COPY --from=builder --chown=appuser:appgroup /app .
 
 EXPOSE 5000
 
