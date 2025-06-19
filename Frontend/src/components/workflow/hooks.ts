@@ -3,7 +3,6 @@ import * as workflowApi from '@/components/workflow/api';
 import { 
   CreateWorkflowRequest, 
   UpdateWorkflowRequest, 
-  WorkflowListItem, 
   WorkflowStepRequest, 
   WorkflowTransitionRequest,
   WorkflowStep,
@@ -34,8 +33,6 @@ export const useWorkflows = () => {
 
 // Workflow Detail Hook with Steps
 export const useWorkflowDetail = (id: string) => {
-  const queryClient = useQueryClient();
-
   // First fetch the workflow details
   const workflowQuery = useQuery({
     queryKey: workflowKeys.detail(id),
@@ -122,7 +119,6 @@ export const useExecuteWorkflow = (workflowId: string) => {
     mutationFn: () => workflowApi.executeWorkflow(workflowId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
-      queryClient.invalidateQueries({ queryKey: workflowKeys.steps(workflowId) });
     },
   });
 };
@@ -163,14 +159,8 @@ export const useWorkflowSteps = (workflowId: string) => {
 };
 
 export const useCreateWorkflowStep = (workflowId: string) => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (step: WorkflowStepRequest) => workflowApi.createStep(workflowId, step),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.steps(workflowId) });
-      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
-    },
   });
 };
 
@@ -185,7 +175,6 @@ export const useUpdateWorkflowStep = (workflowId: string) => {
   >({
     mutationFn: ({ stepId, step }) => workflowApi.updateStep(workflowId, stepId, step),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.steps(workflowId) });
       queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
     },
   });
@@ -197,7 +186,6 @@ export const useDeleteWorkflowStep = (workflowId: string) => {
   return useMutation({
     mutationFn: (stepId: string) => workflowApi.deleteStep(workflowId, stepId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.steps(workflowId) });
       queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
     },
   });
@@ -209,7 +197,6 @@ export const useExecuteWorkflowStep = (workflowId: string) => {
   return useMutation<WorkflowExecutionResponse, Error, string>({
     mutationFn: (stepId: string) => workflowApi.executeStep(workflowId, stepId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.steps(workflowId) });
       queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
     },
   });
@@ -225,15 +212,9 @@ export const useWorkflowTransitions = (workflowId: string) => {
 };
 
 export const useCreateWorkflowTransition = (workflowId: string) => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (transition: WorkflowTransitionRequest) => 
       workflowApi.createTransition(workflowId, transition),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.transitions(workflowId) });
-      queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
-    },
   });
 };
 
