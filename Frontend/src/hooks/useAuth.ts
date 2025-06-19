@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import React from 'react';
 import authApi, { User, LoginCredentials, AuthResponse, MFASetupResponse, MFAStatusResponse } from '@/api/auth';
+import axios from 'axios';
 
 // Re-export types for convenience
 export type { User, LoginCredentials, AuthResponse, MFASetupResponse, MFAStatusResponse };
@@ -10,6 +11,15 @@ export type { User, LoginCredentials, AuthResponse, MFASetupResponse, MFAStatusR
 export function useAuth() {
   const queryClient = useQueryClient();
   const [token, setToken] = React.useState<string | null>(localStorage.getItem('token'));
+
+  // Set up axios defaults when token changes
+  React.useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
 
   // Query for current user
   const { data: user, isLoading: isLoadingUser } = useQuery({
