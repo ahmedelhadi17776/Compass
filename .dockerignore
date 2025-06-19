@@ -26,7 +26,6 @@ Frontend/coverage/
 
 # Misc
 *.stackdump
-certs/
 k8s/
 prometheus/
 mcp_py/
