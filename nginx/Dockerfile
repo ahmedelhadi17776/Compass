@@ -21,6 +21,9 @@ FROM nginx:1.25-alpine
 # Copy the Nginx configuration
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
 # Copy the built frontend assets from the builder stage
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 

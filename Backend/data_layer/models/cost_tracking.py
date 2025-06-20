@@ -33,7 +33,7 @@ class CostTrackingEntry(MongoBaseModel):
         json_encoders = {
             datetime: lambda dt: dt.isoformat()
         }
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "model_id": "model123",
                 "user_id": "user123",

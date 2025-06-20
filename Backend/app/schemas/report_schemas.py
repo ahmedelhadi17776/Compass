@@ -81,7 +81,8 @@ class ReportResponse(BaseModel):
 
     class Config:
         """Pydantic config."""
-        orm_mode = True
+        from_attributes = True
+        use_enum_values = True
 
 
 class ReportProgressUpdate(BaseModel):
@@ -107,3 +108,7 @@ class ReportTypeInfo(BaseModel):
     type: str = Field(..., description="Report type identifier")
     name: str = Field(..., description="Report type display name")
     description: str = Field(..., description="Report type description")
+
+
+class ReportGenerateRequest(BaseModel):
+    report_id: str

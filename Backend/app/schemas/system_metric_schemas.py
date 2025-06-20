@@ -19,8 +19,15 @@ class SystemMetricResponse(SystemMetricBase):
     user_id: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SystemMetricListResponse(BaseModel):
     metrics: List[SystemMetricResponse]
+
+
+class SystemMetricFilter(BaseModel):
+    user_id: str
+    metric_type: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None

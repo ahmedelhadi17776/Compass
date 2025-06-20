@@ -1,3 +1,7 @@
+import asyncio
+import sys
+import os
+import codecs
 from data_layer.cache.dashboard_cache import DashboardCache
 from data_layer.mongodb.lifecycle import mongodb_lifespan
 from data_layer.mongodb.connection import get_mongodb_client
@@ -17,7 +21,6 @@ from typing import Dict, Any, Optional, AsyncGenerator
 import logging
 import json
 import asyncio
-import os
 import sys
 import codecs
 import datetime
@@ -109,7 +112,13 @@ for handler in root_logger.handlers[:]:
 # Add new safe handlers
 console_handler = EncodingSafeHandler(sys.stdout)
 console_handler.setFormatter(formatter)
-file_handler = logging.FileHandler('compass.log', encoding='utf-8')
+
+# Ensure the log directory exists
+log_dir = "/app/writable/logs"
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "compass.log")
+
+file_handler = logging.FileHandler(log_file, encoding='utf-8')
 file_handler.setFormatter(formatter)
 
 logging.basicConfig(
@@ -205,8 +214,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
         # Pre-load sentence transformer model
         logger.info("Pre-loading sentence transformer model...")
         try:
+            import os
             from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('all-MiniLM-L6-v2')
+            # Define a writable cache path inside the container.
+            cache_path = "/app/cache/sentence-transformers"
+            os.makedirs(cache_path, exist_ok=True)
+
+            model = SentenceTransformer(
+                'all-MiniLM-L6-v2', cache_folder=cache_path)
             app.state.sentence_transformer = model
             logger.info("✅ Sentence transformer model loaded successfully")
         except Exception as e:
@@ -385,7 +400,7 @@ async def init_mcp_server():
             # Set up MCP client
             from mcp_py.client import MCPClient
             client = MCPClient()
-            await client.connect_to_server(server_script)
+            client.connect_to_server(server_script)
 
             # Store the client in global state for other components to use
             set_mcp_client(client)
@@ -403,7 +418,7 @@ async def init_mcp_server():
             # Set up MCP client
             from mcp_py.client import MCPClient
             client = MCPClient()
-            await client.connect_to_server(server_script)
+            client.connect_to_server(server_script)
 
             # Store the client in global state for other components to use
             set_mcp_client(client)
