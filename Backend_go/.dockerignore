@@ -1,8 +1,31 @@
-# Git and IDE files
+# Git
 .git/
 .gitignore
+
+# IDE files
 .vscode/
 .idea/
+
+# OS-specific
+.DS_Store
+*.swp
+*~
+*.stackdump
+
+# Go build artifacts & local directories
+*.exe
+*.out
+*.so
+*.a
+/main
+/build/
+/vendor/
+/certs/
+/data/
+/k8s/
+
+# Log files
+*.log
 
 # Ignore documentation
 *.md
@@ -15,15 +38,6 @@
 .env.*
 !/.env.example
 
-# Avoid including build artifacts from local machine
-main
-*.exe
 *.test
 
-# Go build cache
-/build/
-*.out 
-
 /scripts/
-
-/k8s/

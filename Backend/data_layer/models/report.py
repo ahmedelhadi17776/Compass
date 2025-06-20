@@ -67,7 +67,7 @@ class Report(MongoBaseModel):
         json_encoders = {
             datetime: lambda dt: dt.isoformat()
         }
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "title": "Weekly Productivity Report",
                 "user_id": "user123",
