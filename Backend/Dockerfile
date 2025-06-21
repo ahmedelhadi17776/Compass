@@ -25,8 +25,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 2. Production stage
 FROM python:3.11.9-slim-bookworm AS production
 
-# Apply security updates from the base image before proceeding
-RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
+# Apply security updates from the base image and install curl for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

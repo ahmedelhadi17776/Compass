@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi import FastAPI, Request, Depends, Cookie, HTTPException
+from fastapi import FastAPI, Request, Depends, Cookie, HTTPException, APIRouter
 from typing import Dict, Any, Optional, AsyncGenerator
 import logging
 import json
@@ -32,6 +32,10 @@ from api.cost_tracking_routes import router as cost_tracking_router
 from api.dashboard_routes import dashboard_router
 from api.report_routes import router as report_router
 from api.websocket import report_ws
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import WebSocket manager if available
 try:
@@ -291,6 +295,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
         yield
     finally:
         logger.info("Shutting down application...")
+
+        # Gracefully shutdown application resources before closing connections
+        await lifecycle.shutdown()
+
         if settings.mcp_enabled:
             await cleanup_mcp()
 
@@ -306,7 +314,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
             logger.error(f"Error closing connections: {str(e)}")
 
         logger.info("All resources cleaned up")
-        await lifecycle.shutdown()
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -325,7 +332,17 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# Health check router for the /api/v1 prefix
+health_router = APIRouter()
+
+
+@health_router.get("/health")
+async def prefixed_health_check():
+    return await health_check()
+
+
 # Include routers
+app.include_router(health_router, prefix="/api/v1")
 app.include_router(ai_router, prefix="/api/v1", tags=["AI"])
 app.include_router(focus_router, prefix="/api/v1", tags=["Focus"])
 app.include_router(goal_router, prefix="/api/v1", tags=["Goals"])
@@ -395,12 +412,13 @@ async def init_mcp_server():
             set_mcp_process(process)
 
             # Give the server a moment to start
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
             # Set up MCP client
             from mcp_py.client import MCPClient
             client = MCPClient()
-            client.connect_to_server(server_script)
+            # This call needs to be awaited even on windows
+            await client.connect_to_server(server_script)
 
             # Store the client in global state for other components to use
             set_mcp_client(client)
@@ -415,10 +433,13 @@ async def init_mcp_server():
 
             set_mcp_process(process)
 
+            # Give the server a moment to start
+            await asyncio.sleep(2)
+
             # Set up MCP client
             from mcp_py.client import MCPClient
             client = MCPClient()
-            client.connect_to_server(server_script)
+            await client.connect_to_server(server_script)
 
             # Store the client in global state for other components to use
             set_mcp_client(client)

@@ -30,16 +30,21 @@ COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 # Copy SSL certificates
 COPY certs /etc/nginx/certs
 
-# Create a directory for Nginx to store its PID file and ensure it's owned by the nginx user.
-# Nginx automatically handles log file permissions when run as a non-root user.
+# Create directories for PID and logs, and set permissions
 RUN mkdir -p /var/run/nginx && \
+    mkdir -p /var/log/nginx && \
+    mkdir -p /var/cache/nginx && \
     chown -R nginx:nginx /var/run/nginx && \
-    chown -R nginx:nginx /var/cache/nginx
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /usr/share/nginx/html
 
-# Switch to the non-root user for security
-USER nginx
+# Test the nginx configuration
+RUN nginx -t
+
 
 EXPOSE 80
 EXPOSE 443
 
-CMD ["nginx", "-g", "daemon off;"] 
+# Start nginx with explicit configuration file
+CMD ["nginx", "-g", "daemon off;", "-c", "/etc/nginx/nginx.conf"] 
