@@ -28,17 +28,28 @@ const config = {
     expiryHours: parseInt(process.env.JWT_EXPIRY_HOURS) || 24,
   },
   cors: {
-    origin: (origin, callback) => {
-      const whitelist = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['https://localhost:3000', 'http://localhost:8080', 'http://localhost:8001'];
-      if (whitelist.indexOf(origin) !== -1 || !origin) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'X-Organization-ID',
+      'x-organization-id',
+      'X-User-Id',
+      'Cache-Control',
+      'Pragma'
+    ],
+    exposedHeaders: [
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Content-Length',
+      'Content-Type'
+    ],
+    maxAge: 86400
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
