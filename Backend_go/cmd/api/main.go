@@ -129,7 +129,7 @@ func main() {
 		c.Next()
 	})
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORS.AllowedOrigins,
+		AllowAllOrigins:  true,
 		AllowMethods: cfg.CORS.AllowedMethods,
 		AllowHeaders: append(cfg.CORS.AllowedHeaders,
 			"Accept-Encoding",
@@ -138,6 +138,8 @@ func main() {
 			"Authorization",
 			"X-Organization-ID",
 			"x-organization-id",
+			"X-Forwarded-For",
+			"X-Real-IP",
 		),
 		ExposeHeaders: []string{
 			"Content-Length",

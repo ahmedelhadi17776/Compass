@@ -88,7 +88,7 @@ class Settings(BaseSettings):
 
     # API Settings
     api_v1_prefix: str = "/api/v1"
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8080"]
 
     # Logging Settings
     log_level: str = "INFO"
