@@ -19,6 +19,12 @@ RUN pip install --upgrade pip wheel
 # Install PyTorch first from the official CPU-only wheel index.
 RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
+# Install system dependencies needed for some Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install the rest of the requirements.
 RUN pip install --no-cache-dir -r requirements.txt
 

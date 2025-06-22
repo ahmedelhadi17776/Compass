@@ -3,6 +3,7 @@ import { createReport, getReport } from "./api";
 import { CreateReportPayload, ReportGenerationUpdate, Report } from "./types";
 import { User } from '@/api/auth';
 import { useEffect, useState, useRef } from "react";
+import { getApiUrls } from "@/config";
 
 export const useCreateReport = (user: User | undefined) => {
     const queryClient = useQueryClient();
@@ -41,7 +42,11 @@ export const useReportGeneration = (reportId: string | null) => {
             return;
         }
 
-        const wsUrl = `ws://localhost:8001/api/v1/ws/reports/${reportId}?token=${token}`;
+        const { WS_PYTHON_URL } = getApiUrls();
+        // Convert to WebSocket URL properly
+        const wsUrl = `${WS_PYTHON_URL.replace(/^http/, 'ws')}/api/v1/ws/reports/${reportId}?token=${token}`;
+        
+        console.log('Connecting to AI Reports WebSocket:', wsUrl);
         socketRef.current = new WebSocket(wsUrl);
 
         socketRef.current.onopen = () => {

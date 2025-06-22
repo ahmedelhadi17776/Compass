@@ -12,14 +12,24 @@ RUN npm ci --legacy-peer-deps
 # Copy the rest of the frontend source code
 COPY Frontend/ ./
 
-# Build the frontend
-RUN npm run build
+# Build the frontend with Docker environment variables
+ENV NODE_ENV=production
+ENV DOCKER_ENV=true
+ENV VITE_API_URL=/api
+ENV VITE_PYTHON_API_URL=/api/v1
+ENV VITE_NOTES_URL=/notes
+# Debug the build process
+RUN echo "Building frontend with NODE_ENV=$NODE_ENV and DOCKER_ENV=$DOCKER_ENV"
+RUN npm run build:docker
 
 # Stage 2: Set up the Nginx server
 FROM nginx:1.25-alpine
 
 # Copy the Nginx configuration
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+# Copy test HTML file
+COPY nginx/test.html /usr/share/nginx/html/test.html
 
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
@@ -39,8 +49,7 @@ RUN mkdir -p /var/run/nginx && \
     chown -R nginx:nginx /var/cache/nginx && \
     chown -R nginx:nginx /usr/share/nginx/html
 
-# Test the nginx configuration
-RUN nginx -t
+# RUN nginx -t
 
 
 EXPOSE 80

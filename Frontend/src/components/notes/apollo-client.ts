@@ -3,9 +3,22 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { Observable } from 'rxjs';
+import { getApiUrls } from '@/config';
+
+// Get the URLs using the configuration system
+const { NOTES_API_URL, WS_NOTES_URL } = getApiUrls();
+
+// Construct WebSocket URL properly
+const wsUrl = `${WS_NOTES_URL.replace(/^http/, 'ws')}/graphql`;
+
+console.log('Apollo Client URLs:', {
+  NOTES_API_URL,
+  WS_NOTES_URL,
+  constructedWsUrl: wsUrl
+});
 
 const wsLink = new GraphQLWsLink(createClient({
-  url: 'ws://localhost:5000/notes/graphql',
+  url: wsUrl,
   connectionParams: () => {
     const token = localStorage.getItem('token');
     return token ? {
@@ -33,7 +46,7 @@ const authMiddleware = new ApolloLink((operation, forward) => {
 });
 
 const httpLink = new HttpLink({
-  uri: 'http://localhost:5000/notes/graphql'
+  uri: `${NOTES_API_URL}/graphql`
 });
 
 const splitLink = split(

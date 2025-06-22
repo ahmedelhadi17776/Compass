@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { Todo, TodosResponse, TodoList, TodoListsResponse, CreateTodoListInput, UpdateTodoListInput } from './types-todo';
 import { Habit } from './types-habit';
-import { GO_API_URL } from '@/config';
+import { getApiUrls } from '@/config';
 
+const { GO_API_URL } = getApiUrls();
 const API_BASE_URL = `${GO_API_URL}`;
 
 // Configure axios defaults

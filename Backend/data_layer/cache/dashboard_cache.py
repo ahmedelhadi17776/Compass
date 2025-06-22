@@ -135,11 +135,11 @@ class DashboardEvent:
 
 class DashboardCache:
     def __init__(self):
-        self.go_backend_url = f"http://localhost:8000"
+        self.go_backend_url = settings.GO_BACKEND_URL
         self.redis_client = redis_client
         self.pubsub_manager = PubSubManager()
         self.is_subscribed = False
-        self.notes_server_url = f"http://localhost:5000"
+        self.notes_server_url = settings.NOTES_SERVER_URL
         self.session = None
         self.subscriber_task = None
         # Store reference to WebSocket manager if available

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getApiUrls } from '@/config';
 
 interface Notification {
   id: string;
@@ -15,98 +16,112 @@ export const useWebSocket = (token: string | null) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
+  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
+  const connect = () => {
     if (!token) return;
 
-    const connect = () => {
-      ws.current = new WebSocket(`ws://localhost:8000/api/notifications/ws?token=${token}`);
+    const { WS_GO_URL } = getApiUrls();
+    // Construct WebSocket URL for notifications
+    const wsUrl = `${WS_GO_URL.replace(/^http/, 'ws')}/api/notifications/ws?token=${token}`;
+    
+    console.log('Connecting to WebSocket:', wsUrl);
+    
+    try {
+      ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
+        console.log('WebSocket connected');
         setIsConnected(true);
-        console.log('WebSocket Connected');
+        // Clear any existing reconnect timeout
+        if (reconnectTimeout.current) {
+          clearTimeout(reconnectTimeout.current);
+          reconnectTimeout.current = null;
+        }
       };
 
       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
           
-          // Handle count message type
-          if (data.type === 'count') {
-            console.log(`You have ${data.count} unread notifications`);
-            return;
-          }
-          
-          // Only process valid notifications with an ID
-          if (data.id) {
-            // Normalize the notification format
+          if (data.type === 'notification') {
             const notification: Notification = {
               id: data.id,
-              title: data.title || 'Notification',
-              message: data.message || data.content || '', // Handle both formats
+              title: data.title,
+              message: data.message || data.content, // Handle both formats
+              content: data.content,
               type: data.type || 'info',
+              status: data.status,
               createdAt: data.createdAt || new Date().toISOString(),
-              read: data.status === 'read' || false
+              read: false
             };
             
-            setNotifications((prev) => {
-              // Check if notification already exists to avoid duplicates
-              const exists = prev.some(n => n.id === notification.id);
-              if (exists) {
-                return prev;
-              }
-              return [notification, ...prev];
-            });
+            setNotifications(prev => [notification, ...prev]);
           }
-        } catch (err) {
-          console.error('Error parsing notification:', err);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
       ws.current.onclose = () => {
+        console.log('WebSocket disconnected');
         setIsConnected(false);
-        // Attempt to reconnect after 5 seconds
-        setTimeout(connect, 5000);
+        // Only attempt to reconnect if we have a token and no existing timeout
+        if (token && !reconnectTimeout.current) {
+          console.log('WebSocket disconnected, attempting to reconnect...');
+          reconnectTimeout.current = setTimeout(() => {
+            reconnectTimeout.current = null;
+            connect();
+          }, 3000);
+        }
       };
 
       ws.current.onerror = (error) => {
         console.error('WebSocket error:', error);
-        ws.current?.close();
+        setIsConnected(false);
       };
-    };
 
-    connect();
+    } catch (error) {
+      console.error('Error creating WebSocket:', error);
+      setIsConnected(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      connect();
+    }
 
     return () => {
-      ws.current?.close();
+      if (reconnectTimeout.current) {
+        clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = null;
+      }
+      if (ws.current) {
+        ws.current.close();
+      }
     };
   }, [token]);
 
   const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(notification =>
-        notification.id === id ? { ...notification, read: true } : notification
+    setNotifications(prev => 
+      prev.map(notif => 
+        notif.id === id ? { ...notif, read: true } : notif
       )
     );
     
-    // Send command to server to mark as read
+    // Optionally send to server
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
-        command: 'mark_read',
+        type: 'mark_read',
         id: id
       }));
     }
   };
 
   const clearNotifications = () => {
-    setNotifications(prev => prev.map(notification => ({ ...notification, read: true })));
-    
-    // Send command to server to mark all as read
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({
-        command: 'mark_all_read'
-      }));
-    }
+    setNotifications([]);
   };
 
   return {

@@ -1,5 +1,8 @@
 import axios from 'axios';
-import { PYTHON_API_URL } from '@/config';
+import { getApiUrls } from '@/config';
+
+// Get API URLs using the configuration system
+const { PYTHON_API_URL } = getApiUrls();
 
 // Types
 export interface LLMRequest {
@@ -66,7 +69,7 @@ export const llmService = {
     
     try {
       await axios.post(
-        `${PYTHON_API_URL}/clear-session`,
+        `${PYTHON_API_URL}/ai/clear-session`,
         { session_id: sessionId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -92,13 +95,13 @@ export const llmService = {
     const sessionId = getOrCreateSessionId();
 
     try {
-      console.log('Connecting to SSE endpoint:', `${PYTHON_API_URL}/process/stream`);
+      console.log('Connecting to SSE endpoint:', `${PYTHON_API_URL}/ai/process/stream`);
       console.log('With session ID:', sessionId);
       console.log('Auth token available:', !!token);
       console.log('Auth token preview:', token.substring(0, 10) + '...');
       
       // Set up fetch with proper headers for SSE
-      const response = await fetch(`${PYTHON_API_URL}/process/stream`, {
+      const response = await fetch(`${PYTHON_API_URL}/ai/process/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

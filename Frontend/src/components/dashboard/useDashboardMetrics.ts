@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useWebSocket, QUERY_KEYS, DashboardMetrics } from "@/contexts/websocket-provider";
-
-const API_BASE_URL = "http://localhost:8001/api/v1";
+import { getApiUrls } from "@/config";
 
 const fetchDashboardMetrics = async (): Promise<DashboardMetrics> => {
   const token = localStorage.getItem("token");
@@ -10,8 +9,10 @@ const fetchDashboardMetrics = async (): Promise<DashboardMetrics> => {
     throw new Error("No authentication token found");
   }
 
+  const { PYTHON_API_URL } = getApiUrls();
+
   try {
-    const response = await fetch(`${API_BASE_URL}/dashboard/metrics`, {
+    const response = await fetch(`${PYTHON_API_URL}/dashboard/metrics`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${token}`,

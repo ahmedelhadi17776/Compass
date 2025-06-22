@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useDashboardMetrics } from "@/components/dashboard/useDashboardMetrics";
 import { useWebSocket } from "@/contexts/websocket-provider";
+import { getApiUrls } from "@/config";
 
 export interface FocusSettings {
   daily_target_seconds: number;
@@ -141,7 +142,8 @@ export const useFocusSettings = () => {
         throw new Error("No authentication token found");
       }
       
-      const response = await fetch("http://localhost:8001/api/v1/focus/settings", {
+      const { PYTHON_API_URL } = getApiUrls();
+      const response = await fetch(`${PYTHON_API_URL}/focus/settings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

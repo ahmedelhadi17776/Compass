@@ -98,14 +98,13 @@ async def mcp_diagnostic():
 
 # Define multiple backend URLs to try for Docker/non-Docker environments
 GO_BACKEND_URLS = [
-    "http://localhost:8000",
-    "http://api:8000",
-    "http://backend_go-api-1:8000"
-
+    settings.GO_BACKEND_URL,  # Use settings for primary URL
+    "http://api:8000",         # Docker service name
+    "http://localhost:8000"    # Fallback for local development
 ]
 
-# Start with the first URL, will try others if this fails
-GO_BACKEND_URL = GO_BACKEND_URLS[0]
+# Start with the primary URL from settings
+GO_BACKEND_URL = settings.GO_BACKEND_URL
 logger.info(f"Primary backend URL: {GO_BACKEND_URL}")
 logger.info(f"Available backend URLs: {GO_BACKEND_URLS}")
 HEADERS = {"Content-Type": "application/json"}
@@ -1171,7 +1170,7 @@ async def get_notes(
         # Execute GraphQL query
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/notes/graphql",
+                f"{settings.NOTES_SERVER_URL}/graphql",
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": auth_token
@@ -1274,7 +1273,7 @@ async def create_note(
         # Execute GraphQL mutation
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/notes/graphql",
+                f"{settings.NOTES_SERVER_URL}/graphql",
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": auth_token
@@ -1357,7 +1356,7 @@ async def rewrite_in_style(
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    "http://localhost:5000/notes/graphql",
+                    f"{settings.NOTES_SERVER_URL}/graphql",
                     headers={
                         "Content-Type": "application/json",
                         "Authorization": auth_token
