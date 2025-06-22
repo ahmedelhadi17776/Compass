@@ -326,10 +326,23 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=settings.cors_origins,  # Use dynamic CORS origins from settings
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE",
+                   "OPTIONS", "PATCH"],  # Specify allowed methods
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "X-Organization-ID",
+        "x-organization-id",
+        "Accept",
+        "Origin",
+        "Accept-Encoding",
+        "Content-Encoding",
+        "Cache-Control",
+        "Pragma"
+    ],
 )
 
 # Health check router for the /api/v1 prefix

@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import ReconnectingWebSocket from "reconnecting-websocket";
+import { getApiUrls } from "@/config";
 
 // Define query keys for different features
 export const QUERY_KEYS = {
@@ -433,9 +434,13 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const url = `ws://localhost:8001/api/v1/dashboard/ws?token=${encodeURIComponent(
+    const { WS_PYTHON_URL } = getApiUrls();
+    // Construct proper WebSocket URL - WS_PYTHON_URL already includes protocol
+    const url = `${WS_PYTHON_URL}/api/v1/dashboard/ws?token=${encodeURIComponent(
       token
     )}`;
+
+    console.log("Connecting to Dashboard WebSocket:", url);
 
     const ws = new ReconnectingWebSocket(url, [], {
       connectionTimeout: 3000,

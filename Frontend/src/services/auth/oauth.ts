@@ -1,5 +1,8 @@
 import axios from 'axios';
-import { GO_API_URL } from '@/config';
+import { getApiUrls } from '@/config';
+
+// Get API URLs using the configuration system
+const { GO_API_URL } = getApiUrls();
 
 export interface OAuthProvider {
   name: string;

@@ -33,6 +33,10 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy application code from builder stage, ensuring correct ownership
 COPY --from=builder --chown=appuser:appgroup /app .
 
+# Set environment variables for production
+ENV NODE_ENV=production
+ENV DOCKER_ENV=true
+
 EXPOSE 5000
 
 # Start the server

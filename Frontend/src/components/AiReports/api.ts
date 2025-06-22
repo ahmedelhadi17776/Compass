@@ -1,10 +1,10 @@
 import axios from "axios";
 import { CreateReportPayload, CreateReportResponse, Report } from "./types";
-
-const API_BASE_URL = "http://localhost:8001/api/v1";
+import { getApiUrls } from "@/config";
 
 export const createReport = async (payload: CreateReportPayload): Promise<CreateReportResponse> => {
-    const response = await axios.post(`${API_BASE_URL}/reports`, payload, {
+    const { PYTHON_API_URL } = getApiUrls();
+    const response = await axios.post(`${PYTHON_API_URL}/reports`, payload, {
         headers: {
             'X-Organization-ID': undefined
         }
@@ -13,7 +13,8 @@ export const createReport = async (payload: CreateReportPayload): Promise<Create
 };
 
 export const getReport = async (reportId: string): Promise<Report> => {
-    const response = await axios.get<Report>(`${API_BASE_URL}/reports/${reportId}`, {
+    const { PYTHON_API_URL } = getApiUrls();
+    const response = await axios.get<Report>(`${PYTHON_API_URL}/reports/${reportId}`, {
         headers: {
             'X-Organization-ID': undefined
         }

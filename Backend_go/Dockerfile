@@ -16,7 +16,7 @@ COPY . .
 
 # Build the application with security flags and optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.version=${VERSION} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -ldflags="-w -s -X main.version=docker-build -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
     -o main ./cmd/api
 

@@ -42,7 +42,7 @@ const initializeServer = async () => {
 
     // Routes
     app.use('/health', healthRoutes);
-    app.use('/notes/graphql', graphqlRoutes);
+    app.use('/graphql', graphqlRoutes);
     app.use('/api/dashboard', dashboardRoutes);
 
     // Initialize dashboard subscriber
@@ -67,36 +67,61 @@ const initializeServer = async () => {
 
     const PORT = process.env.PORT || 5000;
 
-    // Start server
-    server = app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
-    });
+    // Create HTTP server
+    const httpServer = createServer(app);
 
     // Set up WebSocket server for GraphQL subscriptions
-    const httpServer = server;
     wsServer = new WebSocketServer({
       server: httpServer,
-      path: '/notes/graphql',
+      path: '/graphql',
     });
+
     wsCleanup = useServer({
       schema,
       context: async (ctx, msg, args) => {
-        // Reuse context from Express if needed, e.g., for auth
-        return { user: ctx.extra.request.user };
+        // Extract token from connection params or query parameters
+        const token = ctx.connectionParams?.Authorization || 
+                     ctx.extra?.request?.headers?.authorization ||
+                     new URLSearchParams(ctx.extra?.request?.url?.split('?')[1] || '').get('token');
+        
+        return { 
+          token,
+          user: ctx.extra.request.user // Will be set by auth middleware if available
+        };
       },
       onConnect: async (ctx) => {
-        logger.info('WebSocket client connected');
+        logger.info('WebSocket GraphQL client connected');
+        return true;
       },
       onDisconnect: async (ctx, code, reason) => {
-        logger.info('WebSocket client disconnected');
+        logger.info('WebSocket GraphQL client disconnected', { code, reason });
+      },
+      onError: (ctx, msg, errors) => {
+        logger.error('GraphQL WebSocket error', { errors });
       }
     }, wsServer);
 
+    // Start server
+    server = httpServer.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`);
+      logger.info(`GraphQL endpoint: http://localhost:${PORT}/graphql`);
+      logger.info(`GraphQL WebSocket: ws://localhost:${PORT}/graphql`);
+    });
+
     // Setup shutdown handlers
     setupShutdownHandlers(server, redisClient);
+    
     // Add WebSocket server cleanup on shutdown
-    process.on('SIGTERM', async () => { if (wsCleanup) await wsCleanup.dispose(); });
-    process.on('SIGINT', async () => { if (wsCleanup) await wsCleanup.dispose(); });
+    const cleanup = async (signal) => {
+      logger.info(`Received ${signal}, starting graceful shutdown...`);
+      if (wsCleanup) {
+        await wsCleanup.dispose();
+        logger.info('WebSocket server cleaned up');
+      }
+    };
+    
+    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', cleanup);
 
   } catch (error) {
     logger.error('Failed to initialize server', {
