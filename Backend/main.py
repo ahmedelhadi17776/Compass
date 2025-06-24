@@ -221,9 +221,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
             import os
             from sentence_transformers import SentenceTransformer
             # Define a writable cache path inside the container.
-            cache_path = "/app/cache/sentence-transformers"
+            cache_path = os.environ.get(
+                "SENTENCE_TRANSFORMERS_HOME", "/app/cache/sentence-transformers")
             os.makedirs(cache_path, exist_ok=True)
 
+            logger.info(f"Using sentence transformer cache path: {cache_path}")
             model = SentenceTransformer(
                 'all-MiniLM-L6-v2', cache_folder=cache_path)
             app.state.sentence_transformer = model
@@ -276,13 +278,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
         from data_layer.mongodb.connection import get_mongodb_client, get_async_mongodb_client
         from data_layer.mongodb.lifecycle import init_collections
 
-        # Initialize clients
-        get_mongodb_client()
-        get_async_mongodb_client()
-
-        # Initialize collections
-        await init_collections()
-        logger.info("MongoDB connection initialized")
+        # Initialize clients with graceful degradation
+        try:
+            mongo_client = get_mongodb_client()
+            if mongo_client:
+                get_async_mongodb_client()
+                # Initialize collections
+                await init_collections()
+                logger.info("✅ MongoDB connection initialized successfully")
+            else:
+                logger.warning(
+                    "⚠️ MongoDB connection failed - continuing without MongoDB")
+        except Exception as mongo_error:
+            logger.error(
+                f"❌ MongoDB initialization failed: {str(mongo_error)}")
+            logger.warning(
+                "⚠️ Application will continue without MongoDB support")
 
         if settings.mcp_enabled:
             await init_mcp_server()
@@ -520,9 +531,12 @@ async def health_check():
     try:
         # Check MongoDB connection
         client = get_mongodb_client()
-        db = client.admin
-        server_info = db.command("ping")
-        mongodb_ok = server_info.get("ok") == 1.0
+        if client:
+            db = client.admin
+            server_info = db.command("ping")
+            mongodb_ok = server_info.get("ok") == 1.0
+        else:
+            mongodb_ok = False
     except Exception as e:
         logger.error(f"MongoDB health check error: {str(e)}")
         mongodb_ok = False

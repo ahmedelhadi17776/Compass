@@ -201,7 +201,7 @@ class BaseAgent:
             }
 
     async def _get_mcp_client(self):
-        """Get MCP client, with lazy initialization."""
+        """Get MCP client, with lazy initialization and health check."""
         if self.mcp_client is None:
             async with self._init_lock:
                 if self.mcp_client is None:
@@ -209,8 +209,25 @@ class BaseAgent:
                         "Fetching MCP client from global state for agent")
                     self.mcp_client = get_mcp_client()
                     if self.mcp_client is None:
-                        self.logger.warning(
+                        self.logger.error(
                             "MCP client not available in global state for agent")
+                        return None
+
+                    # Test the MCP client connection
+                    try:
+                        test_tools = await self.mcp_client.get_tools()
+                        if not test_tools:
+                            self.logger.warning(
+                                "MCP client connected but no tools available")
+                            return None
+                        self.logger.info(
+                            f"MCP client validated with {len(test_tools)} tools available")
+                    except Exception as e:
+                        self.logger.error(
+                            f"MCP client validation failed: {str(e)}")
+                        self.mcp_client = None
+                        return None
+
         return self.mcp_client
 
     async def _get_available_tools(self) -> List[Dict[str, Any]]:

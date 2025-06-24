@@ -21,7 +21,7 @@ const EnvironmentDebug: React.FC = () => {
 
       return {
         environment: dockerEnv ? "Docker" : nodeEnv,
-        apiUrl: import.meta.env.VITE_API_URL || "http://localhost:8080",
+        apiUrl: import.meta.env.VITE_API_URL || "http://localhost:8081",
         notesUrl: import.meta.env.VITE_NOTES_URL || "http://localhost:5000",
         isDocker: dockerEnv,
         isDevelopment: nodeEnv === "development",

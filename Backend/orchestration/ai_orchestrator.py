@@ -58,7 +58,8 @@ class AIOrchestrator:
 
             mcp_client = await self._get_mcp_client()
             if not mcp_client:
-                self.logger.warning("Could not get MCP client, returning empty tools list")
+                self.logger.warning(
+                    "Could not get MCP client, returning empty tools list")
                 return []
 
             tools = await mcp_client.get_tools()
@@ -67,12 +68,14 @@ class AIOrchestrator:
             # Remove any auth-related parameters since we use JWT
             for tool in tools:
                 if "input_schema" in tool and "properties" in tool["input_schema"]:
-                    auth_params = ["user_id", "auth_token", "token", "authorization"]
+                    auth_params = ["user_id", "auth_token",
+                                   "token", "authorization"]
                     for param in auth_params:
                         if param in tool["input_schema"]["properties"]:
                             tool["input_schema"]["properties"].pop(param)
                     if "required" in tool["input_schema"]:
-                        tool["input_schema"]["required"] = [r for r in tool["input_schema"]["required"] if r not in auth_params]
+                        tool["input_schema"]["required"] = [
+                            r for r in tool["input_schema"]["required"] if r not in auth_params]
 
             # Cache the tools
             await AICacheManager.set_cached_tools(tools)
@@ -98,31 +101,111 @@ class AIOrchestrator:
         return "\n".join(tool_strings)
 
     def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
-        """Extract tool calls from LLM response."""
+        """Extract tool calls from LLM response, supporting both XML tags and plain JSON format."""
         tool_calls = []
+
+        # Method 1: Try XML-wrapped tool calls first (original format)
         start_tag = "<tool_call>"
         end_tag = "</tool_call>"
+        temp_text = text
 
-        while start_tag in text and end_tag in text:
-            start = text.find(start_tag) + len(start_tag)
-            end = text.find(end_tag)
+        while start_tag in temp_text and end_tag in temp_text:
+            start = temp_text.find(start_tag) + len(start_tag)
+            end = temp_text.find(end_tag)
             if start > -1 and end > -1:
-                tool_call_text = text[start:end].strip()
+                tool_call_text = temp_text[start:end].strip()
                 try:
                     tool_call = json.loads(tool_call_text)
                     # Validate required fields
                     if "name" in tool_call:
                         tool_calls.append(tool_call)
+                        self.logger.info(
+                            f"Extracted XML-wrapped tool call: {tool_call['name']}")
                     else:
                         self.logger.warning(
                             f"Tool call missing 'name' field: {tool_call_text}")
                 except json.JSONDecodeError:
                     self.logger.error(
-                        f"Failed to parse tool call: {tool_call_text}")
-                text = text[end + len(end_tag):]
+                        f"Failed to parse XML-wrapped tool call: {tool_call_text}")
+                temp_text = temp_text[end + len(end_tag):]
             else:
                 break
 
+        # Method 2: If no XML-wrapped tool calls found, try to parse the entire response as JSON
+        if not tool_calls:
+            self.logger.info(
+                "No XML-wrapped tool calls found, trying to parse as plain JSON")
+            try:
+                # Try to parse the entire response as a single JSON tool call
+                tool_call = json.loads(text.strip())
+                if isinstance(tool_call, dict) and "name" in tool_call:
+                    # Ensure arguments exist
+                    if "arguments" not in tool_call:
+                        tool_call["arguments"] = {}
+                    tool_calls.append(tool_call)
+                    self.logger.info(
+                        f"Extracted plain JSON tool call: {tool_call['name']}")
+                else:
+                    self.logger.warning(
+                        f"Plain JSON response is not a valid tool call: {text[:200]}...")
+            except json.JSONDecodeError:
+                # Method 3: Try to find JSON objects within the text using regex
+                import re
+                self.logger.info(
+                    "Failed to parse as plain JSON, trying regex extraction")
+
+                # Pattern to match JSON objects that look like tool calls
+                json_pattern = r'\{[^{}]*"name"\s*:\s*"[^"]*"[^{}]*\}'
+                matches = re.findall(json_pattern, text)
+
+                for match in matches:
+                    try:
+                        tool_call = json.loads(match)
+                        if isinstance(tool_call, dict) and "name" in tool_call:
+                            # Ensure arguments exist
+                            if "arguments" not in tool_call:
+                                tool_call["arguments"] = {}
+                            tool_calls.append(tool_call)
+                            self.logger.info(
+                                f"Extracted regex-found tool call: {tool_call['name']}")
+                    except json.JSONDecodeError:
+                        self.logger.warning(
+                            f"Failed to parse regex match as JSON: {match}")
+
+                # Method 4: If still no tool calls, check if response contains tool names
+                if not tool_calls:
+                    self.logger.info(
+                        "No JSON tool calls found, checking for tool name patterns")
+                    # List of known tool names to look for
+                    known_tools = [
+                        "get_items", "todos.create", "habits.create", "calendar.getEvents",
+                        "calendar.createEvent", "todos.smartUpdate", "notes.get", "notes.create",
+                        "notes.rewriteInStyle", "todos.addChecklist", "get_tasks", "create_task"
+                    ]
+
+                    for tool_name in known_tools:
+                        if tool_name in text.lower():
+                            self.logger.info(
+                                f"Found tool name '{tool_name}' in response, attempting to construct tool call")
+                            # Try to extract arguments if they exist
+                            try:
+                                # Look for common argument patterns
+                                if "habits" in text.lower():
+                                    tool_calls.append({
+                                        "name": "get_items",
+                                        "arguments": {"item_type": "habits"}
+                                    })
+                                elif "todos" in text.lower():
+                                    tool_calls.append({
+                                        "name": "get_items",
+                                        "arguments": {"item_type": "todos"}
+                                    })
+                                break
+                            except Exception as e:
+                                self.logger.error(
+                                    f"Error constructing tool call for {tool_name}: {str(e)}")
+
+        self.logger.info(f"Total tool calls extracted: {len(tool_calls)}")
         return tool_calls
 
     def _make_serializable(self, obj):
@@ -233,7 +316,8 @@ class AIOrchestrator:
                     f"Stored user message for streaming in conversation {conversation.id}")
 
             # Get conversation history using MongoDB memory - just load, don't write
-            mongo_memory = get_mongodb_memory(user_id=user_id_str, session_id=session_id)
+            mongo_memory = get_mongodb_memory(
+                user_id=user_id_str, session_id=session_id)
             messages = mongo_memory.get_langchain_messages()
             self.logger.debug(
                 f"Retrieved {len(messages)} conversation history messages")
@@ -241,11 +325,12 @@ class AIOrchestrator:
             # Get tools and format system prompt with caching
             tools = await self._get_available_tools()
             formatted_tools = self._format_tools_for_prompt(tools)
-            
+
             # Try to get cached system prompt
             enhanced_system_prompt = await AICacheManager.get_cached_system_prompt()
             if not enhanced_system_prompt:
-                enhanced_system_prompt = SYSTEM_PROMPT.format(tools=formatted_tools)
+                enhanced_system_prompt = SYSTEM_PROMPT.format(
+                    tools=formatted_tools)
                 # Cache the formatted system prompt
                 await AICacheManager.set_cached_system_prompt(enhanced_system_prompt)
                 self.logger.info("Cached formatted system prompt")

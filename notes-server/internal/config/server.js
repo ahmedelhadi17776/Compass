@@ -37,11 +37,13 @@ const config = {
       "http://localhost:4174",      // Vite preview (Docker)
       "http://localhost:3000",      // Legacy frontend port
       "http://localhost:8080",      // Nginx gateway (local)
+      "http://localhost:8081",  
       "http://127.0.0.1:5173",      // Alternative localhost
       "http://127.0.0.1:8080",      // Alternative localhost gateway
       // Docker/Production origins
       "http://gateway:80",          // Docker nginx gateway
       "http://gateway:8080",        // Docker nginx gateway alt port
+      "http://gateway:8081", 
       "https://gateway:443",        // Docker nginx gateway HTTPS
       // Service-to-service communication
       "http://api:8000",            // Go backend service

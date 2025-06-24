@@ -36,10 +36,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && apt-get
 
 WORKDIR /app
 
-# Create a non-root user and set ownership before copying files
-RUN addgroup --system app && adduser --system --group app && \
-    mkdir -p /app/writable/logs /app/writable/cache /app/cache && \
-    chown -R app:app /app/writable /app/cache
+# Create a non-root user with a proper home directory
+RUN addgroup --system app && adduser --system --ingroup app --home /home/app app
+
+# Create required directories with proper permissions
+RUN mkdir -p /app/writable/logs /app/writable/cache /app/cache /home/app/.cache \
+    /app/ai_services/rag/chroma_store && \
+    chown -R app:app /app /home/app
+
+# Set environment variables for cache locations
+ENV HF_HOME=/app/cache
+ENV TRANSFORMERS_CACHE=/app/cache
+ENV SENTENCE_TRANSFORMERS_HOME=/app/cache/sentence-transformers
+ENV TORCH_HOME=/app/cache/torch
 
 # Switch to non-root user
 USER app

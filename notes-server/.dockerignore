@@ -15,8 +15,7 @@ dist/
 build/
 coverage/
 
-# Logs
-*.log
+
 
 # Docs
 *.md
@@ -26,4 +25,13 @@ coverage/
 # Environment
 .env
 .env.*
-!/.env.example 
+!/.env.example
+
+# Docker specific
+Dockerfile
+.dockerignore
+
+# Additional files
+README.md
+.nyc_output
+logs 
