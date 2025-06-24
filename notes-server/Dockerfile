@@ -22,8 +22,9 @@ RUN apk add --no-cache curl
 # Create a non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Set ownership of the app directory before copying files
-RUN chown -R appuser:appgroup /app
+# Create logs directory and set permissions BEFORE switching to non-root user
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appgroup /app
 
 # Switch to the non-root user
 USER appuser

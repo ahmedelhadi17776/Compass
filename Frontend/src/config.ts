@@ -17,8 +17,8 @@ const detectEnvironment = () => {
                           window.location.port === '4173' || 
                           window.location.port === '4174';
   
-  // Check if running through nginx gateway (port 8080 in Docker setup)
-  const isNginxGateway = window.location.port === '8080' || 
+  // Check if running through nginx gateway (port 8081 in Docker setup)
+  const isNginxGateway = window.location.port === '8081' || 
                          window.location.port === '80' || 
                          window.location.port === '443' ||
                          window.location.port === '';

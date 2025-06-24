@@ -1,18 +1,20 @@
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from pymongo import MongoClient
 from pymongo.database import Database
 from pymongo.collection import Collection
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError, OperationFailure
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from functools import lru_cache
 from core.config import settings
+import ssl
+import certifi
 
 logger = logging.getLogger(__name__)
 
-# Singleton MongoDB client - use Any for global variables to avoid type errors
-_mongodb_client: Any = None
-_async_mongodb_client: Any = None
+# Global client instances
+_mongodb_client: Optional[MongoClient] = None
+_async_mongodb_client: Optional[AsyncIOMotorClient] = None
 
 # Connection pool settings from core.config
 MAX_POOL_SIZE = settings.mongodb_max_pool_size
@@ -30,37 +32,85 @@ def get_mongodb_uri() -> str:
     return settings.mongodb_uri
 
 
-def get_mongodb_client() -> Any:
-    """Get MongoDB client singleton with optimized connection pooling."""
+def get_ssl_config() -> Dict[str, Any]:
+    """Get SSL configuration for MongoDB connection."""
+    # Basic configuration with increased timeouts for Docker
+    ssl_config = {
+        'retryWrites': True,
+        'w': 'majority',
+        'connectTimeoutMS': 15000,  # Increased timeout for Docker
+        'serverSelectionTimeoutMS': 15000,  # Increased timeout for Docker
+        'socketTimeoutMS': 15000,  # Increased timeout for Docker
+        'maxPoolSize': 50,
+        'minPoolSize': 5,
+    }
+
+    # For Docker environments, disable SSL entirely to fix compatibility issues
+    if settings.DOCKER_ENV:
+        logger.info(
+            "Docker environment detected, using minimal config without SSL")
+        ssl_config.update({
+            'connectTimeoutMS': 30000,  # Even longer timeout for Docker
+            'serverSelectionTimeoutMS': 30000,
+        })
+    else:
+        # Production SSL settings
+        ssl_config.update({
+            'tls': True,
+            'tlsCAFile': certifi.where(),
+            'tlsAllowInvalidCertificates': False,
+            'tlsAllowInvalidHostnames': False,
+        })
+
+    return ssl_config
+
+
+def get_mongodb_client() -> Optional[MongoClient]:
+    """Get the global MongoDB client instance with enhanced error handling."""
     global _mongodb_client
 
     if _mongodb_client is None:
-        uri = get_mongodb_uri()
-        logger.info(f"Connecting to MongoDB at {uri.split('@')[-1]}")
-
         try:
-            # Configure client with enhanced connection pooling and timeouts
+            logger.info("Initializing MongoDB client...")
+
+            # Get SSL configuration
+            ssl_config = get_ssl_config()
+
+            # Create client with enhanced configuration
             _mongodb_client = MongoClient(
-                uri,
-                maxPoolSize=MAX_POOL_SIZE,
-                minPoolSize=MIN_POOL_SIZE,
-                maxIdleTimeMS=MAX_IDLE_TIME_MS,
-                connectTimeoutMS=CONNECT_TIMEOUT_MS,
-                serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
-                retryWrites=True,  # Enable retryable writes
-                w='majority',  # Write concern for data durability
-                maxConnecting=MAX_CONNECTING,  # Limit concurrent connection establishments
-                # How long operations wait for a connection
-                waitQueueTimeoutMS=WAIT_QUEUE_TIMEOUT_MS
+                settings.mongodb_uri,
+                **ssl_config
             )
 
-            # Test connection
-            _mongodb_client.admin.command('ping')
-            logger.info(
-                f"Successfully connected to MongoDB with pool size: {MAX_POOL_SIZE}")
-        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
-            raise
+            # Test the connection with retries
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Test connection
+                    _mongodb_client.admin.command('ping')
+                    logger.info(
+                        f"✅ MongoDB connection successful on attempt {attempt + 1}")
+                    break
+                except ServerSelectionTimeoutError as e:
+                    if attempt == max_retries - 1:
+                        logger.error(
+                            f"❌ MongoDB connection failed after {max_retries} attempts: {e}")
+                        # Don't raise, return None to handle gracefully
+                        _mongodb_client = None
+                        return None
+                    else:
+                        logger.warning(
+                            f"⚠️ MongoDB connection attempt {attempt + 1} failed, retrying...")
+                        continue
+                except Exception as e:
+                    logger.error(f"❌ Unexpected MongoDB connection error: {e}")
+                    _mongodb_client = None
+                    return None
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize MongoDB client: {e}")
+            _mongodb_client = None
+            return None
 
     return _mongodb_client
 
@@ -96,9 +146,12 @@ def get_async_mongodb_client() -> Any:
     return _async_mongodb_client
 
 
-def get_database(db_name: Optional[str] = None) -> Database:
+def get_database(db_name: Optional[str] = None) -> Optional[Database]:
     """Get MongoDB database."""
     client = get_mongodb_client()
+    if client is None:
+        logger.error("MongoDB client is not available")
+        return None
     database_name = db_name or getattr(settings, 'mongodb_database', 'compass')
     return client[database_name]
 
@@ -110,9 +163,12 @@ def get_async_database(db_name: Optional[str] = None) -> Any:
     return client[database_name]
 
 
-def get_collection(collection_name: str, db_name: Optional[str] = None) -> Collection:
+def get_collection(collection_name: str, db_name: Optional[str] = None) -> Optional[Collection]:
     """Get MongoDB collection."""
     db = get_database(db_name)
+    if db is None:
+        logger.error("Database is not available")
+        return None
     return db[collection_name]
 
 

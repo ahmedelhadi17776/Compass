@@ -221,25 +221,29 @@ async def clear_session(
         if session_id in orchestrator_instances:
             orchestrator = orchestrator_instances[session_id]
             user_id = int(hash(session_id) % 100000)
-            
+
             # Use the mongo_client directly to clear the conversation
             try:
                 # Get conversation by session ID
-                conversation = orchestrator.mongo_client.get_conversation_by_session(session_id)
+                conversation = orchestrator.mongo_client.get_conversation_by_session(
+                    session_id)
                 if conversation and conversation.id:
                     # Clear messages for the conversation
                     orchestrator.mongo_client.conversation_repo.update(
                         conversation.id,
                         {"messages": []}
                     )
-                    logger.info(f"Cleared conversation history for session {session_id}")
+                    logger.info(
+                        f"Cleared conversation history for session {session_id}")
                     return {"status": "success", "message": f"Session {session_id} cleared"}
                 else:
-                    logger.warning(f"No conversation found for session {session_id}")
+                    logger.warning(
+                        f"No conversation found for session {session_id}")
                     return {"status": "not_found", "message": f"No conversation found for session {session_id}"}
             except Exception as e:
                 logger.error(f"Error clearing conversation: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Error clearing conversation: {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail=f"Error clearing conversation: {str(e)}")
 
         logger.warning(f"Session {session_id} not found for clearing")
         return {"status": "not_found", "message": f"Session {session_id} not found"}
@@ -511,7 +515,9 @@ async def process_ai_request_stream(
         # Return error as an event stream for consistent error handling
 
         async def error_generator():
-            error_data = json.dumps({"error": str(e)})
+            # Capture the error message from the outer scope
+            error_message = str(e)
+            error_data = json.dumps({"error": error_message})
             yield f"data: {error_data}\n\n"
             yield f"data: [DONE]\n\n"
 
@@ -535,7 +541,8 @@ async def rewrite_in_style(
     try:
         mcp_client = get_mcp_client()
         if not mcp_client:
-            raise HTTPException(status_code=503, detail="MCP client not initialized")
+            raise HTTPException(
+                status_code=503, detail="MCP client not initialized")
 
         result = await mcp_client.call_tool("notes.rewriteInStyle", {
             "text": request.text,
@@ -555,11 +562,11 @@ async def rewrite_in_style(
                 except json.JSONDecodeError:
                     # If parsing fails, return the raw text
                     return {"status": "success", "content": {"rewritten_text": text_content}}
-        
+
         # If result is already a dictionary
         if isinstance(result, dict):
             return result
-            
+
         # Fallback for unexpected response format
         return {"status": "error", "error": "Unexpected response format"}
 
@@ -568,3 +575,102 @@ async def rewrite_in_style(
     except Exception as e:
         logger.error(f"Error in rewrite-in-style endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Add diagnostic endpoints
+@router.get("/diagnostics")
+async def ai_service_diagnostics():
+    """Comprehensive AI service diagnostics endpoint."""
+    try:
+        diagnostics = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "service_status": "running",
+            "components": {}
+        }
+
+        # Check MCP Client
+        try:
+            from core.mcp_state import get_mcp_client
+            mcp_client = get_mcp_client()
+            if mcp_client:
+                tools = await mcp_client.get_tools()
+                diagnostics["components"]["mcp_client"] = {
+                    "status": "connected",
+                    "tools_count": len(tools),
+                    "tools": [tool.get('name', 'Unknown') for tool in tools],
+                    "sample_tools": [
+                        {
+                            "name": tool.get('name', 'Unknown'),
+                            "description": tool.get('description', 'No description')[:100] + "..." if len(tool.get('description', '')) > 100 else tool.get('description', 'No description')
+                        } for tool in tools[:5]
+                    ]
+                }
+
+                # Test a simple MCP call
+                try:
+                    health_result = await mcp_client.call_tool("check.health")
+                    diagnostics["components"]["mcp_health_test"] = {
+                        "status": "success",
+                        "result": health_result
+                    }
+                except Exception as health_error:
+                    diagnostics["components"]["mcp_health_test"] = {
+                        "status": "failed",
+                        "error": str(health_error)
+                    }
+            else:
+                diagnostics["components"]["mcp_client"] = {
+                    "status": "not_connected",
+                    "error": "MCP client not found in global state"
+                }
+        except Exception as mcp_error:
+            diagnostics["components"]["mcp_client"] = {
+                "status": "error",
+                "error": str(mcp_error)
+            }
+
+        # Check LLM Service
+        try:
+            llm_info = await llm_service.get_model_info()
+            diagnostics["components"]["llm_service"] = {
+                "status": "connected",
+                "model": llm_info.get("model", "unknown"),
+                "capabilities": llm_info.get("capabilities", {})
+            }
+        except Exception as llm_error:
+            diagnostics["components"]["llm_service"] = {
+                "status": "error",
+                "error": str(llm_error)
+            }
+
+        # Check Agent Orchestrator
+        try:
+            from ai_services.agents.orchestrator import AgentOrchestrator
+            orchestrator = AgentOrchestrator()
+            diagnostics["components"]["agent_orchestrator"] = {
+                "status": "initialized",
+                "entity_agents": list(orchestrator.entity_agents.keys()),
+                "specialized_agents": list(orchestrator.specialized_agents.keys())
+            }
+        except Exception as orchestrator_error:
+            diagnostics["components"]["agent_orchestrator"] = {
+                "status": "error",
+                "error": str(orchestrator_error)
+            }
+
+        # Overall status
+        all_components_ok = all(
+            comp.get("status") in ["connected", "initialized", "success"]
+            for comp in diagnostics["components"].values()
+        )
+        diagnostics["overall_status"] = "healthy" if all_components_ok else "degraded"
+
+        return diagnostics
+
+    except Exception as e:
+        logger.error(f"Error in AI diagnostics: {str(e)}")
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "service_status": "error",
+            "error": str(e)
+        }

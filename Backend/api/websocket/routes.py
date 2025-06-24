@@ -10,6 +10,7 @@ from api.websocket.dashboard_ws import dashboard_ws_manager
 from core.config import settings
 from ai_services.agents.orchestrator import AgentOrchestrator
 from core.auth.jwt_handler import get_current_user, get_token_from_websocket
+from core.mcp_state import get_mcp_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -534,7 +535,7 @@ async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], 
                 "data": {
                     "targetId": target_id,
                     "targetType": target_type,
-                    "error": "Missing required fields",
+                    "error": "Missing required fields (target_type or target_id)",
                     "success": False
                 }
             })
@@ -564,18 +565,62 @@ async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], 
             f"Target data for {target_type}: {str(enhanced_target_data)[:200]}...")
         logger.info(f"Requesting options from orchestrator for {target_type}")
 
+        # Check if MCP client is available
+        mcp_client = get_mcp_client()
+        if not mcp_client:
+            error_msg = "MCP client not initialized. AI services are currently unavailable."
+            logger.error(error_msg)
+            await websocket.send_json({
+                "type": "ai_options_response",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "error": error_msg,
+                    "success": False
+                }
+            })
+            return
+
         # Initialize the orchestrator using Atomic Agents pattern
-        from ai_services.agents.orchestrator import AgentOrchestrator
-        orchestrator = AgentOrchestrator()
+        try:
+            from ai_services.agents.orchestrator import AgentOrchestrator
+            orchestrator = AgentOrchestrator()
+        except Exception as orchestrator_error:
+            error_msg = f"Failed to initialize AI orchestrator: {str(orchestrator_error)}"
+            logger.error(error_msg)
+            await websocket.send_json({
+                "type": "ai_options_response",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "error": error_msg,
+                    "success": False
+                }
+            })
+            return
 
         # Get options from orchestrator using the same interface
-        options = await orchestrator.get_options_for_target(
-            target_type=target_type,
-            target_id=target_id,
-            target_data=enhanced_target_data,
-            user_id=user_id,
-            token=token
-        )
+        try:
+            options = await orchestrator.get_options_for_target(
+                target_type=target_type,
+                target_id=target_id,
+                target_data=enhanced_target_data,
+                user_id=user_id,
+                token=token
+            )
+        except Exception as options_error:
+            error_msg = f"Failed to get AI options: {str(options_error)}"
+            logger.error(error_msg)
+            await websocket.send_json({
+                "type": "ai_options_response",
+                "data": {
+                    "targetId": target_id,
+                    "targetType": target_type,
+                    "error": error_msg,
+                    "success": False
+                }
+            })
+            return
 
         logger.info(
             f"Got {len(options)} options from orchestrator for {target_type}")
@@ -604,7 +649,7 @@ async def handle_ai_options_request(websocket: WebSocket, data: Dict[str, Any], 
                 "data": {
                     "targetId": target_id,
                     "targetType": target_type,
-                    "error": f"Error handling AI options request: {str(e)}",
+                    "error": f"Internal server error: {str(e)}",
                     "success": False
                 }
             })

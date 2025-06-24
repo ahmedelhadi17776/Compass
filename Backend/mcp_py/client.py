@@ -86,23 +86,35 @@ class MCPClient:
             self.logger.info(
                 f"Connecting to MCP server at {server_script_path}")
 
-            # Create server parameters
+            # Create server parameters with enhanced configuration
             server_params = StdioServerParameters(
                 command=sys.executable,
                 args=[server_script_path],
                 env=os.environ.copy()
             )
 
-            # Start connection in background task
+            # Start connection in background task with timeout
             self._running = True
-            self._connection_task = asyncio.create_task(
-                self._maintain_connection(server_params, max_retries, retry_delay))
-            self.logger.info("Started MCP client connection task")
+            try:
+                self._connection_task = asyncio.create_task(
+                    asyncio.wait_for(
+                        self._maintain_connection(
+                            server_params, max_retries, retry_delay),
+                        timeout=60.0  # Overall connection timeout
+                    )
+                )
+                self.logger.info("Started MCP client connection task")
+            except asyncio.TimeoutError:
+                self.logger.error("MCP connection setup timed out")
+                self._running = False
+                raise
 
         except Exception as e:
             self.logger.error(
                 f"Failed to connect to MCP server: {str(e)}", exc_info=True)
-            raise
+            self._running = False
+            # Don't raise the exception to prevent app startup failure
+            self.logger.warning("MCP client will continue without connection")
 
     async def _maintain_connection(self, server_params: StdioServerParameters, max_retries: int, retry_delay: float):
         """Maintain the connection to the MCP server.

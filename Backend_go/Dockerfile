@@ -30,8 +30,8 @@ RUN apk --no-cache add ca-certificates tzdata curl && \
 
 WORKDIR /app
 
-# Create directories and set ownership before copying anything in
-RUN mkdir -p /app/config /app/certs && \
+# Create all required directories and set ownership before copying anything
+RUN mkdir -p /app/config /app/certs /app/logs /app/data && \
     chown -R appuser:appuser /app
 
 # Copy binary and config with correct ownership
