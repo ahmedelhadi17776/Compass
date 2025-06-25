@@ -43,8 +43,8 @@ export const useReportGeneration = (reportId: string | null) => {
         }
 
         const { WS_PYTHON_URL } = getApiUrls();
-        // Convert to WebSocket URL properly
-        const wsUrl = `${WS_PYTHON_URL.replace(/^http/, 'ws')}/api/v1/ws/reports/${reportId}?token=${token}`;
+        // Convert to WebSocket URL properly - WS_PYTHON_URL already includes /api/v1
+        const wsUrl = `${WS_PYTHON_URL.replace(/^http/, 'ws')}/ws/reports/${reportId}?token=${token}`;
         
         console.log('Connecting to AI Reports WebSocket:', wsUrl);
         socketRef.current = new WebSocket(wsUrl);

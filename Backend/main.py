@@ -296,13 +296,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
                 "⚠️ Application will continue without MongoDB support")
 
         if settings.mcp_enabled:
-            await init_mcp_server()
+            logger.info("MCP is enabled, initializing server...")
+            init_success = await init_mcp_server()
+            if init_success:
+                logger.info("✅ MCP server initialized successfully")
+                # Validate that client is properly stored
+                from core.mcp_state import get_mcp_client
+                test_client = get_mcp_client()
+                if test_client:
+                    try:
+                        tools = await test_client.get_tools()
+                        logger.info(
+                            f"✅ MCP client validated with {len(tools)} tools available")
+                    except Exception as validation_error:
+                        logger.error(
+                            f"❌ MCP client validation failed: {str(validation_error)}")
+                        # Clear the faulty client
+                        from core.mcp_state import set_mcp_client
+                        set_mcp_client(None)
+                else:
+                    logger.error(
+                        "❌ MCP client not found in global state after initialization")
+            else:
+                logger.error("❌ MCP server initialization failed")
 
         logger.info("Application started successfully")
-        # Call lifecycle.startup() with proper await handling
-        startup_result = lifecycle.startup()
-        if asyncio.iscoroutine(startup_result):
-            await startup_result
+        # Call lifecycle startup
+        await lifecycle.startup()
         yield
     finally:
         logger.info("Shutting down application...")
@@ -382,7 +402,7 @@ app.include_router(report_ws.router, prefix="/api/v1/ws",
 # Include WebSocket routes if available
 try:
     from api.websocket.routes import router as websocket_router
-    app.include_router(websocket_router)
+    app.include_router(websocket_router, prefix="/api/v1")
     logger.info("WebSocket routes included successfully")
 except ImportError as e:
     logger.warning(f"Failed to include WebSocket routes: {str(e)}")
@@ -406,6 +426,49 @@ else:
 dashboard_cache = DashboardCache()
 
 
+async def revalidate_mcp_client():
+    """Re-validate MCP client and update global state if tools become available."""
+    from core.mcp_state import get_mcp_client, set_mcp_client
+
+    max_attempts = 10
+    for attempt in range(max_attempts):
+        await asyncio.sleep(10)  # Wait 10 seconds between attempts
+
+        client = get_mcp_client()
+        if not client:
+            logger.info(
+                f"Re-validation attempt {attempt + 1}: No MCP client available")
+            continue
+
+        try:
+            tools = await client.get_tools()
+            if len(tools) > 0:
+                logger.info(
+                    f"✅ MCP client re-validation successful: {len(tools)} tools now available")
+
+                # Ensure the client is properly stored in global state
+                set_mcp_client(client)
+                logger.info("✅ MCP client re-stored in global state")
+
+                # Test global state access
+                test_client = get_mcp_client()
+                if test_client:
+                    logger.info("✅ MCP client verified in global state")
+                else:
+                    logger.error(
+                        "❌ MCP client not found in global state after re-storing")
+
+                return
+            else:
+                logger.info(
+                    f"Re-validation attempt {attempt + 1}: Still no tools available")
+        except Exception as e:
+            logger.warning(
+                f"Re-validation attempt {attempt + 1} failed: {str(e)}")
+
+    logger.error("❌ MCP client re-validation failed after all attempts")
+
+
 async def init_mcp_server():
     """Initialize the MCP server."""
     logger.info("Initializing MCP server integration")
@@ -418,6 +481,11 @@ async def init_mcp_server():
     server_script = os.path.join(os.path.dirname(
         os.path.abspath(__file__)), "mcp_py", "server.py")
     logger.info(f"Starting MCP server: {server_script}")
+
+    # Check if server script exists
+    if not os.path.exists(server_script):
+        logger.error(f"MCP server script not found: {server_script}")
+        return False
 
     try:
         # Check if we're on Windows
@@ -435,17 +503,58 @@ async def init_mcp_server():
             # Store the process in global state so it can be terminated later
             set_mcp_process(process)
 
-            # Give the server a moment to start
-            await asyncio.sleep(2)
+            # Wait longer for server to start and validate it's running
+            await asyncio.sleep(5)
 
-            # Set up MCP client
+            # Check if process is still running
+            if process.poll() is not None:
+                # Process has terminated, get error output
+                stdout, stderr = process.communicate()
+                logger.error(f"MCP server process terminated unexpectedly")
+                logger.error(f"STDOUT: {stdout}")
+                logger.error(f"STDERR: {stderr}")
+                return False
+
+            logger.info(
+                "MCP server process is running, attempting client connection...")
+
+            # Set up MCP client with retry logic
             from mcp_py.client import MCPClient
             client = MCPClient()
-            # This call needs to be awaited even on windows
-            await client.connect_to_server(server_script)
 
-            # Store the client in global state for other components to use
-            set_mcp_client(client)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    logger.info(
+                        f"MCP client connection attempt {attempt + 1}/{max_retries}")
+                    # This call needs to be awaited even on windows
+                    await client.connect_to_server(server_script)
+
+                    # Test the connection by getting tools
+                    tools = await client.get_tools()
+                    logger.info(
+                        f"MCP client connected successfully with {len(tools)} tools")
+
+                    # Store the client in global state for other components to use
+                    set_mcp_client(client)
+
+                    # If no tools available initially, schedule a background re-validation
+                    if len(tools) == 0:
+                        logger.warning(
+                            "MCP client connected but no tools available initially, will retry in background")
+                        asyncio.create_task(revalidate_mcp_client())
+
+                    return True
+
+                except Exception as connect_error:
+                    logger.warning(
+                        f"MCP client connection attempt {attempt + 1} failed: {str(connect_error)}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2)  # Wait before retry
+                    else:
+                        logger.error(
+                            f"All MCP client connection attempts failed: {str(connect_error)}")
+                        return False
         else:
             # Original code for Unix-like systems
             process = await asyncio.create_subprocess_exec(
@@ -458,21 +567,50 @@ async def init_mcp_server():
             set_mcp_process(process)
 
             # Give the server a moment to start
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
 
-            # Set up MCP client
+            # Set up MCP client with retry logic
             from mcp_py.client import MCPClient
             client = MCPClient()
-            await client.connect_to_server(server_script)
 
-            # Store the client in global state for other components to use
-            set_mcp_client(client)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    logger.info(
+                        f"MCP client connection attempt {attempt + 1}/{max_retries}")
+                    await client.connect_to_server(server_script)
+
+                    # Test the connection
+                    tools = await client.get_tools()
+                    logger.info(
+                        f"MCP client connected successfully with {len(tools)} tools")
+
+                    # Store the client in global state for other components to use
+                    set_mcp_client(client)
+
+                    # If no tools available initially, schedule a background re-validation
+                    if len(tools) == 0:
+                        logger.warning(
+                            "MCP client connected but no tools available initially, will retry in background")
+                        asyncio.create_task(revalidate_mcp_client())
+
+                    return True
+
+                except Exception as connect_error:
+                    logger.warning(
+                        f"MCP client connection attempt {attempt + 1} failed: {str(connect_error)}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2)  # Wait before retry
+                    else:
+                        logger.error(
+                            f"All MCP client connection attempts failed: {str(connect_error)}")
+                        return False
 
     except Exception as e:
-        logger.error(f"Error initializing MCP server:", exc_info=True)
+        logger.error(f"Error initializing MCP server: {str(e)}", exc_info=True)
         return False
 
-    return True
+    return False
 
 
 async def cleanup_mcp():

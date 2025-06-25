@@ -435,12 +435,19 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }
 
     const { WS_PYTHON_URL } = getApiUrls();
-    // Construct proper WebSocket URL - WS_PYTHON_URL already includes protocol
-    const url = `${WS_PYTHON_URL}/api/v1/dashboard/ws?token=${encodeURIComponent(
-      token
-    )}`;
+    // Construct proper WebSocket URL - WS_PYTHON_URL now includes the /api/v1 prefix
+    const url = `${WS_PYTHON_URL}/ws?token=${encodeURIComponent(token)}`;
 
-    console.log("Connecting to Dashboard WebSocket:", url);
+    console.log("=== Dashboard WebSocket Configuration ===");
+    console.log("Environment detection:", {
+      hostname: window.location.hostname,
+      port: window.location.port,
+      protocol: window.location.protocol,
+      pathname: window.location.pathname,
+    });
+    console.log("WS_PYTHON_URL from config:", WS_PYTHON_URL);
+    console.log("Final WebSocket URL:", url);
+    console.log("=======================================");
 
     const ws = new ReconnectingWebSocket(url, [], {
       connectionTimeout: 3000,
@@ -452,13 +459,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
+      console.log("✅ Dashboard WebSocket connected successfully to:", url);
       setIsConnected(true);
       ws.send(JSON.stringify({ type: "ping" }));
     };
 
     ws.onerror = (error) => {
-      console.error("WebSocket error occurred:", error);
+      console.error("❌ Dashboard WebSocket error occurred:", error);
+      console.error("WebSocket URL that failed:", url);
       setIsConnected(false);
     };
 
@@ -468,7 +476,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
         // Don't log ping/pong messages to reduce noise
         if (data.type !== "ping" && data.type !== "pong") {
-          console.log("WebSocket message received:", data.type);
+          console.log("📨 Dashboard WebSocket message received:", data.type);
         }
 
         handleWebSocketMessage(data);
@@ -478,7 +486,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
 
     ws.onclose = () => {
-      console.log("WebSocket disconnected");
+      console.log("🔌 Dashboard WebSocket disconnected from:", url);
       setIsConnected(false);
     };
 

@@ -50,6 +50,9 @@ const detectEnvironment = () => {
 export const getApiUrls = () => {
   const env = detectEnvironment();
   
+  console.log('=== API URL Configuration ===');
+  console.log('Environment Info:', env);
+  
   // LOCAL DEVELOPMENT: Direct service URLs
   if (env.isDevelopment && env.isLocalhost && (env.isViteDevServer || !env.isNginxGateway)) {
     console.log('Using LOCAL DEVELOPMENT URLs');
@@ -57,16 +60,20 @@ export const getApiUrls = () => {
     // Use WSS for HTTPS pages, WS for HTTP pages
     const wsProtocol = env.isHttps ? 'wss' : 'ws';
     
-    return {
+    const urls = {
       GO_API_URL: 'http://localhost:8000/api',
       PYTHON_API_URL: 'http://localhost:8001/api/v1', 
       NOTES_API_URL: 'http://localhost:5000',
       WS_BASE_URL: `${wsProtocol}://localhost`,
       // Individual WebSocket URLs for different services
       WS_GO_URL: `${wsProtocol}://localhost:8000`,
-      WS_PYTHON_URL: `${wsProtocol}://localhost:8001`,
+      WS_PYTHON_URL: `${wsProtocol}://localhost:8001/api/v1`,
       WS_NOTES_URL: `${wsProtocol}://localhost:5000`,
     };
+    
+    console.log('Generated LOCAL URLs:', urls);
+    console.log('============================');
+    return urls;
   }
   
   // DOCKER/PRODUCTION: Nginx gateway with relative URLs
@@ -74,16 +81,20 @@ export const getApiUrls = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsHost = window.location.host;
   
-  return {
+  const urls = {
     GO_API_URL: '/api',
     PYTHON_API_URL: '/api/v1',
     NOTES_API_URL: '/notes',
     WS_BASE_URL: `${wsProtocol}//${wsHost}`,
     // Individual WebSocket URLs for different services (all through nginx gateway)
     WS_GO_URL: `${wsProtocol}//${wsHost}`,
-    WS_PYTHON_URL: `${wsProtocol}//${wsHost}`,
+    WS_PYTHON_URL: `${wsProtocol}//${wsHost}/api/v1`,
     WS_NOTES_URL: `${wsProtocol}//${wsHost}`,
   };
+  
+  console.log('Generated DOCKER URLs:', urls);
+  console.log('============================');
+  return urls;
 };
 
 // Utility function to get the current environment info (for debugging)
