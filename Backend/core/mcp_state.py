@@ -13,7 +13,7 @@ def get_mcp_client() -> Optional[MCPClient]:
     return mcp_client
 
 
-def set_mcp_client(client: MCPClient) -> None:
+def set_mcp_client(client: Optional[MCPClient]) -> None:
     """Set the global MCP client instance."""
     global mcp_client
     mcp_client = client
