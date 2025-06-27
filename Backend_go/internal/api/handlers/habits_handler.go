@@ -9,9 +9,7 @@ import (
 
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/dto"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/api/middleware"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/events"
 	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/domain/habits"
-	"github.com/ahmedelhadi17776/Compass/Backend_go/internal/infrastructure/cache"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -1065,24 +1063,6 @@ func (h *HabitsHandler) MarkHabitCompleted(c *gin.Context) {
 		}
 		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
-	}
-
-	// Publish dashboard event to invalidate heatmap data
-	event := &events.DashboardEvent{
-		EventType: events.DashboardEventCacheInvalidate,
-		UserID:    userID.(uuid.UUID),
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"action":     "habit_completed",
-			"habit_id":   id.String(),
-			"update_key": "habit_heatmap",
-		},
-	}
-	// This will be handled by the Go backend and Python backend subscribers
-	if redisClient, ok := c.MustGet("redis_client").(*cache.RedisClient); ok {
-		if err := redisClient.PublishDashboardEvent(c.Request.Context(), event); err != nil {
-			log.Errorf("Failed to publish dashboard event: %v", err)
-		}
 	}
 
 	// Explicitly set content type
