@@ -1,9 +1,9 @@
 require('dotenv').config();
 
 const config = {
-  host: process.env.REDIS_HOST || 'localhost',
+  host: process.env.REDIS_HOST || 'redis',
   port: parseInt(process.env.REDIS_PORT || '6380'),
-  password: process.env.REDIS_PASSWORD || '',
+  password: process.env.REDIS_PASSWORD || 'test123',
   db: parseInt(process.env.REDIS_DB || '2'),
   keyPrefix: 'compass:notes:',
   maxRetries: 3,

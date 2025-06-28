@@ -197,7 +197,7 @@ func main() {
 	defer redisClient.Close()
 
 	// Initialize rate limiter with Redis client
-	rateLimiter := auth.NewRedisRateLimiter(redisClient.GetClient(), 1*time.Minute, 100)
+	rateLimiter := auth.NewRedisRateLimiter(redisClient.GetClient(), 1*time.Minute, 1000)
 
 	// Create cache middleware instances
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)

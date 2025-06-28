@@ -100,7 +100,8 @@ async def mcp_diagnostic():
 GO_BACKEND_URLS = [
     settings.GO_BACKEND_URL,  # Use settings for primary URL
     "http://api:8000",         # Docker service name
-    "http://localhost:8000"    # Fallback for local development
+    "http://localhost:8000",
+    "http://localhost:8081/api"     # Fallback for local development
 ]
 
 # Start with the primary URL from settings
