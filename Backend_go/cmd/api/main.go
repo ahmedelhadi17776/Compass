@@ -129,7 +129,7 @@ func main() {
 		c.Next()
 	})
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORS.AllowedOrigins,
+		AllowAllOrigins:  true,
 		AllowMethods: cfg.CORS.AllowedMethods,
 		AllowHeaders: append(cfg.CORS.AllowedHeaders,
 			"Accept-Encoding",
@@ -138,6 +138,8 @@ func main() {
 			"Authorization",
 			"X-Organization-ID",
 			"x-organization-id",
+			"X-Forwarded-For",
+			"X-Real-IP",
 		),
 		ExposeHeaders: []string{
 			"Content-Length",
@@ -195,7 +197,7 @@ func main() {
 	defer redisClient.Close()
 
 	// Initialize rate limiter with Redis client
-	rateLimiter := auth.NewRedisRateLimiter(redisClient.GetClient(), 1*time.Minute, 100)
+	rateLimiter := auth.NewRedisRateLimiter(redisClient.GetClient(), 1*time.Minute, 1000)
 
 	// Create cache middleware instances
 	cacheMiddleware := middleware.NewCacheMiddleware(redisClient, "compass", 5*time.Minute)
@@ -228,9 +230,13 @@ func main() {
 	organizationService := organization.NewService(organizationRepo)
 	habitsService := habits.NewService(habitsRepo, habitNotifySvc, redisClient, log.Logger)
 	calendarService := calendar.NewService(calendarRepo, notificationSystem.DomainNotifier, redisClient, log.Logger)
+	workflowExecutor := workflow.NewDefaultExecutor(workflowRepo, workflowLogger, notificationSystem.DomainNotifier, rolesService)
 	workflowService := workflow.NewService(workflow.ServiceConfig{
-		Repository: workflowRepo,
-		Logger:     workflowLogger,
+		Repository:   workflowRepo,
+		Logger:       workflowLogger,
+		Executor:     workflowExecutor,
+		RolesService: rolesService,
+		Notifier:     notificationSystem.DomainNotifier,
 	})
 	todosService := todos.NewService(todosRepo, redisClient, log.Logger)
 

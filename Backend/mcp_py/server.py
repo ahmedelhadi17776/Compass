@@ -23,6 +23,7 @@ from orchestration.todo_operations import smart_update_todo
 import uuid
 from data_layer.cache.ai_cache_manager import AICacheManager
 from ai_services.llm.llm_service import LLMService
+from datetime import datetime, timezone
 
 # Hardcoded JWT token for development - only used as fallback
 DEV_JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNDA4YjM4YmMtNWRlZS00YjA0LTlhMDYtZWE4MTk0OWJmNWMzIiwiZW1haWwiOiJhaG1lZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sIm9yZ19pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsInBlcm1pc3Npb25zIjpbInRhc2tzOnJlYWQiLCJvcmdhbml6YXRpb25zOnJlYWQiLCJwcm9qZWN0czpyZWFkIiwidGFza3M6dXBkYXRlIiwidGFza3M6Y3JlYXRlIl0sImV4cCI6MTc0NjUwNDg1NiwibmJmIjoxNzQ2NDE4NDU2LCJpYXQiOjE3NDY0MTg0NTZ9.nUky6q0vPRnVYP9gTPIPaibNezB-7Sn-EgDZvlxU0_8"
@@ -54,6 +55,8 @@ mcp = FastMCP(
 )
 
 # Add a diagnostic endpoint to check registered tools
+
+
 @app.get("/mcp-diagnostic")
 async def mcp_diagnostic():
     """Diagnostic endpoint to verify MCP server configuration and tool registration."""
@@ -95,14 +98,14 @@ async def mcp_diagnostic():
 
 # Define multiple backend URLs to try for Docker/non-Docker environments
 GO_BACKEND_URLS = [
+    settings.GO_BACKEND_URL,  # Use settings for primary URL
+    "http://api:8000",         # Docker service name
     "http://localhost:8000",
-    "http://api:8000",
-    "http://backend_go-api-1:8000"
-
+    "http://localhost:8081/api"     # Fallback for local development
 ]
 
-# Start with the first URL, will try others if this fails
-GO_BACKEND_URL = GO_BACKEND_URLS[0]
+# Start with the primary URL from settings
+GO_BACKEND_URL = settings.GO_BACKEND_URL
 logger.info(f"Primary backend URL: {GO_BACKEND_URL}")
 logger.info(f"Available backend URLs: {GO_BACKEND_URLS}")
 HEADERS = {"Content-Type": "application/json"}
@@ -283,7 +286,7 @@ async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
 
         return await try_backend_urls(
             post_func,
-            "/api/v1/tasks",
+            "/api/tasks",
             json=task_data,
             headers=HEADERS
         )
@@ -293,25 +296,141 @@ async def create_task(task_data: Dict[str, Any], ctx: Context) -> Dict[str, Any]
 
 
 @mcp.tool()
-async def get_tasks(user_id: str, ctx: Context) -> Dict[str, Any]:
-    """Get all tasks for a user.
-
-    Args:
-        user_id: The ID of the user
+async def get_tasks(
+    ctx: Context,
+    user_id: str,
+    authorization: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    project_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    try:
-        async def get_func(client, url, **kwargs):
-            return await client.get(url, **kwargs)
+    Retrieves a list of tasks for a given user, with optional filters.
+    This tool fetches tasks where the user is either the creator or the assignee and
+    filters them by the provided date range.
+    """
+    logger.info(
+        f"get_tasks called for user_id: {user_id} with date range: {start_date} to {end_date}")
 
-        return await try_backend_urls(
-            get_func,
-            "/api/v1/tasks",
-            params={"user_id": user_id},
-            headers=HEADERS
-        )
-    except Exception as e:
-        await ctx.error(f"Failed to get tasks for user {user_id}: {str(e)}")
-        raise
+    auth_token = None
+    if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+        auth_token = authorization
+    else:
+        auth_token = f"Bearer {DEV_JWT_TOKEN}"
+
+    headers = {"Content-Type": "application/json", "Authorization": auth_token}
+
+    all_tasks = {}
+
+    async def fetch_paged_tasks(base_params: Dict[str, Any]):
+        page = 0
+        page_size = 100
+        while True:
+            params = base_params.copy()
+            params["page"] = str(page)
+            params["page_size"] = str(page_size)
+
+            async def get_func(client, url, **kwargs):
+                return await client.get(url, **kwargs)
+
+            result = await try_backend_urls(
+                get_func,
+                "/api/tasks",
+                headers=headers,
+                params=params
+            )
+
+            if result.get("status") == "error":
+                logger.error(
+                    f"Failed to fetch tasks with params {params}: {result.get('error')}")
+                break
+
+            data = result.get("data", {})
+            tasks = data.get("tasks", [])
+
+            for task in tasks:
+                all_tasks[task['id']] = task
+
+            if len(tasks) < page_size:
+                break
+
+            page += 1
+
+    common_params = {}
+    if status:
+        common_params['status'] = status
+    if priority:
+        common_params['priority'] = priority
+    if project_id:
+        common_params['project_id'] = project_id
+
+    # Fetch tasks created by user
+    logger.info(f"Fetching tasks created by user {user_id}")
+    creator_params = {"creator_id": user_id, **common_params}
+    await fetch_paged_tasks(creator_params)
+
+    # Fetch tasks assigned to user
+    logger.info(f"Fetching tasks assigned to user {user_id}")
+    assignee_params = {"assignee_id": user_id, **common_params}
+    await fetch_paged_tasks(assignee_params)
+
+    tasks_list = list(all_tasks.values())
+
+    # Filter by date range if provided
+    if start_date and end_date:
+        try:
+            start_dt_naive = datetime.fromisoformat(
+                start_date.replace('Z', '+00:00'))
+            start_dt = start_dt_naive.replace(
+                tzinfo=timezone.utc) if start_dt_naive.tzinfo is None else start_dt_naive
+
+            end_dt_naive = datetime.fromisoformat(
+                end_date.replace('Z', '+00:00'))
+            end_dt = end_dt_naive.replace(
+                tzinfo=timezone.utc) if end_dt_naive.tzinfo is None else end_dt_naive
+
+            filtered_tasks = []
+            for task in tasks_list:
+                task_start_date_str = task.get("start_date")
+                task_due_date_str = task.get("due_date")
+
+                task_date_to_check = None
+                if task_start_date_str:
+                    try:
+                        task_date_to_check = datetime.fromisoformat(
+                            task_start_date_str.replace('Z', '+00:00'))
+                    except ValueError:
+                        logger.warning(
+                            f"Could not parse task start_date: {task_start_date_str}")
+
+                if not task_date_to_check and task_due_date_str:
+                    try:
+                        task_date_to_check = datetime.fromisoformat(
+                            task_due_date_str.replace('Z', '+00:00'))
+                    except ValueError:
+                        logger.warning(
+                            f"Could not parse task due_date: {task_due_date_str}")
+
+                if task_date_to_check and start_dt <= task_date_to_check <= end_dt:
+                    filtered_tasks.append(task)
+
+            tasks_list = filtered_tasks
+            logger.info(
+                f"Filtered tasks by date range. Found {len(tasks_list)} tasks.")
+
+        except ValueError as e:
+            logger.error(f"Invalid date format for filtering: {e}")
+            await ctx.error(f"Invalid date format provided: {e}")
+            return {"status": "error", "error": f"Invalid date format: {e}"}
+
+    logger.info(f"get_tasks finished. Returning {len(tasks_list)} tasks.")
+    return {
+        "status": "success",
+        "tasks": tasks_list,
+        "total": len(tasks_list)
+    }
 
 
 @mcp.tool()
@@ -339,6 +458,26 @@ async def create_project(project_data: Dict[str, Any], ctx: Context) -> Dict[str
         await ctx.error(f"Failed to create project: {str(e)}")
         raise
 
+
+@mcp.tool()
+async def get_projects(
+    ctx: Context,
+    user_id: str,
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    (Placeholder) Retrieves a list of projects for a given user.
+    Currently returns an empty list.
+    """
+    logger.warning(
+        "MCP tool 'get_projects' is a placeholder and will return an empty list.")
+    return {
+        "status": "success",
+        "projects": [],
+        "total": 0
+    }
+
+
 @mcp.tool("entity.create")
 async def create_entity(
     ctx: Context,
@@ -363,43 +502,38 @@ async def create_entity(
         logger.error(f"Error creating entity: {str(e)}")
         raise
 
+
 @mcp.tool("user.getInfo")
 async def get_user_info(
     ctx: Context,
-    user_id: str
+    user_id: str,
+    authorization: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Get user information from the Go backend."""
+    """
+    Retrieves user information from the Go backend.
+    """
+    logger.info(f"Received request for user.getInfo for user_id: {user_id}")
     try:
-        logger.info(f"Getting info for user {user_id}")
+        request_id = str(uuid.uuid4())
+        headers = {
+            "X-Internal-Service": "mcp-server",
+            "X-Request-ID": request_id,
+            "User-Agent": "MCP-Server/1.0"
+        }
+        if authorization:
+            headers["Authorization"] = authorization
 
-        async with httpx.AsyncClient() as client:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {DEV_JWT_TOKEN}"
-            }
+        async def get_func(client, url, **kwargs):
+            return await client.get(url, headers=headers, timeout=10.0, **kwargs)
 
-            response = await client.get(
-                f"{GO_BACKEND_URL}/api/users/{user_id}",
-                headers=headers
-            )
-            response.raise_for_status()
+        user_info_url = "/api/users/profile"
+        response_data = await try_backend_urls(get_func, user_info_url)
 
-            # Return response data or fallback
-            try:
-                return response.json()
-            except:
-                # Fallback if response isn't valid JSON
-                return {
-                    "user_id": user_id,
-                    "name": "User",
-                    "email": "user@example.com"
-                }
+        return response_data
 
     except Exception as e:
-        logger.error(f"Error getting user info: {str(e)}")
-        await ctx.error(f"Failed to get user info: {str(e)}")
-
-        # Return fallback data on error
+        logger.error(
+            f"Error in get_user_info for user {user_id}: {e}", exc_info=True)
         return {
             "user_id": user_id,
             "name": "Unknown User",
@@ -635,6 +769,7 @@ async def create_habit(
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
+
 @mcp.tool("calendar.getEvents")
 async def get_calendar_events(
     ctx: Context,
@@ -660,14 +795,16 @@ async def get_calendar_events(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Format dates as RFC3339/ISO format with timezone
         # If only a date is provided (YYYY-MM-DD), convert to start/end of day with UTC timezone
         start_time = start_date
         if len(start_date) <= 10:  # It's just a date without time
-            start_time = f"{start_date}T00:00:00Z"  # Beginning of the day in UTC
-        
+            # Beginning of the day in UTC
+            start_time = f"{start_date}T00:00:00Z"
+
         end_time = end_date
         if end_date:
             if len(end_date) <= 10:  # It's just a date without time
@@ -676,7 +813,7 @@ async def get_calendar_events(
             # If no end_date is provided, default to end of the start_date
             end_date_val = start_date
             end_time = f"{end_date_val}T23:59:59Z"  # End of the start day
-        
+
         # Build query parameters with correct names: start_time/end_time
         params = {"start_time": start_time}
         if end_time:
@@ -699,6 +836,7 @@ async def get_calendar_events(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("calendar.createEvent")
 async def create_calendar_event(
@@ -741,18 +879,23 @@ async def create_calendar_event(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Ensure start_time and end_time have RFC3339 format
-        if not any(s in start_time for s in ["Z", "+", "-"]) or "-" not in      start_time[10:]:start_time = f"{start_time}+03:00"
+        if not any(s in start_time for s in ["Z", "+", "-"]) or "-" not in start_time[10:]:
+            start_time = f"{start_time}+03:00"
 
-        if not any(s in end_time for s in ["Z", "+", "-"]) or "-" not in end_time[10:]:end_time = f"{end_time}+03:00"
+        if not any(s in end_time for s in ["Z", "+", "-"]) or "-" not in end_time[10:]:
+            end_time = f"{end_time}+03:00"
 
         # Extract date from start_time for conflict checking
-        event_date = start_time.split("T")[0] if "T" in start_time else start_time
+        event_date = start_time.split(
+            "T")[0] if "T" in start_time else start_time
 
         # Normalize event_type to a valid value (must match the Go backend's EventType enum)
-        valid_event_types = ["None", "Task", "Meeting", "Todo", "Holiday", "Reminder"]
+        valid_event_types = ["None", "Task",
+                             "Meeting", "Todo", "Holiday", "Reminder"]
         if not event_type or event_type not in valid_event_types:
             event_type = "Meeting"  # Default to Meeting
 
@@ -760,15 +903,16 @@ async def create_calendar_event(
         insights = {}
         if check_conflicts:
             await ctx.info(f"Checking for conflicts on {event_date}")
-            
+
             # Get events for the same day
             async def get_func(client, url, **kwargs):
                 return await client.get(url, **kwargs)
-            
+
             # Format dates as RFC3339/ISO format
-            conflict_start = f"{event_date}T00:00:00Z"  # Beginning of the day in UTC
+            # Beginning of the day in UTC
+            conflict_start = f"{event_date}T00:00:00Z"
             conflict_end = f"{event_date}T23:59:59Z"    # End of the day in UTC
-            
+
             events_result = await try_backend_urls(
                 get_func,
                 "/api/calendar/events",
@@ -778,37 +922,38 @@ async def create_calendar_event(
                 },
                 params={"start_time": conflict_start, "end_time": conflict_end}
             )
-            
+
             # Process events to check for conflicts
             conflicts = []
+            events = []
             if events_result.get("status") != "error" and isinstance(events_result, dict):
                 events = events_result.get("events", [])
                 if not isinstance(events, list):
                     events = []
-                
+
                 for event in events:
                     event_start = event.get("start_time", "")
                     event_end = event.get("end_time", "")
                     event_title = event.get("title", "Untitled Event")
-                    
+
                     # Check if there's an overlap
-                    if ((event_start <= start_time <= event_end) or 
+                    if ((event_start <= start_time <= event_end) or
                         (event_start <= end_time <= event_end) or
-                        (start_time <= event_start and end_time >= event_end)):
+                            (start_time <= event_start and end_time >= event_end)):
                         conflicts.append({
                             "title": event_title,
                             "start_time": event_start,
                             "end_time": event_end
                         })
-            
+
             # Add insights about the schedule
             insights = {
-                "total_events_on_day": len(events) if "events" in events_result and isinstance(events_result["events"], list) else 0,
+                "total_events_on_day": len(events),
                 "conflicts": conflicts,
                 "has_conflicts": len(conflicts) > 0,
                 "conflict_count": len(conflicts)
             }
-            
+
             if insights["has_conflicts"]:
                 await ctx.warning(f"Found {len(conflicts)} scheduling conflicts for the requested time")
             else:
@@ -826,7 +971,7 @@ async def create_calendar_event(
             "color": color,
             "transparency": transparency
         }
-        
+
         await ctx.info(f"Creating calendar event with data: {json.dumps(event_data, default=str)[:200]}...")
 
         async def post_func(client, url, **kwargs):
@@ -842,17 +987,18 @@ async def create_calendar_event(
             },
             json=event_data
         )
-        
+
         # Add insights to the result
         if isinstance(result, dict):
             result["insights"] = insights
-            
+
         return result
     except Exception as e:
         error_msg = f"Error creating calendar event: {str(e)}"
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("todos.smartUpdate")
 async def smart_update_todo_handler(
@@ -872,6 +1018,7 @@ async def smart_update_todo_handler(
         The updated todo item
     """
     return await smart_update_todo(ctx, edit_request, authorization, user_id)
+
 
 @app.get("/api-test/jwt-check")
 async def test_jwt():
@@ -948,6 +1095,7 @@ async def test_jwt():
     except Exception as e:
         return {"error": str(e)}
 
+
 @app.post("/mcp/tools/refresh")
 async def refresh_tools():
     """Endpoint to refresh tools cache."""
@@ -957,6 +1105,7 @@ async def refresh_tools():
     except Exception as e:
         logger.error(f"Error refreshing tools cache: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @mcp.tool("notes.get")
 async def get_notes(
@@ -981,7 +1130,8 @@ async def get_notes(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # GraphQL query matching frontend GET_NOTES query exactly
         graphql_query = """
@@ -1021,14 +1171,14 @@ async def get_notes(
         # Execute GraphQL query
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/notes/graphql",
+                f"{settings.NOTES_SERVER_URL}/graphql",
                 headers={
-                    "Content-Type": "application/json", 
+                    "Content-Type": "application/json",
                     "Authorization": auth_token
                 },
                 json=graphql_payload
             )
-            
+
             result = response.json()
 
         # Check for GraphQL errors
@@ -1049,6 +1199,7 @@ async def get_notes(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("notes.create")
 async def create_note(
@@ -1079,7 +1230,8 @@ async def create_note(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # GraphQL mutation matching frontend CREATE_NOTE mutation exactly
         graphql_mutation = """
@@ -1122,14 +1274,14 @@ async def create_note(
         # Execute GraphQL mutation
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/notes/graphql",
+                f"{settings.NOTES_SERVER_URL}/graphql",
                 headers={
-                    "Content-Type": "application/json", 
+                    "Content-Type": "application/json",
                     "Authorization": auth_token
                 },
                 json=graphql_payload
             )
-            
+
             result = response.json()
 
         # Check for GraphQL errors
@@ -1150,6 +1302,7 @@ async def create_note(
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
+
 
 @mcp.tool("notes.rewriteInStyle")
 async def rewrite_in_style(
@@ -1176,7 +1329,8 @@ async def rewrite_in_style(
             logger.info("Using provided authorization token")
         else:
             auth_token = f"Bearer {DEV_JWT_TOKEN}"
-            logger.info(f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
 
         # Enhanced GraphQL query to fetch user's notes for style analysis
         graphql_query = """
@@ -1194,7 +1348,7 @@ async def rewrite_in_style(
         # Fetch user's notes for style analysis
         user_notes = []
         page = 1
-        
+
         while True:
             graphql_payload = {
                 "query": graphql_query,
@@ -1203,21 +1357,21 @@ async def rewrite_in_style(
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    "http://localhost:5000/notes/graphql",
+                    f"{settings.NOTES_SERVER_URL}/graphql",
                     headers={
                         "Content-Type": "application/json",
                         "Authorization": auth_token
                     },
                     json=graphql_payload
                 )
-                
+
                 result = response.json()
-                
+
                 if "data" in result and "notePages" in result["data"]:
                     notes_data = result["data"]["notePages"]["data"]
                     if not notes_data:
                         break
-                        
+
                     # Filter out empty or very short notes
                     valid_notes = [
                         {
@@ -1226,11 +1380,12 @@ async def rewrite_in_style(
                             "title": note["title"]
                         }
                         for note in notes_data
-                        if note["content"] and len(note["content"]) > 50  # Only use notes with substantial content
+                        # Only use notes with substantial content
+                        if note["content"] and len(note["content"]) > 50
                     ]
                     user_notes.extend(valid_notes)
                     page += 1
-                    
+
                     # Stop after collecting enough notes for analysis
                     if len(user_notes) >= 10:  # We only need 10 notes for style analysis
                         break
@@ -1336,11 +1491,66 @@ Return ONLY the rewritten text, without any additional formatting or metadata.""
         await ctx.error(error_msg)
         return {"status": "error", "error": error_msg, "type": "api_error"}
 
+
+@mcp.tool("todos.addChecklist")
+async def add_todo_checklist(
+    ctx: Context,
+    todo_id: str,
+    checklist_items: List[str],
+    authorization: Optional[str] = None
+) -> Dict[str, Any]:
+    """Add checklist items to an existing todo.
+
+    Args:
+        todo_id: ID of the todo to update
+        checklist_items: List of checklist item descriptions to add
+        authorization: Optional authorization token (Bearer token)
+
+    Returns:
+        The updated todo item with the new checklist
+    """
+    try:
+        # Get auth token from parameter or fall back to default
+        auth_token = None
+        if authorization and authorization.startswith("Bearer ") and authorization != "Bearer undefined" and authorization != "Bearer null":
+            auth_token = authorization
+            logger.info("Using provided authorization token")
+        else:
+            auth_token = f"Bearer {DEV_JWT_TOKEN}"
+            logger.info(
+                f"Using DEV_JWT_TOKEN for authorization: {auth_token[:20]}...")
+
+        # Prepare checklist data in the format expected by the backend
+        checklist_data = {
+            "checklist": {
+                "items": [{"title": item, "completed": False} for item in checklist_items]
+            }
+        }
+
+        async def put_func(client, url, **kwargs):
+            return await client.put(url, **kwargs)
+
+        return await try_backend_urls(
+            put_func,
+            f"/api/todos/{todo_id}",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": auth_token
+            },
+            json=checklist_data
+        )
+    except Exception as e:
+        error_msg = f"Error adding checklist items to todo: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {"status": "error", "error": error_msg, "type": "api_error"}
+
+
 def setup_mcp_server(app: Optional[FastAPI] = None):
     """Setup and return the MCP server instance"""
     # Log basic info
     logger.info(f"Setting up MCP server: {mcp.name}")
-    
+
     # Invalidate cache on startup
     async def invalidate_cache_on_startup():
         try:
@@ -1348,7 +1558,7 @@ def setup_mcp_server(app: Optional[FastAPI] = None):
             logger.info("Invalidated AI cache on startup")
         except Exception as e:
             logger.error(f"Error invalidating cache on startup: {str(e)}")
-    
+
     # Add startup event
     if app:
         app.add_event_handler("startup", invalidate_cache_on_startup)

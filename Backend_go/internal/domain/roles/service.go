@@ -39,6 +39,8 @@ type Service interface {
 	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, error)
 	GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]Permission, error)
+	UserHasRole(ctx context.Context, userID, roleID uuid.UUID) (bool, error)
+	GetUserIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type service struct {
@@ -226,4 +228,14 @@ func (s *service) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, e
 
 func (s *service) GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]Permission, error) {
 	return s.repo.GetUserPermissions(ctx, userID)
+}
+
+// UserHasRole checks if a user has a specific role.
+func (s *service) UserHasRole(ctx context.Context, userID, roleID uuid.UUID) (bool, error) {
+	return s.repo.UserHasRole(ctx, userID, roleID)
+}
+
+// GetUserIDsByRole retrieves all user IDs associated with a specific role.
+func (s *service) GetUserIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.GetUserIDsByRole(ctx, roleID)
 }

@@ -28,8 +28,72 @@ const config = {
     expiryHours: parseInt(process.env.JWT_EXPIRY_HOURS) || 24,
   },
   cors: {
-    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['http://localhost:3000', 'http://localhost:8080'],
-    credentials: true
+    origin: [
+      // Local development origins
+      "http://localhost:5173",      // Vite dev server (default)
+      "http://localhost:5174",      // Vite dev server (Docker simulation)
+      "http://localhost:5175",      // Electron dev server
+      "http://localhost:4173",      // Vite preview (local)
+      "http://localhost:4174",      // Vite preview (Docker)
+      "http://localhost:3000",      // Legacy frontend port
+      "http://localhost:8080",      // Nginx gateway (local)
+      "http://localhost:8081",  
+      "http://127.0.0.1:5173",      // Alternative localhost
+      "http://127.0.0.1:8080",      // Alternative localhost gateway
+      // Docker/Production origins
+      "http://gateway:80",          // Docker nginx gateway
+      "http://gateway:8080",        // Docker nginx gateway alt port
+      "http://gateway:8081", 
+      "https://gateway:443",        // Docker nginx gateway HTTPS
+      // Service-to-service communication
+      "http://api:8000",            // Go backend service
+      "http://backend-python:8001", // Python backend service
+      "http://notes-server:5000",   // Notes server service
+      // HTTPS variants
+      "https://localhost:443",
+      "https://127.0.0.1:443",
+      // WebSocket origins (same as HTTP but may be needed separately)
+      "ws://localhost:5173",
+      "ws://localhost:5174", 
+      "ws://localhost:5175",
+      "ws://localhost:4173",
+      "ws://localhost:4174",
+      "ws://localhost:8080",
+      "ws://127.0.0.1:5173",
+      "ws://127.0.0.1:8080",
+      "wss://localhost:443",
+      "wss://127.0.0.1:443"
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'X-Organization-ID',
+      'x-organization-id',
+      'X-User-Id',
+      'Cache-Control',
+      'Pragma',
+      'Accept-Encoding',
+      'Content-Encoding',
+      // WebSocket specific headers
+      'Connection',
+      'Upgrade',
+      'Sec-WebSocket-Key',
+      'Sec-WebSocket-Version',
+      'Sec-WebSocket-Protocol',
+      'Sec-WebSocket-Extensions'
+    ],
+    exposedHeaders: [
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Content-Length',
+      'Content-Type'
+    ],
+    maxAge: 86400
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
@@ -51,7 +115,7 @@ const configureServer = (app) => {
       ip: req.ip
     });
     
-    const status = err.status || 500;
+    const status = err.status || (err.message.includes('Token') ? 401 : 500);
     const errorResponse = {
       success: false,
       message: err.message || 'Internal Server Error',

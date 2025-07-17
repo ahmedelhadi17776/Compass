@@ -18,12 +18,49 @@ class BaseMongoRepository(Generic[T]):
         """Initialize the repository with a model class."""
         self.model_class = model_class
         self.collection_name = model_class.collection_name
+        try:
+            self._collection = self.get_collection()
+            self._async_collection = self.get_async_collection()
+        except Exception as e:
+            logger.warning(
+                f"MongoDB collection initialization failed for {self.collection_name}: {str(e)}")
+            self._collection = None
+            self._async_collection = None
+        self._model = model_class
         logger.info(
             f"Initialized {self.__class__.__name__} for collection {self.collection_name}")
 
-    def get_collection(self) -> Collection:
+    @property
+    def collection(self) -> Optional[Collection]:
         """Get the MongoDB collection for this repository."""
-        return get_collection(self.collection_name)
+        if self._collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return None
+        return self._collection
+
+    @property
+    def async_collection(self) -> Any:
+        """Get the async MongoDB collection for this repository."""
+        if self._async_collection is None:
+            logger.error(
+                f"Async collection not available for {self.collection_name}")
+            return None
+        return self._async_collection
+
+    @property
+    def model(self) -> Type[T]:
+        """Get the model class for this repository."""
+        return self._model
+
+    def get_collection(self) -> Optional[Collection]:
+        """Get the MongoDB collection for this repository."""
+        collection = get_collection(self.collection_name)
+        if collection is None:
+            logger.error(
+                f"Failed to get MongoDB collection: {self.collection_name}")
+            return None
+        return collection
 
     def get_async_collection(self) -> Any:
         """Get the async MongoDB collection for this repository."""
@@ -41,6 +78,11 @@ class BaseMongoRepository(Generic[T]):
             logger.warning(f"Invalid ObjectId format: {id}")
             return None
 
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return None
+
         result = collection.find_one({"_id": obj_id})
         if result:
             return self.model_class.from_mongodb(result)
@@ -49,6 +91,11 @@ class BaseMongoRepository(Generic[T]):
     def find_one(self, filter: Dict[str, Any]) -> Optional[T]:
         """Find one document by filter."""
         collection = self.get_collection()
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return None
+
         result = collection.find_one(filter)
         if result:
             return self.model_class.from_mongodb(result)
@@ -66,6 +113,11 @@ class BaseMongoRepository(Generic[T]):
         if filter is None:
             filter = {}
 
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return []
+
         cursor = collection.find(filter).skip(skip).limit(limit)
 
         # Apply sorting if provided
@@ -77,6 +129,11 @@ class BaseMongoRepository(Generic[T]):
     def count(self, filter: Optional[Dict[str, Any]] = None) -> int:
         """Count documents matching filter."""
         collection = self.get_collection()
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return 0
+
         return collection.count_documents(filter or {})
 
     def insert(self, model: T) -> str:
@@ -87,6 +144,11 @@ class BaseMongoRepository(Generic[T]):
         # Remove _id if it's None
         if "_id" in data and data["_id"] is None:
             del data["_id"]
+
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return ""
 
         result: InsertOneResult = collection.insert_one(data)
         return str(result.inserted_id)
@@ -99,6 +161,11 @@ class BaseMongoRepository(Generic[T]):
             obj_id = ObjectId(id)
         except:
             logger.warning(f"Invalid ObjectId format: {id}")
+            return None
+
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
             return None
 
         # Set updated_at timestamp
@@ -120,6 +187,11 @@ class BaseMongoRepository(Generic[T]):
         """Update documents by filter, return number of documents modified."""
         collection = self.get_collection()
 
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return 0
+
         # Set updated_at timestamp
         if "updated_at" not in data:
             from datetime import datetime
@@ -136,6 +208,11 @@ class BaseMongoRepository(Generic[T]):
         """Delete document by ID."""
         collection = self.get_collection()
 
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return False
+
         try:
             obj_id = ObjectId(id)
         except:
@@ -148,6 +225,12 @@ class BaseMongoRepository(Generic[T]):
     def delete_many(self, filter: Dict[str, Any]) -> int:
         """Delete documents by filter, return number of documents deleted."""
         collection = self.get_collection()
+
+        if collection is None:
+            logger.error(
+                f"Collection not available for {self.collection_name}")
+            return 0
+
         result: DeleteResult = collection.delete_many(filter)
         return result.deleted_count
 

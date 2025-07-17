@@ -35,29 +35,31 @@ type UpdateWorkflowRequest struct {
 
 // CreateWorkflowStepRequest represents the request to create a new workflow step
 type CreateWorkflowStepRequest struct {
-	Name        string                 `json:"name" binding:"required"`
-	Description string                 `json:"description"`
-	StepType    string                 `json:"step_type" binding:"required"`
-	StepOrder   int                    `json:"step_order" binding:"required"`
-	Config      map[string]interface{} `json:"config"`
-	Conditions  map[string]interface{} `json:"conditions"`
-	Timeout     *int64                 `json:"timeout"`
-	IsRequired  *bool                  `json:"is_required"`
-	AssignedTo  *uuid.UUID             `json:"assigned_to"`
+	Name             string                 `json:"name" binding:"required"`
+	Description      string                 `json:"description"`
+	StepType         string                 `json:"step_type" binding:"required"`
+	StepOrder        int                    `json:"step_order" binding:"required"`
+	Config           map[string]interface{} `json:"config"`
+	Conditions       map[string]interface{} `json:"conditions"`
+	Timeout          *int64                 `json:"timeout"`
+	IsRequired       *bool                  `json:"is_required"`
+	AssignedTo       *uuid.UUID             `json:"assigned_to"`
+	AssignedToRoleID *uuid.UUID             `json:"assigned_to_role_id"`
 }
 
 // UpdateWorkflowStepRequest represents the request to update a workflow step
 type UpdateWorkflowStepRequest struct {
-	Name        *string                `json:"name"`
-	Description *string                `json:"description"`
-	StepType    *string                `json:"step_type"`
-	StepOrder   *int                   `json:"step_order"`
-	Status      *string                `json:"status"`
-	Config      map[string]interface{} `json:"config"`
-	Conditions  map[string]interface{} `json:"conditions"`
-	Timeout     *int64                 `json:"timeout"`
-	IsRequired  *bool                  `json:"is_required"`
-	AssignedTo  *uuid.UUID             `json:"assigned_to"`
+	Name             *string                `json:"name"`
+	Description      *string                `json:"description"`
+	StepType         *string                `json:"step_type"`
+	StepOrder        *int                   `json:"step_order"`
+	Status           *string                `json:"status"`
+	Config           map[string]interface{} `json:"config"`
+	Conditions       map[string]interface{} `json:"conditions"`
+	Timeout          *int64                 `json:"timeout"`
+	IsRequired       *bool                  `json:"is_required"`
+	AssignedTo       *uuid.UUID             `json:"assigned_to"`
+	AssignedToRoleID *uuid.UUID             `json:"assigned_to_role_id"`
 }
 
 // WorkflowResponse represents the response for a workflow
@@ -83,28 +85,35 @@ type WorkflowResponse struct {
 
 // WorkflowListResponse represents the response for a list of workflows
 type WorkflowListResponse struct {
-	Workflows []WorkflowResponse `json:"workflows"`
-	Total     int64              `json:"total"`
-	Page      int                `json:"page"`
-	PageSize  int                `json:"page_size"`
+	Workflows        []WorkflowResponse `json:"workflows"`
+	Total            int64              `json:"total"`
+	Page             int                `json:"page"`
+	PageSize         int                `json:"page_size"`
+	Timeout          *int64             `json:"timeout,omitempty"`
+	IsRequired       bool               `json:"is_required"`
+	AssignedTo       *uuid.UUID         `json:"assigned_to,omitempty"`
+	AssignedToRoleID *uuid.UUID         `json:"assigned_to_role_id,omitempty"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
 // WorkflowStepResponse represents the response for a workflow step
 type WorkflowStepResponse struct {
-	ID          uuid.UUID              `json:"id"`
-	WorkflowID  uuid.UUID              `json:"workflow_id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	StepType    string                 `json:"step_type"`
-	StepOrder   int                    `json:"step_order"`
-	Status      string                 `json:"status"`
-	Config      map[string]interface{} `json:"config"`
-	Conditions  map[string]interface{} `json:"conditions"`
-	Timeout     *int64                 `json:"timeout,omitempty"`
-	IsRequired  bool                   `json:"is_required"`
-	AssignedTo  *uuid.UUID             `json:"assigned_to,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID               uuid.UUID              `json:"id"`
+	WorkflowID       uuid.UUID              `json:"workflow_id"`
+	Name             string                 `json:"name"`
+	Description      string                 `json:"description"`
+	StepType         string                 `json:"step_type"`
+	StepOrder        int                    `json:"step_order"`
+	Status           string                 `json:"status"`
+	Config           map[string]interface{} `json:"config"`
+	Conditions       map[string]interface{} `json:"conditions"`
+	Timeout          *int64                 `json:"timeout,omitempty"`
+	IsRequired       bool                   `json:"is_required"`
+	AssignedTo       *uuid.UUID             `json:"assigned_to,omitempty"`
+	AssignedToRoleID *uuid.UUID             `json:"assigned_to_role_id"`
+	CreatedAt        time.Time              `json:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at"`
 }
 
 // WorkflowStepListResponse represents the response for a list of workflow steps
@@ -181,19 +190,20 @@ func WorkflowStepToResponse(s *workflow.WorkflowStep) *WorkflowStepResponse {
 	}
 
 	return &WorkflowStepResponse{
-		ID:          s.ID,
-		WorkflowID:  s.WorkflowID,
-		Name:        s.Name,
-		Description: s.Description,
-		StepType:    string(s.StepType),
-		StepOrder:   s.StepOrder,
-		Status:      string(s.Status),
-		Config:      config,
-		Conditions:  conditions,
-		Timeout:     timeout,
-		IsRequired:  s.IsRequired,
-		AssignedTo:  s.AssignedTo,
-		CreatedAt:   s.CreatedAt,
-		UpdatedAt:   s.UpdatedAt,
+		ID:               s.ID,
+		WorkflowID:       s.WorkflowID,
+		Name:             s.Name,
+		Description:      s.Description,
+		StepType:         string(s.StepType),
+		StepOrder:        s.StepOrder,
+		Status:           string(s.Status),
+		Config:           config,
+		Conditions:       conditions,
+		Timeout:          timeout,
+		IsRequired:       s.IsRequired,
+		AssignedTo:       s.AssignedTo,
+		AssignedToRoleID: s.AssignedToRoleID,
+		CreatedAt:        s.CreatedAt,
+		UpdatedAt:        s.UpdatedAt,
 	}
 }

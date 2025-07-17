@@ -1,10 +1,24 @@
 import axios from 'axios';
-import { GO_API_URL } from '@/config';
+import { getApiUrls } from '@/config';
+
+// Get API URLs using the configuration system
+const { GO_API_URL } = getApiUrls();
 
 // Types
 export interface LoginCredentials {
   email: string;
   password: string;
+}
+
+export interface RegisterCredentials {
+  email: string;
+  username: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  phone_number?: string;
+  timezone?: string;
+  locale?: string;
 }
 
 export interface AuthResponse {
@@ -84,6 +98,16 @@ export interface ValidateMFARequest {
 
 // API client
 const authApi = {
+  register: async (credentials: RegisterCredentials): Promise<User> => {
+    const response = await axios.post(`${GO_API_URL}/users/register`, credentials, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return response.data.user;
+  },
+
   login: async (credentials: LoginCredentials): Promise<AuthResponse | MFALoginResponse> => {
     const response = await axios.post(`${GO_API_URL}/users/login`, {
       email: credentials.email,

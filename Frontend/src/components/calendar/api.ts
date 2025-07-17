@@ -5,8 +5,9 @@ import {
   UpdateCalendarEventRequest, 
   CalendarEventResponse 
 } from './types';
-import { GO_API_URL } from '@/config';
+import { getApiUrls } from '@/config';
 
+const { GO_API_URL } = getApiUrls();
 export const API_BASE_URL = `${GO_API_URL}/calendar`;
 
 export const fetchEvents = async (startTime: Date, endTime: Date): Promise<CalendarEvent[]> => {

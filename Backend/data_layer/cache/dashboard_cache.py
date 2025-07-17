@@ -5,8 +5,8 @@ import time
 from datetime import datetime, timedelta
 from uuid import UUID
 from typing import Optional, Dict, Any, List, Tuple
-from app.schemas.dashboard_metrics import DashboardMetrics
-from data_layer.repos.focus_repo import FocusSessionRepository
+from app.schemas.dashboard_metrics import DashboardMetrics, DailyFocusItem
+from data_layer.repos.focus_repo import FocusSessionRepository, FocusSettingsRepository
 from data_layer.repos.goal_repo import GoalRepository, Goal
 from data_layer.repos.system_metric_repo import SystemMetricRepository
 from data_layer.repos.ai_model_repo import ModelUsageRepository, ModelUsage
@@ -135,11 +135,11 @@ class DashboardEvent:
 
 class DashboardCache:
     def __init__(self):
-        self.go_backend_url = f"http://localhost:8000"
+        self.go_backend_url = settings.GO_BACKEND_URL
         self.redis_client = redis_client
         self.pubsub_manager = PubSubManager()
         self.is_subscribed = False
-        self.notes_server_url = f"http://localhost:5000"
+        self.notes_server_url = settings.NOTES_SERVER_URL
         self.session = None
         self.subscriber_task = None
         # Store reference to WebSocket manager if available
@@ -166,10 +166,10 @@ class DashboardCache:
         # Real-time update configuration
         self.config = {
             "enable_realtime_updates": os.getenv("ENABLE_REALTIME_UPDATES", "true").lower() == "true",
-            # Reduce throttle for faster responses (0.1s = 100ms)
-            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "0.1")),
-            # Disable batching for immediate response
-            "batch_updates": os.getenv("BATCH_UPDATES", "false").lower() == "true",
+            # Increase throttle to reduce message frequency (0.3s = 300ms)
+            "update_throttle_seconds": float(os.getenv("UPDATE_THROTTLE_SECONDS", "0.3")),
+            # Enable batching to reduce message frequency
+            "batch_updates": os.getenv("BATCH_UPDATES", "true").lower() == "true",
             "quiet_mode": os.getenv("DASHBOARD_QUIET_MODE", "false").lower() == "true"
         }
 
@@ -179,8 +179,8 @@ class DashboardCache:
 
         # Message deduplication - track recent events to prevent duplicates
         self._recent_events = {}  # {user_id: {event_key: timestamp}}
-        # Reduced deduplication window for faster responses (0.5s instead of 2s)
-        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "0.5"))
+        # Increased deduplication window to avoid duplicate messages (1.0s instead of 0.5s)
+        self._dedup_window = float(os.getenv("DASHBOARD_DEDUP_WINDOW", "1.0"))
 
         # Log configuration on startup
         if not self.config["quiet_mode"]:
@@ -242,14 +242,104 @@ class DashboardCache:
         """Fetch focus metrics asynchronously"""
         try:
             focus_repo = FocusSessionRepository()
+            settings_repo = FocusSettingsRepository()
             # Run sync operation in thread pool to make it async
             import asyncio
             loop = asyncio.get_event_loop()
             stats = await loop.run_in_executor(None, focus_repo.get_stats, user_id, 30)
-            return stats
+
+            # Get user's focus settings
+            user_settings = await loop.run_in_executor(None, settings_repo.get_user_settings, user_id)
+
+            # Format the focus stats for consistent dashboard metrics structure
+            focus_metrics = {
+                "total_focus_seconds": stats.get("total_focus_seconds", 0),
+                "streak": stats.get("streak", 0),
+                "longest_streak": stats.get("longest_streak", 0),
+                "sessions": stats.get("sessions", 0),
+                "daily_target_seconds": user_settings.daily_target_seconds,
+                # Add a daily breakdown for visualization
+                "daily_breakdown": self._generate_daily_focus_breakdown(user_id)
+            }
+
+            return focus_metrics
         except Exception as e:
             logger.error(f"Error fetching focus metrics: {str(e)}")
-            return {}
+            return {
+                "total_focus_seconds": 0,
+                "streak": 0,
+                "longest_streak": 0,
+                "sessions": 0,
+                "daily_target_seconds": 14400,  # Default 4 hours
+                "daily_breakdown": []
+            }
+
+    def _generate_daily_focus_breakdown(self, user_id: str):
+        """Generate daily focus breakdown for the last 7 days"""
+        try:
+            from datetime import datetime, timedelta
+            from data_layer.repos.focus_repo import FocusSessionRepository
+
+            repo = FocusSessionRepository()
+
+            # Get the current date and calculate the start date (7 days ago)
+            today = datetime.now()
+            start_date = today - timedelta(days=6)
+
+            # Initialize days with proper format for the last 7 days
+            days = []
+            for i in range(7):
+                day_date = start_date + timedelta(days=i)
+                # Short day name (Mon, Tue, etc.)
+                day_name = day_date.strftime("%a")
+                days.append({
+                    "day": day_name,
+                    "minutes": 0  # Default to 0, will be updated below
+                })
+
+            # Get focus sessions for the last 7 days
+            since = start_date.replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            sessions = repo.find_many({
+                "user_id": user_id,
+                "start_time": {"$gte": since},
+                "status": "completed"
+            })
+
+            # Calculate total focus minutes for each day
+            day_totals = {}
+            for session in sessions:
+                if session.start_time and session.duration:
+                    session_date = session.start_time.date()
+                    day_name = session_date.strftime("%a")
+
+                    # Convert seconds to minutes
+                    minutes = session.duration / 60
+
+                    # Add to daily total
+                    if day_name in day_totals:
+                        day_totals[day_name] += minutes
+                    else:
+                        day_totals[day_name] = minutes
+
+            # Update the days list with actual focus minutes
+            for day in days:
+                if day["day"] in day_totals:
+                    day["minutes"] = int(day_totals[day["day"]])
+
+            return days
+        except Exception as e:
+            logger.error(f"Error generating daily focus breakdown: {str(e)}")
+            # Fallback to static data
+            return [
+                {"day": "Mon", "minutes": 40},
+                {"day": "Tue", "minutes": 65},
+                {"day": "Wed", "minutes": 45},
+                {"day": "Thu", "minutes": 80},
+                {"day": "Fri", "minutes": 55},
+                {"day": "Sat", "minutes": 85},
+                {"day": "Sun", "minutes": 60}
+            ]
 
     async def _get_goal_metrics_async(self, user_id: str):
         """Fetch goal metrics asynchronously"""
@@ -393,6 +483,9 @@ class DashboardCache:
             todos = None
             calendar = None
             user_metrics = None
+            daily_timeline = None
+            habit_heatmap = None
+            timestamp = datetime.utcnow()
 
             if not isinstance(go_metrics, Exception) and isinstance(go_metrics, dict):
                 data = go_metrics.get("data", {})
@@ -402,8 +495,11 @@ class DashboardCache:
                     todos = data.get("todos")
                     calendar = data.get("calendar")
                     user_metrics = data.get("user")
+                    daily_timeline = data.get("daily_timeline")
+                    habit_heatmap = data.get("habit_heatmap")
+                    timestamp = data.get("timestamp", timestamp)
                     logger.info(
-                        f"Successfully extracted Go backend metrics for user {user_id}: habits={habits is not None}, tasks={tasks is not None}, todos={todos is not None}, calendar={calendar is not None}, user={user_metrics is not None}")
+                        f"Successfully extracted Go backend metrics for user {user_id}: habits={habits is not None}, tasks={tasks is not None}, todos={todos is not None}, calendar={calendar is not None}, user={user_metrics is not None}, timeline={daily_timeline is not None}, heatmap={habit_heatmap is not None}")
                     logger.debug(
                         f"Go backend response data: {json.dumps(data, indent=2)}")
                 else:
@@ -461,7 +557,10 @@ class DashboardCache:
                 "user": user_metrics,
                 "notes": notes,
                 "journals": journals,
-                "cost": cost
+                "cost": cost,
+                "daily_timeline": daily_timeline,
+                "habit_heatmap": habit_heatmap,
+                "timestamp": timestamp
             }
 
             # Validate metrics before returning
@@ -668,12 +767,16 @@ class DashboardCache:
         last_update = self._last_update_times.get(user_id, 0)
         time_since_last = current_time - last_update
 
-        # Use very short throttle time for immediate actions
-        throttle_time = 0.05 if event.event_type == "cache_invalidate" else self.config[
-            "update_throttle_seconds"]
+        # Use different throttle times based on event type
+        if event.event_type == "cache_invalidate":
+            # Use shorter throttle for user actions (200ms)
+            throttle_time = 0.2
+        else:
+            # Use longer throttle for background updates (300ms default)
+            throttle_time = self.config["update_throttle_seconds"]
 
         if time_since_last < throttle_time:
-            # For rapid user actions, only store the latest update
+            # Store the most recent update to batch process later
             self._pending_updates[user_id] = event
             if not self.config["quiet_mode"]:
                 logger.debug(
@@ -703,12 +806,13 @@ class DashboardCache:
                      event.details.get('habit_id') or
                      event.details.get('calendar_event_id', ''))
 
-        # For rapid user actions, use entity-specific deduplication
+        # More specific event key with event_type, action and entity_id
         if entity_id:
             event_key = f"{event.event_type}:{action}:{entity_id}"
         else:
-            # For action-only events, use shorter time windows (100ms for rapid actions)
-            rounded_time = round(current_time * 10) / 10  # 100ms windows
+            # For system updates (no entity), use coarser time buckets to avoid duplicates
+            # Round to 1-second buckets for non-entity events
+            rounded_time = int(current_time)
             event_key = f"{event.event_type}:{action}:{rounded_time}"
 
         # Clean up old events (older than dedup window)
@@ -723,7 +827,7 @@ class DashboardCache:
             last_time = self._recent_events[user_id][event_key]
             if current_time - last_time < self._dedup_window:
                 if not self.config["quiet_mode"]:
-                    logger.info(
+                    logger.debug(
                         f"Blocked duplicate event for user {user_id}: {event_key} (within {current_time - last_time:.3f}s)")
                 return True
 
@@ -733,8 +837,8 @@ class DashboardCache:
         self._recent_events[user_id][event_key] = current_time
 
         if not self.config["quiet_mode"]:
-            logger.info(
-                f"Allowed event for user {user_id}: {event_key} | Details: {event.details}")
+            logger.debug(
+                f"Allowed event for user {user_id}: {event_key}")
         return False
 
     async def _notify_subscribers(self, event: DashboardEvent):
@@ -776,10 +880,13 @@ class DashboardCache:
                         },
                         "requires_refresh": True
                     }
-                    await self.ws_manager.broadcast_to_user(event.user_id, message)
-                    if not self.config["quiet_mode"]:
-                        logger.info(
-                            f"Sent consolidated dashboard update to user {event.user_id}")
+
+                    # Ensure we have WebSocket connections before trying to broadcast
+                    if hasattr(self.ws_manager, 'active_connections') and event.user_id in self.ws_manager.active_connections:
+                        await self.ws_manager.broadcast_to_user(event.user_id, message)
+                        if not self.config["quiet_mode"]:
+                            logger.info(
+                                f"Sent consolidated dashboard update to user {event.user_id}")
                     return
                 except Exception as e:
                     logger.error(
@@ -791,10 +898,13 @@ class DashboardCache:
                 "timestamp": datetime.utcnow().isoformat(),
                 "data": event.details
             }
-            await self.ws_manager.broadcast_to_user(event.user_id, message)
-            if not self.config["quiet_mode"]:
-                logger.debug(
-                    f"Broadcasted event to WebSocket clients for user {event.user_id}")
+
+            # Ensure we have WebSocket connections before trying to broadcast
+            if hasattr(self.ws_manager, 'active_connections') and event.user_id in self.ws_manager.active_connections:
+                await self.ws_manager.broadcast_to_user(event.user_id, message)
+                if not self.config["quiet_mode"]:
+                    logger.debug(
+                        f"Broadcasted event to WebSocket clients for user {event.user_id}")
 
     def _extract_entity_type(self, details: dict) -> str:
         """Extract entity type from event details"""
@@ -824,10 +934,28 @@ class DashboardCache:
                 "dashboard:events", self._handle_go_event)
         )
 
+        # for currently connected users to avoid excessive subscriptions
+        logger.info(
+            "Starting individual user dashboard update channels subscriber")
+        # Create task but don't await it - it will run in the background
+        asyncio.create_task(
+            self._subscribe_to_user_updates()
+        )
+
+    async def _subscribe_to_user_updates(self):
+        """Helper method to subscribe to user-specific update channels"""
+        try:
+            await redis_pubsub_client.subscribe(
+                "dashboard_updates:*", self._handle_go_event
+            )
+        except Exception as e:
+            logger.error(f"Error subscribing to user update channels: {e}")
+
     async def _handle_go_event(self, event):
         """Handle dashboard events from Go backend"""
         try:
-            logger.debug(f"Received Go backend event: {event}")
+            if not self.config["quiet_mode"]:
+                logger.debug(f"Received Go backend event: {event}")
 
             # Extract user ID from the event
             # Go backend sends a DashboardEvent with user_id as UUID
@@ -851,11 +979,6 @@ class DashboardCache:
                 logger.info(
                     f"Invalidated dashboard cache for user {user_id} due to Go backend event: {event_type}")
 
-                # If this is a metrics update event, we could potentially fetch new metrics immediately
-                if event_type == events.DashboardEventMetricsUpdate:
-                    logger.info(
-                        f"Metrics update event received for user {user_id}")
-
                 # Create a Python-style dashboard event and notify subscribers
                 dashboard_event = DashboardEvent(
                     event_type=event_type,
@@ -863,6 +986,24 @@ class DashboardCache:
                     entity_id=event.get("entity_id", ""),
                     details=event.get("details", {})
                 )
+
+                # Add deduplication by event type
+                # Skip sending metrics_update events too frequently
+                if event_type == "metrics_update":
+                    # Check if we've sent a similar event recently
+                    current_time = time.time()
+                    last_update = self._last_update_times.get(
+                        f"metrics:{user_id}", 0)
+
+                    # Only allow metrics updates every 2 seconds to avoid spam
+                    if current_time - last_update < 2.0:
+                        logger.debug(
+                            f"Skipping frequent metrics_update for user {user_id}")
+                        return
+
+                    # Update timestamp for this metrics update
+                    self._last_update_times[f"metrics:{user_id}"] = current_time
+
                 await self._notify_subscribers(dashboard_event)
             else:
                 logger.warning(f"Received malformed Go backend event: {event}")

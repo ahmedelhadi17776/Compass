@@ -5,21 +5,18 @@ import { DayPicker } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
-  darkMode?: boolean;
-};
+export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  darkMode = false,
   ...props
 }: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3", className, darkMode ? "bg-[#2c2c2e] text-white" : "bg-white text-gray-900")}
+      className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
@@ -28,8 +25,8 @@ function Calendar({
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-          darkMode ? "text-white" : "text-gray-900"
+          "h-7 w-7 bg-transparent p-0 hover:bg-accent",
+          "text-foreground"
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
@@ -39,8 +36,8 @@ function Calendar({
           "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
         row: "flex w-full mt-2",
         cell: cn(
-          "h-9 w-9 text-center text-sm p-0 relative",
-          darkMode ? "text-white" : "text-gray-900",
+          "h-9 w-9 text-center text-sm p-0 relative rounded-md",
+          "text-foreground",
           "[&:has([aria-selected].day-range-end)]:rounded-r-md",
           "[&:has([aria-selected].day-outside)]:bg-accent/50",
           "[&:has([aria-selected])]:bg-accent",
@@ -50,21 +47,18 @@ function Calendar({
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
-          darkMode ? "text-white" : "text-gray-900"
+          "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground",
+          "text-foreground"
         ),
         day_range_end: "day-range-end",
         day_selected: cn(
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-          darkMode ? "bg-blue-500 text-white" : "bg-blue-500 text-white"
+          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
         ),
         day_today: cn(
-          "bg-accent text-accent-foreground",
-          darkMode ? "bg-[#3c3c3e] text-white" : "bg-gray-100 text-gray-900"
+          "bg-accent text-accent-foreground"
         ),
         day_outside: cn(
-          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
-          darkMode ? "text-gray-500" : "text-gray-400"
+          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground opacity-50"
         ),
         day_disabled: "text-muted-foreground opacity-50",
         day_range_middle:
@@ -73,11 +67,11 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className, darkMode ? "text-white" : "text-gray-900")} {...props} />
+        IconLeft: ({ ...props }) => (
+          <ChevronLeft className="h-4 w-4 text-foreground" {...props} />
         ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className, darkMode ? "text-white" : "text-gray-900")} {...props} />
+        IconRight: ({ ...props }) => (
+          <ChevronRight className="h-4 w-4 text-foreground" {...props} />
         ),
       }}
       {...props}
